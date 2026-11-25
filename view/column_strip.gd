@@ -61,6 +61,7 @@ func _draw() -> void:
 		var medium := sim.column_at(sim.distance() - along - cell_m * 0.5)
 		draw_rect(rect, ColumnLook.matrix_colour(medium))
 		_draw_grains(k, rect, medium)
+	_draw_features(bottom_at, visible_m)
 	if show_readout:
 		_draw_ruler(bottom_at, height)
 		var font := get_theme_default_font()
@@ -85,6 +86,21 @@ func _draw_grains(k: int, rect: Rect2, medium: Medium) -> void:
 		else:
 			colour = ColumnLook.mineral_colour(ColumnLook.grain_mineral(medium.composition, roll))
 		draw_rect(Rect2(at, grain_px), colour)
+
+
+## Features of interest pinned to their place along the path, so they slide
+## past with the Column, with the Bore Station's marks round them. Features
+## still in the Column outside the vessel are drawn too: the Column keeps them.
+func _draw_features(bottom_at: float, visible_m: float) -> void:
+	var observed := sim.observed_feature()
+	for feature in sim.found_features():
+		var reach := feature.size_m * 2.0
+		if feature.at < bottom_at - visible_m - reach or feature.at > bottom_at + reach:
+			continue
+		var centre_y := size.y - (bottom_at - feature.at) * pixels_per_metre
+		var box := FeatureLook.bounds(feature, size.x, centre_y, pixels_per_metre)
+		FeatureLook.draw(self, feature, box, pixels_per_metre)
+		FeatureLook.draw_marks(self, feature, box, feature.id == observed)
 
 
 ## Ticks every metre along the path, moving with the Column.

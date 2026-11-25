@@ -30,10 +30,11 @@ anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
 offset_left = 16.0
-offset_top = -88.0
+offset_top = -112.0
 offset_right = 720.0
 offset_bottom = -16.0
 grow_vertical = 0
 text = "Click to look around, Esc to let go of the mouse. WASD walk.
 Pitch: 1 dive, 2 level, 3 climb, Z / X  -/+ 15 deg.
+At the Bore Station: F observe the next feature in the Column (slow down to record it).
 At the Thermal Station: C / V send heat outward / into the Column."
