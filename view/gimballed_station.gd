@@ -52,6 +52,27 @@ func show_reading(text: String) -> void:
 		_screen_text.text = "%s\n%s" % [station_name, text]
 
 
+## Show a live picture (e.g. a SubViewport's texture) filling the Station's
+## screen. The name and reading move above the screen.
+func show_display(texture: Texture2D) -> void:
+	if _screen_text == null:
+		return
+	var display := MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.76, 0.36)
+	display.mesh = quad
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_texture = texture
+	display.material_override = material
+	# Faces the Head, like the text.
+	display.position = Vector3(0, 0.2, -0.012)
+	display.rotation = Vector3(0, PI, 0)
+	_cradle.add_child(display)
+	_screen_text.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	_screen_text.position.y = 0.42
+
+
 ## Swing toward the given "up" (Habitat frame, unit length).
 func follow_up(up: Vector3, dt: float) -> void:
 	_cradle.basis = Gimbal.toward_up(_cradle.basis, up, 1.0 - exp(-dt * SWING_RATE))

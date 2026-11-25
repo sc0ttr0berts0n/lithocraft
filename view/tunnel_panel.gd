@@ -100,7 +100,7 @@ func _upload_line() -> String:
 ## the Tail whose porosity is below the seal line.
 func _trend_line() -> String:
 	if sim.tunnel_sealed():
-		return "Sealed in: data goes up only as fast as rock carries sound"
+		return "Sealed in: the link is sound through rock"
 	var length := sim.vessel_length()
 	var behind := length
 	while behind > 0.0:
