@@ -425,19 +425,18 @@ func set_time_rate(rate: float) -> void:
 func recover() -> void:
 	if not stranded():
 		return
-	var lost_value := unsold_value()
-	var lost_stretches := _waiting.filter(
-			func(s: SurveyStretch) -> bool: return not s.is_feature_record()).size()
+	var lost := _lose_unsold()
 	_start_fresh()
-	_events.append({type = &"recovered", paid = _paid, lost = lost_value,
-			lost_stretches = lost_stretches})
+	_events.append({type = &"recovered", paid = _paid, lost = lost[0],
+			lost_stretches = lost[1]})
 
 
-## Start another dive after surfacing: the Lithocraft is at the surface ready
-## to dive, every Station setting back at its start, as after a recovery.
-## What was paid is kept. Ignored unless surfaced(). Raises &"new_dive".
+## Start another dive after surfacing, or after death in a rebought
+## Lithocraft: it is at the surface ready to dive with a whole hull, every
+## Station setting back at its start, as after a recovery. What was paid is
+## kept. Ignored unless surfaced() or dead(). Raises &"new_dive".
 func new_dive() -> void:
-	if not _surfaced:
+	if not (_surfaced or dead()):
 		return
 	_start_fresh()
 	_events.append({type = &"new_dive", paid = _paid})
@@ -491,7 +490,7 @@ func advance(dt: float) -> void:
 
 
 func _step(dt: float) -> void:
-	if _surfaced:
+	if _surfaced or dead():
 		return  # The dive is over; nothing moves until new_dive().
 	if stranded():
 		_step_stranded(dt)
@@ -517,7 +516,7 @@ func _step(dt: float) -> void:
 	# Heat reaches the Column only as far as Thermal's pumps are powered; the
 	# rest goes out through the hull.
 	_heat.step(power_drawn(), _plasma.heat_spike(), _heat_split, thermal_supplied(),
-			surroundings_temperature(), dt)
+			surroundings_temperature(), depth(), dt)
 	_noise = _head_activity * _HEAD_HUM + _DRIVE_NOISE * power * (1.0 + _slip)
 	var depth_before := depth()
 	# The Head moves along its arc, turning toward the Drive's settings.
@@ -539,8 +538,8 @@ func _step(dt: float) -> void:
 		_send_pulse()
 	_steady_unattended(dt)
 	_check_stranded()
-	if _surfaced:
-		return  # Brought home through the open tunnel.
+	if _surfaced or dead():
+		return  # Brought home through the open tunnel, or the hull failed.
 	_update_calls()
 
 
@@ -930,6 +929,14 @@ func survey_value() -> float:
 ##       repair paid for out of it; `amount` is this dive's pay after the
 ##       repair, `total_paid` paid() across every dive. The dive is over as
 ##       after surfacing (surfaced() is true); new_dive() starts another.
+##   &"hull_failed" {depth, distance, lost, lost_stretches, rebuy,
+##       rebuy_charged, amount, total_paid}: heat wore the hull through and
+##       the crew died at `depth`. The unsold survey is lost (`lost`, of
+##       `lost_stretches` stretches); what reached the surface stays paid
+##       (`amount` this dive, `total_paid` across every dive). `rebuy` is
+##       what replacing the Lithocraft costs; `rebuy_charged` what was taken
+##       for it, nothing while there is no balance to take it from. The dive
+##       is over (dead() is true); new_dive() starts another.
 ##   &"new_dive" {paid}: new_dive() has the Lithocraft ready at the surface.
 func take_events() -> Array[Dictionary]:
 	var taken := _events
@@ -957,6 +964,13 @@ func unsold_value() -> float:
 ## recover() brings the crew back to the surface.
 func stranded() -> bool:
 	return _stranding.stranded()
+
+
+## True once heat has worn the hull through (hull_integrity() 0): the crew is
+## dead, the unsold survey lost, and the dive over; time no longer advances
+## it. new_dive() starts another in a rebought Lithocraft.
+func dead() -> bool:
+	return _stranding.dead()
 
 
 ## True once the Head has come back up to the surface, under its own power or
@@ -1080,6 +1094,19 @@ func surroundings_temperature() -> float:
 ## while the hull is hotter than it can bear.
 func vessel_wear() -> float:
 	return _heat.vessel_wear()
+
+
+## What is left of the hull, 1 (whole) to 0 (failed): heat wear taken away.
+## At 0 the hull fails and the crew dies.
+func hull_integrity() -> float:
+	return 1.0 - _heat.vessel_wear()
+
+
+## How fast the hull is losing integrity now, per second: 0 while it bears its
+## heat; above its rated temperature, faster the further over and the deeper
+## down, where the rock's pressure stresses it harder.
+func hull_creep_rate() -> float:
+	return _heat.creep_rate()
 
 
 ## True while heat threatens the vessel: the hull is close to the temperature
@@ -1403,12 +1430,15 @@ func _try_relight() -> void:
 			spent = 0.0 if outcome == &"refused" else cost, store = emergency_store()})
 
 
-## Carries out what losing the plasma comes to, as the Stranding decides:
-## stranded while sealed in (_strand()), or brought home through the open
-## tunnel (_recover_through_tunnel()).
+## Carries out what losing the plasma or the hull comes to, as the Stranding
+## decides: death when the hull fails (_die()), stranded while sealed in
+## (_strand()), or brought home through the open tunnel
+## (_recover_through_tunnel()).
 func _check_stranded() -> void:
-	var outcome := _stranding.check(plasma_lost(), _tunnel_sealed)
-	if outcome == Stranding.STRANDED:
+	var outcome := _stranding.check(plasma_lost(), _tunnel_sealed, _heat.failed())
+	if outcome == Stranding.DIED:
+		_die()
+	elif outcome == Stranding.STRANDED:
 		_strand()
 	elif outcome == Stranding.BROUGHT_HOME:
 		_recover_through_tunnel()
@@ -1441,6 +1471,38 @@ func _step_stranded(dt: float) -> void:
 			var wanted := _LINK_DRAW * dt
 			_upload(metres * _stranding.draw(wanted) / wanted)
 	_update_calls()
+
+
+## The hull has failed and the crew is dead. The survey data not yet up the
+## link is lost with them; what reached the surface stays paid. The rebuy is
+## shown but not charged: there is no balance yet to take it from. Raises
+## &"hull_failed".
+func _die() -> void:
+	var lost := _lose_unsold()
+	_speed = 0.0
+	_slip = 0.0
+	_calls = {}
+	_time_rate = 1.0
+	_events.append({type = &"hull_failed", depth = depth(), distance = _distance,
+			lost = lost[0], lost_stretches = lost[1], rebuy = _stranding.rebuy(),
+			rebuy_charged = 0.0, amount = _paid - _paid_before_dive, total_paid = _paid})
+
+
+## Discards the survey data still aboard, which never reached the surface.
+## Returns [its value, how many stretches of it (feature records aside)].
+func _lose_unsold() -> Array:
+	var lost_value := unsold_value()
+	var lost_stretches := _waiting.filter(
+			func(s: SurveyStretch) -> bool: return not s.is_feature_record()).size()
+	var lost := {}
+	for stretch in _waiting:
+		lost[stretch] = true
+	_survey_value -= lost_value
+	_survey.assign(_survey.filter(func(s: SurveyStretch) -> bool: return not lost.has(s)))
+	_waiting.clear()
+	_sent.clear()
+	_sending = null
+	return [lost_value, lost_stretches]
 
 
 ## The plasma is lost but the tunnel behind is open all the way up: the

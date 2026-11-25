@@ -190,6 +190,7 @@ func _physics_process(delta: float) -> void:
 			&"boundary_approaching": _boundary_ahead = true
 			&"boundary_crossed": _boundary_ahead = false
 			&"stranded": _on_stranded(event)
+			&"hull_failed": _on_hull_failed(event)
 			&"recovered_through_tunnel": _on_recovered_through_tunnel(event)
 			&"recovered": _on_recovered(event)
 			&"relight_result": _on_relight_result(event)
@@ -306,6 +307,7 @@ func _show_drive() -> void:
 	var slip := _sim.slip()
 	var lines := [
 		"SURFACED  [Enter] dive again" if _sim.surfaced() else
+			"HULL FAILED  [Enter] rebuy" if _sim.dead() else
 			"Depth %.1f m  Speed %.2f m/s" % [_sim.depth(), _sim.speed()],
 		"Heading %03.0f  Course %03.0f" % [_sim.heading_degrees(), _sim.course_heading()],
 		"Pitch %+.0f  Course %+.0f deg" % [_sim.pitch(), _sim.course_pitch()],
@@ -433,6 +435,21 @@ func _on_relight_result(event: Dictionary) -> void:
 		&"refused":
 			_show_notice(["RELIGHT REFUSED  the store cannot pay the pulse",
 					"Store left %d%%" % left, "[Enter] call the recovery"], 0.0)
+
+
+## Heat wore the hull through and the crew died: the dive is over. The
+## breakdown: where, the unsold survey lost, what was paid and kept, and the
+## rebuy (shown, not charged while there is no balance to take it from).
+func _on_hull_failed(event: Dictionary) -> void:
+	_show_notice([
+		"HULL FAILED  at %.0f m" % event.depth,
+		"Heat wore the hull through. The crew is lost.",
+		"Unsold survey lost: %d stretches, worth %.0f" % [event.lost_stretches, event.lost],
+		"Paid for this dive: %.0f   Paid in all: %.0f" % [event.amount, event.total_paid],
+		"Rebuy: %.0f  (charged %.0f: no balance yet)" % [event.rebuy, event.rebuy_charged],
+		"",
+		"[Enter] rebuy and start another dive",
+	], 0.0)
 
 
 ## The plasma is lost but the tunnel behind is open: the crew are brought
@@ -680,8 +697,9 @@ func _split_heat(to_column: float) -> void:
 
 
 ## The Thermal Station's screen: the split, where the heat is going, the hull
-## against the Medium and the temperature it can bear, and wear. It calls with
-## its light while the simulation warns of heat damage.
+## against the Medium and the temperature it can bear, and the hull's
+## integrity and how fast it is creeping. It calls with its light while the
+## simulation warns of heat damage.
 func _show_thermal() -> void:
 	var warning := _sim.heat_warning()
 	var to_column := roundi(_heat_split * 10.0)
@@ -691,10 +709,16 @@ func _show_thermal() -> void:
 		"Heat %.2f > Column %.2f" % [_sim.heat_produced(), _sim.heat_to_column()],
 		"Hull %.0f K, bears %.0f K" % [
 			_sim.vessel_temperature(), _sim.hull_damage_temperature()],
-		"Medium %.0f K  Wear %.1f%%" % [
-			_sim.surroundings_temperature(), _sim.vessel_wear() * 100.0],
+		"Medium %.0f K" % _sim.surroundings_temperature(),
+		"Hull integrity %.1f%%  creep %.2f%%/min" % [
+			_sim.hull_integrity() * 100.0, _sim.hull_creep_rate() * 6000.0],
 	]
-	if warning:
+	if _sim.dead():
+		lines.append("!! HULL FAILED !!")
+	elif _sim.hull_creep_rate() > 0.0:
+		lines.append("!! HULL CREEPING !!  over %.0f K" % (
+			_sim.vessel_temperature() - _sim.hull_damage_temperature()))
+	elif warning:
 		lines.append("!! HEAT WARNING !!")
 	_thermal.show_reading("\n".join(lines))
 

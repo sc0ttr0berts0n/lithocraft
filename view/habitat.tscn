@@ -46,5 +46,5 @@ At the Thermal Station: C / V send heat outward / into the Column.
 At the Reactor: N / M turn the dial onto the plasma's wobble, R to Shift;
 stranded, I relights the Head from the emergency store.
 . time faster (only while no Station calls), , normal.
-Enter: call the recovery, or start another dive.
+Enter: call the recovery, rebuy after hull failure, or start another dive.
 F1 these controls, F3 developer debug overlay."

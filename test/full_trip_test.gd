@@ -9,14 +9,23 @@ const TURN_AT_M := 2000.0
 ## Simulated seconds before a scripted dive is given up on.
 const GIVE_UP_S := 60000.0
 
+## The careful dive (heat outward, easing off on the warning) and the cooked
+## one (full power, heat into the Column), each flown once and shared by the
+## tests that only read them. A test that goes on with its sim flies its own.
+var _careful := {}
+var _cooked := {}
+
 
 ## Flies the first dive the way a solo player at the Reactor and Thermal
 ## Stations would: Drive at `power`, heat split `to_column`, a Shift on the
-## plasma's frequency whenever one is due, time run fast between calls. The
+## plasma's frequency whenever one is due, time run fast between calls. A
+## player who `heeds` the heat warning eases the Drive off while it lasts,
+## sparing the hull at the cost of speed; one who does not runs on. The
 ## Course is straight down until TURN_AT_M, when Navigation plots it straight
 ## up; the unattended Drive follows it round its gentle arc until the
-## Lithocraft surfaces. Stops at the payment. Returns {sim, events, deepest}.
-func _full_trip(to_column := 0.0, power := 1.0) -> Dictionary:
+## Lithocraft surfaces. Stops at the payment, or at death. Returns {sim,
+## events, deepest, speed_at_turn}.
+func _full_trip(to_column := 0.0, power := 1.0, heeds := true) -> Dictionary:
 	var sim := DiveSimulation.new(MediumLayout.first_dive())
 	sim.set_attended(DiveSimulation.STATION_REACTOR, true)
 	sim.set_attended(DiveSimulation.STATION_THERMAL, true)
@@ -24,6 +33,7 @@ func _full_trip(to_column := 0.0, power := 1.0) -> Dictionary:
 	sim.set_heat_split(to_column)
 	var events := []
 	var deepest := 0.0
+	var speed_at_turn := 0.0
 	var seconds := 0.0
 	while seconds < GIVE_UP_S:
 		var before := sim.distance()
@@ -32,17 +42,32 @@ func _full_trip(to_column := 0.0, power := 1.0) -> Dictionary:
 		seconds += 1.0
 		deepest = maxf(deepest, sim.depth())
 		if sim.depth() >= TURN_AT_M and sim.course_pitch() > -90.0:
+			speed_at_turn = sim.speed()
 			sim.set_course(sim.course_heading(), -90.0)
 			assert_bool(sim.attended(DiveSimulation.STATION_DRIVE)).is_false()
 		if sim.shift_due():
 			sim.shift(sim.plasma_frequency())
+		if heeds:
+			sim.set_power(sim.power() * 0.9 if sim.heat_warning() else minf(power, sim.power() + 0.01))
 		var done := false
 		for event in sim.take_events():
 			events.append(event)
-			done = done or event.type == &"paid"
+			done = done or event.type in [&"paid", &"hull_failed"]
 		if done or (sim.distance() == before and sim.speed() == 0.0 and seconds > 10.0):
 			break
-	return {sim = sim, events = events, deepest = deepest}
+	return {sim = sim, events = events, deepest = deepest, speed_at_turn = speed_at_turn}
+
+
+func _careful_trip() -> Dictionary:
+	if _careful.is_empty():
+		_careful = _full_trip()
+	return _careful
+
+
+func _cooked_trip() -> Dictionary:
+	if _cooked.is_empty():
+		_cooked = _full_trip(1.0, 1.0, false)
+	return _cooked
 
 
 ## What a trip down to TURN_AT_M and back should meet, read from the first
@@ -80,7 +105,7 @@ static func _first(events: Array, type: StringName) -> Dictionary:
 
 
 func test_a_full_dive_goes_down_through_both_boundaries_and_back_and_is_paid() -> void:
-	var trip := _full_trip()
+	var trip := _careful_trip()
 	var sim: DiveSimulation = trip.sim
 	var events: Array = trip.events
 
@@ -114,9 +139,44 @@ func test_a_full_dive_goes_down_through_both_boundaries_and_back_and_is_paid() -
 	assert_float(sim.unsold_value()).is_equal(0.0)
 
 
+func test_protecting_the_column_at_full_power_wears_the_hull_through() -> void:
+	var trip := _full_trip(0.0, 1.0, false)
+	var sim: DiveSimulation = trip.sim
+	var types := DiveTestKit.types(trip.events)
+
+	# Story 23: the heat warning called long before.
+	var events: Array = trip.events
+	var warned := events.filter(func(e: Dictionary) -> bool: return e.type == &"station_call" and e.reason == &"heat_warning")
+	assert_array(warned).is_not_empty()
+	assert_int(types.find(&"station_call")).is_less(types.find(&"hull_failed"))
+	# Story 19: heat sent outward wore the hull until it failed, with the
+	# survey still aboard lost and a rebuy shown, short of the turn.
+	var failed := _first(trip.events, &"hull_failed")
+	assert_dict(failed).is_not_empty()
+	assert_bool(sim.dead()).is_true()
+	assert_array(types).not_contains([&"paid"])
+	assert_float(failed.lost).is_greater(0.0)
+	assert_float(failed.rebuy).is_greater(0.0)
+	assert_float(trip.deepest).is_less(TURN_AT_M)
+
+
+func test_cooking_the_column_keeps_the_hull_whole_and_the_dive_fast() -> void:
+	var cooked := _cooked_trip()
+	var careful := _careful_trip()
+	var cooked_sim: DiveSimulation = cooked.sim
+	var careful_sim: DiveSimulation = careful.sim
+
+	# Both come home, but story 21: cooking the Column is the way to keep
+	# moving fast. Sparing both the Column and the hull means easing off.
+	assert_bool(cooked_sim.surfaced()).is_true()
+	assert_bool(careful_sim.surfaced()).is_true()
+	assert_float(cooked_sim.hull_integrity()).is_equal(1.0)
+	assert_float(cooked.speed_at_turn).is_greater(careful.speed_at_turn)
+
+
 func test_a_dive_that_protected_the_column_pays_more_than_one_that_cooked_it() -> void:
-	var protected := _full_trip(0.0)
-	var cooked := _full_trip(1.0)
+	var protected := _careful_trip()
+	var cooked := _cooked_trip()
 
 	var protected_paid := _first(protected.events, &"paid")
 	var cooked_paid := _first(cooked.events, &"paid")
@@ -129,7 +189,7 @@ func test_a_dive_that_protected_the_column_pays_more_than_one_that_cooked_it() -
 
 
 func test_the_payment_breaks_down_what_was_paid_and_why() -> void:
-	var trip := _full_trip()
+	var trip := _careful_trip()
 	var paid := _first(trip.events, &"paid")
 
 	# What came up the link during the dive plus what was carried home is the
