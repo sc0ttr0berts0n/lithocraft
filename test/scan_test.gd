@@ -13,12 +13,14 @@ func _layout(boundary_depth: float, sound_carrying := 0.5) -> MediumLayout:
 	return MediumLayout.layered([[0.0, _clay(sound_carrying)], [boundary_depth, DiveTestKit.basalt(4.0, 1.0, 0.02)]])
 
 
-## Sends a pulse and lets it return.
+## Sends a pulse, lets it return and gives back the points it added.
 func _pulse(sim: DiveSimulation) -> Array[ScanPoint]:
-	var before := sim.points().size()
+	var last := -1
+	for point in sim.points():
+		last = maxi(last, point.pulse)
 	sim.pulse()
 	sim.advance(0.1)
-	return sim.points().slice(before)
+	return sim.points().filter(func(p: ScanPoint) -> bool: return p.pulse > last)
 
 
 ## Engages Quiet Ship and waits until the vessel has stopped.
@@ -155,8 +157,8 @@ func test_the_point_cloud_persists_and_pulses_add_to_it() -> void:
 
 	assert_int(first.size()).is_greater(0)
 	assert_int(sim.points().size()).is_greater(after_one)
-	# Earlier points are still there, unchanged.
-	assert_vector(sim.points()[0].position).is_equal(first[0].position)
+	# Earlier points the second pulse did not return near are still there.
+	assert_int(_from_pulse(sim.points(), first[0].pulse).size()).is_greater(0)
 
 
 func test_the_points_handed_out_are_a_copy() -> void:
@@ -228,3 +230,67 @@ func test_the_point_count_matches_the_cloud() -> void:
 
 	assert_int(sim.point_count()).is_equal(sim.points().size())
 	assert_int(sim.point_count()).is_greater(0)
+
+
+func _from_pulse(points: Array[ScanPoint], pulse: int) -> Array[ScanPoint]:
+	return points.filter(func(p: ScanPoint) -> bool: return p.pulse == pulse)
+
+
+func test_points_carry_their_age() -> void:
+	var sim := DiveSimulation.new(_layout(50.0))
+	_go_quiet(sim)
+	var older := _pulse(sim)
+	var age_then := sim.point_age(older[0])
+
+	DiveTestKit.run(sim, 10.0)
+	var newer := _pulse(sim)
+
+	assert_float(age_then).is_greater_equal(0.0)
+	# Points grow older as the dive goes on...
+	assert_float(sim.point_age(older[0])).is_greater(age_then)
+	# ...and a later pulse's points are younger than an earlier one's.
+	assert_float(sim.point_age(newer[0])).is_less(sim.point_age(older[0]))
+
+
+func test_a_newer_return_near_an_older_one_replaces_it() -> void:
+	var sim := DiveSimulation.new(_layout(50.0))
+	_go_quiet(sim)
+	var first := _pulse(sim)
+	var second := _pulse(sim)
+	var held := sim.points()
+	var near := sim.point_resolution()
+
+	# Some of the first pulse's points were replaced by the second's.
+	assert_int(held.size()).is_less(first.size() + second.size())
+	# No two points held from different pulses lie nearer than the resolution:
+	# the older gave way.
+	for i in held.size():
+		for j in range(i + 1, held.size()):
+			if held[i].pulse != held[j].pulse:
+				assert_bool(held[i].position.distance_to(held[j].position) < near).is_false()
+	# Every first-pulse point that is gone had a second-pulse point return near it.
+	for old in first:
+		if held.has(old):
+			continue
+		var replaced := second.any(func(p: ScanPoint) -> bool: return p.position.distance_to(old.position) < near)
+		assert_bool(replaced).is_true()
+
+
+func test_mashing_pulse_keeps_the_count_at_its_bound() -> void:
+	# Under way toward a Boundary, so the pulses keep finding new places.
+	var sim := DiveSimulation.new(_layout(40.0))
+	sim.set_power(1.0)
+	var bound := sim.point_capacity()
+	var most := 0
+
+	for i in 1000:
+		sim.pulse()
+		sim.advance(0.1)
+		most = maxi(most, sim.point_count())
+
+	# The cloud fills to its bound and never holds more.
+	assert_int(most).is_equal(bound)
+	assert_int(sim.point_count()).is_less_equal(bound)
+	# The oldest points gave way first: the first pulses' points are gone.
+	assert_int(_from_pulse(sim.points(), 0).size()).is_equal(0)
+

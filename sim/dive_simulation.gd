@@ -132,6 +132,13 @@ const _SCAN_NOISE_FLOOR := 0.15
 const _SCAN_SCATTER := 0.08
 ## Step for finding Boundaries along the depth a pulse can reach, metres.
 const _BOUNDARY_SEARCH_STEP_M := 1.0
+## The point cloud holds at most this many points; past it the oldest give way.
+## Tuned for play (ADR 0001); tests read point_capacity().
+const _SCAN_POINT_CAPACITY := 2000
+## A newer return within this many metres of an older point replaces it: the
+## scan cannot tell two echoes this close apart. Tuned for play (ADR 0001);
+## tests read point_resolution().
+const _SCAN_RESOLUTION_M := 1.0
 
 ## Boundaries. A Boundary this many metres of depth ahead is announced, so the
 ## Reactor Station can prepare for the Shift. Tuned for play (ADR 0001).
@@ -288,6 +295,13 @@ var _plasma: Plasma
 ## Navigation's point cloud, oldest first, and whether a pulse is waiting to
 ## be sent on the next step.
 var _points: Array[ScanPoint] = []
+## The same points filed by place, in cubes twice the resolution on a side
+## (_scan_cell()), so a new return finds the points near it without a scan of
+## the whole cloud: Vector3i -> Array[ScanPoint].
+var _point_cells := {}
+## Seconds simulated this dive, stranded time included: what a point's age is
+## counted from.
+var _dive_time := 0.0
 var _pulse_pending := false
 var _pulses_sent := 0
 ## Fixed seed, so a dive's scan is the same every run.
@@ -795,6 +809,7 @@ func advance(dt: float) -> void:
 func _step(dt: float) -> void:
 	if _surfaced or dead():
 		return  # The dive is over; nothing moves until new_dive().
+	_dive_time += dt
 	if stranded():
 		_step_stranded(dt)
 		return
@@ -1145,16 +1160,39 @@ func navigation_supplied() -> float:
 	return _supplied(_navigation_draw, _navigation_request)
 
 
-## Navigation's point cloud: every point every pulse has returned this dive,
-## oldest first. A copy; changing it does not change the cloud.
+## Navigation's point cloud: the points pulses have returned this dive,
+## oldest first. It holds at most point_capacity(), the oldest giving way
+## first, and a return within point_resolution() of a point an earlier pulse
+## returned replaces it. A copy; changing it does not change the cloud.
 func points() -> Array[ScanPoint]:
 	return _points.duplicate()
 
 
-## How many points the cloud holds; cheaper than points() for a view that
-## only needs to know whether a pulse has added any.
+## How many points the cloud holds, at most point_capacity().
 func point_count() -> int:
 	return _points.size()
+
+
+## The most points the cloud holds.
+func point_capacity() -> int:
+	return _SCAN_POINT_CAPACITY
+
+
+## Metres within which a return replaces a point an earlier pulse returned:
+## no two points held from different pulses lie closer than this.
+func point_resolution() -> float:
+	return _SCAN_RESOLUTION_M
+
+
+## Seconds since this point's echo returned. An old point describes rock the
+## vessel has since moved relative to.
+func point_age(point: ScanPoint) -> float:
+	return _dive_time - point.returned_at
+
+
+## Seconds simulated this dive, stranded time included.
+func dive_time() -> float:
+	return _dive_time
 
 
 ## Where the Head is in the world frame the point cloud is given in: metres
@@ -2264,6 +2302,7 @@ func _send_pulse() -> void:
 	var other_side := ahead.cross(side)
 	var boundaries := _boundaries_near(depth())
 	var min_cos := cos(deg_to_rad(_PULSE_CONE_DEG))
+	var replaced := {}
 	for ray in _PULSE_RAYS:
 		var c := _scan_random.randf_range(min_cos, 1.0)
 		var s := sqrt(1.0 - c * c)
@@ -2278,9 +2317,64 @@ func _send_pulse() -> void:
 				continue
 			var stray := Vector3(_scan_random.randfn(), _scan_random.randfn(),
 					_scan_random.randfn()) * (1.0 - confidence) * r * _SCAN_SCATTER
-			_points.append(ScanPoint.new(origin + direction * r + stray, confidence, r,
-					_pulses_sent))
+			_add_point(ScanPoint.new(origin + direction * r + stray, confidence, r,
+					_pulses_sent, _dive_time), replaced)
 	_pulses_sent += 1
+	if not replaced.is_empty():
+		_points = _points.filter(func(p: ScanPoint) -> bool: return not replaced.has(p))
+	var over := _points.size() - _SCAN_POINT_CAPACITY
+	if over > 0:
+		for point in _points.slice(0, over):
+			_file_point(point, false)
+		_points = _points.slice(over)
+
+
+## Adds a point to the cloud, first taking out every point an earlier pulse
+## returned within the resolution of it, which it replaces (echoes of one
+## pulse are as new as each other, so none replaces another). Those are taken
+## out of _point_cells now and marked in `replaced`, for _send_pulse() to sweep
+## out of _points once per pulse. Looks in only the eight cells the point's
+## reach can touch.
+func _add_point(point: ScanPoint, replaced: Dictionary) -> void:
+	var cell_m := 2.0 * _SCAN_RESOLUTION_M
+	var corner := Vector3i(((point.position / cell_m) - Vector3.ONE * 0.5).floor())
+	for dx in 2:
+		for dy in 2:
+			for dz in 2:
+				var key := corner + Vector3i(dx, dy, dz)
+				var cell: Array = _point_cells.get(key, [])
+				for i in range(cell.size() - 1, -1, -1):
+					var near: ScanPoint = cell[i]
+					if near.pulse != point.pulse \
+							and near.position.distance_to(point.position) < _SCAN_RESOLUTION_M:
+						cell.remove_at(i)
+						replaced[near] = true
+				if cell.is_empty():
+					_point_cells.erase(key)
+	_file_point(point, true)
+	_points.append(point)
+
+
+## Files a point in its cell of _point_cells, or takes it out (dropping the
+## cell once it is empty, so the cells held stay bounded by the cloud).
+func _file_point(point: ScanPoint, filed: bool) -> void:
+	var key := _scan_cell(point.position)
+	if filed:
+		if not _point_cells.has(key):
+			_point_cells[key] = []
+		_point_cells[key].append(point)
+		return
+	var cell: Array = _point_cells[key]
+	cell.erase(point)
+	if cell.is_empty():
+		_point_cells.erase(key)
+
+
+## The cell of _point_cells a position falls in: cubes twice the resolution
+## on a side, so every point within the resolution of a position lies in the
+## eight cells round the corner nearest it.
+func _scan_cell(position: Vector3) -> Vector3i:
+	return Vector3i((position / (2.0 * _SCAN_RESOLUTION_M)).floor())
 
 
 ## The echoes one ray returns: [range m, strength] for each Boundary it

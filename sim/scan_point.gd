@@ -16,10 +16,15 @@ var confidence: float
 var range: float
 ## Which pulse found it: 0 for the dive's first pulse, counting up.
 var pulse: int
+## When its echo returned, in seconds of the dive (DiveSimulation.dive_time()).
+## Its age is DiveSimulation.point_age().
+var returned_at: float
 
 
-func _init(p_position: Vector3, p_confidence: float, p_range: float, p_pulse: int) -> void:
+func _init(p_position: Vector3, p_confidence: float, p_range: float, p_pulse: int,
+		p_returned_at: float) -> void:
 	position = p_position
 	confidence = p_confidence
 	range = p_range
 	pulse = p_pulse
+	returned_at = p_returned_at
