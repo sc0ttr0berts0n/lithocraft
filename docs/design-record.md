@@ -128,8 +128,28 @@ The developer's question: what do you seek out as you dive into planets? "You ne
 
 ## Failure
 
-- Stranding is the failure: sealed in, low on power, plasma out.
-- It is recoverable at a price (a rescue, a lost survey, a restart from the last port). It does not delete the save.
+- Stranding is the usual failure: sealed in, plasma out, running on the emergency store. It is recoverable at a price (a rescue, a relight, a restart from the last port). It does not delete the save.
+- Hull failure is death, with a rebuy; see the next section.
+
+## Hull wear, death and rescue
+
+Grilled with the developer on 25 November 2026. Before this, heat sent outward wore the hull but wear did nothing, so protecting the Column cost nothing (stories 19, 21 and 23 were hollow).
+
+- **The developer's model is Elite Dangerous heat.** Zero hull is death; unmanaged heat brings hull damage, and how far over the limit sets how fast the hull declines. Telegraphing is juice, as in Elite near a star or under silent running.
+- **Damage curve (Elite plus creep).** Below the hull's rated temperature, no damage. Above it, integrity falls at a rate set by how far over, multiplied by depth (pressure is the stress that drives creep). Real basis: creep is negligible below a material's temperature limit and accelerates steeply above it and with stress.
+- **Lingering deep heats the hull.** Hot surrounding rock conducts heat in at any power, so careful means efficient, not slow. This answers the developer's worry that impatient players kill themselves: a careful dive is not a slow one. Better ships later make today's unviable depths and pressures reachable.
+- **Wear is permanent within a dive** and repaired at the surface. Surfacing deducts a repair bill proportional to wear, shown in the payment breakdown. Later the Fabricator may print hull patches, their quality set by the waveform match.
+- **Telegraphing.** The hull groans as it creeps, louder and more often with wear and stress, heard around the ring. Sparks and screen shake while damage is actively happening. The Thermal screen shows wear and creep rate. No markers on the view.
+- **Hull failure is death with an Elite-style rebuy.** All unsold data is lost and a rebuy is paid; the save is kept. The first dive has no saved money yet, so death ends the dive with the rebuy shown as a line in the breakdown, charged once a balance exists.
+- **A worn Head.** No wear by running hours ("repair is repair"). A worn Head delivers less power, narrows the Shift window and grades it harsher, and at high wear a poor Shift can lose the plasma. Head repair is a line in the repair bill.
+- **Losing the plasma loses main power.** The developer asked whether the Head, being the fusion generator, drops to a backup. Real basis: a tokamak cannot restart itself; striking a plasma takes a large pulse of stored energy from outside (JET drew its pulses from huge flywheel generators, not the grid).
+- **One emergency store** (the developer loved this) is the backup power once the plasma is lost. Uploading survey data, cooling, and a relight all draw on it, so every choice while stranded spends the same store.
+- **Relighting the Head.** The Reactor can try: it costs a big pulse from the store. Success ends the stranding and the dive goes on; failure spends the energy. A healthy Head almost always relights; the odds fall with Head wear.
+- **The stranding clock (the developer's idea)** is the time to hull failure as heat from the surrounding rock soaks in with the Head dark. Its length depends on the rock's heat (depth), the hull's wear, and battery spent on cooling.
+- **Rescue time** is a fast run down the open tunnel plus a slow cut through the sealed length behind the Lithocraft. The Thermal screen shows the clock as a live estimate beside the rescue time, so rescue or death can be read at a glance.
+- **Rescue brings the data home.** Unsent data is lost only on death, so uploading is insurance for when the clock is shorter than the rescue time. Rescue costs a line in the payment breakdown, scaled by how long it took. It sits between a clean surfacing and a rebuy.
+- **Time pressures are tracked, not felt, in the first dive.** Fuel burned, the rock creeping shut, and a contract clock are measured and described but have no effect yet.
+- **Quiet Ship stands as designed.** The developer likes it: it halts and idles so the picture sharpens, at the cost of time and shuttered survey stretches.
 
 ## Scope and order
 
@@ -160,4 +180,3 @@ On the `prototype/habitat-down` branch. A browser stand-in built with three.js b
 - Ports, and who buys the data.
 - Art style beyond the scan display.
 - Pressure as an active mechanic beyond gating depth by hull grade.
-- **What hull wear does.** In the first dive build, heat sent outward wears the hull, but wear has no effect, so protecting the Column costs nothing (stories 19, 21 and 23 are hollow). Candidates raised: a repair bill deducted at the surface, a breach at full wear that loses the plasma, or a worn hull that grips or moves worse. The developer called this a very big decision that needs ideation (25 November 2026).
