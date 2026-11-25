@@ -85,32 +85,39 @@ func test_losing_the_plasma_with_the_tunnel_open_brings_the_crew_home_through_it
 	var before := {unsold = 0.0, paid = 0.0}
 	var seen := []
 
-	var home := DiveTestKit.run_until(sim, &"recovered_through_tunnel", PLENTY_S, seen, STEP_S,
+	var home := DiveTestKit.run_until(sim, &"brought_home", PLENTY_S, seen, STEP_S,
 			func() -> void: before.merge({unsold = sim.unsold_value(), paid = sim.paid()}, true))
 
 	assert_dict(home).is_not_empty()
 	var types := DiveTestKit.types(seen)
-	assert_int(types.find(&"plasma_lost")).is_less(types.find(&"recovered_through_tunnel"))
+	assert_int(types.find(&"plasma_lost")).is_less(types.find(&"brought_home"))
 	assert_array(types).not_contains([&"stranded"])
 	assert_bool(sim.stranded()).is_false()
 	# Back at the surface, the dive over.
 	assert_bool(sim.surfaced()).is_true()
 	assert_float(sim.depth()).is_less_equal(0.0)
+	# As on surfacing, &"paid" follows with the breakdown, telling how it came
+	# home.
+	assert_int(types.find(&"brought_home")).is_less(types.find(&"paid"))
+	var paid: Dictionary = seen[types.find(&"paid")]
+	assert_that(paid.arrival).is_equal(home)
 	# Unlike a stranding, the survey aboard (the stretch being recorded, at
 	# least) is kept and sold on return...
-	assert_float(home.carried_home).is_greater(0.0)
-	assert_float(home.carried_home).is_greater_equal(before.unsold)
+	assert_float(paid.carried_home).is_greater(0.0)
+	assert_float(paid.carried_home).is_greater_equal(before.unsold)
 	assert_float(sim.unsold_value()).is_equal(0.0)
 	assert_int(sim.survey().size()).is_equal(sim.uploaded_survey().size())
 	# ...and the worn Head is paid for out of it.
-	assert_float(home.head_repair).is_greater(0.0)
+	assert_float(paid.head_repair).is_greater(0.0)
 	assert_float(sim.paid()).is_equal_approx(
-			before.paid + home.carried_home - home.head_repair, 0.001)
+			before.paid + paid.carried_home - paid.head_repair - paid.hull_repair, 0.001)
+	# What went up the link under way is never less than nothing.
+	assert_float(paid.by_link).is_greater_equal(0.0)
 
 
 func test_after_coming_home_through_the_tunnel_the_crew_can_dive_again() -> void:
 	var sim := _careless_dive(40.0, false)
-	DiveTestKit.run_until(sim, &"recovered_through_tunnel", PLENTY_S, [], STEP_S)
+	DiveTestKit.run_until(sim, &"brought_home", PLENTY_S, [], STEP_S)
 	var paid := sim.paid()
 
 	sim.new_dive()

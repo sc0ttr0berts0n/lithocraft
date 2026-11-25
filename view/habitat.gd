@@ -53,8 +53,11 @@ const SHIFT_DIAL_STEP := 0.02
 const LURCH_SHAKE_M := 0.004
 ## How far slipping grip waves shake the crew's view at full slip, metres.
 const SLIP_SHAKE_M := 0.006
-## How long the word of a recovery stays on screen, in seconds.
-const RECOVERED_NOTICE_S := 8.0
+## How long a passing notice stays on screen, in seconds.
+const NOTICE_S := 8.0
+## Hull creep as the Thermal screen shows it, percent of the hull a minute,
+## per unit of hull_creep_rate() (a share of the hull a second).
+const PERCENT_PER_MIN := 100.0 * 60.0
 ## Upload priorities in the order the Bore Station's U key cycles them.
 const UPLOAD_PRIORITIES: Array[StringName] = [
 	DiveSimulation.UPLOAD_OLDEST_FIRST,
@@ -90,12 +93,12 @@ var _sim_names := {}
 var _plasma_display: PlasmaDisplay
 ## True from a Boundary announced ahead until it is crossed.
 var _boundary_ahead := false
-## The notice of a stranding and what it cost, then of the recovery.
+## The centre notice: where the dive stands (a stranding, a death, the
+## breakdown of what a dive was paid) or a passing word.
 var _notice: Label
-## Seconds left showing the recovery notice; 0 while not showing it.
-var _recovered_notice_left := 0.0
-## The heading the breakdown after a rescue carries; empty after surfacing.
-var _rescue_heading := ""
+## Seconds left showing a passing notice; 0 while the notice stays until
+## replaced, or none shows.
+var _notice_left := 0.0
 ## Sparks, shake and groans while heat wears the hull.
 var _hull_feel := HullFeel.new()
 
@@ -129,7 +132,7 @@ func _ready() -> void:
 		"a few kilometres down, plot a climbing Course at Navigation [3]",
 		"to arc home and sell the survey.",
 		"[F1] controls",
-	], RECOVERED_NOTICE_S)
+	], NOTICE_S)
 	_crew.bore_radius = BORE_RADIUS
 	_crew.outer_radius = OUTER_RADIUS
 	_crew.length = LENGTH
@@ -197,12 +200,10 @@ func _physics_process(delta: float) -> void:
 			&"boundary_crossed": _boundary_ahead = false
 			&"stranded": _on_stranded(event)
 			&"hull_failed": _on_hull_failed(event)
-			&"recovered_through_tunnel": _on_recovered_through_tunnel(event)
-			&"rescued": _on_rescued(event)
 			&"relight_result": _on_relight_result(event)
 			&"paid": _on_paid(event)
 			&"new_dive": _on_new_dive(event)
-	_fade_recovered_notice(delta)
+	_fade_notice(delta)
 	_show_calls()
 	var felt := _sim.felt_acceleration()
 	var up := -felt.normalized()
@@ -400,8 +401,8 @@ func _store_line() -> String:
 ## The relight the Reactor can try while stranded: its pulse against the
 ## store, its chance on this Head, and the key, or why it cannot.
 func _relight_line() -> String:
-	var cost := _sim.relight_cost() / _sim.emergency_store_capacity()
-	var odds := "Relight: pulse %d%% of store, chance %d%%" % [roundi(cost * 100.0),
+	var odds := "Relight: pulse %d%% of store, chance %d%%" % [
+			roundi(_sim.relight_store_share() * 100.0),
 			roundi(_sim.relight_chance() * 100.0)]
 	if not _sim.stranded():
 		return odds
@@ -426,7 +427,7 @@ func _on_stranded(event: Dictionary) -> void:
 		"",
 		"[I] at the Reactor: relight the Head (chance %d%%, costs %d%% of the store)" % [
 			roundi(_sim.relight_chance() * 100.0),
-			roundi(_sim.relight_cost() / _sim.emergency_store_capacity() * 100.0)],
+			roundi(_sim.relight_store_share() * 100.0)],
 		"[V] at Thermal: run the pumps on the store to cool the hull",
 		"[B] at the Bore Station: stop or start the link, which runs on the store",
 		"[.] wait faster",
@@ -440,7 +441,7 @@ func _on_relight_result(event: Dictionary) -> void:
 	match event.outcome:
 		&"lit":
 			_show_notice(["RELIT  The Head's plasma holds again",
-					"Store left %d%%. Power up at the Drive [T]." % left], RECOVERED_NOTICE_S)
+					"Store left %d%%. Power up at the Drive [T]." % left], NOTICE_S)
 		&"failed":
 			_show_notice(["RELIGHT FAILED  the pulse is spent", "Store left %d%%" % left,
 					"[I] try again, or wait for the rescue"], 0.0)
@@ -464,45 +465,21 @@ func _on_hull_failed(event: Dictionary) -> void:
 	], 0.0)
 
 
-## The plasma is lost but the tunnel behind is open: the crew are brought
-## back up it. Tell them from where, what the survey aboard sold for and what
-## the hull's and the Head's repairs cost, and how to start another dive.
-func _on_recovered_through_tunnel(event: Dictionary) -> void:
-	_show_notice([
-		"PLASMA LOST  at %.0f m" % event.depth,
-		"The tunnel behind is open: brought home through it.",
-		"Survey aboard sold: %.0f" % event.carried_home,
-		"Hull repair: -%.0f   Head repair: -%.0f" % [event.hull_repair, event.head_repair],
-		"This dive: %.0f   Paid in all: %.0f" % [event.amount, event.total_paid],
-		"",
-		"[Enter] start another dive",
-	], 0.0)
-
-
-## The rescue reached the stranded Lithocraft and brought everyone home. The
-## breakdown follows in &"paid", headed by where and how long.
-func _on_rescued(event: Dictionary) -> void:
-	_rescue_heading = "RESCUED  from %.0f m after %s" % [event.depth,
-			_duration(event.rescue_time)]
-
-
-## Surfaced (or rescued) and sold: what this dive was paid and why, the
-## repairs to its hull and Head and any rescue taken out, until the crew
-## starts another dive.
+## However the Lithocraft reached the surface (surfaced, rescued, or brought
+## home through the open tunnel) and the survey sold: what this dive was paid
+## and why, the repairs to its hull and Head and any rescue taken out, until
+## the crew starts another dive.
 func _on_paid(event: Dictionary) -> void:
-	var heading := _rescue_heading if _rescue_heading != "" else "SURFACED"
-	_rescue_heading = ""
-	var lines := [
-		heading + "  The survey is sold",
+	var lines := _arrival_lines(event.arrival)
+	lines.append_array([
 		"Paid for this dive: %.0f" % event.amount,
-		"  up the link under way %.0f, carried home %.0f" % [
-				maxf(event.by_link, 0.0), event.carried_home],
+		"  up the link under way %.0f, carried home %.0f" % [event.by_link, event.carried_home],
 		"  hull repair -%.0f, Head repair -%.0f" % [event.hull_repair, event.head_repair],
-		"Column recorded %.0f m in %d stretches, quality %d%%" % [
-			event.metres, event.stretches, roundi(event.mean_quality * 100.0)],
-	]
+	])
 	if event.rescue > 0.0:
-		lines.insert(4, "  rescue -%.0f" % event.rescue)
+		lines.append("  rescue -%.0f" % event.rescue)
+	lines.append("Column recorded %.0f m in %d stretches, quality %d%%" % [
+			event.metres, event.stretches, roundi(event.mean_quality * 100.0)])
 	if event.lost_to_quality >= 0.5:
 		lines.append("  heat and shuttering cost %.0f of pristine records" % event.lost_to_quality)
 	if event.features > 0:
@@ -518,6 +495,18 @@ func _on_paid(event: Dictionary) -> void:
 	_show_notice(lines, 0.0)
 
 
+## The heading of the breakdown: how the Lithocraft reached the surface.
+func _arrival_lines(arrival: Dictionary) -> Array:
+	match arrival.type:
+		&"rescued":
+			return ["RESCUED  from %.0f m after %s  The survey is sold" % [
+					arrival.depth, _duration(arrival.rescue_time)]]
+		&"brought_home":
+			return ["PLASMA LOST  at %.0f m" % arrival.depth,
+					"The tunnel behind is open: brought home through it. The survey is sold"]
+	return ["SURFACED  The survey is sold"]
+
+
 ## A fresh dive after surfacing: back to the start settings, ready to dive.
 func _on_new_dive(event: Dictionary) -> void:
 	_reset_settings()
@@ -525,14 +514,14 @@ func _on_new_dive(event: Dictionary) -> void:
 		"At the surface, ready to dive",
 		"Paid so far: %.0f" % event.paid,
 		"Power up at the Drive [T].",
-	], RECOVERED_NOTICE_S)
+	], NOTICE_S)
 
 
 ## Shows the centre notice; for `seconds` if above 0, else until replaced.
 func _show_notice(lines: Array, seconds: float) -> void:
 	_notice.text = "\n".join(lines)
 	_notice.visible = true
-	_recovered_notice_left = seconds
+	_notice_left = seconds
 
 
 ## The Stations start a dive from their start settings, so the Habitat's do too.
@@ -548,11 +537,11 @@ func _reset_settings() -> void:
 	_boundary_ahead = false
 
 
-func _fade_recovered_notice(delta: float) -> void:
-	if _recovered_notice_left <= 0.0:
+func _fade_notice(delta: float) -> void:
+	if _notice_left <= 0.0:
 		return
-	_recovered_notice_left -= delta
-	if _recovered_notice_left <= 0.0:
+	_notice_left -= delta
+	if _notice_left <= 0.0:
 		_notice.visible = false
 
 
@@ -726,7 +715,7 @@ func _show_thermal() -> void:
 			_sim.vessel_temperature(), _sim.hull_damage_temperature()],
 		"Medium %.0f K" % _sim.surroundings_temperature(),
 		"Hull integrity %.1f%%  creep %.2f%%/min" % [
-			_sim.hull_integrity() * 100.0, _sim.hull_creep_rate() * 6000.0],
+			_sim.hull_integrity() * 100.0, _sim.hull_creep_rate() * PERCENT_PER_MIN],
 	]
 	if _sim.stranded():
 		lines.append("Pumps on store %d%%" % roundi(_heat_split * 100.0))

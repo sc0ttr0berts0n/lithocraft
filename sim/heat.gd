@@ -52,7 +52,9 @@ const _DARK_SOAK_K := 300.0
 ## into the cooler Column, as Thermal does while the Head runs.
 const _DARK_COOLING := 0.25
 ## Longest stranding clock worked out, in seconds; a hull that would last
-## longer reads as lasting for ever (INF).
+## longer reads as lasting for ever (INF). Not a tuned constant: the limit of
+## time_to_fail()'s search, about eleven days, far beyond any rescue or dive,
+## so it changes nothing in play.
 const _LONGEST_CLOCK_S := 1.0e6
 
 ## Heat made in the last step, per second.
@@ -121,7 +123,9 @@ static func soak_temperature(surroundings_k: float) -> float:
 ## Seconds until the hull fails with the Head dark from now, at `depth` among
 ## surroundings at `surroundings_k`: heat soaks in, Thermal's pumps carry
 ## `cooling` (0 to 1) of their full flow away for `cooled_for` seconds and
-## then stop. INF if it would bear the heat for ever.
+## then stop. INF if it would bear the heat for ever. The wear by any time is
+## exact (_soaked_wear()); the time it reaches failure is found by bisection
+## up to _LONGEST_CLOCK_S.
 func time_to_fail(surroundings_k: float, depth: float, cooling: float,
 		cooled_for: float) -> float:
 	var left := 1.0 - _wear
@@ -291,5 +295,6 @@ static func _soaked_wear(from_k: float, toward_k: float, seconds: float, stress:
 	if end <= start:
 		return 0.0
 	# Integral of (T - limit) dt, where T = toward_k + over * e^(-t / tau).
-	var heat_time := (toward_k - limit) * (end - start) 			+ over * tau * (exp(-start / tau) - exp(-end / tau))
+	var heat_time := (toward_k - limit) * (end - start) \
+			+ over * tau * (exp(-start / tau) - exp(-end / tau))
 	return _WEAR_PER_K_S * stress * heat_time

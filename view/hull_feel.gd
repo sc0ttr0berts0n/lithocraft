@@ -8,9 +8,9 @@
 class_name HullFeel
 extends Node3D
 
-## Creep rate (wear per second) at which sparks and shake are at their fullest:
-## a rate that would wear a whole hull through in two minutes. Tuned for feel.
-const FULL_CREEP_PER_S := 1.0 / 120.0
+## Sparks and shake are at their fullest once the hull's creep would fail it
+## within this many seconds. Tuned for feel.
+const FULLEST_WITHIN_S := 120.0
 ## Share of the full sparks and shake at the first sign of damage, so any
 ## damage at all is felt.
 const FIRST_SIGN := 0.25
@@ -73,7 +73,7 @@ func _ready() -> void:
 ## the sparks fall along.
 func step(delta: float, felt: Vector3) -> void:
 	var damaging := sim.hull_taking_damage()
-	var severity := how_severe(sim.hull_creep_rate()) if damaging else 0.0
+	var severity := how_severe(sim.hull_creep_rate(), sim.hull_integrity()) if damaging else 0.0
 	_shake = lerpf(SHAKE_LEAST_M, SHAKE_MOST_M, severity) if damaging else 0.0
 	# More of the wall sparks the faster the hull wears: one emitter at the
 	# first sign, all of them at the fullest.
@@ -89,11 +89,15 @@ func shake_metres() -> float:
 	return _shake
 
 
-## How severe the damage feels, FIRST_SIGN at any creep to 1 at the fullest.
-static func how_severe(creep_rate: float) -> float:
+## How severe the damage feels, FIRST_SIGN at any creep to 1 at the fullest:
+## by how soon the hull, at `integrity` (the simulation's hull_integrity()),
+## would fail at `creep_rate` (its hull_creep_rate()), fullest within
+## FULLEST_WITHIN_S.
+static func how_severe(creep_rate: float, integrity: float) -> float:
 	if creep_rate <= 0.0:
 		return 0.0
-	return lerpf(FIRST_SIGN, 1.0, clampf(creep_rate / FULL_CREEP_PER_S, 0.0, 1.0))
+	var seconds_left := integrity / creep_rate
+	return lerpf(FIRST_SIGN, 1.0, clampf(FULLEST_WITHIN_S / seconds_left, 0.0, 1.0))
 
 
 ## A point on the outer wall at `angle` round the ring and `z` along it.
