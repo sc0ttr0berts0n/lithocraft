@@ -85,8 +85,10 @@ func hold(eye_pose: Transform3D, look_toward: float, weight: float) -> void:
 func _wish_direction() -> Vector3:
 	var forward := -basis.z
 	var right := basis.x
-	var f := float(Input.is_physical_key_pressed(KEY_W)) - float(Input.is_physical_key_pressed(KEY_S))
-	var r := float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A))
+	# The walk keys from the key map: forward, left, back, right.
+	var down := KeyMap.held(&"walk")
+	var f := float(down[0]) - float(down[2])
+	var r := float(down[3]) - float(down[1])
 	var wish := forward * f + right * r
 	return wish.normalized() if wish.length_squared() > 0.0 else Vector3.ZERO
 

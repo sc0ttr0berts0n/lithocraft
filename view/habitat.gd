@@ -27,6 +27,8 @@ const TIME_RATE_STEP := 4.0
 ## override, and the Drive's power and steering effort.
 const PITCH_STEP := 15.0
 const HEADING_STEP := 15.0
+## The Course's pitch for dive, level and climb (the keys 1, 2, 3).
+const PITCHES: Array[float] = [90.0, 0.0, -90.0]
 const POWER_STEP := 0.1
 const EFFORT_STEP := 0.1
 ## The Arm's rail runs round the Bore this far out from its glass.
@@ -146,46 +148,150 @@ func _ready() -> void:
 	add_child(arm_view)
 
 
+## Every key goes through the key map: a press runs `_key_<action>(index)` of
+## the first binding that applies where the crew stands, so what each screen
+## shows is what the key does.
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	elif event.is_action_pressed(&"ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	elif event is InputEventKey and event.pressed and not event.echo:
-		match (event as InputEventKey).physical_keycode:
-			KEY_1: _aim(0.0, 90.0, false)
-			KEY_2: _aim(0.0, 0.0, false)
-			KEY_3: _aim(0.0, -90.0, false)
-			KEY_Z: _aim(0.0, -PITCH_STEP, true)
-			KEY_X: _aim(0.0, PITCH_STEP, true)
-			KEY_J: _aim(-HEADING_STEP, 0.0, true)
-			KEY_L: _aim(HEADING_STEP, 0.0, true)
-			KEY_O: _end_override()
-			KEY_Y: _set_effort(_effort_setting + EFFORT_STEP)
-			KEY_H: _set_effort(_effort_setting - EFFORT_STEP)
-			KEY_T: _set_power(_power_setting + POWER_STEP)
-			KEY_G: _set_power(_power_setting - POWER_STEP)
-			KEY_F: _observe_next_feature()
-			KEY_U: _cycle_upload_priority()
-			KEY_B: _toggle_uploading()
-			KEY_F1: _controls.visible = not _controls.visible
-			KEY_F3: _dive_view.visible = not _dive_view.visible
-			KEY_C: _split_heat(_heat_split - HEAT_SPLIT_STEP)
-			KEY_V: _split_heat(_heat_split + HEAT_SPLIT_STEP)
-			KEY_P: _pulse()
-			KEY_Q: _toggle_quiet_ship()
-			KEY_SPACE: _arm.press()
-			KEY_A:
-				_arm.shift(-1)
-			KEY_D:
-				_arm.shift(1)
-			KEY_N: _turn_shift_dial(-1)
-			KEY_M: _turn_shift_dial(1)
-			KEY_R: _shift()
-			KEY_I: _relight()
-			KEY_ENTER, KEY_KP_ENTER: _sim.new_dive()
-			KEY_PERIOD: _sim.set_time_rate(_sim.time_rate() * TIME_RATE_STEP)
-			KEY_COMMA: _sim.set_time_rate(1.0)
+	var found := KeyMap.find(KeyMap.code_of(event), _wheres())
+	if not found.is_empty():
+		call("_key_%s" % found.action, found.index)
+
+
+## Where the crew can work now: anywhere, and each Station they are at.
+func _wheres() -> Array:
+	var wheres: Array = [KeyMap.ANYWHERE]
+	for station in _in_use:
+		if _at(station):
+			wheres.append(_sim_names[station])
+	return wheres
+
+
+## -1 for the first of a "-/+" pair of keys, +1 for the second.
+static func _minus_plus(index: int) -> float:
+	return -1.0 if index == 0 else 1.0
+
+
+func _key_capture_mouse(_index: int) -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _key_release_mouse(_index: int) -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func _key_arm(_index: int) -> void:
+	_arm.press()
+
+
+func _key_next_station(index: int) -> void:
+	_arm.shift(roundi(_minus_plus(index)))
+
+
+func _key_time_faster(_index: int) -> void:
+	_sim.set_time_rate(_sim.time_rate() * TIME_RATE_STEP)
+
+
+func _key_time_normal(_index: int) -> void:
+	_sim.set_time_rate(1.0)
+
+
+func _key_new_dive(_index: int) -> void:
+	_sim.new_dive()
+
+
+func _key_toggle_controls(_index: int) -> void:
+	_controls.visible = not _controls.visible
+
+
+func _key_toggle_debug(_index: int) -> void:
+	_dive_view.visible = not _dive_view.visible
+
+
+## Navigation: plot the Course's pitch, dive / level / climb.
+func _key_plot_pitch(index: int) -> void:
+	_sim.set_course(_sim.course_heading(), PITCHES[index])
+
+
+func _key_plot_pitch_step(index: int) -> void:
+	_sim.set_course(_sim.course_heading(), _sim.course_pitch() + _minus_plus(index) * PITCH_STEP)
+
+
+func _key_plot_heading_step(index: int) -> void:
+	_sim.set_course(_sim.course_heading() + _minus_plus(index) * HEADING_STEP, _sim.course_pitch())
+
+
+func _key_pulse(_index: int) -> void:
+	_sim.pulse()
+
+
+func _key_quiet_ship(_index: int) -> void:
+	_sim.set_quiet_ship(not _sim.quiet_ship())
+
+
+## Drive: power up (T) / down (G).
+func _key_power_step(index: int) -> void:
+	_set_power(_power_setting - _minus_plus(index) * POWER_STEP)
+
+
+## Drive: steering effort up (Y) / down (H).
+func _key_effort_step(index: int) -> void:
+	_set_effort(_effort_setting - _minus_plus(index) * EFFORT_STEP)
+
+
+## Drive: the Course keys override the Course, starting from what the Drive
+## steers toward now.
+func _key_override_pitch(index: int) -> void:
+	_sim.override_course(_sim.steered_heading(), PITCHES[index])
+
+
+func _key_override_pitch_step(index: int) -> void:
+	_sim.override_course(_sim.steered_heading(),
+			_sim.steered_pitch() + _minus_plus(index) * PITCH_STEP)
+
+
+func _key_override_heading_step(index: int) -> void:
+	_sim.override_course(_sim.steered_heading() + _minus_plus(index) * HEADING_STEP,
+			_sim.steered_pitch())
+
+
+## Drive: give up the override and steer toward the Course again.
+func _key_end_override(_index: int) -> void:
+	_sim.end_override()
+
+
+func _key_observe(_index: int) -> void:
+	_observe_next_feature()
+
+
+func _key_upload_priority(_index: int) -> void:
+	_cycle_upload_priority()
+
+
+## Bore Station: stop or start the link. While stranded it runs on the
+## emergency store, so stopping it keeps the store for a relight.
+func _key_link(_index: int) -> void:
+	_sim.set_uploading(not _sim.uploading())
+
+
+## Thermal: heat outward (C) / into the Column (V).
+func _key_heat_split(index: int) -> void:
+	_split_heat(_heat_split + _minus_plus(index) * HEAT_SPLIT_STEP)
+
+
+## Reactor: turn the Shift dial one step down / up.
+func _key_shift_dial(index: int) -> void:
+	_plasma_display.dial *= 1.0 + SHIFT_DIAL_STEP * _minus_plus(index)
+
+
+## Reactor: Shift to the frequency on the dial.
+func _key_shift(_index: int) -> void:
+	_sim.shift(_plasma_display.dial)
+
+
+## Reactor: try to relight the Head from the emergency store; the simulation
+## ignores it unless stranded.
+func _key_relight(_index: int) -> void:
+	_sim.relight()
 
 
 func _physics_process(delta: float) -> void:
@@ -247,49 +353,14 @@ func _at(station: GimballedStation) -> bool:
 	return _crew.position.distance_to(station.position) <= STATION_REACH
 
 
-## The heading and pitch keys. At Navigation they plot the Course; at the
-## Drive they override it, starting from what the Drive steers toward now.
-## `relative`: move by the amounts given; else set the pitch to `pitch`
-## (and keep the heading).
-func _aim(heading: float, pitch: float, relative: bool) -> void:
-	if _at(_navigation):
-		var p := _sim.course_pitch() + pitch if relative else pitch
-		_sim.set_course(_sim.course_heading() + heading, p)
-	elif _at(_drive):
-		var p := _sim.steered_pitch() + pitch if relative else pitch
-		_sim.override_course(_sim.steered_heading() + heading, p)
-
-
-## Drive Station: give up the override and steer toward the Course again.
-func _end_override() -> void:
-	if _at(_drive):
-		_sim.end_override()
-
-
 ## Drive Station: how hard to steer toward the Course.
 func _set_effort(effort: float) -> void:
-	if not _at(_drive):
-		return
 	_effort_setting = clampf(snappedf(effort, EFFORT_STEP), 0.0, 1.0)
 	_sim.set_steering_effort(_effort_setting)
 
 
-## Navigation: send a pulse. Only at Navigation.
-func _pulse() -> void:
-	if _at(_navigation):
-		_sim.pulse()
-
-
-## Navigation: Quiet Ship on or off. Only at Navigation.
-func _toggle_quiet_ship() -> void:
-	if _at(_navigation):
-		_sim.set_quiet_ship(not _sim.quiet_ship())
-
-
 ## Drive Station: share of power sent to advancing.
 func _set_power(power: float) -> void:
-	if not _at(_drive):
-		return
 	_power_setting = clampf(snappedf(power, POWER_STEP), 0.0, 1.0)
 	_sim.set_power(_power_setting)
 
@@ -565,21 +636,6 @@ func _build_notice() -> void:
 	$Overlay.add_child(_notice)
 
 
-## Stand-in Reactor control until the Station has its own: turn the Shift dial
-## one step down or up. Worked at the Reactor Station: only when at it.
-func _turn_shift_dial(direction: int) -> void:
-	if not _at(_reactor):
-		return
-	_plasma_display.dial *= 1.0 + SHIFT_DIAL_STEP * direction
-
-
-## Shift to the frequency on the dial. Only when at the Reactor.
-func _shift() -> void:
-	if not _at(_reactor):
-		return
-	_sim.shift(_plasma_display.dial)
-
-
 ## A bar of tenths: '#' power drawn, '-' asked for but not given, '.' unused.
 static func _bar(requested: float, drawn: float) -> String:
 	var got := roundi(drawn * 10.0)
@@ -589,10 +645,7 @@ static func _bar(requested: float, drawn: float) -> String:
 
 ## Stand-in Bore Station control until it has its own: observe the next
 ## feature in the Column not yet recorded, nearest the Tail first, cycling.
-## Worked at the Bore Station: only within reach of it.
 func _observe_next_feature() -> void:
-	if not _at(_bore_station):
-		return
 	var candidates := _sim.features_in_column().filter(
 			func(f: ColumnFeature) -> bool: return not f.is_recorded())
 	if candidates.is_empty():
@@ -603,28 +656,9 @@ func _observe_next_feature() -> void:
 	_sim.set_observed_feature(ids[(current + 1) % ids.size()])
 
 
-## Bore Station: stop or start the link. While stranded it runs on the
-## emergency store, so stopping it keeps the store for a relight. Only when at
-## the Bore Station.
-func _toggle_uploading() -> void:
-	if not _at(_bore_station):
-		return
-	_sim.set_uploading(not _sim.uploading())
-
-
-## Reactor: try to relight the Head from the emergency store. Only when at the
-## Reactor; the simulation ignores it unless stranded.
-func _relight() -> void:
-	if not _at(_reactor):
-		return
-	_sim.relight()
-
-
 ## Bore Station: which waiting survey data goes up the link first, cycling
-## through UPLOAD_PRIORITIES. Only when at the Bore Station.
+## through UPLOAD_PRIORITIES.
 func _cycle_upload_priority() -> void:
-	if not _at(_bore_station):
-		return
 	var next := (UPLOAD_PRIORITIES.find(_sim.upload_priority()) + 1) % UPLOAD_PRIORITIES.size()
 	_sim.set_upload_priority(UPLOAD_PRIORITIES[next])
 
@@ -692,10 +726,8 @@ func _place_feature_ring() -> void:
 		_feature_ring.visible = true
 
 
-## The heat split is worked at the Thermal Station: only within reach of it.
+## The heat split, worked at the Thermal Station.
 func _split_heat(to_column: float) -> void:
-	if not _at(_thermal):
-		return
 	_heat_split = clampf(snappedf(to_column, HEAT_SPLIT_STEP), 0.0, 1.0)
 	_sim.set_heat_split(_heat_split)
 

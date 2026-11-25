@@ -1,0 +1,145 @@
+## The key map: every key the crew can press, where it works and what it does.
+## The one source for the Habitat's input, each Station's key panel, the key
+## hints in its readings and notices, and the F1 controls, so none of them can
+## disagree with another. Stand-in keys until the Stations get their own
+## widgets, levers and knobs.
+class_name KeyMap
+extends RefCounted
+
+## Where a binding works when it is not at a Station.
+const ANYWHERE := &"anywhere"
+## The mouse as a key: any mouse button pressed.
+const MOUSE := -1
+
+## One line per binding, in the order the F1 controls and each Station's panel
+## show them:
+## - `where`: ANYWHERE, or the simulation's name for the Station the crew must
+##   be at (the Habitat checks `_at`, so handlers need not).
+## - `keys`: physical keycodes (or MOUSE); the handler is told which by index.
+## - `does`: what the keys do, shown beside their prompts. Several keys share
+##   one line, "/" between what each does.
+## - `action`: the Habitat runs `_key_<action>(index)` on a press.
+## - `held` (optional, default false): not run on a press; whoever needs it
+##   reads `KeyMap.held(action)` each frame.
+## A key may be bound in several places (the Course keys at Navigation and at
+## the Drive); a press runs the first binding, in this order, that applies
+## where the crew stands.
+const BINDINGS: Array[Dictionary] = [
+	{where = ANYWHERE, keys = [MOUSE], does = "capture the mouse to look", action = &"capture_mouse"},
+	{where = ANYWHERE, keys = [KEY_ESCAPE], does = "let go of the mouse", action = &"release_mouse"},
+	{where = ANYWHERE, keys = [KEY_W, KEY_A, KEY_S, KEY_D], does = "walk", action = &"walk", held = true},
+	{where = ANYWHERE, keys = [KEY_SPACE], does = "call the Arm / let go", action = &"arm"},
+	{where = ANYWHERE, keys = [KEY_A, KEY_D], does = "carried: next Station left / right", action = &"next_station"},
+	{where = ANYWHERE, keys = [KEY_PERIOD], does = "time x4 (not while a Station calls)", action = &"time_faster"},
+	{where = ANYWHERE, keys = [KEY_COMMA], does = "time normal", action = &"time_normal"},
+	{where = ANYWHERE, keys = [KEY_ENTER, KEY_KP_ENTER], does = "surfaced or dead: dive again", action = &"new_dive"},
+	{where = ANYWHERE, keys = [KEY_F1], does = "these controls", action = &"toggle_controls"},
+	{where = ANYWHERE, keys = [KEY_F3], does = "debug overlay", action = &"toggle_debug"},
+	{where = DiveSimulation.STATION_NAVIGATION, keys = [KEY_1, KEY_2, KEY_3], does = "Course dive / level / climb", action = &"plot_pitch"},
+	{where = DiveSimulation.STATION_NAVIGATION, keys = [KEY_Z, KEY_X], does = "Course pitch -/+15 deg", action = &"plot_pitch_step"},
+	{where = DiveSimulation.STATION_NAVIGATION, keys = [KEY_J, KEY_L], does = "Course heading -/+15 deg", action = &"plot_heading_step"},
+	{where = DiveSimulation.STATION_NAVIGATION, keys = [KEY_P], does = "pulse", action = &"pulse"},
+	{where = DiveSimulation.STATION_NAVIGATION, keys = [KEY_Q], does = "Quiet Ship", action = &"quiet_ship"},
+	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_T, KEY_G], does = "power +/-10%", action = &"power_step"},
+	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_Y, KEY_H], does = "steering effort +/-10%", action = &"effort_step"},
+	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_1, KEY_2, KEY_3], does = "override: dive / level / climb", action = &"override_pitch"},
+	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_Z, KEY_X], does = "override pitch -/+15 deg", action = &"override_pitch_step"},
+	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_J, KEY_L], does = "override heading -/+15 deg", action = &"override_heading_step"},
+	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_O], does = "back to the Course", action = &"end_override"},
+	{where = DiveSimulation.STATION_BORE, keys = [KEY_F], does = "observe the next feature", action = &"observe"},
+	{where = DiveSimulation.STATION_BORE, keys = [KEY_U], does = "which survey goes up first", action = &"upload_priority"},
+	{where = DiveSimulation.STATION_BORE, keys = [KEY_B], does = "stop / start the link", action = &"link"},
+	{where = DiveSimulation.STATION_THERMAL, keys = [KEY_C, KEY_V], does = "heat outward / into the Column", action = &"heat_split"},
+	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_N, KEY_M], does = "Shift dial down / up", action = &"shift_dial"},
+	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_R], does = "Shift", action = &"shift"},
+	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_I], does = "stranded: relight the Head", action = &"relight"},
+]
+
+## Short names for keys where Godot's own is long or a word for a symbol.
+const _NAMES := {
+	KEY_PERIOD: ".",
+	KEY_COMMA: ",",
+	KEY_ESCAPE: "Esc",
+	KEY_KP_ENTER: "Enter",
+	MOUSE: "Click",
+}
+
+
+## Every binding, each with every field (`held` filled in).
+static func bindings() -> Array[Dictionary]:
+	var all: Array[Dictionary] = []
+	for binding in BINDINGS:
+		var full := binding.duplicate()
+		full.held = binding.get(&"held", false)
+		all.append(full)
+	return all
+
+
+## The bindings that work at one place (ANYWHERE or a Station), in order.
+static func bindings_at(where: StringName) -> Array[Dictionary]:
+	var here: Array[Dictionary] = []
+	for b in bindings():
+		if b.where == where:
+			here.append(b)
+	return here
+
+
+## The binding for an action, or {} if there is none.
+static func binding(action: StringName) -> Dictionary:
+	for b in bindings():
+		if b.action == action:
+			return b
+	return {}
+
+
+## Every place with keys, ANYWHERE first, in the order they first appear.
+static func places() -> Array[StringName]:
+	var found: Array[StringName] = []
+	for b in BINDINGS:
+		if not found.has(b.where):
+			found.append(b.where)
+	return found
+
+
+## What a press of `code` runs where the crew stands (`wheres`: ANYWHERE and
+## the Stations they are at): `{action, index}`, or {} when nothing.
+static func find(code: int, wheres: Array) -> Dictionary:
+	for b in bindings():
+		if b.held or not wheres.has(b.where):
+			continue
+		var index: int = b.keys.find(code)
+		if index >= 0:
+			return {action = b.action, index = index}
+	return {}
+
+
+## The key code a fresh press in this event is, MOUSE for a mouse button, or
+## KEY_NONE for anything else (a release, an echo, motion).
+static func code_of(event: InputEvent) -> int:
+	if event is InputEventMouseButton and event.pressed:
+		return MOUSE
+	if event is InputEventKey and event.pressed and not event.echo:
+		return (event as InputEventKey).physical_keycode
+	return KEY_NONE
+
+
+## Whether each of a held binding's keys is down now, in its key order.
+static func held(action: StringName) -> Array[bool]:
+	var down: Array[bool] = []
+	for code in binding(action).keys:
+		down.append(Input.is_physical_key_pressed(code))
+	return down
+
+
+## A key's short name as written in text: "T", "Enter", ".".
+static func name_of(code: int) -> String:
+	return _NAMES.get(code, OS.get_keycode_string(code))
+
+
+## An action's keys for a reading or notice: "[N/M]".
+static func label(action: StringName) -> String:
+	var names := PackedStringArray()
+	for code in binding(action).keys:
+		if not names.has(name_of(code)):
+			names.append(name_of(code))
+	return "[%s]" % "/".join(names)
