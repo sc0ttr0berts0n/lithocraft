@@ -94,6 +94,8 @@ var _boundary_ahead := false
 var _notice: Label
 ## Seconds left showing the recovery notice; 0 while not showing it.
 var _recovered_notice_left := 0.0
+## Sparks, shake and groans while heat wears the hull.
+var _hull_feel := HullFeel.new()
 
 @onready var _dive_view: DiveView = %DiveView
 @onready var _controls: Label = $Overlay/Controls
@@ -112,6 +114,10 @@ func _ready() -> void:
 	var slip_sound := SlipSound.new()
 	slip_sound.sim = _sim
 	add_child(slip_sound)
+	_hull_feel.sim = _sim
+	_hull_feel.ring_radius = OUTER_RADIUS
+	_hull_feel.length = LENGTH
+	add_child(_hull_feel)
 	_build_room()
 	_build_stations()
 	_build_notice()
@@ -205,8 +211,11 @@ func _physics_process(delta: float) -> void:
 		_crew.hold(_arm.held_eye(), GimballedStation.pose_look(), settle)
 	else:
 		_crew.step(felt, delta)
-	# A poor Shift's lurch, and the grip waves slipping on the wall, are felt.
-	_crew.shake(_sim.lurch() * LURCH_SHAKE_M + _sim.slip() * SLIP_SHAKE_M)
+	# A poor Shift's lurch, the grip waves slipping on the wall, and heat
+	# wearing the hull are felt.
+	_hull_feel.step(delta, felt)
+	_crew.shake(_sim.lurch() * LURCH_SHAKE_M + _sim.slip() * SLIP_SHAKE_M
+			+ _hull_feel.shake_metres())
 	_drive.set_supplied(_sim.drive_supplied())
 	_thermal.set_supplied(_sim.thermal_supplied())
 	_navigation.set_supplied(_sim.navigation_supplied())
