@@ -1,6 +1,9 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://view/dive_view.gd" id="1"]
+[ext_resource type="Script" path="res://view/column_strip.gd" id="2"]
+[ext_resource type="Script" path="res://view/survey_panel.gd" id="3"]
+[ext_resource type="Script" path="res://view/tunnel_panel.gd" id="4"]
 
 [node name="DiveView" type="Control"]
 layout_mode = 3
@@ -84,3 +87,47 @@ step = 0.01
 layout_mode = 2
 text = "Up / Down arrows or the slider set Drive power"
 horizontal_alignment = 1
+
+[node name="ColumnStrip" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -184.0
+offset_top = 24.0
+offset_right = -24.0
+offset_bottom = -24.0
+grow_horizontal = 0
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("2")
+
+[node name="SurveyPanel" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -544.0
+offset_top = 24.0
+offset_right = -204.0
+offset_bottom = 244.0
+grow_horizontal = 0
+mouse_filter = 2
+script = ExtResource("3")
+
+[node name="TunnelPanel" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -544.0
+offset_top = 256.0
+offset_right = -204.0
+offset_bottom = 456.0
+grow_horizontal = 0
+mouse_filter = 2
+script = ExtResource("4")

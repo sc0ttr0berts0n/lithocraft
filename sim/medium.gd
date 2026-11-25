@@ -57,7 +57,9 @@ static func sand() -> Medium:
 
 static func sandstone() -> Medium:
 	return Medium.new(&"sandstone", 2.5, 0.6, 0.2, 310.0, 5.0,
-			{&"quartz": 0.8, &"feldspar": 0.1, &"calcite": 0.1}, 0.6)
+			# Desert sandstone: quartz sand cemented by calcite, reddened by a
+			# little iron oxide (hematite) in the cement.
+			{&"quartz": 0.78, &"feldspar": 0.1, &"calcite": 0.1, &"hematite": 0.02}, 0.6)
 
 
 static func granite() -> Medium:

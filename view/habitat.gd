@@ -25,11 +25,28 @@ const PITCH_STEP := 15.0
 const RAIL_GAP := 0.15
 ## How quickly the look settles onto a Station's screen while carried, per second.
 const LOOK_SETTLE_RATE := 4.0
+## The Column inside the Bore glass.
+const COLUMN_RADIUS := BORE_RADIUS - 0.08
+## How far the Habitat's Head-side wall is behind the Head, in metres: the
+## length of the Head section the Column passes through first. A guess for
+## play, not a commitment.
+const HABITAT_BEHIND_HEAD_M := 3.0
+## Resolution of the Column's surface texture. LENGTH times this should be a
+## whole number of pixels so the texture spans the Bore exactly.
+const COLUMN_PIXELS_PER_METRE := 125.0
+## How much one press moves the heat split at the Thermal Station.
+const HEAT_SPLIT_STEP := 0.1
+## How close the crew must be to a Station's pivot to work it, in metres.
+const STATION_REACH := 2.0
 
 var _sim := DiveSimulation.new(MediumLayout.first_dive())
 var _pitch_setting := 90.0
 var _stations: Array[GimballedStation] = []
 var _drive: GimballedStation
+var _thermal: GimballedStation
+## Thermal Station setting: share of heat sent into the Column.
+var _heat_split := 0.0
+var _navigation: GimballedStation
 var _crew := CrewMember.new()
 var _arm := Arm.new(BORE_RADIUS + RAIL_GAP)
 ## The Stations in use, in order round the ring; the Arm carries to these.
@@ -40,6 +57,7 @@ var _in_use: Array[GimballedStation] = []
 
 func _ready() -> void:
 	_sim.set_pitch(_pitch_setting)
+	_sim.set_heat_split(_heat_split)
 	_dive_view.attach(_sim)
 	_build_room()
 	_build_stations()
@@ -68,6 +86,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_3: _steer(-90.0)
 			KEY_Z: _steer(_pitch_setting - PITCH_STEP)
 			KEY_X: _steer(_pitch_setting + PITCH_STEP)
+			KEY_C: _split_heat(_heat_split - HEAT_SPLIT_STEP)
+			KEY_V: _split_heat(_heat_split + HEAT_SPLIT_STEP)
+			KEY_P: _sim.pulse()
+			KEY_Q: _sim.set_quiet_ship(not _sim.quiet_ship())
 			KEY_SPACE: _arm.press()
 			KEY_A:
 				_arm.shift(-1)
@@ -89,6 +111,11 @@ func _physics_process(delta: float) -> void:
 		_crew.step(felt, delta)
 	_drive.show_reading("Depth %.1f m\nPitch %+.0f deg (set %+.0f)" % [
 		_sim.depth(), _sim.pitch(), _pitch_setting])
+	_show_thermal()
+	_navigation.show_reading("%s  noise %d%%  %d points  draw %d%%\n[P] pulse  [Q] Quiet Ship" % [
+		"QUIET SHIP" if _sim.quiet_ship() else "under way",
+		roundi(_sim.noise() * 100.0), _sim.point_count(),
+		roundi(_sim.navigation_draw() * 100.0)])
 
 
 func _station_poses() -> Array[Transform3D]:
@@ -104,6 +131,34 @@ func _steer(pitch: float) -> void:
 	_sim.set_pitch(_pitch_setting)
 
 
+## The heat split is worked at the Thermal Station: only within reach of it.
+func _split_heat(to_column: float) -> void:
+	if _crew.position.distance_to(_thermal.position) > STATION_REACH:
+		return
+	_heat_split = clampf(snappedf(to_column, HEAT_SPLIT_STEP), 0.0, 1.0)
+	_sim.set_heat_split(_heat_split)
+
+
+## The Thermal Station's screen: the split, where the heat is going, the hull
+## against the Medium and the temperature it can bear, and wear. It calls with
+## its light while the simulation warns of heat damage.
+func _show_thermal() -> void:
+	var warning := _sim.heat_warning()
+	_thermal.set_calling(warning)
+	var to_column := roundi(_heat_split * 10.0)
+	var lines := [
+		"Out [%s|%s] Column" % ["#".repeat(10 - to_column), "#".repeat(to_column)],
+		"Heat %.2f > Column %.2f" % [_sim.heat_produced(), _sim.heat_to_column()],
+		"Hull %.0f K, bears %.0f K" % [
+			_sim.vessel_temperature(), _sim.hull_damage_temperature()],
+		"Medium %.0f K  Wear %.1f%%" % [
+			_sim.surroundings_temperature(), _sim.vessel_wear() * 100.0],
+	]
+	if warning:
+		lines.append("!! HEAT WARNING !!")
+	_thermal.show_reading("\n".join(lines))
+
+
 func _build_room() -> void:
 	var outer := CylinderMesh.new()
 	outer.top_radius = OUTER_RADIUS
@@ -116,11 +171,10 @@ func _build_room() -> void:
 	_add_along_axis(outer, _surface(Color(0.17, 0.2, 0.22)), 0.0)
 
 	# The Bore: glass round the Column, which stays in view from anywhere.
-	var column := CylinderMesh.new()
-	column.top_radius = BORE_RADIUS - 0.08
-	column.bottom_radius = BORE_RADIUS - 0.08
-	column.height = LENGTH
-	_add_along_axis(column, _surface(Color(0.55, 0.42, 0.27)), 0.0)
+	var column := MeshInstance3D.new()
+	column.mesh = _column_tube()
+	column.material_override = _column_material()
+	add_child(column)
 	var glass := CylinderMesh.new()
 	glass.top_radius = BORE_RADIUS
 	glass.bottom_radius = BORE_RADIUS
@@ -189,6 +243,8 @@ func _build_stations() -> void:
 		var station := GimballedStation.new()
 		station.station_name = STATIONS[i][0]
 		station.hue = STATIONS[i][1]
+		if station.station_name == "Thermal":
+			station.screen_font_size = 28
 		station.position = outward * pivot_radius
 		add_child(station)
 		_stations.append(station)
@@ -196,6 +252,77 @@ func _build_stations() -> void:
 			_in_use.append(station)
 		if station.station_name == "Drive":
 			_drive = station
+		elif station.station_name == "Thermal":
+			_thermal = station
+		elif station.station_name == "Navigation":
+			_navigation = station
+			_navigation.show_display(_scan_display())
+
+
+## Navigation's point cloud display, drawn in its own world and shown on the
+## Navigation Station's screen.
+func _scan_display() -> Texture2D:
+	var display := ScanDisplay.new()
+	display.size = Vector2i(512, 242)
+	display.sim = _sim
+	add_child(display)
+	return display.get_texture()
+
+
+## The Column as an open tube along the Bore, with the whole texture on its
+## side: u runs round it, v from 0 at the Tail end (+Z) to 1 at the Head end
+## (-Z), matching ColumnStrip, which draws the Head end at the bottom.
+## (Godot's CylinderMesh shares its texture with its caps, so it can't.)
+func _column_tube() -> ArrayMesh:
+	var tool := SurfaceTool.new()
+	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var segments := 48
+	var tail := LENGTH / 2.0
+	var head := -LENGTH / 2.0
+	for i in segments:
+		var u0 := float(i) / segments
+		var u1 := float(i + 1) / segments
+		var r0 := Vector3(cos(u0 * TAU), sin(u0 * TAU), 0)
+		var r1 := Vector3(cos(u1 * TAU), sin(u1 * TAU), 0)
+		var quad := [
+			[r0, tail, Vector2(u0, 0)], [r1, tail, Vector2(u1, 0)], [r1, head, Vector2(u1, 1)],
+			[r0, tail, Vector2(u0, 0)], [r1, head, Vector2(u1, 1)], [r0, head, Vector2(u0, 1)],
+		]
+		for corner in quad:
+			tool.set_normal(corner[0])
+			tool.set_uv(corner[2])
+			tool.add_vertex(corner[0] * COLUMN_RADIUS + Vector3(0, 0, corner[1]))
+	return tool.commit()
+
+
+## The Column's surface: a ColumnStrip drawn in a SubViewport and wrapped
+## round the Column tube. The strip's height is the Bore's length at the same
+## metres as the room, so the Column slides past at exactly the simulation's
+## speed(), and its width is the Column's circumference.
+func _column_material() -> StandardMaterial3D:
+	var viewport := SubViewport.new()
+	viewport.size = Vector2i(
+			roundi(TAU * COLUMN_RADIUS * COLUMN_PIXELS_PER_METRE),
+			roundi(LENGTH * COLUMN_PIXELS_PER_METRE))
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	viewport.disable_3d = true
+	var strip := ColumnStrip.new()
+	strip.sim = _sim
+	strip.pixels_per_metre = COLUMN_PIXELS_PER_METRE
+	strip.cell_m = 0.1
+	strip.grain_m = Vector2(0.07, 0.05)
+	strip.behind_head_m = HABITAT_BEHIND_HEAD_M
+	strip.show_readout = false
+	strip.size = Vector2(viewport.size)
+	viewport.add_child(strip)
+	add_child(viewport)
+	var material := _surface(Color.WHITE)
+	material.albedo_texture = viewport.get_texture()
+	# The Bore lights its own Column, so its colours read true from anywhere
+	# in the room (the room's lamp sits on the axis, inside the Column).
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return material
 
 
 func _add_cap(z: float, colour: Color, label: String, ink: Color) -> void:
