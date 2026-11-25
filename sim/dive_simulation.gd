@@ -338,6 +338,13 @@ var _calls := {}
 ## Path distance at which the Head entered Medium that will seal the tunnel
 ## when the Tail leaves it, or NAN while none is coming.
 var _seal_coming_at := NAN
+## True once the Head has come back up to the surface: the dive is over and
+## its survey sold. Nothing moves until new_dive().
+var _surfaced := false
+## Where this dive's entries begin in _uploaded, and what had been paid before
+## it began: so the payment on surfacing covers this dive alone.
+var _dive_uploaded_from := 0
+var _paid_before_dive := 0.0
 
 
 func _init(layout: MediumLayout) -> void:
@@ -436,12 +443,30 @@ func set_time_rate(rate: float) -> void:
 func recover() -> void:
 	if not _stranded:
 		return
+	_start_fresh()
+	_events.append({type = &"recovered", paid = _paid})
+
+
+## Start another dive after surfacing: the Lithocraft is at the surface ready
+## to dive, every Station setting back at its start, as after a recovery.
+## What was paid is kept. Ignored unless surfaced(). Raises &"new_dive".
+func new_dive() -> void:
+	if not _surfaced:
+		return
+	_start_fresh()
+	_events.append({type = &"new_dive", paid = _paid})
+
+
+## Resets every script variable to a fresh simulation's except those kept
+## between dives (_KEPT_ON_RECOVERY), and starts counting a new dive's pay.
+func _start_fresh() -> void:
 	var fresh := DiveSimulation.new(_layout)
 	for property in get_property_list():
 		if property.usage & PROPERTY_USAGE_SCRIPT_VARIABLE \
 				and not StringName(property.name) in _KEPT_ON_RECOVERY:
 			set(property.name, fresh.get(property.name))
-	_events.append({type = &"recovered", paid = _paid})
+	_dive_uploaded_from = _uploaded.size()
+	_paid_before_dive = _paid
 
 
 ## Reactor Station: perform a Shift, retuning the Reactor to hold the plasma
@@ -471,8 +496,8 @@ func advance(dt: float) -> void:
 
 
 func _step(dt: float) -> void:
-	if _stranded:
-		return  # The dive is over; nothing moves until recover().
+	if _stranded or _surfaced:
+		return  # The dive is over; nothing moves until recover() or new_dive().
 	_head_activity = move_toward(_head_activity, 0.0 if _quiet_ship else 1.0,
 			_HEAD_SPIN_RATE * dt)
 	_tend_plasma(dt)
@@ -507,6 +532,9 @@ func _step(dt: float) -> void:
 	_watch_boundaries(depth_before)
 	_update_tunnel()
 	_upload(link_rate() * dt)
+	if depth_before > 0.0 and depth() <= 0.0:
+		_surface()
+		return
 	if _pulse_pending:
 		_pulse_pending = false
 		_send_pulse()
@@ -832,6 +860,17 @@ func survey_value() -> float:
 ##       discarded (`lost_stretches` stretches of it); `paid` is kept.
 ##   &"recovered" {paid}: recover() has brought the crew back to the surface
 ##       with `paid` kept, ready to dive again.
+##   &"surfaced" {distance}: the Head has come back up to the surface; the
+##       dive is over.
+##   &"paid" {amount, by_link, carried_home, stretches, metres, mean_quality,
+##       features, feature_worth, lost_to_quality, by_medium, total_paid}:
+##       right after surfaced, what this dive was paid (`amount` = `by_link`,
+##       paid while under way, + `carried_home`, the survey sold on
+##       surfacing) and why: Column recorded and its length-weighted quality,
+##       features recorded and their worth, the value heat and shuttering
+##       took off pristine records, and pay per Medium name. `total_paid` is
+##       paid() across every dive.
+##   &"new_dive" {paid}: new_dive() has the Lithocraft ready at the surface.
 func take_events() -> Array[Dictionary]:
 	var taken := _events
 	_events = []
@@ -858,6 +897,13 @@ func unsold_value() -> float:
 ## recover() brings the crew back to the surface.
 func stranded() -> bool:
 	return _stranded
+
+
+## True once the Head has come back up to the surface and the survey has been
+## sold: the dive is over and time no longer advances it. new_dive() starts
+## another.
+func surfaced() -> bool:
+	return _surfaced
 
 
 ## True once the tunnel behind has been filled somewhere, so no continuous open
@@ -1316,6 +1362,65 @@ func _check_stranded() -> void:
 			lost = lost_value, lost_stretches = lost_stretches, paid = _paid})
 
 
+# --- Surfacing and the sale -----------------------------------------------
+
+## The Head has come back up to the surface: the Lithocraft stops there, the
+## survey still aboard (the last part-stretch included) is sold, and the dive
+## is over. Raises &"surfaced", then &"paid" with what this dive was paid and
+## why.
+func _surface() -> void:
+	_position.y = 0.0  # The Head rests at the surface.
+	_speed = 0.0
+	_slip = 0.0
+	_surfaced = true
+	_calls = {}
+	_time_rate = 1.0
+	_events.append({type = &"surfaced", distance = _distance})
+	var part := _distance - _stretch_start
+	if part > 0.0:
+		_close_stretch(part)
+	var carried := 0.0
+	for stretch in _waiting:
+		carried += stretch.value()
+		_uploaded.append(stretch)
+	_paid += carried
+	_waiting.clear()
+	_sent.clear()
+	_sending = null
+	_events.append(_payment(carried))
+
+
+## The &"paid" event for this dive: everything it was paid, by link while
+## under way and for the survey carried home, and why: how much Column was
+## recorded and how well, what the features were worth, what each Medium paid,
+## and what heat and shuttering cost against pristine records.
+func _payment(carried_home: float) -> Dictionary:
+	var by_medium := {}
+	var stretches := 0
+	var metres := 0.0
+	var quality_metres := 0.0
+	var features := 0
+	var feature_worth := 0.0
+	var lost_to_quality := 0.0
+	for i in range(_dive_uploaded_from, _uploaded.size()):
+		var stretch := _uploaded[i]
+		by_medium[stretch.medium_name] = by_medium.get(stretch.medium_name, 0.0) + stretch.value()
+		lost_to_quality += stretch.pristine_value() - stretch.value()
+		if stretch.is_feature_record():
+			features += 1
+			feature_worth += stretch.feature_worth
+		else:
+			stretches += 1
+			metres += stretch.length
+			quality_metres += stretch.quality * stretch.length
+	var amount := _paid - _paid_before_dive
+	return {type = &"paid", amount = amount, by_link = amount - carried_home,
+			carried_home = carried_home, stretches = stretches, metres = metres,
+			mean_quality = quality_metres / metres if metres > 0.0 else 0.0,
+			features = features, feature_worth = feature_worth,
+			lost_to_quality = lost_to_quality, by_medium = by_medium, total_paid = _paid}
+
+
 # --- The tunnel behind ----------------------------------------------------
 
 ## The Tail leaves the tunnel behind it: lined and open in porous Medium,
@@ -1409,8 +1514,7 @@ func _record_survey(from: float, to: float) -> void:
 			_close_stretch()
 
 
-func _close_stretch() -> void:
-	var length := _SURVEY_STRETCH_M
+func _close_stretch(length := _SURVEY_STRETCH_M) -> void:
 	var composition := {}
 	for mineral in _stretch_minerals:
 		composition[mineral] = _stretch_minerals[mineral] / length

@@ -94,6 +94,11 @@ func _ready() -> void:
 	_build_room()
 	_build_stations()
 	_build_notice()
+	_show_notice([
+		"At the surface of the desert, ready to dive",
+		"Power up at the Drive [T]. Down through sand, sandstone and granite;",
+		"pitch up [3] a few kilometres down to arc home and sell the survey.",
+	], RECOVERED_NOTICE_S)
 	_crew.bore_radius = BORE_RADIUS
 	_crew.outer_radius = OUTER_RADIUS
 	_crew.length = LENGTH
@@ -136,7 +141,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_N: _turn_shift_dial(-1)
 			KEY_M: _turn_shift_dial(1)
 			KEY_R: _shift()
-			KEY_ENTER, KEY_KP_ENTER: _sim.recover()
+			KEY_ENTER, KEY_KP_ENTER:
+				_sim.recover()
+				_sim.new_dive()
 			KEY_PERIOD: _sim.set_time_rate(_sim.time_rate() * TIME_RATE_STEP)
 			KEY_COMMA: _sim.set_time_rate(1.0)
 
@@ -153,6 +160,8 @@ func _physics_process(delta: float) -> void:
 			&"boundary_crossed": _boundary_ahead = false
 			&"stranded": _on_stranded(event)
 			&"recovered": _on_recovered(event)
+			&"paid": _on_paid(event)
+			&"new_dive": _on_new_dive(event)
 	_fade_recovered_notice(delta)
 	_show_calls()
 	var felt := _sim.felt_acceleration()
@@ -238,7 +247,8 @@ func _show_calls() -> void:
 
 func _show_drive() -> void:
 	var lines := [
-		"Depth %.1f m  Speed %.2f m/s" % [_sim.depth(), _sim.speed()],
+		"SURFACED  [Enter] dive again" if _sim.surfaced() else
+			"Depth %.1f m  Speed %.2f m/s" % [_sim.depth(), _sim.speed()],
 		"Heading %03.0f (set %03.0f)" % [_sim.heading_degrees(), _heading_setting],
 		"Pitch %+.0f deg (set %+.0f)" % [_sim.pitch(), _pitch_setting],
 		"Set %d%%  Steer %d%%" % [
@@ -304,6 +314,58 @@ func _on_stranded(event: Dictionary) -> void:
 ## Back at the surface on a fresh dive: the Stations start from their start
 ## settings, so the Habitat's settings do too.
 func _on_recovered(event: Dictionary) -> void:
+	_reset_settings()
+	_show_notice([
+		"RECOVERED to the surface",
+		"Paid, and kept: %.0f" % event.paid,
+		"Ready to dive again: power up at the Drive [T].",
+	], RECOVERED_NOTICE_S)
+
+
+## Surfaced and sold: what this dive was paid and why, until the crew starts
+## another dive.
+func _on_paid(event: Dictionary) -> void:
+	var lines := [
+		"SURFACED  The survey is sold",
+		"Paid for this dive: %.0f" % event.amount,
+		"  up the link under way %.0f, carried home %.0f" % [event.by_link, event.carried_home],
+		"Column recorded %.0f m in %d stretches, quality %d%%" % [
+			event.metres, event.stretches, roundi(event.mean_quality * 100.0)],
+	]
+	if event.lost_to_quality >= 0.5:
+		lines.append("  heat and shuttering cost %.0f of pristine records" % event.lost_to_quality)
+	if event.features > 0:
+		lines.append("Features recorded: %d, worth %.0f" % [event.features, event.feature_worth])
+	var by_medium: Dictionary = event.by_medium
+	var media := PackedStringArray()
+	for medium in by_medium:
+		media.append("%s %.0f" % [String(medium).capitalize(), by_medium[medium]])
+	lines.append("By rock: " + "  ".join(media))
+	lines.append("Paid in all: %.0f" % event.total_paid)
+	lines.append("")
+	lines.append("[Enter] start another dive")
+	_show_notice(lines, 0.0)
+
+
+## A fresh dive after surfacing: back to the start settings, ready to dive.
+func _on_new_dive(event: Dictionary) -> void:
+	_reset_settings()
+	_show_notice([
+		"At the surface, ready to dive",
+		"Paid so far: %.0f" % event.paid,
+		"Power up at the Drive [T].",
+	], RECOVERED_NOTICE_S)
+
+
+## Shows the centre notice; for `seconds` if above 0, else until replaced.
+func _show_notice(lines: Array, seconds: float) -> void:
+	_notice.text = "\n".join(lines)
+	_notice.visible = true
+	_recovered_notice_left = seconds
+
+
+## The Stations start a dive from their start settings, so the Habitat's do too.
+func _reset_settings() -> void:
 	_pitch_setting = 90.0
 	_heading_setting = 0.0
 	_power_setting = 0.0
@@ -314,14 +376,6 @@ func _on_recovered(event: Dictionary) -> void:
 	_sim.set_heat_split(_heat_split)
 	_plasma_display.dial = _sim.plasma_tuning()
 	_boundary_ahead = false
-	_notice.text = "
-".join([
-		"RECOVERED to the surface",
-		"Paid, and kept: %.0f" % event.paid,
-		"Ready to dive again: power up at the Drive [T].",
-	])
-	_notice.visible = true
-	_recovered_notice_left = RECOVERED_NOTICE_S
 
 
 func _fade_recovered_notice(delta: float) -> void:

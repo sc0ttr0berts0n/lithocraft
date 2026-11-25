@@ -72,7 +72,17 @@ const _MINERAL_WORTH := {
 ## longer record, a better one, and one of more valuable minerals; a feature
 ## record is worth what its feature is. In arbitrary units.
 func value() -> float:
+	return length * quality * _mineral_worth() + feature_worth
+
+
+## What this stretch would sell for had its record been pristine (quality 1):
+## the difference from value() is what heat and shuttering cost it.
+func pristine_value() -> float:
+	return length * _mineral_worth() + feature_worth
+
+
+func _mineral_worth() -> float:
 	var worth := 0.0
 	for mineral in composition:
 		worth += composition[mineral] * _MINERAL_WORTH.get(mineral, 1.0)
-	return length * quality * worth + feature_worth
+	return worth
