@@ -94,6 +94,8 @@ var _boundary_ahead := false
 var _notice: Label
 ## Seconds left showing the recovery notice; 0 while not showing it.
 var _recovered_notice_left := 0.0
+## The heading the breakdown after a rescue carries; empty after surfacing.
+var _rescue_heading := ""
 ## Sparks, shake and groans while heat wears the hull.
 var _hull_feel := HullFeel.new()
 
@@ -178,9 +180,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_M: _turn_shift_dial(1)
 			KEY_R: _shift()
 			KEY_I: _relight()
-			KEY_ENTER, KEY_KP_ENTER:
-				_sim.recover()
-				_sim.new_dive()
+			KEY_ENTER, KEY_KP_ENTER: _sim.new_dive()
 			KEY_PERIOD: _sim.set_time_rate(_sim.time_rate() * TIME_RATE_STEP)
 			KEY_COMMA: _sim.set_time_rate(1.0)
 
@@ -198,7 +198,7 @@ func _physics_process(delta: float) -> void:
 			&"stranded": _on_stranded(event)
 			&"hull_failed": _on_hull_failed(event)
 			&"recovered_through_tunnel": _on_recovered_through_tunnel(event)
-			&"recovered": _on_recovered(event)
+			&"rescued": _on_rescued(event)
 			&"relight_result": _on_relight_result(event)
 			&"paid": _on_paid(event)
 			&"new_dive": _on_new_dive(event)
@@ -411,22 +411,25 @@ func _relight_line() -> String:
 
 
 ## The plasma is lost and the tunnel sealed: stranded, on the emergency
-## store. Tell the crew where, what is still aboard, and what the store can
-## buy: a relight at the Reactor, the link sending the survey up, or the
-## recovery.
+## store, a rescue on its way. Tell the crew where, the race between the
+## rescue and the stranding clock, what is aboard, and what the store can buy:
+## a relight at the Reactor, cooling at Thermal, or the link sending the
+## survey up as insurance.
 func _on_stranded(event: Dictionary) -> void:
 	_show_notice([
 		"STRANDED  at %.0f m" % event.depth,
 		"The plasma is lost and the tunnel behind is sealed: on the emergency store.",
-		"Survey aboard: %d stretches, worth %.0f, lost at the recovery" % [
+		"Rescue in %s.  Hull lasts %s as the rock's heat soaks in." % [
+			_duration(event.rescue_time), _duration(event.clock)],
+		"Survey aboard: %d stretches, worth %.0f: home with the rescue, lost if the hull fails" % [
 			event.aboard_stretches, event.aboard],
-		"Paid, and kept: %.0f" % event.paid,
 		"",
 		"[I] at the Reactor: relight the Head (chance %d%%, costs %d%% of the store)" % [
 			roundi(_sim.relight_chance() * 100.0),
 			roundi(_sim.relight_cost() / _sim.emergency_store_capacity() * 100.0)],
+		"[V] at Thermal: run the pumps on the store to cool the hull",
 		"[B] at the Bore Station: stop or start the link, which runs on the store",
-		"[Enter] call the recovery",
+		"[.] wait faster",
 	], 0.0)
 
 
@@ -440,10 +443,10 @@ func _on_relight_result(event: Dictionary) -> void:
 					"Store left %d%%. Power up at the Drive [T]." % left], RECOVERED_NOTICE_S)
 		&"failed":
 			_show_notice(["RELIGHT FAILED  the pulse is spent", "Store left %d%%" % left,
-					"[I] try again   [Enter] call the recovery"], 0.0)
+					"[I] try again, or wait for the rescue"], 0.0)
 		&"refused":
 			_show_notice(["RELIGHT REFUSED  the store cannot pay the pulse",
-					"Store left %d%%" % left, "[Enter] call the recovery"], 0.0)
+					"Store left %d%%" % left, "Wait for the rescue"], 0.0)
 
 
 ## Heat wore the hull through and the crew died: the dive is over. The
@@ -476,28 +479,29 @@ func _on_recovered_through_tunnel(event: Dictionary) -> void:
 	], 0.0)
 
 
-## Back at the surface on a fresh dive: the Stations start from their start
-## settings, so the Habitat's settings do too.
-func _on_recovered(event: Dictionary) -> void:
-	_reset_settings()
-	_show_notice([
-		"RECOVERED to the surface",
-		"Paid, and kept: %.0f" % event.paid,
-		"Ready to dive again: power up at the Drive [T].",
-	], RECOVERED_NOTICE_S)
+## The rescue reached the stranded Lithocraft and brought everyone home. The
+## breakdown follows in &"paid", headed by where and how long.
+func _on_rescued(event: Dictionary) -> void:
+	_rescue_heading = "RESCUED  from %.0f m after %s" % [event.depth,
+			_duration(event.rescue_time)]
 
 
-## Surfaced and sold: what this dive was paid and why, the repairs to its
-## hull and Head taken out, until the crew starts another dive.
+## Surfaced (or rescued) and sold: what this dive was paid and why, the
+## repairs to its hull and Head and any rescue taken out, until the crew
+## starts another dive.
 func _on_paid(event: Dictionary) -> void:
+	var heading := _rescue_heading if _rescue_heading != "" else "SURFACED"
+	_rescue_heading = ""
 	var lines := [
-		"SURFACED  The survey is sold",
+		heading + "  The survey is sold",
 		"Paid for this dive: %.0f" % event.amount,
 		"  up the link under way %.0f, carried home %.0f" % [event.by_link, event.carried_home],
 		"  hull repair -%.0f, Head repair -%.0f" % [event.hull_repair, event.head_repair],
 		"Column recorded %.0f m in %d stretches, quality %d%%" % [
 			event.metres, event.stretches, roundi(event.mean_quality * 100.0)],
 	]
+	if event.rescue > 0.0:
+		lines.insert(4, "  rescue -%.0f" % event.rescue)
 	if event.lost_to_quality >= 0.5:
 		lines.append("  heat and shuttering cost %.0f of pristine records" % event.lost_to_quality)
 	if event.features > 0:
@@ -723,6 +727,10 @@ func _show_thermal() -> void:
 		"Hull integrity %.1f%%  creep %.2f%%/min" % [
 			_sim.hull_integrity() * 100.0, _sim.hull_creep_rate() * 6000.0],
 	]
+	if _sim.stranded():
+		lines.append("Pumps on store %d%%" % roundi(_heat_split * 100.0))
+	if _sim.stranded() or _sim.tunnel_sealed():
+		lines.append(_race_line())
 	if _sim.dead():
 		lines.append("!! HULL FAILED !!")
 	elif _sim.hull_creep_rate() > 0.0:
@@ -731,6 +739,27 @@ func _show_thermal() -> void:
 	elif warning:
 		lines.append("!! HEAT WARNING !!")
 	_thermal.show_reading("\n".join(lines))
+
+
+## The stranding clock beside the rescue time, live: while stranded the race
+## itself; sealed in but under way, what it would be if the plasma went now.
+func _race_line() -> String:
+	var clock := _sim.stranding_clock()
+	var rescue := _sim.rescue_time()
+	var line := "Hull lasts %s | Rescue %s" % [_duration(clock), _duration(rescue)]
+	if not _sim.stranded():
+		return "If stranded: " + line
+	return line + ("  RESCUE FIRST" if rescue < clock else "  !! CLOCK FIRST !!")
+
+
+## Seconds as h:mm:ss or m:ss; for ever as "holds".
+static func _duration(seconds: float) -> String:
+	if is_inf(seconds):
+		return "holds"
+	var s := roundi(seconds)
+	if s >= 3600:
+		return "%d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60]
+	return "%d:%02d" % [s / 60, s % 60]
 
 
 func _build_room() -> void:

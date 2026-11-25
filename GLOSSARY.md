@@ -60,6 +60,14 @@ _Avoid_: Battery, backup, reserve
 Striking the Head's lost plasma again with a large pulse from the emergency store.
 _Avoid_: Restart, reboot, reignite
 
+**Stranding clock**:
+The time until heat soaking in from the melt and rock round a stranded Lithocraft, its Head dark, fails the hull.
+_Avoid_: Timer, countdown, air left
+
+**Rescue**:
+The way home from a stranding: rescuers run down the open tunnel behind and cut through its sealed length to bring the crew and everything aboard to the surface. Its time races the stranding clock.
+_Avoid_: Recovery, evacuation, retrieval
+
 **Arm**:
 The chain-arm that rides a rail around the Bore, catches a crew member by their harness and carries them between Stations whatever "down" is.
 _Avoid_: Crane, grabber, lift, tether
