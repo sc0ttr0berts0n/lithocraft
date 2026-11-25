@@ -1167,12 +1167,13 @@ func stranding_clock() -> float:
 	if dead():
 		return 0.0
 	var cooling := _heat_split if stranded() else 0.0
-	var draw := _THERMAL_COLUMN_DRAW * cooling
-	if stranded() and not _waiting.is_empty() and link_rate() > 0.0:
-		draw += _LINK_DRAW
-	var cooled_for := INF if draw <= 0.0 else _stranding.store() / draw
-	if cooling <= 0.0:
-		cooled_for = 0.0
+	var cooled_for := 0.0
+	if cooling > 0.0:
+		# The store runs the pumps, and the link while it has data to send.
+		var draw := _THERMAL_COLUMN_DRAW * cooling
+		if not _waiting.is_empty() and link_rate() > 0.0:
+			draw += _LINK_DRAW
+		cooled_for = _stranding.store() / draw
 	return _heat.time_to_fail(surroundings_temperature(), depth(), cooling, cooled_for)
 
 

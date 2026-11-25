@@ -495,7 +495,8 @@ func _on_paid(event: Dictionary) -> void:
 	var lines := [
 		heading + "  The survey is sold",
 		"Paid for this dive: %.0f" % event.amount,
-		"  up the link under way %.0f, carried home %.0f" % [event.by_link, event.carried_home],
+		"  up the link under way %.0f, carried home %.0f" % [
+				maxf(event.by_link, 0.0), event.carried_home],
 		"  hull repair -%.0f, Head repair -%.0f" % [event.hull_repair, event.head_repair],
 		"Column recorded %.0f m in %d stretches, quality %d%%" % [
 			event.metres, event.stretches, roundi(event.mean_quality * 100.0)],
