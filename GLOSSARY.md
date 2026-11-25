@@ -48,6 +48,10 @@ _Avoid_: Gear change, transition, retune
 The state in which the Lithocraft halts and idles its Head so Navigation can take a clean scan.
 _Avoid_: Silent running, scan mode
 
+**Course**:
+The heading and pitch Navigation plots for the Lithocraft to follow; the Drive steers toward it.
+_Avoid_: Route, waypoint, path, heading (for the plotted target)
+
 **Arm**:
 The chain-arm that rides a rail around the Bore, catches a crew member by their harness and carries them between Stations whatever "down" is.
 _Avoid_: Crane, grabber, lift, tether
@@ -62,7 +66,7 @@ _Avoid_: Console, panel, terminal, seat
 The Station that controls the Head's plasma and the power it supplies.
 
 **Drive**:
-The Station that controls how the Lithocraft pushes itself through the Medium.
+The Station that controls how the Lithocraft pushes itself through the Medium, and steers it along the Course.
 _Avoid_: Helm, engine
 
 **Thermal**:
@@ -70,7 +74,7 @@ The Station that controls where the Lithocraft's heat is sent.
 _Avoid_: Cooling
 
 **Navigation**:
-The Station that senses the Medium ahead and sets heading.
+The Station that senses the Medium ahead and plots the Course.
 _Avoid_: Sonar, radar, helm
 
 **Bore Station**:
