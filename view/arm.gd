@@ -28,6 +28,8 @@ const HARNESS_BEHIND := 0.3
 const PARKED_REACH := 0.3
 ## Links drawn between the carriage and the claw.
 const CHAIN_LINKS := 18
+## Metres: two neighbours closer than this to the same side count as level.
+const SIDE_TIE := 0.25
 
 var _rail_radius: float
 var _state := State.PARKED
@@ -42,6 +44,14 @@ var _from := Transform3D.IDENTITY
 var _to := -1
 var _u := 1.0
 var _held := Transform3D.IDENTITY
+## A left (-1) or right (+1) asked for, taken on the next step, which has
+## the Stations.
+var _shift := 0
+## The last left or right taken, the Station it left, and which way round
+## the ring it went (+1 up the list, -1 down it). Forgotten on letting go.
+var _last_side := 0
+var _came_from := -1
+var _last_round := 0
 
 
 func _init(rail_radius: float) -> void:
@@ -57,6 +67,9 @@ func press() -> void:
 		_state = State.REACHING
 	else:
 		_state = State.RETURNING
+	_shift = 0
+	_last_side = 0
+	_came_from = -1
 	_t = 0.0
 	_hand_from = _hand
 
@@ -64,11 +77,8 @@ func press() -> void:
 ## Carry on to the next Station on the crew member's right (side > 0) or
 ## left (side < 0). Ignored unless holding.
 func shift(side: int) -> void:
-	_shift = signi(side)
-
-
-## The shift asked for, taken on the next step (it needs the Stations).
-var _shift := 0
+	if is_holding():
+		_shift = signi(side)
 
 
 func _take_shift(stations: Array[Transform3D]) -> void:
@@ -78,21 +88,26 @@ func _take_shift(stations: Array[Transform3D]) -> void:
 		return
 	var ahead := (_to + 1) % count
 	var behind := (_to + count - 1) % count
-	var eye := _held
-	var sense := _round_to_the_right(eye.basis) * _shift
 	var pick: int
-	if absf(sense) > 0.1:
-		# Go round the ring the way that is right (or left) for the part of
-		# it in front of and below the crew member.
-		var step := wrapf(_angle_of(stations[ahead].origin) - _angle_of(stations[_to].origin), -PI, PI)
-		pick = ahead if signf(step) == signf(sense) else behind
+	if _shift == -_last_side and _came_from >= 0:
+		# The other way from last time: back where they came from.
+		pick = _came_from
 	else:
-		# Looking along the Bore with "down" along it too: no part of the
-		# ring is below, so take whichever neighbour is further that side
-		# as seen now (the prototype's rule).
+		# Of the two neighbours round the ring, the one further toward that
+		# side as the crew member sees it now (the prototype's rule).
+		var eye := _held
 		var toward := func(i: int) -> float:
 			return (stations[i].origin - eye.origin).dot(eye.basis.x) * _shift
-		pick = ahead if toward.call(ahead) >= toward.call(behind) else behind
+		var lead: float = toward.call(ahead) - toward.call(behind)
+		if absf(lead) < SIDE_TIE and _shift == _last_side:
+			# Neither is clearly that side (both straight above and below,
+			# say): keep going round the way the last press went.
+			pick = ahead if _last_round > 0 else behind
+		else:
+			pick = ahead if lead >= 0.0 else behind
+	_came_from = _to
+	_last_side = _shift
+	_last_round = 1 if pick == ahead else -1
 	_from = _held
 	_to = pick
 	_u = 0.0
@@ -110,8 +125,9 @@ func step(dt: float, eye: Transform3D, stations: Array[Transform3D]) -> void:
 			_turn_carriage_toward(_angle_of(eye.origin), dt)
 			_t = minf(1.0, _t + dt / REACH_TIME)
 			var e := _ease(_t)
-			# Swing out of the way of the face on the way in.
-			_hand = _hand_from.lerp(_harness(eye), e) + Vector3.BACK * sin(PI * _t) * 0.6
+			# Swing round behind and above them on the way in, out of sight.
+			var behind_above := (eye.basis.z + eye.basis.y).normalized()
+			_hand = _hand_from.lerp(_harness(eye), e) + behind_above * sin(PI * _t) * 0.6
 			if _t >= 1.0 and not stations.is_empty():
 				_state = State.HOLDING
 				_from = eye
@@ -217,16 +233,6 @@ func _carry(dt: float, to: Transform3D) -> void:
 	var turned := _from.basis.get_rotation_quaternion().slerp(to.basis.get_rotation_quaternion(), e)
 	_held = Transform3D(Basis(turned), Vector3(cos(angle) * r, sin(angle) * r, z))
 	_turn_carriage_toward(angle, dt)
-
-
-## Which way round the Bore (positive: anticlockwise about +Z) carries the
-## crew member to their right, judged where they look: in front and below.
-## Every Station's pose shares one basis at a given "down" (the gimbals all
-## follow it from the same start), so this is the same at every Station and
-## left undoes right. Near zero when that look runs along the Bore.
-static func _round_to_the_right(body: Basis) -> float:
-	var look := -body.z - body.y
-	return Vector3.BACK.cross(look).dot(body.x)
 
 
 func _nearest(point: Vector3, stations: Array[Transform3D]) -> int:

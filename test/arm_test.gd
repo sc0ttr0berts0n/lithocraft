@@ -132,53 +132,65 @@ func _shifted(arm: Arm, side: int, up: Vector3) -> Transform3D:
 	return _run(arm, arm.held_eye(), _poses(up))
 
 
-func test_at_level_from_the_reactor_left_is_drive_and_right_is_the_bore_station() -> void:
-	# Seated at the Reactor, at the bottom of the ring, facing the Tail:
-	# Drive is round to the left, the Bore Station round to the right past
-	# the empty mount.
-	var left := _seated_at(0, LEVEL)
-	var right := _seated_at(0, LEVEL)
+func test_from_the_reactor_left_is_drive_and_right_is_the_bore_station_at_every_pitch() -> void:
+	# The Reactor is at the bottom of the ring. Level, the crew member faces
+	# the Tail; diving or climbing, the gimbals turn every screen the same
+	# way across the ring. Either way Drive sits to their left and the Bore
+	# Station (past the empty mount) to their right.
+	for up in [LEVEL, DIVING, CLIMBING]:
+		var left := _seated_at(0, up)
+		var right := _seated_at(0, up)
 
-	_shifted(left, -1, LEVEL)
-	_shifted(right, 1, LEVEL)
+		_shifted(left, -1, up)
+		_shifted(right, 1, up)
 
-	assert_int(left.station()).is_equal(1)
-	assert_int(right.station()).is_equal(4)
-
-
-func test_diving_from_the_reactor_left_is_drive_and_right_is_the_bore_station() -> void:
-	# Standing on the Head cap: the gimbals turn every Station's screen the
-	# same way, and the Reactor's neighbours sit to either side of it.
-	var left := _seated_at(0, DIVING)
-	var right := _seated_at(0, DIVING)
-
-	_shifted(left, -1, DIVING)
-	_shifted(right, 1, DIVING)
-
-	assert_int(left.station()).is_equal(1)
-	assert_int(right.station()).is_equal(4)
+		assert_int(left.station()).is_equal(1)
+		assert_int(right.station()).is_equal(4)
 
 
-func test_the_same_side_again_and_again_goes_round_every_station_one_at_a_time() -> void:
+func test_left_or_right_moves_one_station_at_a_time_toward_that_side() -> void:
 	var count := IN_USE.size()
 	for up in [LEVEL, DIVING, CLIMBING]:
 		var poses := _poses(up)
-		for side in [-1, 1]:
-			var arm := _seated_at(0, up)
-			var visited := [0]
-			for i in count:
-				var before := arm.station()
+		for index in count:
+			for side in [-1, 1]:
+				var arm := _seated_at(index, up)
+				var before := arm.held_eye()
 
 				var after := _shifted(arm, side, up)
 
-				# A neighbour round the ring, never a jump past one.
-				assert_array([(before + 1) % count, (before + count - 1) % count]) \
-					.contains([arm.station()])
+				# A neighbour round the ring, never a jump past one...
+				var neighbours := [(index + 1) % count, (index + count - 1) % count]
+				assert_array(neighbours).contains([arm.station()])
+				# ...and not the one that is further the other way.
+				var other: int = neighbours[0] if arm.station() == neighbours[1] else neighbours[1]
+				var toward := func(i: int) -> float:
+					return (poses[i].origin - before.origin).dot(before.basis.x) * side
+				assert_float(toward.call(arm.station())).is_greater_equal(toward.call(other) - 0.01)
 				_assert_seated_at(after, poses[arm.station()])
-				visited.append(arm.station())
-			# Round once and back to the start, every Station on the way.
-			assert_array(visited.slice(0, count)).contains_exactly_in_any_order(range(count))
-			assert_int(visited[count]).is_equal(0)
+
+
+func test_every_station_in_use_can_be_reached_with_left_and_right_at_every_pitch() -> void:
+	var count := IN_USE.size()
+	for up in [LEVEL, DIVING, CLIMBING]:
+		# Where left and right lead from each Station, then follow them.
+		var leads := []
+		for index in count:
+			var next := []
+			for side in [-1, 1]:
+				var arm := _seated_at(index, up)
+				_shifted(arm, side, up)
+				next.append(arm.station())
+			leads.append(next)
+		var reached := [0]
+		var frontier := [0]
+		while not frontier.is_empty():
+			for n in leads[frontier.pop_back()]:
+				if n not in reached:
+					reached.append(n)
+					frontier.append(n)
+
+		assert_array(reached).contains_exactly_in_any_order(range(count))
 
 
 func test_pressing_again_lets_go_and_the_arm_goes_back_to_its_rail() -> void:
@@ -234,12 +246,23 @@ func test_seated_the_chain_and_claw_never_block_the_view_of_the_station() -> voi
 					.is_false()
 
 
-func test_right_then_left_comes_back_to_the_same_station() -> void:
+func test_left_or_right_before_being_caught_is_not_saved_up_for_later() -> void:
+	var arm := Arm.new(BORE_RADIUS + 0.15)
+	arm.shift(1)
+	arm.press()
+
+	_run(arm, _eye_at(_beside(2, LEVEL), LEVEL), _poses(LEVEL))
+
+	assert_int(arm.station()).is_equal(2)
+
+
+func test_one_way_then_the_other_comes_back_to_the_same_station() -> void:
 	for up in [LEVEL, DIVING, CLIMBING]:
 		for index in IN_USE.size():
-			var arm := _seated_at(index, up)
+			for side in [-1, 1]:
+				var arm := _seated_at(index, up)
 
-			_shifted(arm, 1, up)
-			_shifted(arm, -1, up)
+				_shifted(arm, side, up)
+				_shifted(arm, -side, up)
 
-			assert_int(arm.station()).is_equal(index)
+				assert_int(arm.station()).is_equal(index)

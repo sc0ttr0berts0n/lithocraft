@@ -21,12 +21,19 @@ const STATIONS := [
 	["", Color.GRAY],
 ]
 const PITCH_STEP := 15.0
+## The Arm's rail runs round the Bore this far out from its glass.
+const RAIL_GAP := 0.15
+## How quickly the look settles onto a Station's screen while carried, per second.
+const LOOK_SETTLE_RATE := 4.0
 
 var _sim := DiveSimulation.new(MediumLayout.first_dive())
 var _pitch_setting := 90.0
 var _stations: Array[GimballedStation] = []
 var _drive: GimballedStation
 var _crew := CrewMember.new()
+var _arm := Arm.new(BORE_RADIUS + RAIL_GAP)
+## The Stations in use, in order round the ring; the Arm carries to these.
+var _in_use: Array[GimballedStation] = []
 
 @onready var _dive_view: DiveView = %DiveView
 
@@ -43,6 +50,10 @@ func _ready() -> void:
 	_crew.position = Vector3(0, -(OUTER_RADIUS + BORE_RADIUS) / 2.0, -LENGTH / 2.0 + CrewMember.BODY)
 	_crew.basis = Basis.looking_at(Vector3.RIGHT, Vector3.BACK)
 	add_child(_crew)
+	var arm_view := ArmView.new()
+	arm_view.arm = _arm
+	arm_view.rail_radius = BORE_RADIUS + RAIL_GAP
+	add_child(arm_view)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -57,17 +68,34 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_3: _steer(-90.0)
 			KEY_Z: _steer(_pitch_setting - PITCH_STEP)
 			KEY_X: _steer(_pitch_setting + PITCH_STEP)
+			KEY_SPACE: _arm.press()
+			KEY_A:
+				_arm.shift(-1)
+			KEY_D:
+				_arm.shift(1)
 
 
 func _physics_process(delta: float) -> void:
 	_sim.advance(delta)
 	var felt := _sim.felt_acceleration()
-	_crew.step(felt, delta)
 	var up := -felt.normalized()
 	for station in _stations:
 		station.follow_up(up, delta)
+	_arm.step(delta, _crew.eye(), _station_poses())
+	if _arm.is_holding():
+		var settle := 0.0 if _arm.arrived() else 1.0 - exp(-delta * LOOK_SETTLE_RATE)
+		_crew.hold(_arm.held_eye(), GimballedStation.pose_look(), settle)
+	else:
+		_crew.step(felt, delta)
 	_drive.show_reading("Depth %.1f m\nPitch %+.0f deg (set %+.0f)" % [
 		_sim.depth(), _sim.pitch(), _pitch_setting])
+
+
+func _station_poses() -> Array[Transform3D]:
+	var poses: Array[Transform3D] = []
+	for station in _in_use:
+		poses.append(station.pose())
+	return poses
 
 
 ## Stand-in pitch control until the Drive Station has its own.
@@ -164,6 +192,8 @@ func _build_stations() -> void:
 		station.position = outward * pivot_radius
 		add_child(station)
 		_stations.append(station)
+		if not station.station_name.is_empty():
+			_in_use.append(station)
 		if station.station_name == "Drive":
 			_drive = station
 
