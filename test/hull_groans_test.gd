@@ -56,6 +56,27 @@ func test_groans_are_never_silent_and_never_past_full() -> void:
 		assert_float(groan.loudness).is_less_equal(1.0)
 
 
+## Every groan heard over `seconds` with self-destruct held this far (0 to 1)
+## toward starting, the hull not creeping.
+func _listen_arming(arming: float, seconds := MINUTES) -> Array:
+	var groans := HullGroans.new(7)
+	var heard := []
+	var t := 0.0
+	while t < seconds:
+		heard.append_array(groans.step(STEP, false, 0.1, 1.0, arming))
+		t += STEP
+	return heard
+
+
+func test_the_hull_groans_while_self_destruct_is_held_rising_the_longer_it_is_held() -> void:
+	var early := _listen_arming(0.2)
+	var late := _listen_arming(0.9)
+
+	assert_array(early).is_not_empty()
+	assert_int(late.size()).is_greater(early.size())
+	assert_float(_mean_loudness(late)).is_greater(_mean_loudness(early))
+
+
 func test_groans_come_from_all_round_the_ring() -> void:
 	var quarters := [0, 0, 0, 0]
 	for groan in _listen(true, 0.5, 1.5):

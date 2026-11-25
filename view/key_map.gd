@@ -20,7 +20,9 @@ const MOUSE := -1
 ##   one line, "/" between what each does.
 ## - `action`: the Habitat runs `_key_<action>(index)` on a press.
 ## - `held` (optional, default false): not run on a press; whoever needs it
-##   reads `KeyMap.held(action)` each frame.
+##   reads `KeyMap.held(action)` each frame. A key that acts on its press and
+##   also while held (K, self-destruct) is a press binding whose handler
+##   starts the hold, and reads `KeyMap.held(action)` for the release.
 ## A key may be bound in several places (the Course keys at Navigation and at
 ## the Drive); a press runs the first binding, in this order, that applies
 ## where the crew stands.
@@ -50,6 +52,7 @@ const BINDINGS: Array[Dictionary] = [
 	{where = DiveSimulation.STATION_BORE, keys = [KEY_U], does = "which survey goes up first", action = &"upload_priority"},
 	{where = DiveSimulation.STATION_BORE, keys = [KEY_B], does = "stop / start the link", action = &"link"},
 	{where = DiveSimulation.STATION_THERMAL, keys = [KEY_C, KEY_V], does = "heat outward / into the Column", action = &"heat_split"},
+	{where = DiveSimulation.STATION_THERMAL, keys = [KEY_K], does = "hold: self-destruct; again: cancel", action = &"self_destruct"},
 	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_N, KEY_M], does = "Shift dial down / up", action = &"shift_dial"},
 	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_R], does = "Shift", action = &"shift"},
 	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_I], does = "stranded: relight the Head", action = &"relight"},

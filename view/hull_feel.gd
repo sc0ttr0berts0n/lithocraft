@@ -1,7 +1,8 @@
 ## Hull damage you can feel, as in Elite Dangerous near a star: while heat is
 ## wearing the hull, sparks spit from the outer wall and the view shakes; as it
 ## creeps the hull groans from points round the ring, louder and more often with
-## wear and stress (HullGroans decides when). Everything is in the room or in
+## wear and stress, and rising while the crew holds the self-destruct command
+## (HullGroans decides when). Everything is in the room or in
 ## sound: nothing is drawn over the crew's view (story 52). Reads only the
 ## simulation. The Habitat calls step() each physics frame after advance() and
 ## adds shake_metres() to the crew's shake.
@@ -80,7 +81,8 @@ func step(delta: float, felt: Vector3) -> void:
 	var sparking := ceili(severity * _sparks.size())
 	for i in _sparks.size():
 		_spark(i, i < sparking, severity, felt, delta)
-	for groan in _groans.step(delta, damaging, sim.vessel_wear(), sim.hull_stress()):
+	for groan in _groans.step(delta, damaging, sim.vessel_wear(), sim.hull_stress(),
+			sim.self_destruct_hold()):
 		_groan(groan.angle, groan.loudness)
 
 
