@@ -159,3 +159,5 @@ On the `prototype/habitat-down` branch. A browser stand-in built with three.js b
 - Ports, and who buys the data.
 - Art style beyond the scan display.
 - Pressure as an active mechanic beyond gating depth by hull grade.
+- **What hull wear does.** In the first dive build, heat sent outward wears the hull, but wear has no effect, so protecting the Column costs nothing (stories 19, 21 and 23 are hollow). Candidates raised: a repair bill deducted at the surface, a breach at full wear that loses the plasma, or a worn hull that grips or moves worse. The developer called this a very big decision that needs ideation (25 November 2026).
+- **Which Station sets heading.** The spec and build put heading on the Drive Station; the glossary says Navigation sets it. Awaiting the developer's call.
