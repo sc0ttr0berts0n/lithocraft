@@ -50,16 +50,21 @@ func test_sealing_raises_one_tunnel_sealed_event() -> void:
 	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, _pumice()], [50.0, _hornfels()]]))
 	sim.set_power(0.5)
 	_advance_until(sim, func() -> bool: return sim.distance() > 45.0, 10000.0)
-	assert_array(sim.take_events()).is_empty()
+	assert_array(_sealed_events(sim)).is_empty()
 
 	_advance_until(sim, sim.tunnel_sealed, 10000.0)
 	for i in 200:
 		sim.advance(1.0)
 
-	var events := sim.take_events()
-	assert_int(events.size()).is_equal(1)
-	assert_str(events[0].type).is_equal(&"tunnel_sealed")
-	assert_array(sim.take_events()).is_empty()
+	assert_int(_sealed_events(sim).size()).is_equal(1)
+	assert_array(_sealed_events(sim)).is_empty()
+
+
+## The tunnel_sealed events since the last call. Other events (the Boundary's)
+## are taken and dropped.
+func _sealed_events(sim: DiveSimulation) -> Array:
+	return sim.take_events().filter(
+			func(e: Dictionary) -> bool: return e.type == &"tunnel_sealed")
 
 
 func test_data_sent_up_the_fast_link_is_paid_for_sooner_than_up_the_slow_link() -> void:

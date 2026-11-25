@@ -166,6 +166,74 @@ func test_a_shift_matching_the_plasma_grades_better_than_a_mismatched_one() -> v
 	assert_bool(mismatched.clean).is_false()
 
 
+## Soft and hard rock taking turns every 15 m: Boundary after Boundary.
+func _many_boundaries() -> DiveSimulation:
+	var layers := []
+	for i in 40:
+		layers.append([i * 15.0, _soft() if i % 2 == 0 else _hard()])
+	var sim := DiveSimulation.new(MediumLayout.layered(layers))
+	sim.set_power(1.0)
+	return sim
+
+
+func test_poor_shifts_wear_the_head_until_the_plasma_is_lost() -> void:
+	var sim := _many_boundaries()
+	var seen := []
+
+	var lost := _run_until(sim, &"plasma_lost", 20000.0, seen, 0.25)
+
+	assert_dict(lost).is_not_empty()
+	var shifts := seen.filter(func(e: Dictionary) -> bool: return e.type == &"shift_result")
+	# Carelessness has a limit, but not at the first mistake.
+	assert_int(shifts.size()).is_greater(1)
+	for shift in shifts:
+		assert_bool(shift.clean).is_false()
+	assert_float(sim.head_wear()).is_equal(1.0)
+	assert_bool(sim.plasma_lost()).is_true()
+	assert_float(sim.plasma_stability()).is_equal(0.0)
+	_run_until(sim, &"never", 60.0)
+	assert_float(sim.reactor_output()).is_equal(0.0)
+	assert_float(sim.speed()).is_equal(0.0)
+
+
+func test_one_poor_shift_wears_the_head_without_losing_the_plasma() -> void:
+	var sim := _one_boundary()
+	var result := _run_until(sim, &"shift_result")
+
+	assert_bool(result.clean).is_false()
+	assert_float(sim.head_wear()).is_greater(0.0)
+	assert_bool(sim.plasma_lost()).is_false()
+
+
+func test_clean_shifts_never_wear_the_head() -> void:
+	var sim := _many_boundaries()
+	for i in 10:
+		_run_until(sim, &"boundary_crossed", 20000.0, [], 0.25)
+		sim.shift(sim.plasma_frequency())
+
+	sim.advance(0.25)
+	assert_float(sim.head_wear()).is_equal(0.0)
+	assert_bool(sim.plasma_lost()).is_false()
+
+
+func test_a_poor_shift_with_the_hull_hot_wears_the_head_more() -> void:
+	var hot := _shift_hot_or_cool(1.0)
+	var cool := _shift_hot_or_cool(0.2)
+
+	assert_float(hot.vessel_temperature()).is_greater(cool.vessel_temperature())
+	assert_float(hot.head_wear()).is_greater(cool.head_wear())
+
+
+## Dives at this power to a deep Boundary, so the hull settles hot or cool,
+## then lets the autopilot make the Shift.
+func _shift_hot_or_cool(power: float) -> DiveSimulation:
+	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, _soft()], [300.0, _hard()]]))
+	sim.set_power(power)
+	_run_until(sim, &"boundary_crossed", 20000.0, [], 0.25)
+	_run_until(sim, &"shift_result", 600.0, [], 0.25)
+	return sim
+
+
 func test_the_boundary_is_crossed_when_the_head_enters_the_new_medium() -> void:
 	var sim := _one_boundary()
 

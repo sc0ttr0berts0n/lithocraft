@@ -34,6 +34,11 @@ const COLUMN_PIXELS_PER_METRE := 125.0
 const HEAT_SPLIT_STEP := 0.1
 ## How close the crew must be to a Station's pivot to work it, in metres.
 const STATION_REACH := 2.0
+## How much one press turns the Reactor's Shift dial, as a share of its
+## frequency.
+const SHIFT_DIAL_STEP := 0.02
+## How far a lurch shakes the crew's view, metres per m/s^2 of jolt.
+const LURCH_SHAKE_M := 0.004
 
 var _sim := DiveSimulation.new(MediumLayout.first_dive())
 var _pitch_setting := 90.0
@@ -48,6 +53,10 @@ var _thermal: GimballedStation
 var _heat_split := 0.0
 var _navigation: GimballedStation
 var _crew := CrewMember.new()
+## The Reactor's waveform display, which holds the Shift dial.
+var _plasma_display: PlasmaDisplay
+## True from a Boundary announced ahead until it is crossed.
+var _boundary_ahead := false
 
 @onready var _dive_view: DiveView = %DiveView
 
@@ -84,12 +93,20 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_V: _split_heat(_heat_split + HEAT_SPLIT_STEP)
 			KEY_P: _sim.pulse()
 			KEY_Q: _sim.set_quiet_ship(not _sim.quiet_ship())
+			KEY_N: _turn_shift_dial(-1)
+			KEY_M: _turn_shift_dial(1)
+			KEY_R: _shift()
 
 
 func _physics_process(delta: float) -> void:
 	_sim.advance(delta)
+	for event in _sim.take_events():
+		match event.type:
+			&"boundary_approaching": _boundary_ahead = true
+			&"boundary_crossed": _boundary_ahead = false
 	var felt := _sim.felt_acceleration()
 	_crew.step(felt, delta)
+	_crew.shake(_sim.lurch() * LURCH_SHAKE_M)
 	var up := -felt.normalized()
 	for station in _stations:
 		station.follow_up(up, delta)
@@ -141,9 +158,34 @@ func _show_reactor() -> void:
 			["Drv", _sim.drive_request(), _sim.drive_draw()]]:
 		lines.append("%s %s%s" % [row[0], _bar(row[1], row[2]),
 				"  STARVED" if row[2] < row[1] - 0.0005 else ""])
+	var shift_line := "Head wear %d%%" % roundi(_sim.head_wear() * 100.0)
+	if _sim.plasma_lost():
+		shift_line += "  PLASMA LOST"
+	elif _sim.shift_due():
+		shift_line += "  SHIFT DUE  [N/M] dial [R] Shift"
+	elif _boundary_ahead:
+		shift_line += "  BOUNDARY AHEAD"
+	lines.append(shift_line)
 	# The Drive running short is routine; Thermal or Navigation starved is not.
-	_reactor.set_calling(_sim.navigation_supplied() < 1.0 or _sim.thermal_supplied() < 1.0)
+	# A Boundary ahead or a Shift due is what the Reactor most needs a hand for.
+	_reactor.set_calling(_sim.navigation_supplied() < 1.0 or _sim.thermal_supplied() < 1.0
+			or _boundary_ahead or _sim.shift_due() or _sim.plasma_lost())
 	_reactor.show_reading("\n".join(lines))
+
+
+## Stand-in Reactor control until the Station has its own: turn the Shift dial
+## one step down or up. Worked at the Reactor Station: only within reach of it.
+func _turn_shift_dial(direction: int) -> void:
+	if _crew.position.distance_to(_reactor.position) > STATION_REACH:
+		return
+	_plasma_display.dial *= 1.0 + SHIFT_DIAL_STEP * direction
+
+
+## Shift to the frequency on the dial. Only within reach of the Reactor.
+func _shift() -> void:
+	if _crew.position.distance_to(_reactor.position) > STATION_REACH:
+		return
+	_sim.shift(_plasma_display.dial)
 
 
 ## A bar of tenths: '#' power drawn, '-' asked for but not given, '.' unused.
@@ -336,6 +378,7 @@ func _build_stations() -> void:
 		_stations.append(station)
 		if station.station_name == "Reactor":
 			_reactor = station
+			_reactor.show_display(_make_plasma_display())
 		elif station.station_name == "Drive":
 			_drive = station
 		elif station.station_name == "Bore Station":
@@ -345,6 +388,18 @@ func _build_stations() -> void:
 		elif station.station_name == "Navigation":
 			_navigation = station
 			_navigation.show_display(_scan_display())
+
+
+## The Reactor's waveform display for the Shift, its dial starting where the
+## Reactor is tuned.
+func _make_plasma_display() -> Texture2D:
+	_plasma_display = PlasmaDisplay.new()
+	_plasma_display.size = Vector2i(512, 242)
+	_plasma_display.sim = _sim
+	_plasma_display.hue = STATIONS[0][1]
+	_plasma_display.dial = _sim.plasma_tuning()
+	add_child(_plasma_display)
+	return _plasma_display.get_texture()
 
 
 ## Navigation's point cloud display, drawn in its own world and shown on the

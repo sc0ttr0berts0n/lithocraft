@@ -163,8 +163,9 @@ const _CLEAN_SHIFT_GRADE := 0.8
 ## clean is barely rough). The heat spike's heat per second at its peak and
 ## the seconds it takes to fade to 1/e; the lurch's jolt along the Bore in
 ## m/s^2 at its peak, how fast it shudders and how soon it fades; the wear on
-## the Head. Tuned for play (ADR 0001): an unattended dive of four Boundaries
-## comes close to losing the plasma, a hot one does not survive it.
+## the Head. Tuned for play (ADR 0001): left to the autopilot, the way down
+## through two Boundaries survives even with the hull hot, but a third poor
+## Shift with the hull hot (or a few more with it cool) loses the plasma.
 const _SHIFT_SPIKE_HEAT := 2.0
 const _SHIFT_SPIKE_S := 1.5
 const _LURCH_ACCELERATION := 14.0
@@ -173,7 +174,7 @@ const _LURCH_S := 0.4
 const _SHIFT_WEAR := 0.3
 ## How much worse a poor Shift wears the Head with the hull at the temperature
 ## it can bear than with it as cool as the Medium around it. Bad conditions.
-const _HOT_SHIFT_WEAR := 2.0
+const _HOT_SHIFT_WEAR := 1.0
 ## How much a fully worn Head unsteadies the plasma even when tuned.
 const _WEAR_UNSTEADINESS := 0.3
 
@@ -269,6 +270,8 @@ var _mistuned_for := 0.0
 var _shift_asked := NAN
 ## Wear on the Head from poor Shifts, 0 (none) to 1 (the plasma is lost).
 var _head_wear := 0.0
+## True once the Head's plasma has gone out. It stays out.
+var _plasma_lost := false
 ## Extra heat per second from the last poor Shift, fading.
 var _heat_spike := 0.0
 ## The last poor Shift's lurch: its peak jolt in m/s^2 and seconds since.
@@ -415,6 +418,12 @@ func lurch() -> float:
 ## worn Head holds the plasma less steadily, and a Head worn through loses it.
 func head_wear() -> float:
 	return _head_wear
+
+
+## True once the plasma has been lost: the Reactor supplies nothing, so the
+## vessel halts. It stays lost.
+func plasma_lost() -> bool:
+	return _plasma_lost
 
 
 ## Metres per second along the path during the last step.
@@ -857,11 +866,18 @@ func _tend_plasma(dt: float) -> void:
 	_mistuned_for = _mistuned_for + dt if shift_due() else 0.0
 	_lurch_age += dt
 	_heat_spike *= exp(-dt / _SHIFT_SPIKE_S)
+	if _plasma_lost:
+		_shift_asked = NAN
+		_plasma_stability = 0.0
+		return
 	if not is_nan(_shift_asked):
 		_make_shift(_shift_asked, false)
 		_shift_asked = NAN
 	if shift_due() and _mistuned_for >= _SHIFT_WINDOW_S + _AUTOPILOT_LATE_S:
 		_make_shift(plasma_frequency(), true)
+	if _plasma_lost:
+		_plasma_stability = 0.0
+		return
 	_plasma_stability = (1.0 - _WEAR_UNSTEADINESS * _head_wear) \
 			/ (1.0 + _mistuning() / _MISTUNING_HALF)
 
@@ -889,6 +905,9 @@ func _make_shift(frequency: float, by_autopilot: bool) -> void:
 	_events.append({type = &"shift_result", grade = grade,
 			clean = roughness <= 0.0, late = late, autopilot = by_autopilot,
 			wear = wear if roughness > 0.0 else 0.0})
+	if _head_wear >= 1.0:
+		_plasma_lost = true
+		_events.append({type = &"plasma_lost", depth = _depth, distance = _distance})
 
 
 ## How hot the hull is, from as cool as the Medium around it (0) to the
