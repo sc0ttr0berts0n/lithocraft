@@ -91,3 +91,36 @@ func test_stronger_medium_grips_better_at_the_same_power() -> void:
 	strong.advance(1.0)
 
 	assert_float(weak.slip()).is_greater(strong.slip())
+
+
+## Dives at full power and records each Medium met, in order, until max_steps.
+func _media_met_on_the_way_down(sim: DiveSimulation, max_steps: int) -> Array[StringName]:
+	var met: Array[StringName] = [sim.medium().name]
+	sim.set_power(1.0)
+	for i in max_steps:
+		sim.advance(1.0)
+		if sim.medium().name != met.back():
+			met.append(sim.medium().name)
+	return met
+
+
+func test_the_first_dive_passes_sand_then_sandstone_then_granite() -> void:
+	var sim := DiveSimulation.new(MediumLayout.first_dive())
+
+	var met := _media_met_on_the_way_down(sim, 100000)
+
+	assert_array(met).is_equal([&"sand", &"sandstone", &"granite"])
+
+
+func test_a_new_medium_is_only_a_new_set_of_values() -> void:
+	var clay := Medium.new(&"clay", 0.8, 0.4, 0.5, 295.0, 0.3, {&"kaolinite": 1.0}, 0.3)
+	var layout := MediumLayout.layered([
+		[0.0, Medium.sand()],
+		[5.0, clay],
+	])
+	var sim := DiveSimulation.new(layout)
+
+	var met := _media_met_on_the_way_down(sim, 1000)
+
+	assert_array(met).is_equal([&"sand", &"clay"])
+	assert_float(sim.slip()).is_between(0.0, 1.0)
