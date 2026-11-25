@@ -30,7 +30,23 @@ func end() -> float:
 	return start + length
 
 
+## What a record of each mineral is worth per metre of Column, relative to
+## plain quartz. Minerals not listed are worth the same as quartz. Tuned for
+## play (ADR 0001); tests compare values, never read these.
+const _MINERAL_WORTH := {
+	&"quartz": 1.0,
+	&"feldspar": 1.2,
+	&"calcite": 1.2,
+	&"mica": 1.5,
+	&"hematite": 4.0,
+}
+
+
 ## What this stretch sells for once its data reaches the surface: more for a
-## longer and better record. In arbitrary units.
+## longer record, a better one, and one of more valuable minerals. In
+## arbitrary units.
 func value() -> float:
-	return length * quality
+	var worth := 0.0
+	for mineral in composition:
+		worth += composition[mineral] * _MINERAL_WORTH.get(mineral, 1.0)
+	return length * quality * worth

@@ -30,6 +30,12 @@ const TOWARD_UNDERSIDE := Vector3.DOWN
 ## tests must not depend on its value.
 const _PITCH_RATE := 5.0
 
+## Upload priorities for set_upload_priority(): which waiting survey stretch
+## goes up the link next.
+const UPLOAD_OLDEST_FIRST := &"oldest_first"
+const UPLOAD_NEWEST_FIRST := &"newest_first"
+const UPLOAD_MOST_VALUABLE_FIRST := &"most_valuable_first"
+
 ## Earth's surface gravity, m/s^2.
 const _GRAVITY := 9.81
 
@@ -72,10 +78,14 @@ var _tunnel_sealed := false
 ## arrived, and what was paid for them all.
 var _uploaded: Array[SurveyStretch] = []
 var _paid := 0.0
-## Metres of the stretch now going up that have already reached the surface.
-## A stretch is paid for only once all of it is up.
+## Completed stretches still aboard, oldest first, and the one the link is
+## sending now (null when it must be chosen again).
+var _waiting: Array[SurveyStretch] = []
 var _sending: SurveyStretch = null
-var _sent := 0.0
+## Stretch -> metres of it that have already reached the surface. A stretch
+## is paid for only once all of it is up.
+var _sent := {}
+var _upload_priority := UPLOAD_OLDEST_FIRST
 ## Events raised since the last take_events(), oldest first.
 var _events: Array[Dictionary] = []
 
@@ -95,6 +105,15 @@ func set_power(power: float) -> void:
 ## (diving), 0 is level, -90 is nose straight up (climbing).
 func set_pitch(degrees: float) -> void:
 	_pitch_setting = clampf(degrees, -90.0, 90.0)
+
+
+## Bore Station: which waiting survey data goes up the link first, one of the
+## UPLOAD_* priorities. Anything else is ignored. Data part-way up keeps what
+## it has sent.
+func set_upload_priority(priority: StringName) -> void:
+	if priority in [UPLOAD_OLDEST_FIRST, UPLOAD_NEWEST_FIRST, UPLOAD_MOST_VALUABLE_FIRST]:
+		_upload_priority = priority
+		_sending = null
 
 
 # --- Time step ------------------------------------------------------------
@@ -214,6 +233,11 @@ func paid() -> float:
 	return _paid
 
 
+## The upload priority in force, one of the UPLOAD_* priorities.
+func upload_priority() -> StringName:
+	return _upload_priority
+
+
 ## The survey stretches whose data has reached the surface and been paid for,
 ## in the order they arrived. A copy.
 func uploaded_survey() -> Array[SurveyStretch]:
@@ -237,30 +261,45 @@ func _update_tunnel() -> void:
 
 # --- The link to the surface --------------------------------------------
 
-## Sends up to `metres` of survey data up the link, a stretch at a time, and
-## pays for each stretch as the last of it reaches the surface.
+## Sends up to `metres` of survey data up the link, a stretch at a time in
+## the chosen priority, and pays for each stretch as the last of it reaches the
+## surface.
 func _upload(metres: float) -> void:
 	while metres > 0.0:
 		if _sending == null:
 			_sending = _next_to_send()
-			_sent = 0.0
 			if _sending == null:
 				return  # Nothing waiting aboard.
-		var piece := minf(metres, _sending.length - _sent)
-		_sent += piece
+		var stretch := _sending
+		var sent: float = _sent.get(stretch, 0.0)
+		var piece := minf(metres, stretch.length - sent)
 		metres -= piece
-		if _sent >= _sending.length:
-			_uploaded.append(_sending)
-			_paid += _sending.value()
+		sent += piece
+		if sent >= stretch.length:
+			_sent.erase(stretch)
+			_waiting.erase(stretch)
 			_sending = null
+			_uploaded.append(stretch)
+			_paid += stretch.value()
+		else:
+			_sent[stretch] = sent
 
 
-## The completed stretch to send next, or null if all of it is up.
+## The waiting stretch the chosen priority sends next, or null if all of the
+## survey is up.
 func _next_to_send() -> SurveyStretch:
-	for stretch in _survey:
-		if not _uploaded.has(stretch):
-			return stretch
-	return null
+	if _waiting.is_empty():
+		return null
+	match _upload_priority:
+		UPLOAD_NEWEST_FIRST:
+			return _waiting.back()
+		UPLOAD_MOST_VALUABLE_FIRST:
+			var best: SurveyStretch = _waiting[0]
+			for stretch in _waiting:
+				if stretch.value() > best.value():
+					best = stretch
+			return best
+	return _waiting[0]
 
 
 # --- Survey ---------------------------------------------------------------
@@ -291,8 +330,11 @@ func _close_stretch() -> void:
 	for medium_name in _stretch_media:
 		if main_medium == &"" or _stretch_media[medium_name] > _stretch_media[main_medium]:
 			main_medium = medium_name
-	_survey.append(SurveyStretch.new(_stretch_start, length,
-			_stretch_quality / length, composition, main_medium))
+	var stretch := SurveyStretch.new(_stretch_start, length,
+			_stretch_quality / length, composition, main_medium)
+	_survey.append(stretch)
+	_waiting.append(stretch)
+	_sending = null  # The new stretch may now be the one to send first.
 	_stretch_start += length
 	_stretch_minerals = {}
 	_stretch_media = {}
