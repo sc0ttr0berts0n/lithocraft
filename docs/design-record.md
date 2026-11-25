@@ -1,6 +1,6 @@
 # Design record: the Lithocraft and how it travels
 
-A record of the first design session (24 November 2026). It holds the decisions, the reasons behind them, the ideas that were raised but not yet designed, and the real science each idea leans on. Vocabulary follows `GLOSSARY.md`. The first playable slice is specified separately in `.scratch/first-dive/spec.md`; this document is wider than that spec and is the place to look for anything the spec left out.
+A record of the first design session (24 November 2026). It holds the decisions, the reasons behind them, the ideas that were raised but not yet designed, and the real science each idea leans on. Vocabulary follows `GLOSSARY.md`. The first playable slice is specified separately in GitHub issue #1 (Spec: First dive), with its tickets as sub-issues; this document is wider than that spec and is the place to look for anything the spec left out.
 
 ## The original vision
 
@@ -148,7 +148,7 @@ On the `prototype/habitat-down` branch. A browser stand-in built with three.js b
 - **Developer's idea (second session): an arm that catches you.** Press a dedicated button and a robot arm or chain swings in, catches you, and carries you between Stations with left and right. The developer's reason: "when the ship is in a strange orientation, you can still make it work." It answers the stranded-Stations finding for every "down", not just level, and keeps walking for when "down" is kind.
   - **Real precedent.** The ISS's Canadarm2 rides a mobile base along a rail on the truss and carries astronauts clamped to a foot restraint on its end. A carriage on a ring rail is the same arrangement, so it needs no concession under ADR 0001.
   - **Real cost.** Unlike in free fall, the arm has to hold a person against up to about 1 g on a lever of a metre or two. That takes a strong joint and power, so it draws on the power budget and can fail.
-  - **Prototyped, not decided.** Added to the prototype on 24 November 2026: a carriage on a rail around the Bore, a chain with a claw that grips a harness between the shoulders, Space to call it or let go, A/D to move one Station left or right. Jump moved to J. It was exercised in level, dive and spin. The developer tried it: "works great. i'm optimistic." Not yet confirmed as the method, and its cost in play is not designed.
+  - **Prototyped, not decided.** Added to the prototype on 24 November 2026: a carriage on a rail around the Bore, a chain with a claw that grips a harness between the shoulders, Space to call it or let go, A/D to move one Station left or right. Jump moved to J. It was exercised in level, dive and spin. The developer tried it: "works great. i'm optimistic." Confirmed as the method on 25 November 2026 (see the spec, issue #1); its cost in play is not designed.
 
 ## Not yet designed
 
@@ -159,5 +159,3 @@ On the `prototype/habitat-down` branch. A browser stand-in built with three.js b
 - Ports, and who buys the data.
 - Art style beyond the scan display.
 - Pressure as an active mechanic beyond gating depth by hull grade.
-- The method for keeping Stations reachable when level.
-- Programming language (GDScript or C#) and test tooling.
