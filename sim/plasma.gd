@@ -46,8 +46,13 @@ const _SHIFT_WEAR := 0.3
 ## How much worse a poor Shift wears the Head with the hull at the temperature
 ## it can bear than with it as cool as the Medium around it. Bad conditions.
 const _HOT_SHIFT_WEAR := 1.0
-## How much a fully worn Head unsteadies the plasma even when tuned.
+## How much a fully worn Head unsteadies the plasma even when tuned, so the
+## Reactor delivers less power at the same setting.
 const _WEAR_UNSTEADINESS := 0.3
+## How much a fully worn Head narrows the Shift: the window, how far off the
+## wobble a Shift may be, and how soon lateness tells, all shrink by this
+## share. A worn Head is less forgiving. Tuned for play (ADR 0001).
+const _WEAR_NARROWING := 0.5
 
 ## How steady the plasma is, 0 (lost) to 1 (steady). The Reactor's output
 ## scales with it.
@@ -103,7 +108,7 @@ func tend(dt: float, target: float, reactor_attended: bool, hull_heat_share: flo
 		_make_shift(_shift_asked, false, target, hull_heat_share, events, depth, distance)
 		_shift_asked = NAN
 	if due(target) and not reactor_attended \
-			and _mistuned_for >= _SHIFT_WINDOW_S + _AUTOPILOT_LATE_S:
+			and _mistuned_for >= window_length() + _AUTOPILOT_LATE_S:
 		_make_shift(target, true, target, hull_heat_share, events, depth, distance)
 	if _lost:
 		_stability = 0.0
@@ -136,13 +141,19 @@ func due(target: float) -> bool:
 ## Seconds left in the window in which a due Shift loses nothing to lateness;
 ## 0 when no Shift is due or the window has closed.
 func window(target: float) -> float:
-	return maxf(0.0, _SHIFT_WINDOW_S - _mistuned_for) if due(target) else 0.0
+	return maxf(0.0, window_length() - _mistuned_for) if due(target) else 0.0
+
+
+## Seconds the window for a Shift stays open on this Head: narrower the more
+## worn it is.
+func window_length() -> float:
+	return _SHIFT_WINDOW_S * _narrowing()
 
 
 ## How far a due Shift has gone toward the autopilot making it, 0 (just due)
 ## to 1 (the autopilot's moment). Above 1 past it.
 func overdue_share() -> float:
-	return _mistuned_for / (_SHIFT_WINDOW_S + _AUTOPILOT_LATE_S)
+	return _mistuned_for / (window_length() + _AUTOPILOT_LATE_S)
 
 
 ## How far the tuning is from a wobble at `target` hertz, as a share of it.
@@ -176,14 +187,22 @@ func shudder() -> float:
 	return cos(TAU * _LURCH_HZ * _lurch_age)
 
 
+## How much of a fresh Head's forgiveness in a Shift this one keeps, 1
+## (fresh) down to 1 - _WEAR_NARROWING (worn through).
+func _narrowing() -> float:
+	return 1.0 - _WEAR_NARROWING * _head_wear
+
+
 ## Makes the Shift to `frequency` and grades it: how closely it matches the
-## wobble at `target`, times how late it came after the window.
+## wobble at `target`, times how late it came after the window. A worn Head
+## grades both harsher.
 func _make_shift(frequency: float, by_autopilot: bool, target: float, hull_heat_share: float,
 		events: Array[Dictionary], depth: float, distance: float) -> void:
+	var narrowing := _narrowing()
 	var error := absf(frequency - target) / target
-	var matched := exp(-pow(error / _SHIFT_TOLERANCE, 2.0))
-	var late := maxf(0.0, _mistuned_for - _SHIFT_WINDOW_S) if due(target) else 0.0
-	var grade := matched * exp(-late / _SHIFT_LATE_S)
+	var matched := exp(-pow(error / (_SHIFT_TOLERANCE * narrowing), 2.0))
+	var late := maxf(0.0, _mistuned_for - window_length()) if due(target) else 0.0
+	var grade := matched * exp(-late / (_SHIFT_LATE_S * narrowing))
 	_tuning = frequency
 	if not due(target):
 		_mistuned_for = 0.0

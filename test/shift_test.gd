@@ -225,3 +225,54 @@ func test_the_boundary_is_crossed_when_the_head_enters_the_new_medium() -> void:
 	DiveTestKit.run_until(sim, &"boundary_crossed")
 	assert_str(String(sim.medium().name)).is_equal("hard")
 	assert_str(String(approaching.to)).is_equal("hard")
+
+
+## Wears the Head of a sim still short of its first Boundary with poor Shifts
+## (each wide of the wobble, then back onto it cleanly) until it is more than
+## half worn, and returns the sim tuned again.
+func _worn(sim: DiveSimulation) -> DiveSimulation:
+	var on := sim.plasma_frequency()
+	while sim.head_wear() <= 0.5:
+		sim.shift(on * 1.5)
+		sim.advance(0.1)
+		sim.shift(on)
+		sim.advance(0.1)
+	sim.take_events()
+	assert_bool(sim.plasma_lost()).is_false()
+	assert_bool(sim.shift_due()).is_false()
+	return sim
+
+
+func test_a_worn_head_delivers_less_power_at_the_same_reactor_setting() -> void:
+	var fresh := _one_boundary(1000.0)
+	var worn := _worn(_one_boundary(1000.0))
+	for sim in [fresh, worn]:
+		sim.set_power(1.0)
+		DiveTestKit.run(sim, 5.0, 0.1)
+
+	assert_float(worn.plasma_tuning()).is_equal(fresh.plasma_tuning())
+	assert_float(worn.reactor_output()).is_less(fresh.reactor_output())
+
+
+func test_a_worn_head_narrows_the_window_for_the_shift() -> void:
+	var fresh := _one_boundary()
+	var worn := _worn(_one_boundary())
+	assert_float(worn.shift_window_length()).is_less(fresh.shift_window_length())
+	DiveTestKit.run_until(fresh, &"boundary_crossed")
+	DiveTestKit.run_until(worn, &"boundary_crossed")
+
+	assert_float(worn.shift_window()).is_greater(0.0)
+	assert_float(worn.shift_window()).is_less(fresh.shift_window())
+
+
+func test_the_same_shift_grades_worse_on_a_worn_head() -> void:
+	# A Shift a little wide of the wobble, made at once.
+	var fresh_wide := _shift_after(0.0, 1.05)
+	var worn_wide := _shift_after(0.0, 1.05, _worn(_one_boundary()))
+	assert_float(worn_wide.grade).is_less(fresh_wide.grade)
+
+	# A Shift on the wobble, made after the fresh Head's window has closed.
+	var late := _window() + 1.0
+	var fresh_late := _shift_after(late)
+	var worn_late := _shift_after(late, 1.0, _worn(_one_boundary()))
+	assert_float(worn_late.grade).is_less(fresh_late.grade)
