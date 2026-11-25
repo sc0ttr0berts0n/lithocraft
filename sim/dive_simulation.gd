@@ -1026,6 +1026,20 @@ func hull_creep_rate() -> float:
 	return _heat.creep_rate()
 
 
+## True while heat is wearing the hull now (hull_creep_rate() above 0) and
+## time runs: false once the crew is dead, stranded or surfaced, when advance()
+## no longer steps. The view's sparks and shake play exactly while this holds.
+func hull_taking_damage() -> bool:
+	return _heat.taking_damage() and not (dead() or stranded() or surfaced())
+
+
+## The stress the rock's pressure puts on the hull now, 1 at the surface and
+## greater deeper down. It multiplies how fast an overheated hull creeps, and
+## how hard the hull groans.
+func hull_stress() -> float:
+	return _heat.stress()
+
+
 ## True while heat threatens the vessel: the hull is close to the temperature
 ## at which heat damages it, or the heat now sent outward will take it past
 ## that if nothing changes. Comes on before any damage is done.

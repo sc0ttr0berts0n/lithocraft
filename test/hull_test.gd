@@ -50,6 +50,40 @@ func test_the_further_over_its_rated_temperature_the_faster_the_hull_creeps() ->
 	assert_float(hot.hull_integrity()).is_less(warm.hull_integrity())
 
 
+func test_the_hull_takes_damage_only_while_overheated_and_faster_the_hotter() -> void:
+	var cool := DiveTestKit.run(_sim(MediumLayout.uniform(_hard_rock()), 0.1), 600.0)
+	var warm := DiveTestKit.run(_sim(MediumLayout.uniform(_hard_rock()), 0.8), 600.0)
+	var hot := DiveTestKit.run(_sim(MediumLayout.uniform(_hard_rock()), 1.0), 600.0)
+
+	assert_bool(cool.hull_taking_damage()).is_false()
+	assert_bool(warm.hull_taking_damage()).is_true()
+	assert_bool(hot.hull_taking_damage()).is_true()
+	assert_float(hot.hull_creep_rate()).is_greater(warm.hull_creep_rate())
+
+
+func test_the_hull_stops_taking_damage_once_it_cools() -> void:
+	var sim := DiveTestKit.run(_sim(MediumLayout.uniform(_hard_rock()), 1.0), 600.0)
+	assert_bool(sim.hull_taking_damage()).is_true()
+
+	sim.set_power(0.0)
+	DiveTestKit.run(sim, 1200.0)
+
+	assert_bool(sim.hull_taking_damage()).is_false()
+	assert_float(sim.hull_creep_rate()).is_equal(0.0)
+
+
+func test_the_rock_stresses_the_hull_harder_deeper_down() -> void:
+	var shallow := _sim(MediumLayout.uniform(_soft_rock()), 1.0, 1.0)
+	var deep := _sim(MediumLayout.uniform(_soft_rock()), 1.0, 1.0)
+	while shallow.depth() < 50.0:
+		shallow.advance(1.0)
+	while deep.depth() < 800.0:
+		deep.advance(1.0)
+
+	assert_float(shallow.hull_stress()).is_greater(0.0)
+	assert_float(deep.hull_stress()).is_greater(shallow.hull_stress())
+
+
 func test_deeper_down_the_same_heat_creeps_the_hull_faster() -> void:
 	# Shallow: held at the surface in hard rock. Deep: down through soft rock
 	# into hard rock that is cooler, so the deep hull is no hotter.
@@ -147,6 +181,17 @@ func test_the_dead_crew_goes_no_further() -> void:
 	assert_float(sim.depth()).is_equal(depth)
 	assert_float(sim.speed()).is_equal(0.0)
 	assert_array(sim.take_events()).is_empty()
+
+
+func test_once_the_hull_has_failed_it_is_no_longer_taking_damage() -> void:
+	var sim := _reckless()
+	var damaging := [false]
+
+	DiveTestKit.run_until(sim, &"hull_failed", 20000.0, [], 1.0,
+			func() -> void: damaging[0] = sim.hull_taking_damage())
+
+	assert_bool(damaging[0]).is_true()
+	assert_bool(sim.hull_taking_damage()).is_false()
 
 
 func test_death_shows_a_rebuy_but_charges_nothing_while_there_is_no_balance() -> void:
