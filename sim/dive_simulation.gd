@@ -18,6 +18,9 @@ const _GRIP_PER_STRENGTH := 2.0
 ## Length of path the Bore Station records as one survey entry, in metres.
 ## Tuned for play (ADR 0001).
 const _SURVEY_STRETCH_M := 10.0
+## Value of one metre of survey recorded at pristine quality. Tuned for play
+## (ADR 0001); feature worths are on the same scale.
+const _VALUE_PER_METRE := 1.0
 
 ## Length of the Column inside the vessel, from the Head to the Tail, in
 ## metres. A guess for play (ADR 0001); tests read column_length().
@@ -239,6 +242,19 @@ func _find_features(depth_before: float, depth_after: float, travelled: float) -
 func _in_column(feature: ColumnFeature) -> bool:
 	var behind := _distance - feature.at
 	return behind >= 0.0 and behind <= _HEAD_TO_TAIL_M
+
+
+## What the survey recorded so far is worth: every completed stretch by its
+## length and quality, plus every feature recorded in full. A feature only
+## part recorded adds nothing.
+func survey_value() -> float:
+	var value := 0.0
+	for stretch in _survey:
+		value += stretch.length * stretch.quality * _VALUE_PER_METRE
+	for feature in _features:
+		if feature.is_recorded():
+			value += feature.worth
+	return value
 
 
 # --- Survey ---------------------------------------------------------------

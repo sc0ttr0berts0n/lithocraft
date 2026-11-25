@@ -143,3 +143,61 @@ func test_moving_slower_gives_more_time_to_record_a_feature() -> void:
 
 	assert_float(fast).is_greater(0.0)
 	assert_float(slow).is_greater(fast)
+
+
+## Dives past the feature, stopping while it is in the Column, observing it or
+## not, then carries on until it has left. The two dives cover the same path.
+func _dive_past_feature(observe: bool) -> DiveSimulation:
+	var sim := DiveSimulation.new(_layout_with_one_feature())
+	sim.set_power(0.5)
+	var id := _advance_until_found(sim)
+	if observe:
+		sim.set_observed_feature(id)
+	sim.set_power(0.0)
+	sim.advance(600.0)
+	sim.set_power(0.5)
+	while sim.distance() < FEATURE_DEPTH + 40.0:
+		sim.advance(0.5)
+	return sim
+
+
+func test_a_recorded_feature_raises_the_surveys_value() -> void:
+	var ignored := _dive_past_feature(false)
+	var recorded := _dive_past_feature(true)
+
+	assert_int(recorded.survey().size()).is_equal(ignored.survey().size())
+	assert_float(ignored.survey_value()).is_greater(0.0)
+	assert_float(recorded.survey_value()).is_greater(ignored.survey_value())
+
+
+func test_a_half_recorded_feature_adds_nothing() -> void:
+	var ignored := DiveSimulation.new(_layout_with_one_feature())
+	var rushed := DiveSimulation.new(_layout_with_one_feature())
+	for sim in [ignored, rushed]:
+		sim.set_power(1.0)
+		var id := _advance_until_found(sim)
+		if sim == rushed:
+			sim.set_observed_feature(id)
+		_advance_until_gone(sim, id)
+	assert_bool(rushed.found_features()[0].recorded > 0.0).is_true()
+
+	assert_float(rushed.survey_value()).is_equal_approx(ignored.survey_value(), 0.0001)
+
+
+func test_nothing_can_be_extracted_from_the_column() -> void:
+	var sim := _dive_past_feature(true)
+	var feature: ColumnFeature = sim.found_features()[0]
+	assert_bool(feature.is_recorded()).is_true()
+	# Recording it left it in the Column: it went out through the Tail.
+	assert_float(sim.distance() - feature.at).is_greater(sim.column_length())
+	assert_array(sim.features_in_column()).is_empty()
+	# The Column there is still the Medium it always was.
+	var behind := sim.distance() - feature.at
+	assert_str(sim.column_at(behind).name).is_equal(_rock().name)
+	# And the simulation offers no command that takes anything out.
+	for method in sim.get_script().get_script_method_list():
+		var method_name := String(method.name).to_lower()
+		for word in ["extract", "sample", "cut", "collect", "remove"]:
+			assert_bool(method_name.contains(word)) \
+					.override_failure_message("%s looks like extraction" % method.name) \
+					.is_false()
