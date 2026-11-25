@@ -83,3 +83,63 @@ func test_a_feature_slides_toward_the_tail_at_the_vessels_speed_and_leaves() -> 
 
 	_advance_until_gone(sim, id)
 	assert_float(sim.distance() - at).is_greater(sim.column_length())
+
+
+func test_a_feature_can_be_recorded_only_while_it_is_between_the_head_and_the_tail() -> void:
+	var sim := DiveSimulation.new(_layout_with_one_feature())
+	sim.set_power(0.5)
+	# Before the Head reaches it there is nothing to observe.
+	sim.set_observed_feature(0)
+	sim.advance(1.0)
+	assert_int(sim.observed_feature()).is_equal(-1)
+
+	var id := _advance_until_found(sim)
+	sim.set_observed_feature(id)
+	assert_int(sim.observed_feature()).is_equal(id)
+	sim.advance(0.5)
+	var while_inside := _found(sim, id).recorded
+	assert_float(while_inside).is_greater(0.0)
+
+	# Driven fast, it leaves through the Tail before the record is done...
+	sim.set_power(1.0)
+	_advance_until_gone(sim, id)
+	var as_it_left := _found(sim, id).recorded
+	assert_float(as_it_left).is_less(1.0)
+	# ...and once gone, no more of it can be recorded, moving or stopped.
+	sim.advance(30.0)
+	sim.set_power(0.0)
+	sim.advance(300.0)
+	assert_float(_found(sim, id).recorded).is_equal(as_it_left)
+	assert_bool(_found(sim, id).is_recorded()).is_false()
+
+
+func test_a_stopped_vessel_can_record_a_feature_in_full() -> void:
+	var sim := DiveSimulation.new(_layout_with_one_feature())
+	sim.set_power(0.5)
+	var id := _advance_until_found(sim)
+	sim.set_observed_feature(id)
+
+	sim.set_power(0.0)
+	sim.advance(600.0)
+
+	assert_bool(_found(sim, id).is_recorded()).is_true()
+	assert_float(_found(sim, id).recorded).is_equal(1.0)
+
+
+## Observes the feature from the moment it is found until it leaves the
+## Column, at one power setting, and returns how much of it was recorded.
+func _recorded_passing_at(power: float) -> float:
+	var sim := DiveSimulation.new(_layout_with_one_feature())
+	sim.set_power(power)
+	var id := _advance_until_found(sim)
+	sim.set_observed_feature(id)
+	_advance_until_gone(sim, id)
+	return _found(sim, id).recorded
+
+
+func test_moving_slower_gives_more_time_to_record_a_feature() -> void:
+	var fast := _recorded_passing_at(1.0)
+	var slow := _recorded_passing_at(0.1)
+
+	assert_float(fast).is_greater(0.0)
+	assert_float(slow).is_greater(fast)

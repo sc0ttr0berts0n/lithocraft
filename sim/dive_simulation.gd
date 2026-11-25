@@ -22,6 +22,10 @@ const _SURVEY_STRETCH_M := 10.0
 ## Length of the Column inside the vessel, from the Head to the Tail, in
 ## metres. A guess for play (ADR 0001); tests read column_length().
 const _HEAD_TO_TAIL_M := 9.0
+## Seconds of observation the Bore Station needs to record a feature in full
+## at pristine recording quality. Tuned for play (ADR 0001) so that at full
+## power a feature can slip out through the Tail half recorded.
+const _FEATURE_RECORD_S := 15.0
 
 ## Habitat frame: the fixed axes of the vessel that felt_acceleration() is
 ## given in. TOWARD_HEAD runs along the Bore toward the Head. TOWARD_UNDERSIDE
@@ -59,6 +63,8 @@ var _stretch_quality := 0.0
 var _features: Array[ColumnFeature] = []
 ## Layout feature templates already found, so crossing one again adds nothing.
 var _found_templates := {}
+## The id of the feature the Bore Station is observing, or -1 for none.
+var _observed := -1
 
 
 func _init(layout: MediumLayout) -> void:
@@ -78,6 +84,16 @@ func set_pitch(degrees: float) -> void:
 	_pitch_setting = clampf(degrees, -90.0, 90.0)
 
 
+## Bore Station: which feature in the Column to observe and record, by id
+## (see features_in_column()). -1, or a feature not now in the Column, observes
+## nothing. Observing records; nothing is ever cut out of the Column.
+func set_observed_feature(id: int) -> void:
+	if id >= 0 and id < _features.size() and _in_column(_features[id]):
+		_observed = id
+	else:
+		_observed = -1
+
+
 # --- Time step ------------------------------------------------------------
 
 func advance(dt: float) -> void:
@@ -92,6 +108,7 @@ func advance(dt: float) -> void:
 	var depth_before := _depth
 	_depth += travelled
 	_record_survey(_distance, _distance + travelled)
+	_record_observed_feature(dt, travelled)
 	_find_features(depth_before, _depth, travelled)
 	_distance += travelled
 
@@ -177,7 +194,32 @@ func features_in_column() -> Array[ColumnFeature]:
 	return result
 
 
+## The id of the feature the Bore Station is observing, or -1 for none.
+func observed_feature() -> int:
+	return _observed
+
+
 # --- Column features ------------------------------------------------------
+
+## Records the observed feature for as much of this step as it spends between
+## the Head and the Tail. The slower the vessel, the longer it stays.
+func _record_observed_feature(dt: float, travelled: float) -> void:
+	if _observed < 0:
+		return
+	var feature := _features[_observed]
+	var behind_before := _distance - feature.at
+	var behind_after := behind_before + travelled
+	var seconds_inside := 0.0
+	if travelled <= 0.0:
+		seconds_inside = dt if _in_column(feature) else 0.0
+	else:
+		var inside := minf(behind_after, _HEAD_TO_TAIL_M) - maxf(behind_before, 0.0)
+		seconds_inside = maxf(inside, 0.0) / travelled * dt
+	feature.recorded = minf(1.0,
+			feature.recorded + seconds_inside * _recording_quality() / _FEATURE_RECORD_S)
+	if behind_after > _HEAD_TO_TAIL_M:
+		_observed = -1
+
 
 ## Adds the features the Head cut past in this step, placed along the path
 ## where it met them.
