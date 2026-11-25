@@ -12,6 +12,8 @@ For design questions, or anything the spec leaves out, read `docs/design-record.
 
 One ticket per session. Take the frontier: an open sub-issue of #1 with no open blockers and no assignee.
 
+- Work lands on `dev`: branch from it and merge or PR back into it. `main` holds only stable builds, promoted from `dev` by the developer.
+
 - Build test-first at the one seam, the simulation's interface: commands and a time step in, state and events out. The simulation is plain GDScript classes with no scene nodes; the view only reads it and sends commands.
 - Tests assert relationships ("faster in sand than granite"), never tuned constants.
 - The Habitat and the Arm have a browser reference on the `prototype/habitat-down` branch. Its geometry and feel carry over; its code does not.
