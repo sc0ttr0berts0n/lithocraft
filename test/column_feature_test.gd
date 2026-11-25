@@ -222,3 +222,21 @@ func test_nothing_can_be_extracted_from_the_column() -> void:
 			assert_bool(method_name.contains(word)) \
 					.override_failure_message("%s looks like extraction" % method.name) \
 					.is_false()
+
+
+func test_a_shuttered_bore_records_a_feature_more_slowly() -> void:
+	var open := DiveSimulation.new(_layout_with_one_feature())
+	var shuttered := DiveSimulation.new(_layout_with_one_feature())
+	for sim in [open, shuttered]:
+		sim.set_power(0.5)
+		var id := _advance_until_found(sim)
+		sim.set_observed_feature(id)
+		sim.set_power(0.0)
+	shuttered.set_quiet_ship(true)
+
+	open.advance(2.0)
+	shuttered.advance(2.0)
+
+	assert_bool(shuttered.shuttered()).is_true()
+	assert_float(shuttered.found_features()[0].recorded).is_less(
+			open.found_features()[0].recorded)
