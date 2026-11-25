@@ -168,6 +168,15 @@ const _MAX_TIME_RATE := 64.0
 ## Longest step taken while running fast, in simulated seconds, so a fast rate
 ## costs a few steps a frame, not one per normal-rate frame.
 const _FAST_STEP_S := 0.25
+## Self-destruct. Seconds the crew must hold the command at Thermal to arm
+## it, in real time (advance()'s dt, whatever the time rate), so it is never
+## set off by a slip of the hand. The developer's design (25 November 2026).
+const _SELF_DESTRUCT_HOLD_S := 3.0
+## Stranded, how fast self-destruct dumps the emergency store into the hull as
+## heat, in the units of set_power(): all the stored energy goes through a
+## resistive load and becomes heat (real basis), so a full store is spent in
+## well under a minute. Tuned for play (ADR 0001).
+const _SELF_DESTRUCT_DUMP := 5.0
 ## What a new dive keeps; every other variable starts over as a fresh dive.
 ## The world (the layout), what was paid for, and events not yet taken.
 const _KEPT_BETWEEN_DIVES: Array[StringName] = [&"_layout", &"_paid", &"_uploaded", &"_events",
@@ -301,6 +310,13 @@ var _dive_uploaded_from := 0
 var _paid_before_dive := 0.0
 ## What this dive's survey has been paid as it reached the surface up the link.
 var _paid_by_link := 0.0
+## Self-destruct: whether the crew holds the command now, how long they have
+## held it (real seconds), whether a hold must be let go before another
+## counts (after arming or cancelling), and whether it is running.
+var _self_destruct_held := false
+var _self_destruct_hold := 0.0
+var _self_destruct_needs_release := false
+var _self_destructing := false
 
 
 func _init(layout: MediumLayout) -> void:
@@ -316,6 +332,8 @@ func _init(layout: MediumLayout) -> void:
 
 ## Drive Station: the share of available power sent to advancing, 0 to 1.
 func set_power(power: float) -> void:
+	if _self_destructing:
+		return  # The Stations are off the crew.
 	_power = clampf(power, 0.0, 1.0)
 
 
@@ -326,6 +344,8 @@ func set_power(power: float) -> void:
 ## and only while it moves. Heading has no effect while the pitch is straight
 ## up or down.
 func set_course(heading_degrees: float, pitch_degrees: float) -> void:
+	if _self_destructing:
+		return  # The Stations are off the crew.
 	_course_heading = fposmod(heading_degrees, 360.0)
 	_course_pitch = clampf(pitch_degrees, -90.0, 90.0)
 
@@ -335,6 +355,8 @@ func set_course(heading_degrees: float, pitch_degrees: float) -> void:
 ## makes more heat. An unattended Drive never steers harder than a gentle
 ## share of full, whatever this is.
 func set_steering_effort(effort: float) -> void:
+	if _self_destructing:
+		return  # The Stations are off the crew.
 	_steering_effort = clampf(effort, 0.0, 1.0)
 
 
@@ -342,6 +364,8 @@ func set_steering_effort(effort: float) -> void:
 ## instead of the Course, until end_override() or until nobody is at the
 ## Drive. Ignored while the Drive is unattended.
 func override_course(heading_degrees: float, pitch_degrees: float) -> void:
+	if _self_destructing:
+		return  # The Stations are off the crew.
 	if not attended(STATION_DRIVE):
 		return
 	_overriding = true
@@ -351,6 +375,8 @@ func override_course(heading_degrees: float, pitch_degrees: float) -> void:
 
 ## Drive: gives up an override and steers toward the Course again.
 func end_override() -> void:
+	if _self_destructing:
+		return  # The Stations are off the crew.
 	_overriding = false
 
 
@@ -386,12 +412,16 @@ func set_uploading(on: bool) -> void:
 ## heat soaking into the hull into the Column (see stranding_clock()); they
 ## stop when the plasma is lost, so stranding sets it to 0.
 func set_heat_split(to_column: float) -> void:
+	if _self_destructing:
+		return  # The Stations are off the crew.
 	_heat_split = clampf(to_column, 0.0, 1.0)
 
 
 ## Navigation: send one sound pulse ahead. Its echoes are added to the point
 ## cloud on the next step.
 func pulse() -> void:
+	if _self_destructing:
+		return  # The Stations are off the crew.
 	_pulse_pending = true
 
 
@@ -400,6 +430,8 @@ func pulse() -> void:
 ## vessel's own noise; the Bore instruments are shuttered while it lasts. Off,
 ## the Head spins back up and the Drive's power setting applies again.
 func set_quiet_ship(on: bool) -> void:
+	if _self_destructing:
+		return  # The Stations are off the crew.
 	_quiet_ship = on
 
 
@@ -456,6 +488,8 @@ func _start_fresh() -> void:
 ## lights with relight_chance(); lit, the stranding ends and the dive goes on;
 ## failed, the energy is spent. Raises &"relight_result".
 func relight() -> void:
+	if _self_destructing:
+		return  # The Stations are off the crew.
 	_relight_asked = true
 
 
@@ -464,7 +498,55 @@ func relight() -> void:
 ## plasma's wobble (plasma_frequency()), and the sooner after a Boundary, the
 ## better it grades; see the &"shift_result" event.
 func shift(frequency: float) -> void:
+	if _self_destructing:
+		return  # The Stations are off the crew.
 	_plasma.ask_shift(frequency)
+
+
+## Thermal Station: whether the crew is holding the self-destruct command now.
+## Held at an attended Thermal for self_destruct_hold_length() seconds of
+## advance() (real time, whatever the time rate), it starts self-destruct;
+## let go sooner, the hold starts again from nothing. After it starts, or is
+## cancelled, the command must be let go before a new hold counts. Under way,
+## self-destruct is the vessel mismanaging itself on purpose: the Drive at
+## full power, Quiet Ship off and every bit of heat sent outward through the
+## hull, the Stations taken off the crew (their commands are ignored, the
+## Reactor's Shifts left to its autopilot) so the hull fails. Stranded, with
+## the Head dark, it dumps the emergency store into the hull as heat, the
+## pumps stopped. Raises &"self_destruct_started".
+func hold_self_destruct(held: bool) -> void:
+	_self_destruct_held = held
+	if not held:
+		_self_destruct_hold = 0.0
+		_self_destruct_needs_release = false
+
+
+## Thermal Station: cancels a running self-destruct. The Stations return to
+## the crew with the settings self-destruct left; the wear done, and the store
+## spent, stay spent. Raises &"self_destruct_cancelled".
+func cancel_self_destruct() -> void:
+	if not _self_destructing:
+		return
+	_self_destructing = false
+	_self_destruct_hold = 0.0
+	_self_destruct_needs_release = true
+	_events.append({type = &"self_destruct_cancelled", stranded = stranded()})
+
+
+## Counts the self-destruct hold over dt real seconds, and starts it once held
+## long enough at an attended Thermal.
+func _tend_self_destruct_hold(dt: float) -> void:
+	if _self_destructing or _self_destruct_needs_release or not _self_destruct_held \
+			or not attended(STATION_THERMAL):
+		_self_destruct_hold = 0.0
+		return
+	_self_destruct_hold += dt
+	if _self_destruct_hold >= _SELF_DESTRUCT_HOLD_S:
+		_self_destructing = true
+		_self_destruct_hold = 0.0
+		_self_destruct_needs_release = true
+		_time_rate = 1.0
+		_events.append({type = &"self_destruct_started", stranded = stranded()})
 
 
 # --- Time step ------------------------------------------------------------
@@ -474,6 +556,9 @@ func shift(frequency: float) -> void:
 ## whichever is longer. A Station call returns the rate to normal and the rest
 ## of the time is not run.
 func advance(dt: float) -> void:
+	if _surfaced or dead():
+		return
+	_tend_self_destruct_hold(dt)
 	if _time_rate <= 1.0:
 		_step(dt)
 		return
@@ -492,9 +577,11 @@ func _step(dt: float) -> void:
 		_step_stranded(dt)
 		return
 	_relight_asked = false  # Only a lost plasma can be relit.
+	if _self_destructing:
+		_mismanage()
 	_head_activity = move_toward(_head_activity, 0.0 if _quiet_ship else 1.0,
 			_HEAD_SPIN_RATE * dt)
-	_plasma.tend(dt, plasma_frequency(), attended(STATION_REACTOR),
+	_plasma.tend(dt, plasma_frequency(), attended(STATION_REACTOR) and not _self_destructing,
 			_heat.hull_heat_share(surroundings_temperature()), _events, depth(), _distance)
 	_share_power()
 	# Steering heats one side of the Head harder; that share of the Drive's
@@ -935,15 +1022,20 @@ func survey_value() -> float:
 ##       and their worth, the value heat and shuttering took off pristine
 ##       records, and pay per Medium name. `total_paid` is paid() across
 ##       every dive.
-##   &"hull_failed" {depth, distance, lost, lost_stretches, rebuy,
+##   &"hull_failed" {cause, depth, distance, lost, lost_stretches, rebuy,
 ##       rebuy_charged, amount, total_paid}: heat wore the hull through and
-##       the crew died at `depth`. The unsold survey is lost (`lost`, of
+##       the crew died at `depth`. `cause` is &"self_destruct" when it ran
+##       to the end, else &"heat". The unsold survey is lost (`lost`, of
 ##       `lost_stretches` stretches); what reached the surface stays paid
 ##       (`amount` this dive, `total_paid` across every dive). `rebuy` is
 ##       what replacing the Lithocraft costs; `rebuy_charged` what was taken
 ##       for it, nothing while there is no balance to take it from. The dive
 ##       is over (dead() is true); new_dive() starts another.
 ##   &"new_dive" {paid}: new_dive() has the Lithocraft ready at the surface.
+##   &"self_destruct_started" {stranded}, &"self_destruct_cancelled"
+##       {stranded}: the crew held the command long enough at Thermal, or
+##       cancelled it (see hold_self_destruct()); `stranded` whether with the
+##       Head dark.
 func take_events() -> Array[Dictionary]:
 	var taken := _events
 	_events = []
@@ -978,6 +1070,23 @@ func stranded() -> bool:
 ## it. new_dive() starts another in a rebought Lithocraft.
 func dead() -> bool:
 	return _stranding.dead()
+
+
+## True while self-destruct runs (see hold_self_destruct()), until it is
+## cancelled or the hull fails.
+func self_destructing() -> bool:
+	return _self_destructing
+
+
+## How far the crew has held the self-destruct command toward starting it, 0
+## (not held) to 1 (started). For the Thermal screen and the groans.
+func self_destruct_hold() -> float:
+	return clampf(_self_destruct_hold / _SELF_DESTRUCT_HOLD_S, 0.0, 1.0)
+
+
+## Seconds the self-destruct command must be held to start it.
+func self_destruct_hold_length() -> float:
+	return _SELF_DESTRUCT_HOLD_S
 
 
 ## True once the Head has come back up to the surface, under its own power or
@@ -1400,6 +1509,8 @@ func _on_boundary_crossed(from: Medium, to: Medium) -> void:
 ## setting as it was. The Drive backs its power off to what the wall can
 ## grip once the grip waves slip: the slipped share only made heat and noise.
 func _steady_unattended(dt: float) -> void:
+	if _self_destructing:
+		return  # Self-destruct holds every setting.
 	if not attended(STATION_DRIVE) and _slip > 0.0:
 		_power *= 1.0 - _slip
 	if not attended(STATION_THERMAL) and heat_warning():
@@ -1465,6 +1576,17 @@ static func _offer_call(calls: Dictionary, station: StringName, reason: StringNa
 		urgency: float) -> void:
 	if not calls.has(station) or calls[station][1] < urgency:
 		calls[station] = [reason, urgency]
+
+
+# --- Self-destruct --------------------------------------------------------
+
+## Self-destruct under way: the vessel mismanaging itself on purpose. The
+## Drive at full power with Quiet Ship off, so the Reactor runs flat out, and
+## Thermal sending every bit of the heat outward through the hull.
+func _mismanage() -> void:
+	_power = 1.0
+	_quiet_ship = false
+	_heat_split = 0.0
 
 
 # --- Stranding -----------------------------------------------------------
@@ -1565,11 +1687,13 @@ func _link_draw() -> float:
 func _die() -> void:
 	var lost_stretches := _stretches_aboard()
 	var lost := _lose_unsold()
+	var cause := &"self_destruct" if _self_destructing else &"heat"
+	_self_destructing = false
 	_speed = 0.0
 	_slip = 0.0
 	_calls = {}
 	_time_rate = 1.0
-	_events.append({type = &"hull_failed", depth = depth(), distance = _distance,
+	_events.append({type = &"hull_failed", cause = cause, depth = depth(), distance = _distance,
 			lost = lost, lost_stretches = lost_stretches, rebuy = _stranding.rebuy(),
 			rebuy_charged = 0.0, amount = _paid - _paid_before_dive, total_paid = _paid})
 
