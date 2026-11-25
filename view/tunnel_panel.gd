@@ -93,7 +93,8 @@ func _upload_line() -> String:
 	# on the survey panel.
 	var up := sim.uploaded_survey().filter(
 			func(s: SurveyStretch) -> bool: return not s.is_feature_record()).size()
-	var aboard := sim.survey().size() - up
+	var aboard := sim.unsold_survey().filter(
+			func(s: SurveyStretch) -> bool: return not s.is_feature_record()).size()
 	return "Aboard %d  up %d  paid %.0f   [U] %s" % [
 		aboard, up, sim.paid(),
 		PRIORITY_NAMES.get(sim.upload_priority(), "?"),
