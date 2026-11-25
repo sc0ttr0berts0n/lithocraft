@@ -58,6 +58,79 @@ func test_one_long_step_records_every_stretch_it_covers() -> void:
 	_assert_one_entry_per_stretch_travelled(sim)
 
 
+## Test values only: two Media with nothing in common.
+func _chalk() -> Medium:
+	return Medium.new(&"chalk", 1.0, 0.5, 0.3, 300.0, 1.0, {&"calcite": 1.0}, 0.4)
+
+
+func _basalt() -> Medium:
+	return Medium.new(&"basalt", 1.0, 0.5, 0.05, 300.0, 1.0,
+			{&"pyroxene": 0.5, &"plagioclase": 0.5}, 0.8)
+
+
+func _assert_composition_close(actual: Dictionary, expected: Dictionary) -> void:
+	assert_array(actual.keys()).contains_exactly_in_any_order(expected.keys())
+	for mineral in expected:
+		assert_float(actual[mineral]).is_equal_approx(expected[mineral], 0.001)
+
+
+func test_a_stretch_records_the_composition_of_the_medium_it_passed_through() -> void:
+	for medium in [_chalk(), _basalt(), Medium.granite()]:
+		var sim := _dive(MediumLayout.uniform(medium), 0.3, 300.0)
+
+		var survey := sim.survey()
+		assert_int(survey.size()).is_greater(0)
+		for stretch in survey:
+			assert_str(stretch.medium_name).is_equal(medium.name)
+			_assert_composition_close(stretch.composition, medium.composition)
+
+
+func test_after_a_boundary_the_survey_records_the_new_medium() -> void:
+	var layout := MediumLayout.layered([[0.0, _chalk()], [40.0, _basalt()]])
+	var sim := _dive(layout, 0.3, 600.0)
+
+	var survey := sim.survey()
+	var first: SurveyStretch = survey.front()
+	var last: SurveyStretch = survey.back()
+	assert_float(last.start).is_greater(40.0)
+	_assert_composition_close(first.composition, _chalk().composition)
+	_assert_composition_close(last.composition, _basalt().composition)
+
+
+func test_a_stretch_across_a_boundary_holds_some_of_each_medium() -> void:
+	var survey := _dive(MediumLayout.uniform(_chalk()), 0.3, 300.0).survey()
+	var stretch_length: float = survey[0].length
+	# A Boundary a quarter of the way into the third stretch.
+	var boundary := stretch_length * 2.25
+	var layout := MediumLayout.layered([[0.0, _chalk()], [boundary, _basalt()]])
+
+	var straddling: SurveyStretch = _dive(layout, 0.3, 600.0).survey()[2]
+
+	assert_float(straddling.composition[&"calcite"]).is_between(0.01, 0.99)
+	assert_float(straddling.composition[&"pyroxene"]).is_between(0.01, 0.99)
+	# Mostly basalt by length, so it is named for basalt.
+	assert_str(straddling.medium_name).is_equal(&"basalt")
+
+
+func test_every_stretch_has_a_quality_and_an_untouched_column_is_pristine() -> void:
+	# Nothing yet heats the Column or shutters the Bore (tickets #7 and #13),
+	# so every stretch of this dive is recorded at the best quality there is.
+	var survey := _dive(MediumLayout.first_dive(), 1.0, 500.0).survey()
+
+	assert_int(survey.size()).is_greater(1)
+	for stretch in survey:
+		assert_float(stretch.quality).is_equal_approx(1.0, 0.0001)
+
+
+func test_the_survey_handed_out_is_a_copy() -> void:
+	var sim := _dive(MediumLayout.uniform(Medium.sand()), 0.5, 200.0)
+	var recorded := sim.survey().size()
+
+	sim.survey().clear()
+
+	assert_int(sim.survey().size()).is_equal(recorded)
+
+
 func test_without_power_nothing_new_is_recorded() -> void:
 	var sim := _dive(MediumLayout.uniform(Medium.sand()), 0.5, 200.0)
 	var recorded := sim.survey().size()
