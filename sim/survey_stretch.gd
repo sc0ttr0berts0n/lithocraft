@@ -28,3 +28,9 @@ func _init(p_start: float, p_length: float, p_quality: float,
 ## Distance along the path, in metres, at which the stretch ends.
 func end() -> float:
 	return start + length
+
+
+## What this stretch sells for once its data reaches the surface: more for a
+## longer and better record. In arbitrary units.
+func value() -> float:
+	return length * quality

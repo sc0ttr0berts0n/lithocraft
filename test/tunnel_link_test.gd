@@ -7,7 +7,7 @@ extends GdUnitTestSuite
 ## Test values only. Two Media alike in every way that moves the vessel, one
 ## full of pore space for the melt to line, one with none at all.
 func _pumice() -> Medium:
-	return Medium.new(&"pumice", 1.0, 0.5, 0.9, 300.0, 1.0, {&"glass": 1.0}, 0.5)
+	return Medium.new(&"pumice", 1.0, 0.5, 0.9, 300.0, 1.0, {&"quartz": 1.0}, 0.5)
 
 
 func _hornfels() -> Medium:
@@ -60,3 +60,19 @@ func test_sealing_raises_one_tunnel_sealed_event() -> void:
 	assert_int(events.size()).is_equal(1)
 	assert_str(events[0].type).is_equal(&"tunnel_sealed")
 	assert_array(sim.take_events()).is_empty()
+
+
+func test_data_sent_up_the_fast_link_is_paid_for_sooner_than_up_the_slow_link() -> void:
+	# The same dive through the same rock, but for porosity: one tunnel stays
+	# open behind, the other is filled in as soon as the Tail leaves the surface.
+	var open := DiveSimulation.new(MediumLayout.uniform(_pumice()))
+	var sealed := DiveSimulation.new(MediumLayout.uniform(_hornfels()))
+	for sim: DiveSimulation in [open, sealed]:
+		sim.set_power(0.5)
+		for i in 300:
+			sim.advance(1.0)
+
+	assert_bool(open.tunnel_sealed()).is_false()
+	assert_bool(sealed.tunnel_sealed()).is_true()
+	assert_int(open.survey().size()).is_equal(sealed.survey().size())
+	assert_float(open.paid()).is_greater(sealed.paid())

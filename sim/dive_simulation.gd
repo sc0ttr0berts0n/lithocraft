@@ -68,6 +68,14 @@ var _stretch_quality := 0.0
 ## True once the melt has filled the tunnel somewhere behind: from then on no
 ## continuous open tunnel reaches the surface.
 var _tunnel_sealed := false
+## Survey stretches whose data has reached the surface, in the order they
+## arrived, and what was paid for them all.
+var _uploaded: Array[SurveyStretch] = []
+var _paid := 0.0
+## Metres of the stretch now going up that have already reached the surface.
+## A stretch is paid for only once all of it is up.
+var _sending: SurveyStretch = null
+var _sent := 0.0
 ## Events raised since the last take_events(), oldest first.
 var _events: Array[Dictionary] = []
 
@@ -104,6 +112,7 @@ func advance(dt: float) -> void:
 	_record_survey(_distance, _distance + travelled)
 	_distance += travelled
 	_update_tunnel()
+	_upload(link_rate() * dt)
 
 
 # --- State ----------------------------------------------------------------
@@ -199,6 +208,18 @@ func link_rate() -> float:
 	return _SLOW_LINK_RATE * medium().sound_carrying
 
 
+## What has been paid so far for survey data that has reached the surface.
+## Data still aboard earns nothing.
+func paid() -> float:
+	return _paid
+
+
+## The survey stretches whose data has reached the surface and been paid for,
+## in the order they arrived. A copy.
+func uploaded_survey() -> Array[SurveyStretch]:
+	return _uploaded.duplicate()
+
+
 # --- The tunnel behind ----------------------------------------------------
 
 ## The Tail leaves the tunnel behind it: lined and open in porous Medium,
@@ -212,6 +233,34 @@ func _update_tunnel() -> void:
 	if _medium_at_distance(tail).porosity < _SEAL_POROSITY:
 		_tunnel_sealed = true
 		_events.append({type = &"tunnel_sealed", distance = tail})
+
+
+# --- The link to the surface --------------------------------------------
+
+## Sends up to `metres` of survey data up the link, a stretch at a time, and
+## pays for each stretch as the last of it reaches the surface.
+func _upload(metres: float) -> void:
+	while metres > 0.0:
+		if _sending == null:
+			_sending = _next_to_send()
+			_sent = 0.0
+			if _sending == null:
+				return  # Nothing waiting aboard.
+		var piece := minf(metres, _sending.length - _sent)
+		_sent += piece
+		metres -= piece
+		if _sent >= _sending.length:
+			_uploaded.append(_sending)
+			_paid += _sending.value()
+			_sending = null
+
+
+## The completed stretch to send next, or null if all of it is up.
+func _next_to_send() -> SurveyStretch:
+	for stretch in _survey:
+		if not _uploaded.has(stretch):
+			return stretch
+	return null
 
 
 # --- Survey ---------------------------------------------------------------
