@@ -224,3 +224,12 @@ func test_navigation_draws_power() -> void:
 	var sim := DiveSimulation.new(_layout(50.0))
 
 	assert_float(sim.navigation_draw()).is_greater(0.0)
+
+
+func test_the_point_count_matches_the_cloud() -> void:
+	var sim := DiveSimulation.new(_layout(50.0))
+	_go_quiet(sim)
+	_pulse(sim)
+
+	assert_int(sim.point_count()).is_equal(sim.points().size())
+	assert_int(sim.point_count()).is_greater(0)

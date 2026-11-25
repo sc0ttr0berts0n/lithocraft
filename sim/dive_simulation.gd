@@ -238,6 +238,12 @@ func points() -> Array[ScanPoint]:
 	return _points.duplicate()
 
 
+## How many points the cloud holds; cheaper than points() for a view that
+## only needs to know whether a pulse has added any.
+func point_count() -> int:
+	return _points.size()
+
+
 ## Where the Head is in the world frame the point cloud is given in: metres
 ## from where the dive began, +Y up (so y = -depth), the vessel's level
 ## heading along -Z. The path is straight down until ticket #8 bends it.
