@@ -22,7 +22,7 @@
 <div id="hud"></div>
 <div id="cross"></div>
 <div id="help">PROTOTYPE - Habitat "down"      click to capture mouse (or use arrow keys to look)
-WASD walk   Space jump
+WASD walk   J jump   Space call the arm / let go   A / D (held) next Station left / right
 1 dive (nose down)   2 level   3 climb / thrust (tail down)   4 spin   5 coast (no gravity)
 Z / X  pitch -/+ 15 deg      [ / ]  spin rpm -/+ 1</div>
 <script type="module">
@@ -116,6 +116,30 @@ const stations = NAMES.map((name, i) => {
   return g;
 });
 
+// ---- Arm: a carriage on a rail around the Bore, with a chain-arm that catches you
+const RAIL_R = RIN + 0.15, RAIL_Z = 0, LINKS = 18;
+const amber = new THREE.MeshBasicMaterial({ color: 0xffb02e });
+const railMesh = new THREE.Mesh(new THREE.TorusGeometry(RAIL_R, 0.03, 8, 64), new THREE.MeshBasicMaterial({ color: 0xc8d2d8 }));
+railMesh.position.z = RAIL_Z; scene.add(railMesh);
+const carriage = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.24), amber); scene.add(carriage);
+const linkGeo = new THREE.SphereGeometry(0.035, 8, 6);
+const links = Array.from({ length: LINKS }, () => { const m = new THREE.Mesh(linkGeo, amber); scene.add(m); return m; });
+const claw = new THREE.Group(); scene.add(claw);
+const fingers = [-1, 1].map(sx => {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.18, 0.03), amber); m.userData.sx = sx; claw.add(m); return m;
+});
+// state: parked | reaching | holding | returning
+const grab = { state: 'parked', phi: -Math.PI / 2, t: 0, hand: new THREE.Vector3(), handFrom: new THREE.Vector3(), from: null, to: 0, u: 1 };
+const wrapAng = a => Math.atan2(Math.sin(a), Math.cos(a));
+const ease = t => t * t * (3 - 2 * t);
+const railAt = phi => new THREE.Vector3(Math.cos(phi) * RAIL_R, Math.sin(phi) * RAIL_R, RAIL_Z);
+const parkedHand = () => railAt(grab.phi).multiplyScalar((RAIL_R + 0.3) / RAIL_R).setZ(RAIL_Z);
+function snap(v, q) { return { v: v.clone(), ang: Math.atan2(v.y, v.x), r: Math.hypot(v.x, v.y), z: v.z, q: q.clone() }; }
+function seatOf(i) {   // where your eye is held, facing the Station's screen
+  const s = stations[i]; s.updateMatrixWorld();
+  return snap(s.localToWorld(new THREE.Vector3(0, 0.15, 0.85)), s.quaternion);
+}
+
 // ---- Vessel state -------------------------------------------------------
 // pitch: +90 = nose straight down (diving), 0 = level, -90 = tail down (climbing or under thrust)
 const vessel = { mode: 'level', pitch: 0, pitchTarget: 0, grav: 1, gravTarget: 1, spin: 0, spinTarget: 0, rpm: 10 };
@@ -152,7 +176,9 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyX') vessel.pitchTarget = Math.min(90, vessel.pitchTarget + 15);
   if (e.code === 'BracketLeft') vessel.rpm = Math.max(1, vessel.rpm - 1);
   if (e.code === 'BracketRight') vessel.rpm = Math.min(30, vessel.rpm + 1);
-  if (e.code === 'Space' && grounded) vel.addScaledVector(Y.clone().applyQuaternion(bodyQ), 3.5);
+  if (e.code === 'KeyJ' && grounded && grab.state !== 'holding') vel.addScaledVector(Y.clone().applyQuaternion(bodyQ), 3.5);
+  if (e.code === 'Space' && !e.repeat) callArm();
+  if (grab.state === 'holding' && !e.repeat && (e.code === 'KeyA' || e.code === 'KeyD')) shiftStation(e.code === 'KeyD' ? 1 : -1);
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
@@ -172,6 +198,81 @@ function alignUp(q, target, k) {
   q.premultiply(new THREE.Quaternion().slerp(d, k)).normalize();
 }
 
+const eyeNow = () => pos.clone().addScaledVector(Y.clone().applyQuaternion(bodyQ), EYE);
+// the claw grips a harness between your shoulder blades, so the chain stays out of view
+const chest = () => pos.clone().addScaledVector(Y.clone().applyQuaternion(bodyQ), EYE - 0.45)
+  .addScaledVector(Z.clone().applyQuaternion(bodyQ), 0.3);
+function callArm() {
+  if (grab.state === 'parked' || grab.state === 'returning') {
+    grab.state = 'reaching'; grab.t = 0; grab.handFrom.copy(grab.hand);
+  } else {   // reaching or holding: let go
+    grab.state = 'returning'; grab.t = 0; grab.handFrom.copy(grab.hand);
+    vel.set(0, 0, 0);
+  }
+}
+function shiftStation(dir) {   // D = the neighbouring Station on your right, A = on your left
+  const cur = eyeNow(), right = X.clone().applyQuaternion(bodyQ);
+  const a = (grab.to + 1) % 6, b = (grab.to + 5) % 6;
+  const side = i => seatOf(i).v.sub(cur).dot(right) * dir;
+  grab.from = snap(cur, bodyQ); grab.to = side(a) > side(b) ? a : b; grab.u = 0;
+}
+function stepArm(dt) {
+  if (grab.state === 'reaching') {
+    const target = Math.atan2(pos.y, pos.x);
+    grab.phi = wrapAng(grab.phi + Math.max(-4 * dt, Math.min(4 * dt, wrapAng(target - grab.phi))));
+    grab.t = Math.min(1, grab.t + dt / 0.9);
+    const e = ease(grab.t);
+    grab.hand.copy(grab.handFrom).lerp(chest(), e).addScaledVector(Z, Math.sin(Math.PI * grab.t) * 0.6);
+    if (grab.t >= 1) {   // caught: carry to the nearest Station
+      let best = 0, bestD = Infinity;
+      stations.forEach((s, i) => { const d = Math.abs(wrapAng(Math.atan2(s.position.y, s.position.x) - target)); if (d < bestD) { bestD = d; best = i; } });
+      grab.state = 'holding'; grab.from = snap(eyeNow(), bodyQ); grab.to = best; grab.u = 0; vel.set(0, 0, 0);
+    }
+  } else if (grab.state === 'holding') {
+    const to = seatOf(grab.to), f = grab.from;
+    const dAng = wrapAng(to.ang - f.ang);
+    const dist = Math.abs(dAng) * Math.max(f.r, to.r) + Math.abs(to.r - f.r) + Math.abs(to.z - f.z);
+    grab.u = Math.min(1, grab.u + dt * 1.6 / Math.max(0.3, dist));
+    const e = ease(grab.u), ang = f.ang + dAng * e, r = f.r + (to.r - f.r) * e;
+    const eye = new THREE.Vector3(Math.cos(ang) * r, Math.sin(ang) * r, f.z + (to.z - f.z) * e);
+    bodyQ.copy(f.q).slerp(to.q, e);
+    pos.copy(eye).addScaledVector(Y.clone().applyQuaternion(bodyQ), -EYE);
+    vel.set(0, 0, 0);
+    grab.phi = wrapAng(grab.phi + Math.max(-4 * dt, Math.min(4 * dt, wrapAng(ang - grab.phi))));
+    grab.hand.copy(chest());
+  } else if (grab.state === 'returning') {
+    grab.t = Math.min(1, grab.t + dt / 0.6);
+    grab.hand.copy(grab.handFrom).lerp(parkedHand(), ease(grab.t));
+    if (grab.t >= 1) grab.state = 'parked';
+  } else {
+    grab.hand.copy(parkedHand());
+  }
+}
+function drawArm() {
+  const C = railAt(grab.phi), H = grab.hand;
+  carriage.position.copy(C);
+  carriage.quaternion.setFromUnitVectors(Y, C.clone().setZ(0).normalize());
+  // cubic curve: leaves the carriage outward, and when attached, comes in from behind and above you
+  const d = C.distanceTo(H), c1 = C.clone().addScaledVector(C.clone().setZ(0).normalize(), 0.35 * d);
+  let c2;
+  if (grab.state === 'holding' || grab.state === 'reaching') {
+    const back = Z.clone().applyQuaternion(bodyQ), up = Y.clone().applyQuaternion(bodyQ);
+    c2 = H.clone().addScaledVector(back, 0.35 * d + 0.3).addScaledVector(up, 0.25 * d);
+  } else {
+    const mid = C.clone().lerp(H, 0.5), u = upAt(mid);
+    c2 = mid.clone().addScaledVector(u || Y, u ? -0.25 * d : 0);
+  }
+  links.forEach((m, i) => {
+    const t = (i + 1) / (LINKS + 1), s = 1 - t;
+    m.position.set(0, 0, 0).addScaledVector(C, s * s * s).addScaledVector(c1, 3 * s * s * t)
+      .addScaledVector(c2, 3 * s * t * t).addScaledVector(H, t * t * t);
+  });
+  claw.position.copy(H);
+  const dir = H.clone().sub(c2); if (dir.lengthSq() > 1e-6) claw.quaternion.setFromUnitVectors(Y, dir.normalize());
+  const open = grab.state !== 'holding';
+  for (const m of fingers) { const sx = m.userData.sx; m.position.set(sx * (open ? 0.07 : 0.035), 0.08, 0); m.rotation.z = sx * (open ? -0.5 : 0.15); }
+}
+
 function step(dt) {
   vessel.pitch = toward(vessel.pitch, vessel.pitchTarget, 20 * dt);
   vessel.grav = toward(vessel.grav, vessel.gravTarget, 0.4 * dt);
@@ -179,6 +280,9 @@ function step(dt) {
 
   turn(((keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0)) * 1.8 * dt,
        ((keys.ArrowDown ? 1 : 0) - (keys.ArrowUp ? 1 : 0)) * 1.2 * dt);
+
+  stepArm(dt);
+  if (grab.state === 'holding') { finishStep(dt); return; }
 
   const upT = upAt(pos);
   if (upT) alignUp(bodyQ, upT, 1 - Math.exp(-dt * 6));
@@ -211,12 +315,17 @@ function step(dt) {
   if (rad < RIN + BODY) { const s = (RIN + BODY) / rad; pos.x *= s; pos.y *= s; hit(new THREE.Vector3(pos.x, pos.y, 0).normalize()); }
   if (pos.z > LEN / 2 - BODY) { pos.z = LEN / 2 - BODY; hit(new THREE.Vector3(0, 0, -1)); }
   if (pos.z < -LEN / 2 + BODY) { pos.z = -LEN / 2 + BODY; hit(new THREE.Vector3(0, 0, 1)); }
+  finishStep(dt);
+}
 
+function finishStep(dt) {
+  const up = Y.clone().applyQuaternion(bodyQ);
   for (const s of stations) { const u = upAt(s.position); if (u) alignUp(s.quaternion, u, 1 - Math.exp(-dt * 3)); }
   strata.offset.y += dt * 0.08;
 
   camera.position.copy(pos).addScaledVector(up, EYE);
   camera.quaternion.copy(bodyQ).multiply(new THREE.Quaternion().setFromAxisAngle(X, look));
+  drawArm();
 }
 
 const hud = document.getElementById('hud');
@@ -236,7 +345,8 @@ spin        <b>${(vessel.spin * vessel.rpm).toFixed(1)} rpm</b>  (set ${vessel.r
 floor is    <b>${floor}</b>
 g at feet   <b>${feet.toFixed(2)}</b>
 g at head   <b>${head.toFixed(2)}</b>
-standing    <b>${grounded ? 'yes' : 'no'}</b>   speed ${vel.length().toFixed(1)} m/s`;
+standing    <b>${grounded ? 'yes' : 'no'}</b>   speed ${vel.length().toFixed(1)} m/s
+arm         <b>${grab.state}${grab.state === 'holding' ? ' -> ' + NAMES[grab.to] : ''}</b>`;
 }
 
 let last = performance.now();
@@ -246,5 +356,5 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__proto = { vessel, pos, vel, get grounded() { return grounded; } };
+window.__proto = { vessel, pos, vel, grab, get grounded() { return grounded; } };
 </script>
