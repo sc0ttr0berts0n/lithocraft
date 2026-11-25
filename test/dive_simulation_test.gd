@@ -38,3 +38,16 @@ func test_without_power_the_lithocraft_stays_put() -> void:
 	sim.advance(10.0)
 
 	assert_float(sim.depth()).is_equal(start_depth)
+
+
+func test_at_equal_power_the_lithocraft_advances_faster_in_sand_than_granite() -> void:
+	for power in [0.2, 0.5, 1.0]:
+		var sand := DiveSimulation.new(MediumLayout.uniform(Medium.sand()))
+		var granite := DiveSimulation.new(MediumLayout.uniform(Medium.granite()))
+
+		sand.set_power(power)
+		granite.set_power(power)
+		sand.advance(10.0)
+		granite.advance(10.0)
+
+		assert_float(sand.depth()).is_greater(granite.depth())
