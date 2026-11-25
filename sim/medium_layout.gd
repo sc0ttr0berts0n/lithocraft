@@ -78,6 +78,12 @@ func features_between(a: float, b: float) -> Array:
 	return result
 
 
+## Depths in metres of every Boundary (where one Medium gives way to the
+## next), shallowest first.
+func boundary_depths() -> Array[float]:
+	return _tops.slice(1)
+
+
 ## The Medium at the given depth in metres below the surface. Above the
 ## surface counts as the top layer.
 func medium_at(depth: float) -> Medium:

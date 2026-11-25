@@ -131,6 +131,10 @@ const _SCAN_SCATTER := 0.08
 ## Step for finding Boundaries along the depth a pulse can reach, metres.
 const _BOUNDARY_SEARCH_STEP_M := 1.0
 
+## Boundaries. A Boundary this many metres of depth ahead is announced, so the
+## Reactor Station can prepare for the Shift. Tuned for play (ADR 0001).
+const _BOUNDARY_APPROACH_M := 30.0
+
 var _layout: MediumLayout
 var _power := 0.0
 var _depth := 0.0
@@ -213,6 +217,8 @@ var _pulse_pending := false
 var _pulses_sent := 0
 ## Fixed seed, so a dive's scan is the same every run.
 var _scan_random := RandomNumberGenerator.new()
+## Depth of the Boundary last announced as approaching, or NAN for none.
+var _announced_boundary := NAN
 
 
 func _init(layout: MediumLayout) -> void:
@@ -304,6 +310,7 @@ func advance(dt: float) -> void:
 	_record_observed_feature(dt, travelled)
 	_find_features(depth_before, _depth, travelled)
 	_distance += travelled
+	_watch_boundaries(depth_before)
 	_update_tunnel()
 	_upload(link_rate() * dt)
 	if _pulse_pending:
@@ -700,6 +707,40 @@ func _find_features(depth_before: float, depth_after: float, travelled: float) -
 func _in_column(feature: ColumnFeature) -> bool:
 	var behind := _distance - feature.at
 	return behind >= 0.0 and behind <= _VESSEL_LENGTH_M
+
+
+# --- Boundaries -----------------------------------------------------------
+
+## Raises boundary_crossed when this step took the Head into another Medium,
+## and boundary_approaching once for each Boundary that comes within reach
+## ahead in the direction the Head's depth is changing.
+func _watch_boundaries(depth_before: float) -> void:
+	var before := _layout.medium_at(depth_before)
+	var after := _layout.medium_at(_depth)
+	if after != before:
+		_announced_boundary = NAN
+		_events.append({type = &"boundary_crossed", from = before.name, to = after.name,
+				depth = _depth, distance = _distance})
+		_on_boundary_crossed(before, after)
+	if is_equal_approx(_depth, depth_before):
+		return
+	var downward := _depth > depth_before
+	var ahead := NAN
+	for b in _layout.boundary_depths():
+		var gap := b - _depth if downward else _depth - b
+		if gap > 0.0 and gap <= _BOUNDARY_APPROACH_M and (is_nan(ahead) or gap < absf(ahead - _depth)):
+			ahead = b
+	if is_nan(ahead) or ahead == _announced_boundary:
+		return
+	_announced_boundary = ahead
+	var beyond := _layout.medium_at(ahead + (0.01 if downward else -0.01))
+	_events.append({type = &"boundary_approaching", from = after.name, to = beyond.name,
+			depth = ahead, depth_to_go = absf(ahead - _depth)})
+
+
+## The load on the Head has changed: the Shift is due. (Filled in below.)
+func _on_boundary_crossed(_from: Medium, _to: Medium) -> void:
+	pass
 
 
 # --- The tunnel behind ----------------------------------------------------
