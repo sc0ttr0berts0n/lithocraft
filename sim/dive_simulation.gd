@@ -5,7 +5,7 @@
 ##   time step     - advance(dt), dt in simulated seconds
 ##   state out     - read-only query methods, e.g. depth()
 ##   events out    - take_events(): events since the last call, then cleared.
-##                   Added by the first ticket that raises an event.
+##                   Each a Dictionary with a `type` StringName plus fields.
 class_name DiveSimulation
 extends RefCounted
 
@@ -33,6 +33,20 @@ const _PITCH_RATE := 5.0
 ## Earth's surface gravity, m/s^2.
 const _GRAVITY := 9.81
 
+## Length of the Lithocraft from Head to Tail, in metres: how far behind the
+## Head the tunnel is made. Tuned for play (ADR 0001).
+const _VESSEL_LENGTH_M := 12.0
+## Below this porosity the Medium has no pore space to take the melt as a
+## glass lining, so the melt is pumped aft and fills the tunnel. Sandstone is
+## above it and granite below. Tuned for play (ADR 0001).
+const _SEAL_POROSITY := 0.1
+## Survey metres per second the light link up an open, glass-lined tunnel
+## carries. Tuned for play (ADR 0001).
+const _FAST_LINK_RATE := 2.0
+## Survey metres per second sound through rock carries, in a Medium whose
+## sound_carrying is 1. Far below the fast link. Tuned for play (ADR 0001).
+const _SLOW_LINK_RATE := 0.02
+
 var _layout: MediumLayout
 var _power := 0.0
 var _depth := 0.0
@@ -51,6 +65,11 @@ var _stretch_start := 0.0
 var _stretch_minerals := {}
 var _stretch_media := {}
 var _stretch_quality := 0.0
+## True once the melt has filled the tunnel somewhere behind: from then on no
+## continuous open tunnel reaches the surface.
+var _tunnel_sealed := false
+## Events raised since the last take_events(), oldest first.
+var _events: Array[Dictionary] = []
 
 
 func _init(layout: MediumLayout) -> void:
@@ -84,6 +103,7 @@ func advance(dt: float) -> void:
 	_depth += travelled
 	_record_survey(_distance, _distance + travelled)
 	_distance += travelled
+	_update_tunnel()
 
 
 # --- State ----------------------------------------------------------------
@@ -140,6 +160,58 @@ func column_at(behind_head: float) -> Medium:
 ## the path, oldest first. A copy; changing it does not change the record.
 func survey() -> Array[SurveyStretch]:
 	return _survey.duplicate()
+
+
+## Events raised since the last call, oldest first, then forgotten. Each is a
+## Dictionary with a `type` StringName and its own fields:
+##   &"tunnel_sealed" {distance}: the melt has filled the tunnel behind the
+##       Tail; the link to the surface is now the slow one.
+func take_events() -> Array[Dictionary]:
+	var taken := _events
+	_events = []
+	return taken
+
+
+## True once the tunnel behind has been filled somewhere, so no continuous open
+## tunnel reaches the surface. It stays sealed for the rest of the dive.
+func tunnel_sealed() -> bool:
+	return _tunnel_sealed
+
+
+## Metres from the Head back to the Tail, where the tunnel behind is made.
+func vessel_length() -> float:
+	return _VESSEL_LENGTH_M
+
+
+## The porosity below which the Medium the Tail leaves fills the tunnel in.
+## For instruments that show the porosity trend against it.
+func seal_porosity() -> float:
+	return _SEAL_POROSITY
+
+
+## How fast survey data goes up to the surface now, in metres of survey per
+## second. Light up the open glass-lined tunnel is fast; once sealed, it is
+## sound through the rock: a trickle that follows how well the Medium the
+## Lithocraft is in carries sound.
+func link_rate() -> float:
+	if not _tunnel_sealed:
+		return _FAST_LINK_RATE
+	return _SLOW_LINK_RATE * medium().sound_carrying
+
+
+# --- The tunnel behind ----------------------------------------------------
+
+## The Tail leaves the tunnel behind it: lined and open in porous Medium,
+## filled with melt in dense Medium. Once filled, it stays filled.
+func _update_tunnel() -> void:
+	if _tunnel_sealed:
+		return
+	var tail := _distance - _VESSEL_LENGTH_M
+	if tail < 0.0:
+		return  # The Tail has not yet left the surface.
+	if _medium_at_distance(tail).porosity < _SEAL_POROSITY:
+		_tunnel_sealed = true
+		_events.append({type = &"tunnel_sealed", distance = tail})
 
 
 # --- Survey ---------------------------------------------------------------
