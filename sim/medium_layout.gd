@@ -7,6 +7,8 @@ extends RefCounted
 var _tops: Array[float] = []
 ## The Medium of each layer, matching _tops.
 var _media: Array[Medium] = []
+## Features of interest: [[depth_m, ColumnFeature template], ...], shallowest first.
+var _features: Array = []
 
 
 ## layers: [[top_depth_m, Medium], ...], shallowest first, the first at 0.
@@ -36,6 +38,26 @@ static func first_dive() -> MediumLayout:
 		[100.0, Medium.sandstone()],
 		[600.0, Medium.granite()],
 	])
+
+
+## Adds features of interest: [[depth_m, ColumnFeature], ...]. Returns this
+## layout, so it chains onto uniform() and layered().
+func with_features(features: Array) -> MediumLayout:
+	_features.append_array(features)
+	_features.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	return self
+
+
+## The feature templates lying between two depths (either order), each as
+## [depth_m, ColumnFeature]. A feature exactly at a depth counts once: it lies
+## between a and b when it is past a and up to b.
+func features_between(a: float, b: float) -> Array:
+	var result := []
+	for entry in _features:
+		var d: float = entry[0]
+		if (a < d and d <= b) or (b <= d and d < a):
+			result.append(entry)
+	return result
 
 
 ## The Medium at the given depth in metres below the surface. Above the

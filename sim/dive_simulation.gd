@@ -19,6 +19,10 @@ const _GRIP_PER_STRENGTH := 2.0
 ## Tuned for play (ADR 0001).
 const _SURVEY_STRETCH_M := 10.0
 
+## Length of the Column inside the vessel, from the Head to the Tail, in
+## metres. A guess for play (ADR 0001); tests read column_length().
+const _HEAD_TO_TAIL_M := 9.0
+
 ## Habitat frame: the fixed axes of the vessel that felt_acceleration() is
 ## given in. TOWARD_HEAD runs along the Bore toward the Head. TOWARD_UNDERSIDE
 ## is the outer wall that is underneath when the vessel is level.
@@ -51,6 +55,10 @@ var _stretch_start := 0.0
 var _stretch_minerals := {}
 var _stretch_media := {}
 var _stretch_quality := 0.0
+## Features of interest the Head has found, in the order found.
+var _features: Array[ColumnFeature] = []
+## Layout feature templates already found, so crossing one again adds nothing.
+var _found_templates := {}
 
 
 func _init(layout: MediumLayout) -> void:
@@ -81,8 +89,10 @@ func advance(dt: float) -> void:
 	_slip = 0.0 if _power <= 0.0 else (_power - gripped_power) / _power
 	_speed = _FULL_POWER_SPEED * gripped_power / medium.hardness
 	var travelled := _speed * dt
+	var depth_before := _depth
 	_depth += travelled
 	_record_survey(_distance, _distance + travelled)
+	_find_features(depth_before, _depth, travelled)
 	_distance += travelled
 
 
@@ -140,6 +150,53 @@ func column_at(behind_head: float) -> Medium:
 ## the path, oldest first. A copy; changing it does not change the record.
 func survey() -> Array[SurveyStretch]:
 	return _survey.duplicate()
+
+
+## Metres of Column inside the vessel, from the Head to the Tail. A feature is
+## in the Column while it is between 0 and this far behind the Head.
+func column_length() -> float:
+	return _HEAD_TO_TAIL_M
+
+
+## Every feature of interest the Head has found so far, in the order found,
+## including those that have left through the Tail. Copies.
+func found_features() -> Array[ColumnFeature]:
+	var result: Array[ColumnFeature] = []
+	for feature in _features:
+		result.append(feature.copy())
+	return result
+
+
+## The features now between the Head and the Tail, nearest the Tail first.
+## Copies.
+func features_in_column() -> Array[ColumnFeature]:
+	var result: Array[ColumnFeature] = []
+	for feature in _features:
+		if _in_column(feature):
+			result.append(feature.copy())
+	return result
+
+
+# --- Column features ------------------------------------------------------
+
+## Adds the features the Head cut past in this step, placed along the path
+## where it met them.
+func _find_features(depth_before: float, depth_after: float, travelled: float) -> void:
+	for entry in _layout.features_between(depth_before, depth_after):
+		var template: ColumnFeature = entry[1]
+		if _found_templates.has(template):
+			continue
+		_found_templates[template] = true
+		var feature := template.copy()
+		feature.id = _features.size()
+		var share := inverse_lerp(depth_before, depth_after, entry[0])
+		feature.at = _distance + travelled * share
+		_features.append(feature)
+
+
+func _in_column(feature: ColumnFeature) -> bool:
+	var behind := _distance - feature.at
+	return behind >= 0.0 and behind <= _HEAD_TO_TAIL_M
 
 
 # --- Survey ---------------------------------------------------------------
