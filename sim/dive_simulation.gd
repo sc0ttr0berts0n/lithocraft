@@ -192,6 +192,10 @@ const _HOT_SHIFT_WEAR := 1.0
 ## How much a fully worn Head unsteadies the plasma even when tuned.
 const _WEAR_UNSTEADINESS := 0.3
 
+## What a recovery keeps; every other variable starts over as a fresh dive.
+## The world (the layout), what was paid for, and events not yet taken.
+const _KEPT_ON_RECOVERY: Array[StringName] = [&"_layout", &"_paid", &"_uploaded", &"_events"]
+
 var _layout: MediumLayout
 var _power := 0.0
 ## Where the Head is in the world frame (see head_position()) and the way it
@@ -297,6 +301,9 @@ var _shift_asked := NAN
 var _head_wear := 0.0
 ## True once the Head's plasma has gone out. It stays out.
 var _plasma_lost := false
+## True once the plasma is lost while sealed in: the dive is over until
+## recover() (ticket #12).
+var _stranded := false
 ## Extra heat per second from the last poor Shift, fading.
 var _heat_spike := 0.0
 ## The last poor Shift's lurch: its peak jolt in m/s^2 and seconds since.
@@ -374,6 +381,22 @@ func set_quiet_ship(on: bool) -> void:
 	_quiet_ship = on
 
 
+## The recovery after a stranding: the crew and the Lithocraft are brought
+## back to the surface, ready to dive again as at the start of a dive, with
+## every Station setting back at its start. What was paid (paid(),
+## uploaded_survey()) is kept; the lost survey stays lost. Ignored unless
+## stranded(). Raises &"recovered".
+func recover() -> void:
+	if not _stranded:
+		return
+	var fresh := DiveSimulation.new(_layout)
+	for property in get_property_list():
+		if property.usage & PROPERTY_USAGE_SCRIPT_VARIABLE \
+				and not StringName(property.name) in _KEPT_ON_RECOVERY:
+			set(property.name, fresh.get(property.name))
+	_events.append({type = &"recovered", paid = _paid})
+
+
 ## Reactor Station: perform a Shift, retuning the Reactor to hold the plasma
 ## at this frequency in hertz, on the next step. The closer it matches the
 ## plasma's wobble (plasma_frequency()), and the sooner after a Boundary, the
@@ -385,6 +408,8 @@ func shift(frequency: float) -> void:
 # --- Time step ------------------------------------------------------------
 
 func advance(dt: float) -> void:
+	if _stranded:
+		return  # The dive is over; nothing moves until recover().
 	_head_activity = move_toward(_head_activity, 0.0 if _quiet_ship else 1.0,
 			_HEAD_SPIN_RATE * dt)
 	_tend_plasma(dt)
@@ -422,6 +447,7 @@ func advance(dt: float) -> void:
 	if _pulse_pending:
 		_pulse_pending = false
 		_send_pulse()
+	_check_stranded()
 
 
 # --- State ----------------------------------------------------------------
@@ -698,10 +724,37 @@ func survey_value() -> float:
 ## Dictionary with a `type` StringName and its own fields:
 ##   &"tunnel_sealed" {distance}: the melt has filled the tunnel behind the
 ##       Tail; the link to the surface is now the slow one.
+##   &"stranded" {depth, distance, lost, lost_stretches, paid}: the plasma was
+##       lost while sealed in. `lost` is the value of the unsold survey
+##       discarded (`lost_stretches` stretches of it); `paid` is kept.
+##   &"recovered" {paid}: recover() has brought the crew back to the surface
+##       with `paid` kept, ready to dive again.
 func take_events() -> Array[Dictionary]:
 	var taken := _events
 	_events = []
 	return taken
+
+
+## The survey data aboard that has not reached the surface, stretches and
+## records of features alike, in the order recorded. Unpaid for. A copy.
+func unsold_survey() -> Array[SurveyStretch]:
+	return _waiting.duplicate()
+
+
+## What the survey data aboard would be paid once up: the sum of
+## unsold_survey()'s values.
+func unsold_value() -> float:
+	var total := 0.0
+	for stretch in _waiting:
+		total += stretch.value()
+	return total
+
+
+## True once the plasma has been lost while sealed in: the Lithocraft cannot
+## move and no tunnel leads up. The dive is over; time no longer advances it.
+## recover() brings the crew back to the surface.
+func stranded() -> bool:
+	return _stranded
 
 
 ## True once the tunnel behind has been filled somewhere, so no continuous open
@@ -1070,6 +1123,29 @@ func _hull_heat_share() -> float:
 func _mistuning() -> float:
 	var target := plasma_frequency()
 	return absf(_tuning - target) / target
+
+
+# --- Stranding -----------------------------------------------------------
+
+## Losing the plasma while sealed in strands the Lithocraft. The survey data
+## not yet up the link is lost with it; what reached the surface stays paid.
+func _check_stranded() -> void:
+	if _stranded or not (_plasma_lost and _tunnel_sealed):
+		return
+	_stranded = true
+	var lost_value := unsold_value()
+	var lost_stretches := _waiting.filter(
+			func(s: SurveyStretch) -> bool: return not s.is_feature_record()).size()
+	var lost := {}
+	for stretch in _waiting:
+		lost[stretch] = true
+	_survey_value -= lost_value
+	_survey.assign(_survey.filter(func(s: SurveyStretch) -> bool: return not lost.has(s)))
+	_waiting.clear()
+	_sent.clear()
+	_sending = null
+	_events.append({type = &"stranded", depth = depth(), distance = _distance,
+			lost = lost_value, lost_stretches = lost_stretches, paid = _paid})
 
 
 # --- The tunnel behind ----------------------------------------------------
