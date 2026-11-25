@@ -26,6 +26,8 @@ const HARNESS_BELOW_EYES := 0.45
 const HARNESS_BEHIND := 0.3
 ## How far the claw hangs out from the carriage when parked.
 const PARKED_REACH := 0.3
+## Links drawn between the carriage and the claw.
+const CHAIN_LINKS := 18
 
 var _rail_radius: float
 var _state := State.PARKED
@@ -150,6 +152,47 @@ func held_eye() -> Transform3D:
 ## The Station the Arm is carrying to or holding at, or -1.
 func station() -> int:
 	return _to if _state == State.HOLDING else -1
+
+
+## The carriage on the rail (Habitat frame).
+func carriage() -> Vector3:
+	return _rail_point()
+
+
+## The claw (Habitat frame).
+func hand() -> Vector3:
+	return _hand
+
+
+## True while the claw is closed on the harness.
+func gripping() -> bool:
+	return is_holding()
+
+
+## Points along the chain from the carriage to the claw, both included.
+## It leaves the carriage outward from the Bore and, while it reaches for or
+## holds the crew member, comes in from behind and above them so it stays
+## out of their view; otherwise it sags.
+func chain(links := CHAIN_LINKS) -> PackedVector3Array:
+	var c := _rail_point()
+	var h := _hand
+	var d := c.distance_to(h)
+	var c1: Vector3
+	var c2: Vector3
+	if _state == State.HOLDING or _state == State.REACHING:
+		# Up from the carriage first (the crew member's up), over anything
+		# in front of them, then down onto the harness from behind.
+		c1 = c + _body.basis.y * 0.5 * d
+		c2 = h + _body.basis.z * (0.35 * d + 0.3) + _body.basis.y * 0.25 * d
+	else:
+		c1 = c + Vector3(c.x, c.y, 0).normalized() * 0.35 * d
+		c2 = c.lerp(h, 0.5) - _body.basis.y * 0.25 * d
+	var points := PackedVector3Array()
+	for i in links + 2:
+		var t := float(i) / (links + 1)
+		var s := 1.0 - t
+		points.append(c * s * s * s + c1 * 3.0 * s * s * t + c2 * 3.0 * s * t * t + h * t * t * t)
+	return points
 
 
 ## True once a carry has reached its Station.

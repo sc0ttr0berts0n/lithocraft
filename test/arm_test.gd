@@ -181,6 +181,59 @@ func test_the_same_side_again_and_again_goes_round_every_station_one_at_a_time()
 			assert_int(visited[count]).is_equal(0)
 
 
+func test_pressing_again_lets_go_and_the_arm_goes_back_to_its_rail() -> void:
+	for up in [LEVEL, DIVING, CLIMBING]:
+		var arm := _seated_at(2, up)
+		var seat := arm.held_eye()
+
+		arm.press()
+		var released := arm.is_holding()
+		_run(arm, seat, _poses(up))
+
+		assert_bool(released).is_false()
+		assert_int(arm.station()).is_equal(-1)
+		assert_int(arm.state()).is_equal(Arm.State.PARKED)
+
+
+func test_pressing_while_it_reaches_calls_it_off() -> void:
+	var arm := Arm.new(BORE_RADIUS + 0.15)
+	arm.press()
+	arm.step(0.1, _eye_at(_beside(0, LEVEL), LEVEL), _poses(LEVEL))
+
+	arm.press()
+	_run(arm, _eye_at(_beside(0, LEVEL), LEVEL), _poses(LEVEL))
+
+	assert_bool(arm.is_holding()).is_false()
+	assert_int(arm.state()).is_equal(Arm.State.PARKED)
+
+
+## True if p, seen from eye, is in the way of any part of the screen (with
+## a margin round it for the desk and the chain's thickness).
+func _in_the_way(p: Vector3, eye: Vector3, screen: Vector3, cradle: Basis) -> bool:
+	var facing := -cradle.z  # the screen's face points this way, at the eye
+	var to_screen := (screen - eye).dot(-facing)
+	var to_p := (p - eye).dot(-facing)
+	if to_p <= 0.0 or to_p >= to_screen:
+		return false  # behind the eye or beyond the screen
+	var on_plane := eye + (p - eye) * (to_screen / to_p) - screen
+	var margin := 0.15
+	return absf(on_plane.dot(cradle.x)) < 0.4 + margin \
+		and absf(on_plane.dot(cradle.y)) < 0.2 + margin
+
+
+func test_seated_the_chain_and_claw_never_block_the_view_of_the_station() -> void:
+	for up in [LEVEL, DIVING, CLIMBING]:
+		for index in IN_USE.size():
+			var arm := _seated_at(index, up)
+			var eye := arm.held_eye().origin
+			var screen := _screen(index, up)
+
+			for p in arm.chain():
+				assert_bool(_in_the_way(p, eye, screen, _cradle(up))) \
+					.override_failure_message("chain at %s blocks Station %d, up %s" % [p, index, up]) \
+					.is_false()
+
+
 func test_right_then_left_comes_back_to_the_same_station() -> void:
 	for up in [LEVEL, DIVING, CLIMBING]:
 		for index in IN_USE.size():
