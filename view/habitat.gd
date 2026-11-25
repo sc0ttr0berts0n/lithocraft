@@ -24,6 +24,10 @@ const STATIONS := [
 const PITCH_STEP := 15.0
 const HEADING_STEP := 15.0
 const POWER_STEP := 0.1
+## The Arm's rail runs round the Bore this far out from its glass.
+const RAIL_GAP := 0.15
+## How quickly the look settles onto a Station's screen while carried, per second.
+const LOOK_SETTLE_RATE := 4.0
 ## The Column inside the Bore glass.
 const COLUMN_RADIUS := BORE_RADIUS - 0.08
 ## How far the Habitat's Head-side wall is behind the Head, in metres: the
@@ -54,6 +58,9 @@ var _thermal: GimballedStation
 var _heat_split := 0.0
 var _navigation: GimballedStation
 var _crew := CrewMember.new()
+var _arm := Arm.new(BORE_RADIUS + RAIL_GAP)
+## The Stations in use, in order round the ring; the Arm carries to these.
+var _in_use: Array[GimballedStation] = []
 
 @onready var _dive_view: DiveView = %DiveView
 
@@ -73,6 +80,10 @@ func _ready() -> void:
 	_crew.position = Vector3(0, -(OUTER_RADIUS + BORE_RADIUS) / 2.0, -LENGTH / 2.0 + CrewMember.BODY)
 	_crew.basis = Basis.looking_at(Vector3.RIGHT, Vector3.BACK)
 	add_child(_crew)
+	var arm_view := ArmView.new()
+	arm_view.arm = _arm
+	arm_view.rail_radius = BORE_RADIUS + RAIL_GAP
+	add_child(arm_view)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -96,15 +107,25 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_V: _split_heat(_heat_split + HEAT_SPLIT_STEP)
 			KEY_P: _sim.pulse()
 			KEY_Q: _sim.set_quiet_ship(not _sim.quiet_ship())
+			KEY_SPACE: _arm.press()
+			KEY_A:
+				_arm.shift(-1)
+			KEY_D:
+				_arm.shift(1)
 
 
 func _physics_process(delta: float) -> void:
 	_sim.advance(delta)
 	var felt := _sim.felt_acceleration()
-	_crew.step(felt, delta)
 	var up := -felt.normalized()
 	for station in _stations:
 		station.follow_up(up, delta)
+	_arm.step(delta, _crew.eye(), _station_poses())
+	if _arm.is_holding():
+		var settle := 0.0 if _arm.arrived() else 1.0 - exp(-delta * LOOK_SETTLE_RATE)
+		_crew.hold(_arm.held_eye(), GimballedStation.pose_look(), settle)
+	else:
+		_crew.step(felt, delta)
 	_drive.set_supplied(_sim.drive_supplied())
 	_thermal.set_supplied(_sim.thermal_supplied())
 	_navigation.set_supplied(_sim.navigation_supplied())
@@ -119,8 +140,19 @@ func _physics_process(delta: float) -> void:
 		_power_line(_sim.navigation_request(), _sim.navigation_draw())])
 
 
-## Whether the crew member can work this Station: within reach of it.
+func _station_poses() -> Array[Transform3D]:
+	var poses: Array[Transform3D] = []
+	for station in _in_use:
+		poses.append(station.pose())
+	return poses
+
+
+## Whether the crew member can work this Station: seated at it by the Arm, or
+## standing within reach of it.
 func _at(station: GimballedStation) -> bool:
+	if _arm.is_holding() and _arm.arrived() and _arm.station() >= 0 \
+			and _in_use[_arm.station()] == station:
+		return true
 	return _crew.position.distance_to(station.position) <= STATION_REACH
 
 
@@ -205,7 +237,7 @@ static func _bar(requested: float, drawn: float) -> String:
 ## feature in the Column not yet recorded, nearest the Tail first, cycling.
 ## Worked at the Bore Station: only within reach of it.
 func _observe_next_feature() -> void:
-	if _crew.position.distance_to(_bore_station.position) > STATION_REACH:
+	if not _at(_bore_station):
 		return
 	var candidates := _sim.features_in_column().filter(
 			func(f: ColumnFeature) -> bool: return not f.is_recorded())
@@ -382,6 +414,8 @@ func _build_stations() -> void:
 		station.position = outward * pivot_radius
 		add_child(station)
 		_stations.append(station)
+		if not station.station_name.is_empty():
+			_in_use.append(station)
 		if station.station_name == "Reactor":
 			_reactor = station
 		elif station.station_name == "Drive":
