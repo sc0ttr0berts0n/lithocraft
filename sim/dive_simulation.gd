@@ -192,6 +192,25 @@ const _HOT_SHIFT_WEAR := 1.0
 ## How much a fully worn Head unsteadies the plasma even when tuned.
 const _WEAR_UNSTEADINESS := 0.3
 
+## The Stations, as named in set_attended(), call_urgency() and calls.
+const STATION_REACTOR := &"reactor"
+const STATION_DRIVE := &"drive"
+const STATION_THERMAL := &"thermal"
+const STATION_NAVIGATION := &"navigation"
+const STATION_BORE := &"bore"
+const STATIONS: Array[StringName] = [STATION_REACTOR, STATION_DRIVE, STATION_THERMAL,
+		STATION_NAVIGATION, STATION_BORE]
+## Share of the heat split an unattended Thermal Station moves into the Column
+## per second while the hull warns: its steadying rule, slow on purpose so a
+## sudden heat outruns it. Tuned for play (ADR 0001).
+const _UNATTENDED_SPLIT_RATE := 0.01
+## The fastest the simulation may be run, as a multiple of normal. Turns take
+## minutes at normal rate. Tuned for play (ADR 0001).
+const _MAX_TIME_RATE := 64.0
+## Longest step taken while running fast, in simulated seconds, so a fast rate
+## costs a few steps a frame, not one per normal-rate frame.
+const _FAST_STEP_S := 0.25
+
 var _layout: MediumLayout
 var _power := 0.0
 ## Where the Head is in the world frame (see head_position()) and the way it
@@ -302,6 +321,15 @@ var _heat_spike := 0.0
 ## The last poor Shift's lurch: its peak jolt in m/s^2 and seconds since.
 var _lurch_peak := 0.0
 var _lurch_age := 0.0
+## Stations a crew member is at (StringName -> true).
+var _attended := {}
+## How many times normal the simulation runs, 1 or more.
+var _time_rate := 1.0
+## Each calling Station's call: StringName -> [reason StringName, urgency].
+var _calls := {}
+## Path distance at which the Head entered Medium that will seal the tunnel
+## when the Tail leaves it, or NAN while none is coming.
+var _seal_coming_at := NAN
 
 
 func _init(layout: MediumLayout) -> void:
@@ -374,6 +402,24 @@ func set_quiet_ship(on: bool) -> void:
 	_quiet_ship = on
 
 
+## Whether a crew member is at this Station (one of STATIONS) to work it.
+## An unattended Station holds its last setting and applies a simple
+## steadying rule: the Reactor's autopilot makes a Shift on frequency but
+## late, so poorly; Thermal slowly sends heat into the Column while the hull
+## warns. Attended, a Station leaves everything to the crew. All start
+## unattended.
+func set_attended(station: StringName, attended: bool) -> void:
+	if station in STATIONS:
+		_attended[station] = attended
+
+
+## How many times normal to run the simulation: advance(dt) then runs
+## dt x rate simulated seconds. Clamped to 1..max_time_rate(). Any Station call
+## returns it to 1.
+func set_time_rate(rate: float) -> void:
+	_time_rate = clampf(rate, 1.0, _MAX_TIME_RATE)
+
+
 ## Reactor Station: perform a Shift, retuning the Reactor to hold the plasma
 ## at this frequency in hertz, on the next step. The closer it matches the
 ## plasma's wobble (plasma_frequency()), and the sooner after a Boundary, the
@@ -384,7 +430,23 @@ func shift(frequency: float) -> void:
 
 # --- Time step ------------------------------------------------------------
 
+## Runs dt x time_rate() simulated seconds. At normal rate that is one step of
+## dt; faster, it is split into steps no longer than dt or _FAST_STEP_S,
+## whichever is longer. A Station call returns the rate to normal and the rest
+## of the time is not run.
 func advance(dt: float) -> void:
+	if _time_rate <= 1.0:
+		_step(dt)
+		return
+	var total := dt * _time_rate
+	var steps := ceili(total / maxf(dt, _FAST_STEP_S))
+	for i in steps:
+		_step(total / steps)
+		if _time_rate <= 1.0:
+			return
+
+
+func _step(dt: float) -> void:
 	_head_activity = move_toward(_head_activity, 0.0 if _quiet_ship else 1.0,
 			_HEAD_SPIN_RATE * dt)
 	_tend_plasma(dt)
@@ -422,9 +484,44 @@ func advance(dt: float) -> void:
 	if _pulse_pending:
 		_pulse_pending = false
 		_send_pulse()
+	_steady_unattended(dt)
+	_update_calls()
 
 
 # --- State ----------------------------------------------------------------
+
+## Whether a crew member is at this Station; see set_attended().
+func attended(station: StringName) -> bool:
+	return _attended.get(station, false)
+
+
+## How many times normal the simulation runs now.
+func time_rate() -> float:
+	return _time_rate
+
+
+## The fastest the simulation may be run, as a multiple of normal.
+func max_time_rate() -> float:
+	return _MAX_TIME_RATE
+
+
+## How urgently this Station calls for attention, 0 (not calling) to 1.
+func call_urgency(station: StringName) -> float:
+	return _calls[station][1] if _calls.has(station) else 0.0
+
+
+## Why this Station calls: &"boundary_approaching", &"shift_due",
+## &"plasma_lost" (Reactor); &"heat_warning", &"starved" (Thermal);
+## &"starved" (Navigation); &"tunnel_about_to_seal", &"feature_in_column"
+## (Bore). &"" when not calling.
+func call_reason(station: StringName) -> StringName:
+	return _calls[station][0] if _calls.has(station) else &""
+
+
+## The Thermal Station's heat split now: share of heat sent into the Column.
+func heat_split() -> float:
+	return _heat_split
+
 
 ## Metres below the surface. Increases as the Lithocraft dives.
 func depth() -> float:
@@ -698,6 +795,11 @@ func survey_value() -> float:
 ## Dictionary with a `type` StringName and its own fields:
 ##   &"tunnel_sealed" {distance}: the melt has filled the tunnel behind the
 ##       Tail; the link to the surface is now the slow one.
+##   &"boundary_approaching", &"boundary_crossed", &"shift_result",
+##       &"plasma_lost": see ticket #11 (shift_test.gd).
+##   &"station_call" {station, reason, urgency}: a Station has begun calling,
+##       or calls for a new reason (see call_reason()). The time rate returns
+##       to normal.
 func take_events() -> Array[Dictionary]:
 	var taken := _events
 	_events = []
@@ -1001,8 +1103,70 @@ func _watch_boundaries(depth_before: float) -> void:
 
 ## The load on the Head has changed, so the plasma's wobble has too: a new
 ## window for the Shift opens.
-func _on_boundary_crossed(_from: Medium, _to: Medium) -> void:
+func _on_boundary_crossed(from: Medium, to: Medium) -> void:
 	_mistuned_for = 0.0
+	if not _tunnel_sealed and to.porosity < _SEAL_POROSITY and from.porosity >= _SEAL_POROSITY:
+		_seal_coming_at = _distance
+
+
+# --- Unattended Stations and calls ----------------------------------------
+
+## The steadying rules of Stations no one is at. Steady conditions leave every
+## setting as it was.
+func _steady_unattended(dt: float) -> void:
+	if not attended(STATION_THERMAL) and heat_warning():
+		_heat_split = minf(1.0, _heat_split + _UNATTENDED_SPLIT_RATE * dt)
+
+
+## Works out which Stations call, why and how urgently, from the state after
+## this step. A call that begins, or changes reason, is announced and returns
+## the time rate to normal.
+func _update_calls() -> void:
+	var calls := {}
+	_reactor_call(calls)
+	if heat_warning():
+		var over := (_vessel_temperature - hull_warning_temperature()) \
+				/ (hull_damage_temperature() - hull_warning_temperature())
+		_offer_call(calls, STATION_THERMAL, &"heat_warning", 0.5 + 0.5 * clampf(over, 0.0, 1.0))
+	for starved in [[STATION_THERMAL, thermal_supplied()], [STATION_NAVIGATION, navigation_supplied()]]:
+		if starved[1] < 1.0:
+			_offer_call(calls, starved[0], &"starved", 0.3 + 0.5 * (1.0 - starved[1]))
+	if _tunnel_sealed:
+		_seal_coming_at = NAN
+	elif not is_nan(_seal_coming_at):
+		var tail_to_go := clampf((_distance - _seal_coming_at) / _VESSEL_LENGTH_M, 0.0, 1.0)
+		_offer_call(calls, STATION_BORE, &"tunnel_about_to_seal", 0.4 + 0.5 * tail_to_go)
+	if _observed < 0:
+		for feature in _features:
+			if not feature.is_recorded() and _in_column(feature):
+				var to_tail := (_distance - feature.at) / _VESSEL_LENGTH_M
+				_offer_call(calls, STATION_BORE, &"feature_in_column", 0.2 + 0.4 * to_tail)
+	for station in calls:
+		var was: StringName = _calls[station][0] if _calls.has(station) else &""
+		if calls[station][0] != was:
+			_events.append({type = &"station_call", station = station,
+					reason = calls[station][0], urgency = calls[station][1]})
+			_time_rate = 1.0
+	_calls = calls
+
+
+func _reactor_call(calls: Dictionary) -> void:
+	if _plasma_lost:
+		_offer_call(calls, STATION_REACTOR, &"plasma_lost", 1.0)
+	elif shift_due():
+		_offer_call(calls, STATION_REACTOR, &"shift_due",
+				0.6 + 0.4 * clampf(_mistuned_for / (_SHIFT_WINDOW_S + _AUTOPILOT_LATE_S), 0.0, 1.0))
+	elif not is_nan(_announced_boundary):
+		var to_go := absf(_announced_boundary - depth()) / _BOUNDARY_APPROACH_M
+		_offer_call(calls, STATION_REACTOR, &"boundary_approaching",
+				0.2 + 0.3 * (1.0 - clampf(to_go, 0.0, 1.0)))
+
+
+## Keeps the most urgent call for each Station.
+static func _offer_call(calls: Dictionary, station: StringName, reason: StringName,
+		urgency: float) -> void:
+	if not calls.has(station) or calls[station][1] < urgency:
+		calls[station] = [reason, urgency]
 
 
 # --- The plasma and the Shift ---------------------------------------------
@@ -1021,7 +1185,8 @@ func _tend_plasma(dt: float) -> void:
 	if not is_nan(_shift_asked):
 		_make_shift(_shift_asked, false)
 		_shift_asked = NAN
-	if shift_due() and _mistuned_for >= _SHIFT_WINDOW_S + _AUTOPILOT_LATE_S:
+	if shift_due() and not attended(STATION_REACTOR) \
+			and _mistuned_for >= _SHIFT_WINDOW_S + _AUTOPILOT_LATE_S:
 		_make_shift(plasma_frequency(), true)
 	if _plasma_lost:
 		_plasma_stability = 0.0

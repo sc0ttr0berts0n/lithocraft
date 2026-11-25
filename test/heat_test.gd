@@ -19,6 +19,9 @@ func _sim(power: float, to_column := 0.0, layout: MediumLayout = null) -> DiveSi
 	var sim := DiveSimulation.new(layout if layout else MediumLayout.uniform(_rock()))
 	sim.set_power(power)
 	sim.set_heat_split(to_column)
+	# A crew member at Thermal holds the split; unattended, Thermal would move
+	# heat into the Column once the hull warns (station_call_test.gd).
+	sim.set_attended(DiveSimulation.STATION_THERMAL, true)
 	return sim
 
 

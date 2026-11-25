@@ -6,6 +6,9 @@ extends GdUnitTestSuite
 func _dive(layout: MediumLayout, power: float, seconds: float) -> DiveSimulation:
 	var sim := DiveSimulation.new(layout)
 	sim.set_power(power)
+	# A crew member at Thermal holds the split where it is set; unattended,
+	# Thermal would move heat into the Column once the hull warns.
+	sim.set_attended(DiveSimulation.STATION_THERMAL, true)
 	for i in int(seconds):
 		sim.advance(1.0)
 	return sim
