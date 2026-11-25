@@ -1,16 +1,13 @@
 # Tests at the Arm's seam: press the button, ask for left or right, step it
 # with where the crew member's eyes are and where each Station is worked
-# from, and read where it holds them. Plain data, no scene: the Habitat's
-# geometry is rebuilt here from its documented dimensions.
+# from, and read where it holds them. Plain data, no scene: the Stations
+# hang where the Habitat's layout puts them (STATIONS, pivot()), turned as
+# their gimbals turn them.
 extends GdUnitTestSuite
 
+const Habitat := preload("res://view/habitat.gd")
 const BORE_RADIUS := 0.8
-const OUTER_RADIUS := 3.3
 const PIVOT_RADIUS := 2.2
-## Five Stations in use round the ring, with the empty mount (the sixth
-## place, at 210 degrees) left out, as the Habitat does.
-const STATION_COUNT := 6
-const IN_USE := [0, 1, 2, 3, 4]
 
 const LEVEL := Vector3.UP
 const DIVING := Vector3.BACK      # down is toward the Head (-Z)
@@ -20,30 +17,51 @@ const CLIMBING := Vector3.FORWARD # down is toward the Tail (+Z)
 const PLENTY := 30.0
 
 
+## The Habitat's places with a Station on them, in order round the ring:
+## the Arm's Stations, with the empty mount left out, as the Habitat does.
+var IN_USE := _places_in_use()
+
+
+static func _places_in_use() -> Array[int]:
+	var places: Array[int] = []
+	for place in Habitat.STATIONS.size():
+		if not Habitat.STATIONS[place][0].is_empty():
+			places.append(place)
+	return places
+
+
 func _pivot(place: int) -> Vector3:
-	var a := TAU * place / STATION_COUNT - PI / 2.0
-	return Vector3(cos(a), sin(a), 0) * PIVOT_RADIUS
+	return Habitat.pivot(place)
 
 
-func _cradle(up: Vector3) -> Basis:
-	return Gimbal.toward_up(Basis(), up, 1.0)
+## The in-use Station of that name, as an index into IN_USE.
+func _index_of(station_name: String) -> int:
+	for index in IN_USE.size():
+		if Habitat.STATIONS[IN_USE[index]][0] == station_name:
+			return index
+	return -1
+
+
+## A Station's cradle with its gimbal settled to up.
+func _cradle(index: int, up: Vector3) -> Basis:
+	return GimballedStation.settled_cradle(_pivot(IN_USE[index]), up, Basis())
 
 
 ## Where each in-use Station is worked from, with the gimbals settled to up.
 func _poses(up: Vector3) -> Array[Transform3D]:
 	var poses: Array[Transform3D] = []
-	for place in IN_USE:
-		poses.append(GimballedStation.pose_for(_pivot(place), _cradle(up)))
+	for index in IN_USE.size():
+		poses.append(GimballedStation.pose_for(_pivot(IN_USE[index]), _cradle(index, up)))
 	return poses
 
 
 func _screen(index: int, up: Vector3) -> Vector3:
-	return GimballedStation.screen_centre_for(_pivot(IN_USE[index]), _cradle(up))
+	return GimballedStation.screen_centre_for(_pivot(IN_USE[index]), _cradle(index, up))
 
 
 ## A crew member standing upright for this "up", eyes at the given point.
 func _eye_at(point: Vector3, up: Vector3) -> Transform3D:
-	return Transform3D(_cradle(up), point)
+	return Transform3D(Gimbal.toward_up(Basis(), up, 1.0), point)
 
 
 func _run(arm: Arm, eye: Transform3D, poses: Array[Transform3D], seconds := PLENTY) -> Transform3D:
@@ -132,20 +150,26 @@ func _shifted(arm: Arm, side: int, up: Vector3) -> Transform3D:
 	return _run(arm, arm.held_eye(), _poses(up))
 
 
-func test_from_the_reactor_left_is_drive_and_right_is_the_bore_station_at_every_pitch() -> void:
-	# The Reactor is at the bottom of the ring. Level, the crew member faces
-	# the Tail; diving or climbing, the gimbals turn every screen the same
-	# way across the ring. Either way Drive sits to their left and the Bore
-	# Station (past the empty mount) to their right.
+## Where one left or right from a Station takes the crew member, each way.
+func _one_step_from(index: int, up: Vector3) -> Array:
+	var reached := []
+	for side in [-1, 1]:
+		var arm := _seated_at(index, up)
+		_shifted(arm, side, up)
+		reached.append(arm.station())
+	return reached
+
+
+func test_the_drive_and_navigation_are_one_left_or_right_apart_at_every_pitch() -> void:
+	var drive := _index_of("Drive")
+	var navigation := _index_of("Navigation")
 	for up in [LEVEL, DIVING, CLIMBING]:
-		var left := _seated_at(0, up)
-		var right := _seated_at(0, up)
-
-		_shifted(left, -1, up)
-		_shifted(right, 1, up)
-
-		assert_int(left.station()).is_equal(1)
-		assert_int(right.station()).is_equal(4)
+		assert_array(_one_step_from(drive, up)) \
+			.override_failure_message("Navigation is not one step from the Drive, up %s" % up) \
+			.contains([navigation])
+		assert_array(_one_step_from(navigation, up)) \
+			.override_failure_message("the Drive is not one step from Navigation, up %s" % up) \
+			.contains([drive])
 
 
 func test_left_or_right_moves_one_station_at_a_time_toward_that_side() -> void:
@@ -241,7 +265,7 @@ func test_seated_the_chain_and_claw_never_block_the_view_of_the_station() -> voi
 			var screen := _screen(index, up)
 
 			for p in arm.chain():
-				assert_bool(_in_the_way(p, eye, screen, _cradle(up))) \
+				assert_bool(_in_the_way(p, eye, screen, _cradle(index, up))) \
 					.override_failure_message("chain at %s blocks Station %d, up %s" % [p, index, up]) \
 					.is_false()
 
