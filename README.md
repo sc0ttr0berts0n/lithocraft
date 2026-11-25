@@ -19,7 +19,7 @@ Open the folder in the Godot 4.7 editor and press F5, or from a shell:
 <godot-binary> --path .
 ```
 
-Up and Down arrows (or the slider) set Drive power; depth rises while power is above zero.
+Up and Down arrows (or the slider) set Drive power; depth rises while power is above zero. The dive passes sand, then sandstone, then granite. Asking for more power than the Medium's grip allows shows a red SLIP readout and plays a grinding noise (placeholder) instead of going faster.
 
 ## Run the tests
 

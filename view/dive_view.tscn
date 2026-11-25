@@ -19,9 +19,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -160.0
-offset_top = -60.0
+offset_top = -130.0
 offset_right = 160.0
-offset_bottom = 60.0
+offset_bottom = 130.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -31,6 +31,41 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 32
 text = "Depth: 0.0 m"
 horizontal_alignment = 1
+
+[node name="MediumLabel" type="Label" parent="Panel"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Medium: Sand"
+horizontal_alignment = 1
+
+[node name="SpeedLabel" type="Label" parent="Panel"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Speed: 0.00 m/s"
+horizontal_alignment = 1
+
+[node name="SlipRow" type="Control" parent="Panel"]
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+
+[node name="SlipLabel" type="Label" parent="Panel/SlipRow"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 20
+text = "Gripping"
+horizontal_alignment = 1
+
+[node name="SlipBar" type="ProgressBar" parent="Panel"]
+unique_name_in_owner = true
+layout_mode = 2
+max_value = 1.0
+step = 0.001
+show_percentage = false
 
 [node name="PowerLabel" type="Label" parent="Panel"]
 unique_name_in_owner = true
