@@ -723,6 +723,12 @@ func shift_window() -> float:
 	return _plasma.window(plasma_frequency())
 
 
+## Seconds the window for a Shift stays open once one is due, on the Head as
+## it is now: a worn Head narrows it (and grades a Shift harsher).
+func shift_window_length() -> float:
+	return _plasma.window_length()
+
+
 ## How hard the Head is running, 0 (idle, Quiet Ship) to 1 (running).
 func head_activity() -> float:
 	return _head_activity
