@@ -26,8 +26,13 @@ const KEY_FONT_SIZE := 32
 
 var station_name := ""
 var hue := Color.WHITE
-## Font size of the screen's text; smaller fits more lines on the screen.
+## Font size of the screen's text; smaller fits more lines on the screen. A
+## reading too big for the screen at this size is shrunk until it fits.
 var screen_font_size := 48
+## Share of the screen the text may fill, leaving a margin round it, and the
+## text's size in metres per font pixel.
+const SCREEN_TEXT_FILL := 0.94
+const SCREEN_TEXT_PIXEL := 0.0015
 
 ## Seconds between call beats at the least and the most urgent, and the call
 ## light's brightest energy (on each beat; it fades between them).
@@ -51,6 +56,8 @@ var footer := ""
 
 var _cradle := Node3D.new()
 var _screen_text: Label3D
+## Whether a display fills the screen, moving the text above it.
+var _has_display := false
 var _call_light: OmniLight3D
 var _call_sound: AudioStreamPlayer3D
 ## How urgently the Station calls, 0 (not calling) to 1.
@@ -90,7 +97,7 @@ func _ready() -> void:
 	_screen_text = Label3D.new()
 	_screen_text.text = station_name
 	_screen_text.modulate = hue
-	_screen_text.pixel_size = 0.0015
+	_screen_text.pixel_size = SCREEN_TEXT_PIXEL
 	_screen_text.font_size = screen_font_size
 	_screen_text.position = SCREEN_CENTRE + Vector3(0, 0, -0.015)
 	_screen_text.rotation = Vector3(0, PI, 0)
@@ -188,11 +195,39 @@ func is_starved() -> bool:
 	return _supplied < 1.0
 
 
-## Text shown on the Station's screen, under its name.
+## Text shown on the Station's screen, under its name. On a text screen (no
+## display) the font shrinks as needed so every line fits on the screen.
 func show_reading(text: String) -> void:
-	if _screen_text:
-		_screen_text.text = "%s\n%s%s" % [station_name, text,
-				"" if footer.is_empty() else "\n" + footer]
+	if not _screen_text:
+		return
+	_screen_text.text = "%s\n%s%s" % [station_name, text,
+			"" if footer.is_empty() else "\n" + footer]
+	if not _has_display:
+		_screen_text.font_size = fitting_font_size(_screen_text.text, _screen_font(),
+				screen_font_size, _text_box())
+
+
+## The largest font size, up to largest, at which text (centred lines) fits
+## inside box, in font pixels. Never below 1.
+static func fitting_font_size(text: String, font: Font, largest: int, box: Vector2) -> int:
+	var size := largest
+	while size > 1:
+		var block := font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, size)
+		if block.x <= box.x and block.y <= box.y:
+			break
+		size -= 1
+	return size
+
+
+func _screen_font() -> Font:
+	return _screen_text.font if _screen_text.font else ThemeDB.fallback_font
+
+
+## The room for text on the screen in font pixels, less a margin and the
+## text's outline.
+func _text_box() -> Vector2:
+	var outline := 2.0 * _screen_text.outline_size
+	return SCREEN_SIZE * SCREEN_TEXT_FILL / SCREEN_TEXT_PIXEL - Vector2(outline, outline)
 
 
 ## Where a crew member's eyes are held to work this Station, Habitat frame:
@@ -240,6 +275,7 @@ func show_display(texture: Texture2D) -> void:
 	display.position = SCREEN_CENTRE + Vector3(0, 0, -0.012)
 	display.rotation = Vector3(0, PI, 0)
 	_cradle.add_child(display)
+	_has_display = true
 	_screen_text.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	_screen_text.position.y = 0.42
 

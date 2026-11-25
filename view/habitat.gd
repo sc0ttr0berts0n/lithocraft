@@ -494,7 +494,7 @@ func _show_drive() -> void:
 		"OVERRIDE %03.0f %+.0f  %s back to Course" % [
 			_sim.steered_heading(), _sim.steered_pitch(), KeyMap.label(&"end_override")] if _sim.overriding()
 			else "Following the Course",
-		"Set %d%%  Effort %d%%  Steer %d%%" % [roundi(_power_setting * 100.0),
+		"Throttle %d%%  Effort %d%%  Steer %d%%" % [roundi(_power_setting * 100.0),
 			roundi(_effort_setting * 100.0), roundi(_sim.steering() * 100.0)],
 		"GRIP SLIPPING %d%%  ease off %s" % [roundi(slip * 100.0), KeyMap.label(&"power_step", 1)] if slip > 0.0
 			else "Grip holding",
@@ -515,32 +515,31 @@ func _show_navigation() -> void:
 	]))
 
 
-## A Station's power: what it asks for and gets, and STARVED when short.
-static func _power_line(requested: float, drawn: float) -> String:
-	var line := "Power %d/%d%%" % [roundi(drawn * 100.0), roundi(requested * 100.0)]
-	if drawn < requested - 0.0005:
-		line += "  STARVED"
-	return line
+## A Station's power: set against actual, as shares of the Reactor's full
+## output (PowerLine).
+func _power_line(requested: float, drawn: float) -> String:
+	return PowerLine.text(requested, drawn, _sim.reactor_full_output())
 
 
 ## The Reactor Station's screen: the Head's plasma, the power it supplies
-## against what the Stations draw, and one bar per Station, its request
-## outlined and what it gets filled, so a starved Station shows here too.
+## against what the Stations draw (shares of its full output, as each Station
+## reads its own), and one bar per Station, its request outlined and what it
+## gets filled, so a starved Station shows here too.
 func _show_reactor() -> void:
-	var output := _sim.reactor_output()
+	var full := _sim.reactor_full_output()
 	var plasma := "STEADY" if _sim.plasma_stability() >= 1.0 else "UNSTEADY"
 	var lines := [
 		"Plasma %s %d%%  Head %s" % [plasma, roundi(_sim.plasma_stability() * 100.0),
 			"running" if _sim.head_activity() >= 1.0 else "idling %d%%" % roundi(_sim.head_activity() * 100.0)],
-		"Supply %d%%  drawn %d%%  short %d%%" % [roundi(output * 100.0),
-			roundi(_sim.power_drawn() * 100.0),
-			roundi((_sim.power_requested() - _sim.power_drawn()) * 100.0)],
+		"Supply %d%%  drawn %d%%  short %d%%" % [roundi(_sim.reactor_output() / full * 100.0),
+			roundi(_sim.power_drawn() / full * 100.0),
+			roundi((_sim.power_requested() - _sim.power_drawn()) / full * 100.0)],
 	]
 	for row in [["Nav", _sim.navigation_request(), _sim.navigation_draw()],
 			["Thm", _sim.thermal_request(), _sim.thermal_draw()],
 			["Drv", _sim.drive_request(), _sim.drive_draw()]]:
 		lines.append("%s %s%s" % [row[0], _bar(row[1], row[2]),
-				"  STARVED" if row[2] < row[1] - 0.0005 else ""])
+				"  starved" if PowerLine.starved(row[1], row[2], full) else ""])
 	var shift_line := "Head wear %d%%  window %.1f s" % [roundi(_sim.head_wear() * 100.0),
 			_sim.shift_window_length()]
 	if _sim.plasma_lost():
@@ -911,10 +910,9 @@ func _show_thermal() -> void:
 		_power_line(_sim.thermal_request(), _sim.thermal_draw()),
 		"Out [%s|%s] Column" % ["#".repeat(10 - to_column), "#".repeat(to_column)],
 		"Heat %.2f > Column %.2f" % [_sim.heat_produced(), _sim.heat_to_column()],
-		"Hull %.0f K, bears %.0f K" % [
-			_sim.vessel_temperature(), _sim.hull_damage_temperature()],
-		"Medium %.0f K" % _sim.surroundings_temperature(),
-		"Hull integrity %.1f%%  creep %.2f%%/min" % [
+		"Hull %.0f K, bears %.0f K  Medium %.0f K" % [_sim.vessel_temperature(),
+			_sim.hull_damage_temperature(), _sim.surroundings_temperature()],
+		"Integrity %.1f%%  creep %.2f%%/min" % [
 			_sim.hull_integrity() * 100.0, _sim.hull_creep_rate() * PERCENT_PER_MIN],
 	]
 	if _sim.stranded():
