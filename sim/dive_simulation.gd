@@ -476,7 +476,7 @@ func _step(dt: float) -> void:
 	# Heat reaches the Column only as far as Thermal's pumps are powered; the
 	# rest goes out through the hull.
 	_heat.step(power_drawn(), _plasma.heat_spike(), _heat_split, thermal_supplied(),
-			surroundings_temperature(), dt)
+			surroundings_temperature(), depth(), dt)
 	_noise = _head_activity * _HEAD_HUM + _DRIVE_NOISE * power * (1.0 + _slip)
 	var depth_before := depth()
 	# The Head moves along its arc, turning toward the Drive's settings.
@@ -988,6 +988,19 @@ func surroundings_temperature() -> float:
 ## while the hull is hotter than it can bear.
 func vessel_wear() -> float:
 	return _heat.vessel_wear()
+
+
+## What is left of the hull, 1 (whole) to 0 (failed): heat wear taken away.
+## At 0 the hull fails and the crew dies.
+func hull_integrity() -> float:
+	return 1.0 - _heat.vessel_wear()
+
+
+## How fast the hull is losing integrity now, per second: 0 while it bears its
+## heat; above its rated temperature, faster the further over and the deeper
+## down, where the rock's pressure stresses it harder.
+func hull_creep_rate() -> float:
+	return _heat.creep_rate()
 
 
 ## True while heat threatens the vessel: the hull is close to the temperature

@@ -29,9 +29,14 @@ const _HULL_WARNING_MARGIN_K := 50.0
 ## How much warmer the ground gets per metre of depth, in kelvin. Earth's crust
 ## warms by about 0.025 K/m; tuned for play (ADR 0001).
 const _GEOTHERMAL_K_PER_M := 0.03
-## Wear per second for each kelvin the hull is above _HULL_DAMAGE_K. Tuned for
-## play (ADR 0001).
+## Wear per second for each kelvin the hull is above _HULL_DAMAGE_K, at the
+## surface. Tuned for play (ADR 0001).
 const _WEAR_PER_K_S := 1.0e-5
+## Depth in metres at which the rock's pressure has doubled the stress on the
+## hull, and so how fast it creeps when overheated. Creep is driven by stress
+## as well as heat, and the rock's weight grows with depth (about 27 MPa per
+## km in Earth's crust). Tuned for play (ADR 0001).
+const _CREEP_STRESS_DEPTH_M := 1000.0
 
 ## Heat made in the last step, per second.
 var _produced := 0.0
@@ -43,6 +48,8 @@ var _temperature := 0.0
 var _settling_at := 0.0
 ## Damage done to the vessel by heat, 0 (none) to 1.
 var _wear := 0.0
+## Wear per second in the last step: how fast the overheated hull creeps.
+var _creep_rate := 0.0
 
 
 ## Starts with the hull at the temperature of its surroundings, in kelvin.
@@ -61,12 +68,14 @@ static func surroundings(medium: Medium, depth: float) -> float:
 ## (`power_drawn`), plus `spike`, extra heat per second such as a poor Shift's
 ## grinding. Heat reaches the Column only as far as Thermal's pumps are
 ## powered (`split` times `thermal_supplied`); the rest goes out through the
-## hull into surroundings at `surroundings_k`.
+## hull into surroundings at `surroundings_k`. The overheated hull creeps
+## faster at greater `depth`, under the rock's pressure.
 func step(power_drawn: float, spike: float, split: float, thermal_supplied: float,
-		surroundings_k: float, dt: float) -> void:
+		surroundings_k: float, depth: float, dt: float) -> void:
 	_produced = power_drawn * _HEAT_PER_POWER + spike
 	_to_column = _produced * split * thermal_supplied
 	_shed_outward(_produced - _to_column, surroundings_k, dt)
+	_creep(depth, dt)
 
 
 ## Heat made in the last step, per second.
@@ -92,6 +101,16 @@ func vessel_temperature() -> float:
 ## Damage heat has done to the vessel so far, 0 (none) to 1.
 func vessel_wear() -> float:
 	return _wear
+
+
+## Wear per second in the last step; 0 while the hull bears its heat.
+func creep_rate() -> float:
+	return _creep_rate
+
+
+## True once heat has worn the hull through.
+func failed() -> bool:
+	return _wear >= 1.0
 
 
 ## True while the hull is close to the temperature at which heat damages it,
@@ -131,12 +150,19 @@ func unheated_share(speed: float) -> float:
 
 
 ## Passes heat outward through the hull for dt seconds. The hull settles toward
-## the temperature at which it sheds that heat into the Medium, and wears for
-## as long as it is above the temperature it can bear.
+## the temperature at which it sheds that heat into the Medium: never cooler
+## than the Medium itself, so hot rock heats it whatever the power.
 func _shed_outward(heat: float, surroundings_k: float, dt: float) -> void:
 	_settling_at = surroundings_k + heat / _HULL_SHED_PER_K
 	var toward := exp(-dt * _HULL_SHED_PER_K / _HULL_HEAT_PER_K)
 	_temperature = _settling_at + (_temperature - _settling_at) * toward
+
+
+## Wears the hull for dt seconds at `depth`. Creep: none below the temperature
+## the hull bears; above it, faster the further over and the greater the
+## stress, which the rock's pressure raises with depth.
+func _creep(depth: float, dt: float) -> void:
 	var overheat := _temperature - _HULL_DAMAGE_K
-	if overheat > 0.0:
-		_wear = minf(1.0, _wear + _WEAR_PER_K_S * overheat * dt)
+	var stress := 1.0 + maxf(depth, 0.0) / _CREEP_STRESS_DEPTH_M
+	_creep_rate = _WEAR_PER_K_S * overheat * stress if overheat > 0.0 else 0.0
+	_wear = minf(1.0, _wear + _creep_rate * dt)
