@@ -276,3 +276,20 @@ func test_the_same_shift_grades_worse_on_a_worn_head() -> void:
 	var fresh_late := _shift_after(late)
 	var worn_late := _shift_after(late, 1.0, _worn(_one_boundary()))
 	assert_float(worn_late.grade).is_less(fresh_late.grade)
+
+
+func test_a_poor_shift_loses_the_plasma_on_a_badly_worn_head_but_not_a_fresh_one() -> void:
+	var fresh := _one_boundary()
+	var worn := _worn(_one_boundary())
+	var worn_before := worn.head_wear()
+
+	var fresh_poor := _shift_after(0.0, 1.5, fresh)
+	var worn_poor := _shift_after(0.0, 1.5, worn)
+
+	assert_bool(fresh_poor.clean).is_false()
+	assert_bool(worn_poor.clean).is_false()
+	assert_bool(fresh.plasma_lost()).is_false()
+	assert_bool(worn.plasma_lost()).is_true()
+	# Not merely the last straw: what the same Shift wore into a fresh Head
+	# would not have worn this one through.
+	assert_float(worn_before + fresh_poor.wear).is_less(1.0)

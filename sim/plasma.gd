@@ -53,6 +53,11 @@ const _WEAR_UNSTEADINESS := 0.3
 ## wobble a Shift may be, and how soon lateness tells, all shrink by this
 ## share. A worn Head is less forgiving. Tuned for play (ADR 0001).
 const _WEAR_NARROWING := 0.5
+## A poor Shift on a badly worn Head can wear it through: the plasma is lost
+## when the Shift's roughness times the wear already on the Head reaches
+## this. A fresh Head never loses it to one Shift; a badly worn one can lose
+## it to any rough one. Tuned for play (ADR 0001).
+const _WEAR_THROUGH := 0.5
 
 ## How steady the plasma is, 0 (lost) to 1 (steady). The Reactor's output
 ## scales with it.
@@ -210,11 +215,15 @@ func _make_shift(frequency: float, by_autopilot: bool, target: float, hull_heat_
 	# the lurch and the more wear on the Head. A clean one does nothing at all.
 	var roughness := clampf((_CLEAN_SHIFT_GRADE - grade) / _CLEAN_SHIFT_GRADE, 0.0, 1.0)
 	var wear := roughness * _SHIFT_WEAR * (1.0 + _HOT_SHIFT_WEAR * hull_heat_share)
+	# On a badly worn Head a rough enough Shift wears it through at once.
+	var worn_through := roughness > 0.0 and roughness * _head_wear >= _WEAR_THROUGH
+	if worn_through:
+		wear = 1.0 - _head_wear
 	if roughness > 0.0:
 		_heat_spike += roughness * _SHIFT_SPIKE_HEAT
 		_lurch_peak = roughness * _LURCH_ACCELERATION
 		_lurch_age = 0.0
-		_head_wear = minf(1.0, _head_wear + wear)
+		_head_wear = 1.0 if worn_through else minf(1.0, _head_wear + wear)
 	events.append({type = &"shift_result", grade = grade,
 			clean = roughness <= 0.0, late = late, autopilot = by_autopilot,
 			wear = wear if roughness > 0.0 else 0.0})
