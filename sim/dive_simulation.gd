@@ -4,6 +4,8 @@
 ##   commands in   - one method per Station command, e.g. set_power()
 ##   time step     - advance(dt), dt in simulated seconds
 ##   state out     - read-only query methods, e.g. depth()
+##   events out    - take_events(): events since the last call, then cleared.
+##                   Added by the first ticket that raises an event.
 class_name DiveSimulation
 extends RefCounted
 
