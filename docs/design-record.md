@@ -91,6 +91,7 @@ The developer's idea: treat the tunnel like fibre optics, or use sonar, switchin
 - **Conflicts come from three shared budgets.** Power (the Reactor supplies; everything else draws), heat (everything makes it; Thermal decides who suffers) and the Column (Thermal wants to cook it; the Bore Station wants it pristine). No conflicts are scripted. The developer is interested in conflicts between Stations being something to manage.
 - **Calling for attention.** Signals inside the vessel only. Each Station has its own tone and light, and because the Habitat is a ring you can hear the direction. Urgency is in pitch and tempo. No floating markers. The developer stressed that a Station needing a human must be telegraphed well.
 - **Systems management, not stick flying.** You set heading, power, grip and heat routing and the vessel responds slowly. An ascent is a procedure, not joystick flying. One control style covers every Medium.
+- **Navigation plots, the Drive steers (25 November 2026).** Navigation sets the Course (a target heading and pitch) on the point cloud, where the Medium ahead is seen. The Drive steers toward it: how hard to turn, and so how much power and heat to spend, is the Drive's call, and it can override. An unattended Drive follows the Course at a safe, slow turn rate. Chosen over heading on the Drive alone (Navigation was passive) and heading on Navigation alone (steering's power and heat cost belongs with the Drive). Real precedent: a ship's navigator plots the course and the helmsman steers it.
 
 ## The plasma and the Shift
 
@@ -159,3 +160,4 @@ On the `prototype/habitat-down` branch. A browser stand-in built with three.js b
 - Ports, and who buys the data.
 - Art style beyond the scan display.
 - Pressure as an active mechanic beyond gating depth by hull grade.
+- **What hull wear does.** In the first dive build, heat sent outward wears the hull, but wear has no effect, so protecting the Column costs nothing (stories 19, 21 and 23 are hollow). Candidates raised: a repair bill deducted at the surface, a breach at full wear that loses the plasma, or a worn hull that grips or moves worse. The developer called this a very big decision that needs ideation (25 November 2026).
