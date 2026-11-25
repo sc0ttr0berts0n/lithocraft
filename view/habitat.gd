@@ -233,62 +233,63 @@ func _key_debug_menu(_index: int) -> void:
 
 
 # The debug menu's keys: each a simulation debug command (DiveSimulation's
-# debug_*), not a crew control; or, for the overlay, a view toggle.
+# debug_*), not a crew control; or, for the overlay, a view toggle. What a
+# command refuses, and why, goes to the menu's status line.
 
 func _key_debug_overlay(index: int) -> void:
 	_key_toggle_debug(index)
 
 
 func _key_debug_surface(_index: int) -> void:
-	_sim.debug_surface()
+	_debug_menu.report(_sim.debug_surface())
 
 
 func _key_debug_skip(_index: int) -> void:
-	_sim.debug_skip(DEBUG_SKIP_S)
+	_debug_menu.report(_sim.debug_skip(DEBUG_SKIP_S))
 
 
 func _key_debug_hull_wear_up(_index: int) -> void:
-	_sim.debug_wear_hull(DEBUG_WEAR_STEP)
+	_debug_menu.report(_sim.debug_wear_hull(DEBUG_WEAR_STEP))
 
 
 func _key_debug_hull_wear_down(_index: int) -> void:
-	_sim.debug_wear_hull(-DEBUG_WEAR_STEP)
+	_debug_menu.report(_sim.debug_wear_hull(-DEBUG_WEAR_STEP))
 
 
 func _key_debug_hull_brink(_index: int) -> void:
-	_sim.debug_hull_to_brink()
+	_debug_menu.report(_sim.debug_hull_to_brink())
 
 
 func _key_debug_head_wear_up(_index: int) -> void:
-	_sim.debug_wear_head(DEBUG_WEAR_STEP)
+	_debug_menu.report(_sim.debug_wear_head(DEBUG_WEAR_STEP))
 
 
 func _key_debug_head_wear_down(_index: int) -> void:
-	_sim.debug_wear_head(-DEBUG_WEAR_STEP)
+	_debug_menu.report(_sim.debug_wear_head(-DEBUG_WEAR_STEP))
 
 
 func _key_debug_shift_due(_index: int) -> void:
-	_sim.debug_shift_due()
+	_debug_menu.report(_sim.debug_shift_due())
 
 
 func _key_debug_next_boundary(_index: int) -> void:
-	_sim.debug_next_boundary()
+	_debug_menu.report(_sim.debug_next_boundary())
 
 
 func _key_debug_strand(_index: int) -> void:
-	_sim.debug_strand()
+	_debug_menu.report(_sim.debug_strand())
 
 
 func _key_debug_lose_plasma(_index: int) -> void:
-	_sim.debug_lose_plasma()
+	_debug_menu.report(_sim.debug_lose_plasma())
 
 
 func _key_debug_refill_store(_index: int) -> void:
-	_sim.debug_refill_store()
+	_debug_menu.report(_sim.debug_refill_store())
 
 
 func _key_debug_self_destruct(_index: int) -> void:
-	_sim.debug_self_destruct()
+	_debug_menu.report(_sim.debug_self_destruct())
 
 
 ## Navigation: plot the Course's pitch, dive / level / climb.
@@ -486,7 +487,7 @@ func _show_drive() -> void:
 	var slip := _sim.slip()
 	var lines := [
 		"SURFACED  %s dive again" % KeyMap.label(&"new_dive") if _sim.surfaced() else
-			"HULL FAILED  %s rebuy" % KeyMap.label(&"new_dive") if _sim.dead() else
+			"%s  %s rebuy" % [_death_headline(), KeyMap.label(&"new_dive")] if _sim.dead() else
 			"Depth %.1f m  Speed %.2f m/s" % [_sim.depth(), _sim.speed()],
 		"Heading %03.0f  Course %03.0f" % [_sim.heading_degrees(), _sim.course_heading()],
 		"Pitch %+.0f  Course %+.0f deg" % [_sim.pitch(), _sim.course_pitch()],
@@ -598,8 +599,19 @@ func _on_stranded(event: Dictionary) -> void:
 			roundi(_sim.relight_store_share() * 100.0)],
 		"%s at Thermal: run the pumps on the store to cool the hull" % KeyMap.label(&"heat_split", 1),
 		"%s at the Bore Station: stop or start the link, which runs on the store" % KeyMap.label(&"link"),
+		_stranded_self_destruct_line(),
 		"%s wait faster" % KeyMap.label(&"time_faster"),
 	], 0.0)
+
+
+## The STRANDED notice's word on self-destruct: one running carries on as
+## the store dumped into the hull, else how to give up that way.
+func _stranded_self_destruct_line() -> String:
+	if _sim.self_destructing():
+		return "SELF-DESTRUCT runs on: the store is dumping into the hull.  %s at Thermal to cancel" % (
+				KeyMap.label(&"self_destruct"))
+	return "Hold %s at Thermal %.0f s: self-destruct, dumping the store into the hull" % [
+			KeyMap.label(&"self_destruct"), _sim.self_destruct_hold_length()]
 
 
 ## A relight's outcome: lit, the dive goes on; failed or refused, the crew
@@ -638,25 +650,29 @@ func _on_hull_failed(event: Dictionary) -> void:
 
 ## Self-destruct has started: under way the Stations are taken off the crew
 ## and every bit of heat goes outward; stranded, the store goes into the hull.
+## Either way a cancel puts the crew's settings back.
 func _on_self_destruct_started(event: Dictionary) -> void:
 	_holding_self_destruct = false
 	_show_notice([
 		"SELF-DESTRUCT",
 		"The emergency store is dumping into the hull as heat." if event.stranded
 			else "Reactor to full, all heat outward. The Stations are off the crew.",
-		"%s at Thermal to cancel.  %s wait faster" % [KeyMap.label(&"self_destruct"),
-			KeyMap.label(&"time_faster")],
+		"%s at Thermal to cancel and put your settings back.  %s wait faster" % [
+			KeyMap.label(&"self_destruct"), KeyMap.label(&"time_faster")],
 	], NOTICE_S)
 
 
-## Self-destruct cancelled: the Stations are the crew's again, the wear done
-## (and the store spent) stay.
+## Self-destruct cancelled: the Stations are the crew's again, set as they
+## were just before it started; only the wear done (and the store spent) stay.
 func _on_self_destruct_cancelled(event: Dictionary) -> void:
 	_show_notice([
 		"SELF-DESTRUCT CANCELLED",
-		"The store spent stays spent." if event.stranded
-			else "The Stations are yours again: the Drive is at full, all heat outward.",
-		"The wear it did stays.",
+		"The Stations are yours again, set as before it began. Pumps on store %d%%." % roundi(
+				_sim.heat_split() * 100.0) if event.stranded
+			else "The Stations are yours again, set as before it began: Drive %d%%, heat %d%% to the Column." % [
+				roundi(_sim.power() * 100.0), roundi(_sim.heat_split() * 100.0)],
+		"The store it spent stays spent, and the wear it did stays." if event.stranded
+			else "The wear it did stays.",
 	], NOTICE_S)
 
 
@@ -905,9 +921,11 @@ func _show_thermal() -> void:
 		lines.append("Pumps on store %d%%" % roundi(_heat_split * 100.0))
 	if _sim.stranded() or _sim.tunnel_sealed():
 		lines.append(_race_line())
-	lines.append(_self_destruct_line())
+	var self_destruct := _self_destruct_line()
+	if not self_destruct.is_empty():
+		lines.append(self_destruct)
 	if _sim.dead():
-		lines.append("!! HULL FAILED !!")
+		lines.append("!! %s !!" % _death_headline())
 	elif _sim.hull_creep_rate() > 0.0:
 		lines.append("!! HULL CREEPING !!  over %.0f K" % (
 			_sim.vessel_temperature() - _sim.hull_damage_temperature()))
@@ -916,11 +934,22 @@ func _show_thermal() -> void:
 	_thermal.show_reading("\n".join(lines))
 
 
+## How the crew died, as the notice heads it: by self-destruct or the heat.
+func _death_headline() -> String:
+	return "SELF-DESTRUCT" if _sim.cause_of_death() == &"self_destruct" else "HULL FAILED"
+
+
 ## Self-destruct at Thermal: the hold filling while K is held, the running
-## self-destruct and how to cancel it, or how to arm it.
+## self-destruct and how to cancel it, how to arm it, or why it cannot be
+## (stranded with the store empty: nothing to dump). Empty once the dive is
+## over.
 func _self_destruct_line() -> String:
 	if _sim.self_destructing():
 		return "!! SELF-DESTRUCT !!  %s cancel" % KeyMap.label(&"self_destruct")
+	if _sim.surfaced() or _sim.dead():
+		return ""
+	if not _sim.can_self_destruct():
+		return "Self-destruct: store empty, nothing to dump into the hull"
 	var held := _sim.self_destruct_hold()
 	if held > 0.0:
 		return "ARMING SELF-DESTRUCT %s  keep holding %s" % [_bar(1.0, held),

@@ -15,24 +15,47 @@ const KEY_PX := 36
 const FONT_SIZE := 13
 const STATUS_SIZE := 15
 const TITLE_SIZE := 17
-## The numpad, as [key, column, row, columns wide, rows high].
-const LAYOUT := [
-	[KEY_NUMLOCK, 0, 0, 1, 1], [KEY_KP_DIVIDE, 1, 0, 1, 1],
-	[KEY_KP_MULTIPLY, 2, 0, 1, 1], [KEY_KP_SUBTRACT, 3, 0, 1, 1],
-	[KEY_KP_7, 0, 1, 1, 1], [KEY_KP_8, 1, 1, 1, 1], [KEY_KP_9, 2, 1, 1, 1],
-	[KEY_KP_ADD, 3, 1, 1, 2],
-	[KEY_KP_4, 0, 2, 1, 1], [KEY_KP_5, 1, 2, 1, 1], [KEY_KP_6, 2, 2, 1, 1],
-	[KEY_KP_1, 0, 3, 1, 1], [KEY_KP_2, 1, 3, 1, 1], [KEY_KP_3, 2, 3, 1, 1],
-	[KEY_KP_ENTER, 3, 3, 1, 2],
-	[KEY_KP_0, 0, 4, 2, 1], [KEY_KP_PERIOD, 2, 4, 1, 1],
+## The numpad: each key, the cell it sits in (`at`, column and row) and how
+## many cells it spans (`span`, wide and high). Num Lock's place is left
+## empty: it does nothing here.
+const LAYOUT: Array[Dictionary] = [
+	{key = KEY_KP_DIVIDE, at = Vector2(1, 0), span = Vector2(1, 1)},
+	{key = KEY_KP_MULTIPLY, at = Vector2(2, 0), span = Vector2(1, 1)},
+	{key = KEY_KP_SUBTRACT, at = Vector2(3, 0), span = Vector2(1, 1)},
+	{key = KEY_KP_7, at = Vector2(0, 1), span = Vector2(1, 1)},
+	{key = KEY_KP_8, at = Vector2(1, 1), span = Vector2(1, 1)},
+	{key = KEY_KP_9, at = Vector2(2, 1), span = Vector2(1, 1)},
+	{key = KEY_KP_ADD, at = Vector2(3, 1), span = Vector2(1, 2)},
+	{key = KEY_KP_4, at = Vector2(0, 2), span = Vector2(1, 1)},
+	{key = KEY_KP_5, at = Vector2(1, 2), span = Vector2(1, 1)},
+	{key = KEY_KP_6, at = Vector2(2, 2), span = Vector2(1, 1)},
+	{key = KEY_KP_1, at = Vector2(0, 3), span = Vector2(1, 1)},
+	{key = KEY_KP_2, at = Vector2(1, 3), span = Vector2(1, 1)},
+	{key = KEY_KP_3, at = Vector2(2, 3), span = Vector2(1, 1)},
+	{key = KEY_KP_ENTER, at = Vector2(3, 3), span = Vector2(1, 2)},
+	{key = KEY_KP_0, at = Vector2(0, 4), span = Vector2(2, 1)},
+	{key = KEY_KP_PERIOD, at = Vector2(2, 4), span = Vector2(1, 1)},
 ]
 ## The numpad's three middle columns each work one thing, so their words are
 ## tinted to match the status line: the hull, the Head, where the dive is.
 const COLUMN_INKS := [Color("ff9a8a"), Color("ffc070"), Color("8ccfff")]
 const INK := Color("e8e8e8")
 const ACCENT := Color("c890ff")
-## How long a pressed key's cell stays lit, in seconds.
+## How long a pressed key's cell stays lit, and a refused command's reason
+## shows, in seconds.
 const FLASH_S := 0.3
+const REFUSAL_S := 2.5
+## Why a debug command could not act, by the reason it returns.
+const REFUSALS := {
+	&"dive_over": "the dive is over",
+	&"plasma_lost": "the plasma is already lost",
+	&"stranded": "not while stranded",
+	&"tail_at_surface": "the Tail has not left the surface: no tunnel to seal",
+	&"self_destructing": "self-destruct already runs",
+	&"store_empty": "the store is empty: nothing to dump",
+	&"level": "travelling level: no Boundary ahead",
+	&"no_boundary_ahead": "no Boundary ahead",
+}
 
 var sim: DiveSimulation
 
@@ -40,6 +63,9 @@ var _status: Label
 ## Each key's cell backing (key code -> StyleBoxFlat) and seconds left lit.
 var _backings := {}
 var _lit := {}
+## The last refused command's reason, and seconds left showing it.
+var _refusal := ""
+var _refusal_left := 0.0
 
 
 func _ready() -> void:
@@ -62,6 +88,13 @@ func _ready() -> void:
 	rows.add_child(_status)
 
 
+## What a debug command returned: &"" when it acted, else why it could not,
+## which the status line shows for a moment.
+func report(reason: StringName) -> void:
+	_refusal = "" if reason == &"" else "Can't: %s" % REFUSALS.get(reason, String(reason))
+	_refusal_left = REFUSAL_S if reason != &"" else 0.0
+
+
 ## Lights a key's cell for a moment, when the Habitat has run it.
 func flash(code: int) -> void:
 	if visible and _backings.has(code):
@@ -71,6 +104,7 @@ func flash(code: int) -> void:
 func _process(delta: float) -> void:
 	if not visible:
 		return
+	_refusal_left = maxf(_refusal_left - delta, 0.0)
 	for code in _lit.keys():
 		_lit[code] -= delta
 		var glow := clampf(_lit[code] / FLASH_S, 0.0, 1.0)
@@ -98,7 +132,7 @@ func _numpad() -> Control:
 	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pad.custom_minimum_size = Vector2(CELL.x * 4, CELL.y * 5)
 	for cell in LAYOUT:
-		pad.add_child(_cell(cell[0], Vector2(cell[1], cell[2]), Vector2(cell[3], cell[4])))
+		pad.add_child(_cell(cell.key, cell.at, cell.span))
 	return pad
 
 
@@ -145,7 +179,8 @@ static func _binding_for(code: int) -> Dictionary:
 
 
 ## The state the keys change: the hull, the Head and the emergency store, then
-## where the dive is. Always two lines, so the menu keeps its size.
+## where the dive is, then why the last command could not act (for a moment).
+## Always three lines, so the menu keeps its size.
 func _status_text() -> String:
 	var where := "Depth %.0f m  %s" % [sim.depth(), String(sim.medium().name).capitalize()]
 	if sim.stranded():
@@ -153,10 +188,11 @@ func _status_text() -> String:
 	elif sim.surfaced():
 		where = "Surfaced"
 	elif sim.dead():
-		where = "Hull failed"
-	return "Hull %d%%   Head wear %d%%   Emergency store %d%%\n%s" % [
+		where = "Self-destructed" if sim.cause_of_death() == &"self_destruct" else "Hull failed"
+	return "Hull %d%%   Head wear %d%%   Emergency store %d%%\n%s\n%s" % [
 		roundi(sim.hull_integrity() * 100.0), roundi(sim.head_wear() * 100.0),
-		roundi(sim.emergency_store() / sim.emergency_store_capacity() * 100.0), where]
+		roundi(sim.emergency_store() / sim.emergency_store_capacity() * 100.0), where,
+		_refusal if _refusal_left > 0.0 else ""]
 
 
 static func _cell_colour(glow: float) -> Color:

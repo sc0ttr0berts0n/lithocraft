@@ -37,7 +37,7 @@ const BINDINGS: Array[Dictionary] = [
 	{where = ANYWHERE, keys = [KEY_W, KEY_A, KEY_S, KEY_D], does = "walk", action = &"walk", held = true},
 	{where = ANYWHERE, keys = [KEY_SPACE], does = "call the Arm / let go", action = &"arm"},
 	{where = ANYWHERE, keys = [KEY_A, KEY_D], does = "carried: next Station left / right", action = &"next_station"},
-	{where = ANYWHERE, keys = [KEY_PERIOD], does = "time x4 (not while a Station calls)", action = &"time_faster"},
+	{where = ANYWHERE, keys = [KEY_PERIOD], does = "time x4 (a Station's call holds it at x1, except stranded or self-destructing)", action = &"time_faster"},
 	{where = ANYWHERE, keys = [KEY_COMMA], does = "time normal", action = &"time_normal"},
 	{where = ANYWHERE, keys = [KEY_ENTER, KEY_KP_ENTER], does = "surfaced or dead: dive again", action = &"new_dive"},
 	{where = ANYWHERE, keys = [KEY_F1], does = "these controls", action = &"toggle_controls"},
