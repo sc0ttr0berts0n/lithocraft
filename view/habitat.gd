@@ -553,7 +553,7 @@ func _show_reactor() -> void:
 	elif _sim.shift_due():
 		shift_line += "  SHIFT DUE  %s dial %s Shift" % [KeyMap.label(&"shift_dial"), KeyMap.label(&"shift")]
 	elif _boundary_ahead:
-		shift_line += "  BOUNDARY AHEAD"
+		shift_line += "  BOUNDARY AHEAD  ready the dial %s" % KeyMap.label(&"shift_dial")
 	lines.append(shift_line)
 	lines.append(_store_line())
 	_reactor.show_reading("\n".join(lines))

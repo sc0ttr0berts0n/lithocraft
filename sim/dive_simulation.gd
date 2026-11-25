@@ -1079,6 +1079,14 @@ func shift_window() -> float:
 	return _plasma.window(plasma_frequency())
 
 
+## How closely a Shift to `frequency` hertz would match the plasma's wobble
+## now (plasma_frequency()), 1 (exactly) falling toward 0 the further off: the
+## match a Shift is graded on, before lateness. A worn Head reads the same
+## frequency as a poorer match. The Reactor screen shows it for the dial.
+func shift_match(frequency: float) -> float:
+	return _plasma.match_to(frequency, plasma_frequency())
+
+
 ## Seconds the window for a Shift stays open once one is due, on the Head as
 ## it is now: a worn Head narrows it (and grades a Shift harsher).
 func shift_window_length() -> float:
