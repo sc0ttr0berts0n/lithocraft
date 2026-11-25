@@ -20,31 +20,14 @@ func _one_boundary(at := 20.0) -> DiveSimulation:
 	return sim
 
 
-## Advances until an event of this type is raised (or the time runs out) and
-## returns it, or an empty Dictionary. Every event seen is kept in `seen`.
-func _run_until(sim: DiveSimulation, type: StringName, seconds := 600.0,
-		seen: Array = [], step := 0.1) -> Dictionary:
-	for i in int(seconds / step):
-		sim.advance(step)
-		for event in sim.take_events():
-			seen.append(event)
-			if event.type == type:
-				return event
-	return {}
-
-
-func _types(events: Array) -> Array:
-	return events.map(func(e: Dictionary) -> StringName: return e.type)
-
-
 func test_a_boundary_ahead_is_announced_before_it_is_crossed() -> void:
 	var sim := _one_boundary()
 	var seen := []
 
-	var crossed := _run_until(sim, &"boundary_crossed", 600.0, seen)
+	var crossed := DiveTestKit.run_until(sim, &"boundary_crossed", 600.0, seen)
 
 	assert_dict(crossed).is_not_empty()
-	var types := _types(seen)
+	var types := DiveTestKit.types(seen)
 	assert_int(types.count(&"boundary_approaching")).is_equal(1)
 	assert_int(types.find(&"boundary_approaching")).is_less(types.find(&"boundary_crossed"))
 	assert_str(String(crossed.from)).is_equal("soft")
@@ -57,7 +40,7 @@ func test_a_boundary_ahead_is_announced_before_it_is_crossed() -> void:
 func _shift_after(wait: float, off_by := 1.0, sim: DiveSimulation = null) -> Dictionary:
 	if sim == null:
 		sim = _one_boundary()
-	_run_until(sim, &"boundary_crossed")
+	DiveTestKit.run_until(sim, &"boundary_crossed")
 	for i in int(wait / 0.1):
 		sim.advance(0.1)
 	sim.take_events()
@@ -71,9 +54,9 @@ func _shift_after(wait: float, off_by := 1.0, sim: DiveSimulation = null) -> Dic
 
 func test_unattended_the_reactor_autopilot_shifts_late_and_poorly() -> void:
 	var sim := _one_boundary()
-	_run_until(sim, &"boundary_crossed")
+	DiveTestKit.run_until(sim, &"boundary_crossed")
 
-	var result := _run_until(sim, &"shift_result")
+	var result := DiveTestKit.run_until(sim, &"shift_result")
 
 	assert_bool(result.autopilot).is_true()
 	assert_bool(result.clean).is_false()
@@ -114,7 +97,7 @@ func test_crossing_a_boundary_opens_a_window_for_the_shift() -> void:
 	assert_bool(sim.shift_due()).is_false()
 	assert_float(sim.shift_window()).is_equal(0.0)
 
-	_run_until(sim, &"boundary_crossed")
+	DiveTestKit.run_until(sim, &"boundary_crossed")
 
 	assert_bool(sim.shift_due()).is_true()
 	assert_float(sim.shift_window()).is_greater(0.0)
@@ -122,7 +105,7 @@ func test_crossing_a_boundary_opens_a_window_for_the_shift() -> void:
 
 func test_a_new_load_unsettles_the_plasma_until_the_shift_matches_it() -> void:
 	var sim := _one_boundary()
-	_run_until(sim, &"boundary_crossed")
+	DiveTestKit.run_until(sim, &"boundary_crossed")
 	sim.advance(0.1)
 	assert_float(sim.plasma_stability()).is_less(1.0)
 
@@ -136,7 +119,7 @@ func test_a_new_load_unsettles_the_plasma_until_the_shift_matches_it() -> void:
 func test_harder_rock_loads_the_plasma_into_a_different_wobble() -> void:
 	var sim := _one_boundary()
 	var soft_frequency := sim.plasma_frequency()
-	_run_until(sim, &"boundary_crossed")
+	DiveTestKit.run_until(sim, &"boundary_crossed")
 
 	assert_float(sim.plasma_frequency()).is_not_equal(soft_frequency)
 
@@ -144,7 +127,7 @@ func test_harder_rock_loads_the_plasma_into_a_different_wobble() -> void:
 ## Seconds the window for the Shift stays open after crossing a Boundary.
 func _window() -> float:
 	var sim := _one_boundary()
-	_run_until(sim, &"boundary_crossed")
+	DiveTestKit.run_until(sim, &"boundary_crossed")
 	return sim.shift_window()
 
 
@@ -180,7 +163,7 @@ func test_poor_shifts_wear_the_head_until_the_plasma_is_lost() -> void:
 	var sim := _many_boundaries()
 	var seen := []
 
-	var lost := _run_until(sim, &"plasma_lost", 20000.0, seen, 0.25)
+	var lost := DiveTestKit.run_until(sim, &"plasma_lost", 20000.0, seen, 0.25)
 
 	assert_dict(lost).is_not_empty()
 	var shifts := seen.filter(func(e: Dictionary) -> bool: return e.type == &"shift_result")
@@ -191,14 +174,14 @@ func test_poor_shifts_wear_the_head_until_the_plasma_is_lost() -> void:
 	assert_float(sim.head_wear()).is_equal(1.0)
 	assert_bool(sim.plasma_lost()).is_true()
 	assert_float(sim.plasma_stability()).is_equal(0.0)
-	_run_until(sim, &"never", 60.0)
+	DiveTestKit.run_until(sim, &"never", 60.0)
 	assert_float(sim.reactor_output()).is_equal(0.0)
 	assert_float(sim.speed()).is_equal(0.0)
 
 
 func test_one_poor_shift_wears_the_head_without_losing_the_plasma() -> void:
 	var sim := _one_boundary()
-	var result := _run_until(sim, &"shift_result")
+	var result := DiveTestKit.run_until(sim, &"shift_result")
 
 	assert_bool(result.clean).is_false()
 	assert_float(sim.head_wear()).is_greater(0.0)
@@ -208,7 +191,7 @@ func test_one_poor_shift_wears_the_head_without_losing_the_plasma() -> void:
 func test_clean_shifts_never_wear_the_head() -> void:
 	var sim := _many_boundaries()
 	for i in 10:
-		_run_until(sim, &"boundary_crossed", 20000.0, [], 0.25)
+		DiveTestKit.run_until(sim, &"boundary_crossed", 20000.0, [], 0.25)
 		sim.shift(sim.plasma_frequency())
 
 	sim.advance(0.25)
@@ -229,16 +212,16 @@ func test_a_poor_shift_with_the_hull_hot_wears_the_head_more() -> void:
 func _shift_hot_or_cool(power: float) -> DiveSimulation:
 	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, _soft()], [300.0, _hard()]]))
 	sim.set_power(power)
-	_run_until(sim, &"boundary_crossed", 20000.0, [], 0.25)
-	_run_until(sim, &"shift_result", 600.0, [], 0.25)
+	DiveTestKit.run_until(sim, &"boundary_crossed", 20000.0, [], 0.25)
+	DiveTestKit.run_until(sim, &"shift_result", 600.0, [], 0.25)
 	return sim
 
 
 func test_the_boundary_is_crossed_when_the_head_enters_the_new_medium() -> void:
 	var sim := _one_boundary()
 
-	var approaching := _run_until(sim, &"boundary_approaching")
+	var approaching := DiveTestKit.run_until(sim, &"boundary_approaching")
 	assert_str(String(sim.medium().name)).is_equal("soft")
-	_run_until(sim, &"boundary_crossed")
+	DiveTestKit.run_until(sim, &"boundary_crossed")
 	assert_str(String(sim.medium().name)).is_equal("hard")
 	assert_str(String(approaching.to)).is_equal("hard")

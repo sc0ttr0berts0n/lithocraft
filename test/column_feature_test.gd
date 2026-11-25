@@ -6,19 +6,13 @@ extends GdUnitTestSuite
 const FEATURE_DEPTH := 20.0
 
 
-## Test values only: an easy Medium with plenty of grip, so power maps
-## straight to speed.
-func _rock() -> Medium:
-	return Medium.new(&"rock", 1.0, 1.0, 0.1, 300.0, 1.0, {&"quartz": 1.0}, 0.5)
-
-
 ## Test values only: a feature to find.
 func _curiosity() -> ColumnFeature:
 	return ColumnFeature.new(&"curiosity", 0.3, 50.0)
 
 
 func _layout_with_one_feature() -> MediumLayout:
-	return MediumLayout.uniform(_rock()).with_features([[FEATURE_DEPTH, _curiosity()]])
+	return MediumLayout.uniform(DiveTestKit.rock(1.0, 1.0, 0.1)).with_features([[FEATURE_DEPTH, _curiosity()]])
 
 
 func _in_column(sim: DiveSimulation) -> Array[ColumnFeature]:
@@ -214,7 +208,7 @@ func test_nothing_can_be_extracted_from_the_column() -> void:
 	assert_array(sim.features_in_column()).is_empty()
 	# The Column there is still the Medium it always was.
 	var behind := sim.distance() - feature.at
-	assert_str(sim.column_at(behind).name).is_equal(_rock().name)
+	assert_str(sim.column_at(behind).name).is_equal(DiveTestKit.rock(1.0, 1.0, 0.1).name)
 	# And the simulation offers no command that takes anything out.
 	for method in sim.get_script().get_script_method_list():
 		var method_name := String(method.name).to_lower()

@@ -66,11 +66,6 @@ func _chalk() -> Medium:
 	return Medium.new(&"chalk", 1.0, 0.5, 0.3, 300.0, 1.0, {&"calcite": 1.0}, 0.4)
 
 
-func _basalt() -> Medium:
-	return Medium.new(&"basalt", 1.0, 0.5, 0.05, 300.0, 1.0,
-			{&"pyroxene": 0.5, &"plagioclase": 0.5}, 0.8)
-
-
 func _assert_composition_close(actual: Dictionary, expected: Dictionary) -> void:
 	assert_array(actual.keys()).contains_exactly_in_any_order(expected.keys())
 	for mineral in expected:
@@ -78,7 +73,7 @@ func _assert_composition_close(actual: Dictionary, expected: Dictionary) -> void
 
 
 func test_a_stretch_records_the_composition_of_the_medium_it_passed_through() -> void:
-	for medium in [_chalk(), _basalt(), Medium.granite()]:
+	for medium in [_chalk(), DiveTestKit.basalt(), Medium.granite()]:
 		var sim := _dive(MediumLayout.uniform(medium), 0.3, 300.0)
 
 		var survey := sim.survey()
@@ -89,7 +84,7 @@ func test_a_stretch_records_the_composition_of_the_medium_it_passed_through() ->
 
 
 func test_after_a_boundary_the_survey_records_the_new_medium() -> void:
-	var layout := MediumLayout.layered([[0.0, _chalk()], [40.0, _basalt()]])
+	var layout := MediumLayout.layered([[0.0, _chalk()], [40.0, DiveTestKit.basalt()]])
 	var sim := _dive(layout, 0.3, 600.0)
 
 	var survey := sim.survey()
@@ -97,7 +92,7 @@ func test_after_a_boundary_the_survey_records_the_new_medium() -> void:
 	var last: SurveyStretch = survey.back()
 	assert_float(last.start).is_greater(40.0)
 	_assert_composition_close(first.composition, _chalk().composition)
-	_assert_composition_close(last.composition, _basalt().composition)
+	_assert_composition_close(last.composition, DiveTestKit.basalt().composition)
 
 
 func test_a_stretch_across_a_boundary_holds_some_of_each_medium() -> void:
@@ -105,7 +100,7 @@ func test_a_stretch_across_a_boundary_holds_some_of_each_medium() -> void:
 	var stretch_length: float = survey[0].length
 	# A Boundary a quarter of the way into the third stretch.
 	var boundary := stretch_length * 2.25
-	var layout := MediumLayout.layered([[0.0, _chalk()], [boundary, _basalt()]])
+	var layout := MediumLayout.layered([[0.0, _chalk()], [boundary, DiveTestKit.basalt()]])
 
 	var straddling: SurveyStretch = _dive(layout, 0.3, 600.0).survey()[2]
 

@@ -3,21 +3,10 @@
 extends GdUnitTestSuite
 
 
-## Test values only: a Medium strong enough that the grip waves never slip.
-func _rock() -> Medium:
-	return Medium.new(&"rock", 2.0, 2.0, 0.05, 300.0, 1.0, {&"quartz": 1.0}, 0.5)
-
-
 func _sim(power: float, to_column := 0.0) -> DiveSimulation:
-	var sim := DiveSimulation.new(MediumLayout.uniform(_rock()))
+	var sim := DiveSimulation.new(MediumLayout.uniform(DiveTestKit.rock()))
 	sim.set_power(power)
 	sim.set_heat_split(to_column)
-	return sim
-
-
-func _run(sim: DiveSimulation, seconds: float, step := 0.5) -> DiveSimulation:
-	for i in int(seconds / step):
-		sim.advance(step)
 	return sim
 
 
@@ -35,8 +24,8 @@ func test_power_drawn_never_exceeds_what_the_reactor_supplies() -> void:
 
 
 func test_asking_the_drive_for_more_than_the_budget_throttles_only_the_drive() -> void:
-	var modest := _run(_sim(0.2, 1.0), 5.0)
-	var greedy := _run(_sim(1.0, 1.0), 5.0)
+	var modest := DiveTestKit.run(_sim(0.2, 1.0), 5.0, 0.5)
+	var greedy := DiveTestKit.run(_sim(1.0, 1.0), 5.0, 0.5)
 
 	assert_float(greedy.power_requested()).is_greater(greedy.reactor_output())
 	assert_float(greedy.drive_draw()).is_less(greedy.drive_request())
@@ -49,15 +38,15 @@ func test_asking_the_drive_for_more_than_the_budget_throttles_only_the_drive() -
 
 
 func test_a_drive_within_the_budget_is_not_starved() -> void:
-	var sim := _run(_sim(0.2), 5.0)
+	var sim := DiveTestKit.run(_sim(0.2), 5.0, 0.5)
 
 	assert_float(sim.drive_draw()).is_equal_approx(sim.drive_request(), 1e-9)
 	assert_float(sim.drive_supplied()).is_equal(1.0)
 
 
 func test_pumping_heat_into_the_column_takes_power_from_a_full_drive() -> void:
-	var outward := _run(_sim(1.0, 0.0), 5.0)
-	var into_column := _run(_sim(1.0, 1.0), 5.0)
+	var outward := DiveTestKit.run(_sim(1.0, 0.0), 5.0, 0.5)
+	var into_column := DiveTestKit.run(_sim(1.0, 1.0), 5.0, 0.5)
 
 	assert_float(into_column.thermal_draw()).is_greater(outward.thermal_draw())
 	assert_float(into_column.drive_draw()).is_less(outward.drive_draw())
@@ -65,17 +54,17 @@ func test_pumping_heat_into_the_column_takes_power_from_a_full_drive() -> void:
 
 
 func test_thermal_draw_makes_heat_too() -> void:
-	var idle_pumps := _run(_sim(0.0, 0.0), 5.0)
-	var busy_pumps := _run(_sim(0.0, 1.0), 5.0)
+	var idle_pumps := DiveTestKit.run(_sim(0.0, 0.0), 5.0, 0.5)
+	var busy_pumps := DiveTestKit.run(_sim(0.0, 1.0), 5.0, 0.5)
 
 	assert_float(busy_pumps.heat_produced()).is_greater(idle_pumps.heat_produced())
 
 
 func test_an_idling_head_supplies_less_and_starves_thermal_before_navigation() -> void:
-	var sim := _run(_sim(1.0, 1.0), 2.0)
+	var sim := DiveTestKit.run(_sim(1.0, 1.0), 2.0, 0.5)
 	var running_output := sim.reactor_output()
 	sim.set_quiet_ship(true)
-	_run(sim, 30.0)
+	DiveTestKit.run(sim, 30.0, 0.5)
 
 	assert_float(sim.reactor_output()).is_less(running_output)
 	assert_float(sim.thermal_supplied()).is_less(1.0)
@@ -85,7 +74,7 @@ func test_an_idling_head_supplies_less_and_starves_thermal_before_navigation() -
 func test_starved_thermal_sends_less_heat_into_the_column_than_the_split_asks() -> void:
 	var sim := _sim(0.0, 1.0)
 	sim.set_quiet_ship(true)
-	_run(sim, 30.0)
+	DiveTestKit.run(sim, 30.0, 0.5)
 
 	assert_float(sim.thermal_supplied()).is_less(1.0)
 	assert_float(sim.heat_to_column()).is_less(sim.heat_produced())

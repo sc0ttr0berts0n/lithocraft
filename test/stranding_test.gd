@@ -2,6 +2,11 @@
 # relationships, never tuned constants (ADR 0001).
 extends GdUnitTestSuite
 
+## Long enough for a careless dive to wear its Head through, in simulated
+## seconds, and the step to run it in.
+const PLENTY_S := 20000.0
+const STEP_S := 0.25
+
 
 ## Test values only. Porous rock the melt lines, so the tunnel stays open and
 ## the fast link pays for what goes up.
@@ -38,37 +43,16 @@ func _careless_dive(open_to := 40.0, dense := true) -> DiveSimulation:
 	return sim
 
 
-## Advances until an event of this type is raised (or time runs out) and
-## returns it, or an empty Dictionary. Every event seen is kept in `seen`.
-## `before` is called before each step.
-func _run_until(sim: DiveSimulation, type: StringName, seconds := 20000.0,
-		seen: Array = [], before := Callable()) -> Dictionary:
-	var step := 0.25
-	for i in int(seconds / step):
-		if before.is_valid():
-			before.call()
-		sim.advance(step)
-		for event in sim.take_events():
-			seen.append(event)
-			if event.type == type:
-				return event
-	return {}
-
-
-func _types(events: Array) -> Array:
-	return events.map(func(e: Dictionary) -> StringName: return e.type)
-
-
 func test_losing_the_plasma_sealed_in_strands_and_discards_the_unsold_survey() -> void:
 	var sim := _careless_dive()
 	var unsold := [0.0]
 	var seen := []
 
-	var stranded := _run_until(sim, &"stranded", 20000.0, seen,
+	var stranded := DiveTestKit.run_until(sim, &"stranded", PLENTY_S, seen, STEP_S,
 			func() -> void: unsold[0] = sim.unsold_value())
 
 	assert_dict(stranded).is_not_empty()
-	var types := _types(seen)
+	var types := DiveTestKit.types(seen)
 	assert_array(types).contains([&"tunnel_sealed", &"plasma_lost"])
 	assert_int(types.find(&"tunnel_sealed")).is_less(types.find(&"stranded"))
 	assert_int(types.find(&"plasma_lost")).is_less(types.find(&"stranded"))
@@ -86,25 +70,25 @@ func test_losing_the_plasma_with_the_tunnel_open_does_not_strand() -> void:
 	var sim := _careless_dive(40.0, false)
 	var seen := []
 
-	var lost := _run_until(sim, &"plasma_lost", 20000.0, seen)
-	_run_until(sim, &"never", 60.0, seen)
+	var lost := DiveTestKit.run_until(sim, &"plasma_lost", PLENTY_S, seen, STEP_S)
+	DiveTestKit.run_until(sim, &"never", 60.0, seen, STEP_S)
 
 	assert_dict(lost).is_not_empty()
 	assert_bool(sim.tunnel_sealed()).is_false()
 	assert_bool(sim.stranded()).is_false()
-	assert_array(_types(seen)).not_contains([&"stranded"])
+	assert_array(DiveTestKit.types(seen)).not_contains([&"stranded"])
 
 
 func test_a_recovery_keeps_what_was_paid_and_returns_to_the_surface() -> void:
 	var sim := _careless_dive()
-	_run_until(sim, &"stranded")
+	DiveTestKit.run_until(sim, &"stranded", PLENTY_S, [], STEP_S)
 	var paid := sim.paid()
 	var up := sim.uploaded_survey().size()
 	assert_float(paid).is_greater(0.0)
 
 	sim.recover()
 	sim.advance(0.25)
-	var events := _types(sim.take_events())
+	var events := DiveTestKit.types(sim.take_events())
 
 	assert_array(events).contains([&"recovered"])
 	assert_bool(sim.stranded()).is_false()
@@ -120,7 +104,7 @@ func test_a_recovery_keeps_what_was_paid_and_returns_to_the_surface() -> void:
 
 func test_after_a_recovery_the_crew_can_dive_again_and_be_paid_more() -> void:
 	var sim := _careless_dive()
-	_run_until(sim, &"stranded")
+	DiveTestKit.run_until(sim, &"stranded", PLENTY_S, [], STEP_S)
 	var paid := sim.paid()
 	sim.recover()
 	sim.take_events()
@@ -143,13 +127,13 @@ func test_a_recovery_is_only_for_a_stranded_dive() -> void:
 	sim.recover()
 
 	assert_float(sim.depth()).is_equal(depth)
-	assert_array(_types(sim.take_events())).not_contains([&"recovered"])
+	assert_array(DiveTestKit.types(sim.take_events())).not_contains([&"recovered"])
 
 
 func test_a_stranding_is_a_reactor_call_that_returns_the_time_rate_to_normal() -> void:
 	var sim := _careless_dive()
 	# Keep raising the rate after each call, as an impatient crew might.
-	_run_until(sim, &"stranded", 20000.0, [],
+	DiveTestKit.run_until(sim, &"stranded", PLENTY_S, [], STEP_S,
 			func() -> void: sim.set_time_rate(sim.max_time_rate()))
 
 	assert_str(String(sim.call_reason(DiveSimulation.STATION_REACTOR))).is_equal("stranded")
@@ -160,7 +144,7 @@ func test_a_stranding_is_a_reactor_call_that_returns_the_time_rate_to_normal() -
 func test_a_recovery_starts_at_normal_time_with_the_crew_where_they_were() -> void:
 	var sim := _careless_dive()
 	sim.set_attended(DiveSimulation.STATION_NAVIGATION, true)
-	_run_until(sim, &"stranded")
+	DiveTestKit.run_until(sim, &"stranded", PLENTY_S, [], STEP_S)
 	sim.set_time_rate(sim.max_time_rate())
 
 	sim.recover()

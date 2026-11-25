@@ -9,13 +9,8 @@ func _clay(sound_carrying := 0.5) -> Medium:
 	return Medium.new(&"clay", 1.0, 0.5, 0.4, 300.0, 1.0, {&"kaolinite": 1.0}, sound_carrying)
 
 
-func _basalt() -> Medium:
-	return Medium.new(&"basalt", 4.0, 1.0, 0.02, 320.0, 10.0,
-			{&"pyroxene": 0.5, &"plagioclase": 0.5}, 0.8)
-
-
 func _layout(boundary_depth: float, sound_carrying := 0.5) -> MediumLayout:
-	return MediumLayout.layered([[0.0, _clay(sound_carrying)], [boundary_depth, _basalt()]])
+	return MediumLayout.layered([[0.0, _clay(sound_carrying)], [boundary_depth, DiveTestKit.basalt(4.0, 1.0, 0.02)]])
 
 
 ## Sends a pulse and lets it return.

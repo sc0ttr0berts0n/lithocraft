@@ -8,13 +8,8 @@ func _chalk() -> Medium:
 	return Medium.new(&"chalk", 1.0, 0.5, 0.3, 300.0, 1.0, {&"calcite": 1.0}, 0.4)
 
 
-func _basalt() -> Medium:
-	return Medium.new(&"basalt", 1.0, 0.5, 0.05, 300.0, 1.0,
-			{&"pyroxene": 0.5, &"plagioclase": 0.5}, 0.8)
-
-
 func _chalk_over_basalt(boundary: float) -> DiveSimulation:
-	return DiveSimulation.new(MediumLayout.layered([[0.0, _chalk()], [boundary, _basalt()]]))
+	return DiveSimulation.new(MediumLayout.layered([[0.0, _chalk()], [boundary, DiveTestKit.basalt()]]))
 
 
 ## How far behind the Head the Boundary between chalk and basalt sits in the
