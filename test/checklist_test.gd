@@ -49,14 +49,16 @@ static func _next(sim: DiveSimulation) -> StringName:
 	return sim.next_step().get("id", &"")
 
 
-## Advances in steps of `step` (the time rate raised before each) until
-## `done` holds of the sim or `seconds` have passed. Returns whether it held.
+## Advances in steps of `step` (the time rate raised before each, if `fast`)
+## until `done` holds of the sim or `seconds` have passed. Returns whether it
+## held.
 static func _fly_until(sim: DiveSimulation, done: Callable, seconds := 3000.0,
-		step := 1.0) -> bool:
+		step := 1.0, fast := true) -> bool:
 	for i in int(seconds / step):
 		if done.call(sim):
 			return true
-		sim.set_time_rate(sim.max_time_rate())
+		if fast:
+			sim.set_time_rate(sim.max_time_rate())
 		sim.advance(step)
 		sim.take_events()
 	return done.call(sim)
@@ -119,9 +121,9 @@ func test_a_step_ticks_when_its_condition_is_met_and_not_before() -> void:
 	sim.set_scenario(_scenario_of([[&"deep", Scenario.when(
 			func(s: DiveSimulation) -> bool: return s.depth() > 5.0)]]))
 	sim.set_power(0.3)
-	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return s.depth() > 4.0, 600.0, 0.1)).is_true()
+	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return s.depth() > 4.0, 600.0, 0.1, false)).is_true()
 	assert_str(_state(sim, &"deep")).is_equal(Checklist.PENDING)
-	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return s.depth() > 5.5, 600.0, 0.1)).is_true()
+	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return s.depth() > 5.5, 600.0, 0.1, false)).is_true()
 	assert_str(_state(sim, &"deep")).is_equal(Checklist.DONE)
 
 
@@ -347,8 +349,10 @@ func _into_the_sandstone() -> DiveSimulation:
 func test_the_sandstone_and_granite_steps_tick_as_each_is_done() -> void:
 	var sim := _into_the_sandstone()
 	assert_str(_next(sim)).is_equal(&"observe_sandstone")
-	# Still observing the sand's feature as it leaves: not one in the sandstone.
+	# Observing nothing: no feature in the sandstone yet. The link is stopped,
+	# so the step after this one cannot tick with it.
 	sim.set_observed_feature(-1)
+	sim.set_uploading(false)
 	sim.advance(0.1)
 	assert_str(_state(sim, &"observe_sandstone")).is_equal(Checklist.PENDING)
 	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return not s.features_in_column().is_empty(), 2000.0, 0.5)).is_true()
@@ -359,7 +363,6 @@ func test_the_sandstone_and_granite_steps_tick_as_each_is_done() -> void:
 	# The link sends what is aboard while the tunnel is open; stopped, it
 	# cannot.
 	assert_str(_next(sim)).is_equal(&"upload")
-	sim.set_uploading(false)
 	DiveTestKit.run(sim, 20.0)
 	assert_str(_state(sim, &"upload")).is_equal(Checklist.PENDING)
 	sim.set_uploading(true)

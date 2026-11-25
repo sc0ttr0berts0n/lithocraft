@@ -201,7 +201,9 @@ const _KEPT_BETWEEN_DIVES: Array[StringName] = [&"_layout", &"_paid", &"_uploade
 		# Where the crew is: the view tells the simulation, not the dive.
 		&"_attended",
 		# The luck of relights runs on from dive to dive.
-		&"_relight_random"]
+		&"_relight_random",
+		# The Scenario being played; each new dive starts its Checklist afresh.
+		&"_scenario"]
 
 var _layout: MediumLayout
 var _power := 0.0
@@ -343,6 +345,14 @@ var _self_destructing := false
 var _crew_settings := {}
 ## Why the crew died (&"heat" or &"self_destruct"), or &"" while alive.
 var _death_cause := &""
+## The Scenario being played (an empty one by default: no Orders, no
+## Checklist) and this dive's progress through it; see set_scenario().
+var _scenario := Scenario.new()
+var _checklist: Checklist
+## How many of _events the Checklist has already been shown.
+var _events_checked := 0
+## The Reactor's Shift dial, in hertz: the frequency the next Shift is made at.
+var _shift_dial := 0.0
 
 
 func _init(layout: MediumLayout) -> void:
@@ -351,6 +361,8 @@ func _init(layout: MediumLayout) -> void:
 	_scan_random.seed = 13
 	_relight_random.seed = 29
 	_plasma = Plasma.new(plasma_frequency())
+	_shift_dial = _plasma.tuning()
+	_checklist = Checklist.new(_scenario)
 	_share_power()
 
 
@@ -376,6 +388,7 @@ func set_course(heading_degrees: float, pitch_degrees: float) -> void:
 	_disengage_on_command(STATION_NAVIGATION)
 	_course_heading = fposmod(heading_degrees, 360.0)
 	_course_pitch = clampf(pitch_degrees, -90.0, 90.0)
+	_events.append({type = &"course_plotted", heading = _course_heading, pitch = _course_pitch})
 
 
 ## Drive: how hard to steer toward the Course, 0 (not at all) to 1 (the
@@ -540,6 +553,7 @@ func new_dive() -> void:
 	if not (_surfaced or dead()):
 		return
 	_start_fresh()
+	_begin_scenario()
 	_events.append({type = &"new_dive", paid = _paid})
 
 
@@ -566,6 +580,37 @@ func relight() -> void:
 	if stranded():  # Only stranded does a relight do anything.
 		_disengage_on_command(STATION_REACTOR)
 	_relight_asked = true
+
+
+## Plays this Scenario from here: its Orders and Checklist start afresh and
+## its start state (Scenario.prepare) is applied. Kept for every later dive,
+## each starting its Checklist afresh. Scenario.start() builds a dive and
+## calls this.
+func set_scenario(scenario: Scenario) -> void:
+	_scenario = scenario
+	_begin_scenario()
+
+
+func _begin_scenario() -> void:
+	_checklist = Checklist.new(_scenario)
+	_events_checked = _events.size()  # Events from before are not this dive's.
+	_scenario.prepare.call(self)
+
+
+## The crew has read the Orders (the view sends it when the Checklist is first
+## opened). Raises &"orders_read".
+func read_orders() -> void:
+	_events.append({type = &"orders_read"})
+
+
+## Reactor Station: turns the Shift dial to this frequency in hertz, the one
+## the next Shift is made at (the view passes shift_dial() to shift()). A
+## selector, not a setting the Reactor acts on: like turning an A320's heading
+## knob, it leaves the Reactor's autopilot engaged.
+func set_shift_dial(frequency: float) -> void:
+	if _off_the_crew():
+		return
+	_shift_dial = maxf(frequency, 0.0)
 
 
 ## Reactor Station: perform a Shift, setting the Reactor to hold the plasma
@@ -837,18 +882,31 @@ func _debug_dive_over() -> bool:
 ## whichever is longer. A Station call returns the rate to normal and the rest
 ## of the time is not run.
 func advance(dt: float) -> void:
-	if _surfaced or dead():
+	if dead():
+		return
+	if _surfaced:
+		_tend_checklist(dt)  # Nothing moves, but messages still arrive.
 		return
 	_tend_self_destruct_hold(dt)
 	if _time_rate <= 1.0:
 		_step(dt)
+		_tend_checklist(dt)
 		return
 	var total := dt * _time_rate
 	var steps := ceili(total / maxf(dt, _FAST_STEP_S))
 	for i in steps:
 		_step(total / steps)
+		_tend_checklist(total / steps)
 		if _time_rate <= 1.0:
 			return
+
+
+## Shows the Checklist what happened since it last looked; its own events
+## join the rest.
+func _tend_checklist(dt: float) -> void:
+	var fresh := _events.slice(_events_checked)
+	_checklist.tend(self, fresh, dt, _events)
+	_events_checked = _events.size()
 
 
 func _step(dt: float) -> void:
@@ -1332,6 +1390,12 @@ func survey_value() -> float:
 ##   &"autopilot_off" {station, cause}: that Station's autopilot disengaged;
 ##       `cause` AUTOPILOT_OFF_BY_COMMAND (a crew command changed its
 ##       setting) or AUTOPILOT_OFF_BY_SWITCH (the crew switched it off).
+##   &"course_plotted" {heading, pitch}: Navigation plotted the Course.
+##   &"pulse_sent" {quiet_ship}: Navigation's pulse went out, under Quiet
+##       Ship or not.
+##   &"orders_read": see read_orders().
+##   &"checklist_step", &"checklist_phase", &"goal_achieved",
+##       &"surface_message": the Scenario's progress; see Checklist.tend().
 ##   &"self_destruct_started" {stranded}, &"self_destruct_cancelled"
 ##       {stranded}: the crew held the command long enough at Thermal, or
 ##       cancelled it (see hold_self_destruct()); `stranded` whether with the
@@ -1339,6 +1403,7 @@ func survey_value() -> float:
 func take_events() -> Array[Dictionary]:
 	var taken := _events
 	_events = []
+	_events_checked = 0
 	return taken
 
 
@@ -1482,9 +1547,72 @@ func seal_porosity() -> float:
 func link_rate() -> float:
 	if not _uploading or (stranded() and _stranding.store() <= 0.0):
 		return 0.0
+	return link_capacity()
+
+
+## How fast the link could carry, in metres of survey per second, whether or
+## not it is sending: light up the open tunnel, a trickle of sound through
+## sealed rock. Surface control's messages come down at this rate.
+func link_capacity() -> float:
 	if not _tunnel_sealed:
 		return _FAST_LINK_RATE
 	return _SLOW_LINK_RATE * medium().sound_carrying
+
+
+## What this dive has been paid so far: by the link under way, and at the
+## surface for what was carried home.
+func paid_this_dive() -> float:
+	return _paid - _paid_before_dive
+
+
+## The Reactor's Shift dial, in hertz; see set_shift_dial().
+func shift_dial() -> float:
+	return _shift_dial
+
+
+## The title of the Scenario being played, "" for none.
+func scenario_title() -> String:
+	return _checklist.title()
+
+
+## The Orders' goals in order, each {id, text, achieved}.
+func orders() -> Array[Dictionary]:
+	return _checklist.orders()
+
+
+## The Checklist's phases in order, each {title, steps}; each step {id, text,
+## station (&"" for none), action (the key-map action that does it, &"" for
+## none), state (Checklist.PENDING, DONE or MISSED)}.
+func checklist() -> Array[Dictionary]:
+	return _checklist.phases()
+
+
+## The index of the phase now running in checklist().
+func checklist_phase() -> int:
+	return _checklist.phase()
+
+
+## The next step to do, as a step of checklist() plus {phase, step} indices,
+## or {} when none is left.
+func next_step() -> Dictionary:
+	var index := _checklist.next_step_index()
+	if index < 0:
+		return {}
+	var phase := _checklist.phase()
+	var step: Dictionary = checklist()[phase].steps[index]
+	step.phase = phase
+	step.step = index
+	return step
+
+
+## Surface control's messages that have arrived this dive, oldest first.
+func surface_messages() -> Array[String]:
+	return _checklist.arrived()
+
+
+## How many of surface control's messages are still coming down the link.
+func messages_on_the_way() -> int:
+	return _checklist.on_the_way()
 
 
 ## What has been paid so far for survey data that has reached the surface.
@@ -2351,6 +2479,7 @@ func _send_pulse() -> void:
 			_points.append(ScanPoint.new(origin + direction * r + stray, confidence, r,
 					_pulses_sent))
 	_pulses_sent += 1
+	_events.append({type = &"pulse_sent", quiet_ship = _quiet_ship})
 
 
 ## The echoes one ray returns: [range m, strength] for each Boundary it
