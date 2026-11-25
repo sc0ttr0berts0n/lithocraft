@@ -1,16 +1,17 @@
-# Steering at the Drive Station, tested at the simulation's interface: power,
-# heading and pitch in; the Lithocraft's path, depth and heat out.
+# Steering at the Drive Station, tested at the simulation's interface: power
+# and the Course (heading and pitch) in, the Drive attended and steering as
+# hard as it can; the Lithocraft's path, depth and heat out.
 # Assert relationships, never tuned constants (ADR 0001).
 extends GdUnitTestSuite
 
 
-## A Lithocraft under power that has turned from its dive to travel level,
-## heading 0, and has had all the time it needs to get there.
+## A Lithocraft under power, its Drive attended, that has turned from its dive
+## to travel level, heading 0, and has had all the time it needs to get there.
 func _travelling_level(power := 1.0, layout: MediumLayout = null) -> DiveSimulation:
 	var sim := DiveSimulation.new(layout if layout else MediumLayout.uniform(DiveTestKit.rock(1.0)))
+	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
 	sim.set_power(power)
-	sim.set_pitch(0.0)
-	sim.set_heading(0.0)
+	sim.set_course(0.0, 0.0)
 	DiveTestKit.run(sim, 3000.0)
 	return sim
 
@@ -36,7 +37,7 @@ func test_climbing_brings_the_lithocraft_shallower() -> void:
 	var sim := _travelling_level()
 	var depth := sim.depth()
 
-	sim.set_pitch(-45.0)
+	sim.set_course(sim.course_heading(), -45.0)
 	DiveTestKit.run(sim, 1000.0)
 
 	assert_float(sim.depth()).is_less(depth)
@@ -46,7 +47,7 @@ func test_a_heading_change_takes_effect_gradually_not_instantly() -> void:
 	var sim := _travelling_level()
 	assert_float(_heading(sim)).is_equal_approx(0.0, 0.01)
 
-	sim.set_heading(90.0)
+	sim.set_course(90.0, sim.course_pitch())
 	sim.advance(1.0)
 	var after_a_second := _heading(sim)
 	DiveTestKit.run(sim, 30.0)
@@ -67,7 +68,7 @@ func test_a_heading_change_takes_effect_gradually_not_instantly() -> void:
 func _about_turn(power: float, step: float) -> Array[float]:
 	var sim := _travelling_level(power)
 	var start := sim.head_position()
-	sim.set_heading(180.0)
+	sim.set_course(180.0, sim.course_pitch())
 	var sharpest := 0.0
 	var widest := 0.0
 	for i in int(6000.0 / step):
@@ -98,7 +99,7 @@ func test_a_stopped_lithocraft_cannot_turn() -> void:
 	var heading := sim.heading()
 	sim.set_power(0.0)
 
-	sim.set_heading(90.0)
+	sim.set_course(90.0, sim.course_pitch())
 	DiveTestKit.run(sim, 600.0)
 
 	assert_float(sim.heading().angle_to(heading)).is_less(0.0001)
@@ -108,7 +109,7 @@ func test_turning_makes_more_heat_than_going_straight_at_the_same_power() -> voi
 	var straight := _travelling_level(0.5)
 	var turning := _travelling_level(0.5)
 
-	turning.set_heading(90.0)
+	turning.set_course(90.0, turning.course_pitch())
 	DiveTestKit.run(straight, 20.0)
 	DiveTestKit.run(turning, 20.0)
 
@@ -119,7 +120,7 @@ func test_once_on_its_heading_the_extra_heat_dies_away() -> void:
 	var sim := _travelling_level(0.5)
 	var straight_heat := sim.heat_produced()
 
-	sim.set_heading(90.0)
+	sim.set_course(90.0, sim.course_pitch())
 	DiveTestKit.run(sim, 3000.0)
 
 	assert_float(sim.heat_produced()).is_equal_approx(straight_heat, 0.0001)
@@ -130,9 +131,9 @@ func test_no_command_moves_the_lithocraft_backward() -> void:
 	var commands := [
 		func(): sim.set_power(-1.0),
 		func(): sim.set_power(0.0),
-		func(): sim.set_power(1.0); sim.set_heading(180.0),
-		func(): sim.set_pitch(-90.0),
-		func(): sim.set_pitch(200.0); sim.set_heading(-45.0),
+		func(): sim.set_power(1.0); sim.set_course(180.0, sim.course_pitch()),
+		func(): sim.set_course(sim.course_heading(), -90.0),
+		func(): sim.set_course(-45.0, 200.0),
 		func(): sim.set_quiet_ship(true),
 		func(): sim.set_quiet_ship(false); sim.set_power(0.4),
 	]
@@ -154,8 +155,9 @@ func test_the_column_and_survey_follow_the_path_not_the_distance_travelled() -> 
 	# A Boundary deeper than a dive that levels off at once ever reaches.
 	var layout := MediumLayout.layered([[0.0, DiveTestKit.rock(1.0)], [400.0, Medium.granite()]])
 	var sim := DiveSimulation.new(layout)
+	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
 	sim.set_power(1.0)
-	sim.set_pitch(0.0)
+	sim.set_course(sim.course_heading(), 0.0)
 	while sim.distance() < 1000.0:
 		sim.advance(1.0)
 

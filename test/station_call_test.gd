@@ -44,10 +44,10 @@ func test_unattended_stations_hold_their_settings_through_steady_conditions() ->
 	var sim := DiveSimulation.new(MediumLayout.uniform(DiveTestKit.rock(2.0, 2.0, 0.3)))
 	sim.set_power(0.4)
 	sim.set_heat_split(0.3)
-	sim.set_pitch(45.0)
-	sim.set_heading(30.0)
+	sim.set_course(30.0, 45.0)
 	sim.set_upload_priority(DiveSimulation.UPLOAD_NEWEST_FIRST)
-	for i in 600:
+	# Long enough for the unattended Drive's gentle turn onto the Course.
+	for i in 6000:
 		sim.advance(1.0)
 		assert_bool(sim.heat_warning()).is_false()
 	var speed_before := sim.speed()

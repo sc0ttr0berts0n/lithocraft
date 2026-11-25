@@ -12,9 +12,10 @@ const GIVE_UP_S := 60000.0
 
 ## Flies the first dive the way a solo player at the Reactor and Thermal
 ## Stations would: Drive at `power`, heat split `to_column`, a Shift on the
-## plasma's frequency whenever one is due, time run fast between calls, the
-## Head pitched down until TURN_AT_M and then up until the Lithocraft surfaces. Stops
-## at the payment. Returns {sim, events, deepest}.
+## plasma's frequency whenever one is due, time run fast between calls. The
+## Course is straight down until TURN_AT_M, when Navigation plots it straight
+## up; the unattended Drive follows it round its gentle arc until the
+## Lithocraft surfaces. Stops at the payment. Returns {sim, events, deepest}.
 func _full_trip(to_column := 0.0, power := 1.0) -> Dictionary:
 	var sim := DiveSimulation.new(MediumLayout.first_dive())
 	sim.set_attended(DiveSimulation.STATION_REACTOR, true)
@@ -30,8 +31,9 @@ func _full_trip(to_column := 0.0, power := 1.0) -> Dictionary:
 		sim.advance(1.0)
 		seconds += 1.0
 		deepest = maxf(deepest, sim.depth())
-		if sim.depth() >= TURN_AT_M:
-			sim.set_pitch(-90.0)
+		if sim.depth() >= TURN_AT_M and sim.course_pitch() > -90.0:
+			sim.set_course(sim.course_heading(), -90.0)
+			assert_bool(sim.attended(DiveSimulation.STATION_DRIVE)).is_false()
 		if sim.shift_due():
 			sim.shift(sim.plasma_frequency())
 		var done := false

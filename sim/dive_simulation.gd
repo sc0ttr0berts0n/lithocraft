@@ -41,6 +41,10 @@ const _STEER_RESPONSE := 0.1
 ## Within this many degrees of the setting the steering eases off, so the
 ## vessel settles onto its heading instead of swinging past. Tuned for play.
 const _STEER_EASE_DEG := 10.0
+## The most an unattended Drive steers, as a share of full steering: it follows
+## the Course on a wide, cool arc rather than spend power and heat turning
+## hard. Tuned for play (ADR 0001).
+const _UNATTENDED_STEERING_EFFORT := 0.25
 ## Extra Drive power at full steering, as a share of its setting: the hot side
 ## of the Head runs hotter than the cool side is eased, and that extra goes
 ## into heat, not push. Tuned for play.
@@ -240,14 +244,21 @@ var _power := 0.0
 ## points there, unit length. Starts at the surface, Head straight down.
 var _position := Vector3.ZERO
 var _direction := Vector3.DOWN
-## Drive settings: the pitch and compass heading to steer toward, degrees.
-var _pitch_setting := 90.0
-var _heading_setting := 0.0
+## The Course Navigation plots: the pitch and compass heading to follow, degrees.
+var _course_pitch := 90.0
+var _course_heading := 0.0
+## The Drive's override, steered toward instead of the Course while it lasts:
+## heading and pitch in degrees. Only an attended Drive can hold one.
+var _overriding := false
+var _override_heading := 0.0
+var _override_pitch := 0.0
 ## The last compass heading the vessel had while not pointing straight up or
 ## down, where heading has no meaning. Degrees, 0 along -Z, 90 along +X.
 var _bearing := 0.0
 ## How hard the Head is steering: 0 even heating, 1 the tightest arc.
 var _steering := 0.0
+## The Drive's call: the hardest it will steer toward the Course, 0 to 1.
+var _steering_effort := 1.0
 ## The path so far as (distance along it, depth) points, for the Column.
 var _path_distances := PackedFloat64Array([0.0])
 var _path_depths := PackedFloat64Array([0.0])
@@ -381,19 +392,39 @@ func set_power(power: float) -> void:
 	_power = clampf(power, 0.0, 1.0)
 
 
-## Drive: the pitch to steer toward, in degrees. +90 is the Head straight down
-## (diving), 0 is level, -90 is the Head straight up (climbing). The vessel turns
-## toward it along an arc no tighter than minimum_turn_radius(), and only
-## while it moves.
-func set_pitch(degrees: float) -> void:
-	_pitch_setting = clampf(degrees, -90.0, 90.0)
+## Navigation: plots the Course, the compass heading and pitch the Drive steers
+## toward, in degrees. Heading 0 along the world's -Z, 90 along +X; pitch +90
+## the Head straight down (diving), 0 level, -90 straight up (climbing). The
+## vessel turns toward it along an arc no tighter than minimum_turn_radius(),
+## and only while it moves. Heading has no effect while the pitch is straight
+## up or down.
+func set_course(heading_degrees: float, pitch_degrees: float) -> void:
+	_course_heading = fposmod(heading_degrees, 360.0)
+	_course_pitch = clampf(pitch_degrees, -90.0, 90.0)
 
 
-## Drive: the compass heading to steer toward, in degrees: 0 along the world's
-## -Z, 90 along +X. Turned toward like pitch. Has no effect while the pitch
-## setting is straight up or down.
-func set_heading(degrees: float) -> void:
-	_heading_setting = fposmod(degrees, 360.0)
+## Drive: how hard to steer toward the Course, 0 (not at all) to 1 (the
+## tightest arc). Steering harder turns sooner but spends more power, and so
+## makes more heat. An unattended Drive never steers harder than a gentle
+## share of full, whatever this is.
+func set_steering_effort(effort: float) -> void:
+	_steering_effort = clampf(effort, 0.0, 1.0)
+
+
+## Drive: steers toward this heading and pitch (degrees, as set_course())
+## instead of the Course, until end_override() or until nobody is at the
+## Drive. Ignored while the Drive is unattended.
+func override_course(heading_degrees: float, pitch_degrees: float) -> void:
+	if not attended(STATION_DRIVE):
+		return
+	_overriding = true
+	_override_heading = fposmod(heading_degrees, 360.0)
+	_override_pitch = clampf(pitch_degrees, -90.0, 90.0)
+
+
+## Drive: gives up an override and steers toward the Course again.
+func end_override() -> void:
+	_overriding = false
 
 
 ## Bore Station: which feature in the Column to observe and record, by id
@@ -445,6 +476,8 @@ func set_quiet_ship(on: bool) -> void:
 func set_attended(station: StringName, attended: bool) -> void:
 	if station in STATIONS:
 		_attended[station] = attended
+	if station == STATION_DRIVE and not attended:
+		_overriding = false  # Nobody at the Drive: it follows the Course.
 
 
 ## How many times normal to run the simulation: advance(dt) then runs
@@ -618,6 +651,33 @@ func heading_degrees() -> float:
 	return _bearing
 
 
+## The Course's compass heading, degrees 0 to 360; see set_course().
+func course_heading() -> float:
+	return _course_heading
+
+
+## The Course's pitch, degrees -90 (climbing) to +90 (diving); see set_course().
+func course_pitch() -> float:
+	return _course_pitch
+
+
+## True while the Drive steers toward its own override, not the Course.
+func overriding() -> bool:
+	return _overriding
+
+
+## The compass heading the Drive steers toward now: the override's while there
+## is one, else the Course's. Degrees 0 to 360.
+func steered_heading() -> float:
+	return _override_heading if _overriding else _course_heading
+
+
+## The pitch the Drive steers toward now: the override's while there is one,
+## else the Course's. Degrees.
+func steered_pitch() -> float:
+	return _override_pitch if _overriding else _course_pitch
+
+
 ## Drive power setting, 0 to 1.
 func power() -> float:
 	return _power
@@ -627,6 +687,11 @@ func power() -> float:
 ## turns it tighter, however slow or fast it goes.
 func minimum_turn_radius() -> float:
 	return _MIN_TURN_RADIUS_M
+
+
+## The Drive's steering effort setting, 0 to 1; see set_steering_effort().
+func steering_effort() -> float:
+	return _steering_effort
 
 
 ## How hard the Head is steering now, 0 (heated evenly, going straight) to 1
@@ -1036,22 +1101,23 @@ func hull_damage_temperature() -> float:
 
 # --- Steering -------------------------------------------------------------
 
-## The direction the settings ask for, in the world frame.
+## The direction the Drive steers toward, in the world frame.
 func _wanted_direction() -> Vector3:
-	var p := deg_to_rad(_pitch_setting)
-	var h := deg_to_rad(_heading_setting)
+	var p := deg_to_rad(steered_pitch())
+	var h := deg_to_rad(steered_heading())
 	return Vector3(cos(p) * sin(h), -sin(p), -cos(p) * cos(h)).normalized()
 
 
-## Turns the Head toward the settings for dt seconds at this speed, and moves
-## it along the arc. The steering builds toward what the remaining turn needs
-## at a limited rate, and the path bends by at most speed / minimum radius
-## radians per second, so a stopped vessel cannot turn and none turns tighter
-## than its minimum arc. The Head only ever moves the way it points.
+## Turns the Head toward the Course (or the Drive's override) for dt seconds at
+## this speed, and moves it along the arc. The steering builds toward what the
+## remaining turn needs, no harder than the Drive's effort, at a limited rate,
+## and the path bends by at most speed / minimum radius radians per second, so
+## a stopped vessel cannot turn and none turns tighter than its minimum arc. The Head only ever moves the way it points.
 func _steer(speed: float, dt: float) -> void:
 	var wanted := _wanted_direction()
 	var remaining := _direction.angle_to(wanted)
-	var needed := clampf(rad_to_deg(remaining) / _STEER_EASE_DEG, 0.0, 1.0)
+	var effort := _steering_effort if attended(STATION_DRIVE) 			else minf(_steering_effort, _UNATTENDED_STEERING_EFFORT)
+	var needed := clampf(rad_to_deg(remaining) / _STEER_EASE_DEG, 0.0, effort)
 	_steering = move_toward(_steering, needed, _STEER_RESPONSE * dt)
 	var turn := minf(remaining, _steering * speed / _MIN_TURN_RADIUS_M * dt)
 	var before := _direction

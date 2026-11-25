@@ -12,11 +12,13 @@ func _sand_dive() -> DiveSimulation:
 	return DiveSimulation.new(MediumLayout.uniform(Medium.sand()))
 
 
-## Under way, since the Lithocraft turns only by cutting its path round.
+## Under way, since the Lithocraft turns only by cutting its path round, with
+## the Drive attended so it steers onto the Course as hard as it can.
 func _settled_at(pitch: float) -> DiveSimulation:
 	var sim := _sand_dive()
+	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
 	sim.set_power(1.0)
-	sim.set_pitch(pitch)
+	sim.set_course(sim.course_heading(), pitch)
 	sim.advance(SETTLE)
 	return sim
 
@@ -41,7 +43,7 @@ func test_travelling_level_the_felt_acceleration_points_toward_the_outer_wall() 
 func test_pitch_moves_toward_its_setting_gradually_rather_than_jumping() -> void:
 	var sim := _settled_at(90.0)
 
-	sim.set_pitch(0.0)
+	sim.set_course(sim.course_heading(), 0.0)
 	sim.advance(5.0)
 
 	assert_float(sim.pitch()).is_less(90.0)
@@ -50,7 +52,7 @@ func test_pitch_moves_toward_its_setting_gradually_rather_than_jumping() -> void
 
 func test_down_turns_from_head_to_outer_wall_without_a_sudden_jump() -> void:
 	var sim := _settled_at(90.0)
-	sim.set_pitch(0.0)
+	sim.set_course(sim.course_heading(), 0.0)
 
 	# Step through the whole change a frame at a time; no single frame may
 	# swing "down" by more than a degree.
