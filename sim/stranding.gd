@@ -1,11 +1,13 @@
-## Stranding and recovery: what losing the Head's plasma comes to. Lost with
-## the tunnel sealed behind, the Lithocraft is stranded: it cannot move and no
-## tunnel leads up, until recover(). Lost with the tunnel still open, the crew
-## and the Lithocraft are brought home up it, and the worn Head's repair is
-## billed. Owned by DiveSimulation, which asks it once a step what the plasma's
-## state comes to and carries that out on the survey, the link and the
-## vessel's place; it answers stranded() through it. Knows nothing of the
-## survey or the path: whatever it needs is handed in.
+## Stranding, recovery and death: what losing the Head's plasma, or the hull,
+## comes to. Plasma lost with the tunnel sealed behind, the Lithocraft is
+## stranded: it cannot move and no tunnel leads up, until recover(). Lost with
+## the tunnel still open, the crew and the Lithocraft are brought home up it,
+## and the worn Head's repair is billed. A hull worn through by heat fails and
+## the crew dies, with an Elite-style rebuy of the vessel. Owned by
+## DiveSimulation, which asks it once a step what the vessel's state comes to
+## and carries that out on the survey, the link and the vessel's place; it
+## answers stranded() and dead() through it. Knows nothing of the survey or
+## the path: whatever it needs is handed in.
 class_name Stranding
 extends RefCounted
 
@@ -13,24 +15,37 @@ extends RefCounted
 const NOTHING := &""
 const STRANDED := &"stranded"
 const BROUGHT_HOME := &"brought_home"
+const DIED := &"died"
 
 ## What repairing a Head worn through costs, in the units of paid(), charged
 ## in proportion to the wear when the crew is brought home through the open
 ## tunnel. About a few hundred metres of good survey. Tuned for play
 ## (ADR 0001).
 const _HEAD_REPAIR_COST := 500.0
+## What replacing a Lithocraft lost with its crew costs, in the units of
+## paid(): the rebuy after the hull fails. A share of the vessel's worth, as in
+## Elite; well above any repair. Tuned for play (ADR 0001).
+const _REBUY_COST := 2000.0
 
 ## True once the plasma is lost while sealed in: the dive is over until
 ## recover().
 var _stranded := false
+## True once the hull has failed: the crew is dead and the dive is over.
+var _dead := false
 
 
-## Once a step: what the plasma's state comes to now. STRANDED the step the
-## plasma is lost with the tunnel sealed (from then on stranded() is true);
+## Once a step: what the vessel's state comes to now. DIED the step the hull
+## fails (from then on dead() is true), whatever the plasma; STRANDED the step
+## the plasma is lost with the tunnel sealed (from then on stranded() is true);
 ## BROUGHT_HOME the step it is lost with the tunnel open; NOTHING otherwise,
-## and every step after either.
-func check(plasma_lost: bool, tunnel_sealed: bool) -> StringName:
-	if _stranded or not plasma_lost:
+## and every step after any of them.
+func check(plasma_lost: bool, tunnel_sealed: bool, hull_failed: bool) -> StringName:
+	if _stranded or _dead:
+		return NOTHING
+	if hull_failed:
+		_dead = true
+		return DIED
+	if not plasma_lost:
 		return NOTHING
 	if not tunnel_sealed:
 		return BROUGHT_HOME
@@ -41,6 +56,17 @@ func check(plasma_lost: bool, tunnel_sealed: bool) -> StringName:
 ## True once the plasma has been lost while sealed in.
 func stranded() -> bool:
 	return _stranded
+
+
+## True once the hull has failed.
+func dead() -> bool:
+	return _dead
+
+
+## What replacing the Lithocraft costs after the hull fails, in the units of
+## paid().
+func rebuy() -> float:
+	return _REBUY_COST
 
 
 ## What repairing a Head this worn (0 to 1) costs when the crew is brought
