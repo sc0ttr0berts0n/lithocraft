@@ -27,7 +27,7 @@ var _look := 0.0
 ## mouse has moved since the look last settled, which makes it their own.
 var _held := false
 var _held_turn := 0.0
-var _looked := false
+var _look_is_own := false
 var _grounded := false
 var _camera := Camera3D.new()
 
@@ -57,7 +57,7 @@ func look(relative: Vector2) -> void:
 	var turn := -relative.x * MOUSE_SENSITIVITY
 	if _held:
 		_held_turn += turn
-		_looked = true
+		_look_is_own = true
 	basis = basis * Basis(Vector3.UP, turn)
 	_look = clampf(_look - relative.y * MOUSE_SENSITIVITY, -LOOK_LIMIT, LOOK_LIMIT)
 	_camera.rotation = Vector3(_look, 0, 0)
@@ -110,9 +110,10 @@ func hold(eye_pose: Transform3D, look_toward: float, weight: float) -> void:
 		# Just caught: the Arm took the eyes as they were, turn and all.
 		_held = true
 		_held_turn = 0.0
+		_look_is_own = false
 	if weight <= 0.0:
-		_looked = false
-	elif not _looked:
+		_look_is_own = false
+	elif not _look_is_own:
 		_look = lerpf(_look, look_toward, weight)
 		_held_turn = lerpf(_held_turn, 0.0, weight)
 	basis = eye_pose.basis.orthonormalized() * Basis(Vector3.UP, _held_turn)

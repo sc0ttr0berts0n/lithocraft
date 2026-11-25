@@ -137,7 +137,51 @@ func test_the_column_in_the_bore_hides_the_screens_across_it() -> void:
 	# The Station across the ring from the Reactor, seen through the Bore.
 	var across := faces[3]
 	var eye := Vector3(0, -2.0, -0.85)
+	var look := _toward(eye, across, Vector2.ZERO)
 
-	var under := Pointing.under(eye, _toward(eye, across, Vector2.ZERO), faces, BORE_RADIUS)
+	var hidden := Pointing.under(eye, look, faces, BORE_RADIUS)
+	var with_no_column := Pointing.under(eye, look, faces, 0.0)
 
-	assert_bool(under.is_empty()).is_true()
+	assert_bool(hidden.is_empty()).is_true()
+	assert_int(with_no_column.get("face", -1)).is_equal(3)
+
+
+## A Station built outside the tree, its screen and text made as in the
+## Habitat (_ready builds them; nothing here needs the tree).
+func _station(display: bool) -> GimballedStation:
+	var station: GimballedStation = auto_free(GimballedStation.new())
+	station.station_name = "Test"
+	station._ready()
+	if display:
+		station.show_display(ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGB8)))
+	station.show_reading("first\nsecond")
+	return station
+
+
+func test_a_screens_readings_are_its_lines_top_to_bottom_then_its_display() -> void:
+	for display in [false, true]:
+		var station := _station(display)
+
+		var readings := station.face().readings
+
+		var lines := ["Test", "first", "second"]
+		assert_int(readings.size()).is_equal(lines.size() + (1 if display else 0))
+		for i in lines.size():
+			assert_str(station.reading(i)).is_equal(lines[i])
+			assert_bool(station.is_display(i)).is_false()
+			if i > 0:
+				assert_float(readings[i].end.y).is_less_equal(readings[i - 1].position.y + 0.0001)
+		if display:
+			assert_bool(station.is_display(lines.size())).is_true()
+			assert_float(readings[lines.size()].end.y).is_less_equal(readings[lines.size() - 1].position.y + 0.0001)
+
+
+func test_each_line_of_text_is_pointed_at_from_the_working_pose() -> void:
+	var station := _station(true)
+	var face := station.face()
+	var faces: Array[Pointing.Face] = [face]
+	var eye := station.pose().origin
+	for i in 3:
+		var under := Pointing.under(eye, _toward(eye, face, face.readings[i].get_center()), faces, BORE_RADIUS)
+
+		assert_int(under.reading).is_equal(i)

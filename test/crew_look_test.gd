@@ -80,6 +80,20 @@ func test_a_look_away_during_a_carry_is_kept_not_pulled_back_to_the_screen() -> 
 	assert_float(crew.view().basis.z.dot(looked.basis.z)).is_greater(0.999)
 
 
+func test_let_go_after_looking_during_a_carry_the_next_catch_eases_to_the_screen() -> void:
+	var crew := _crew()
+	var pose := _pose(LEVEL)
+	crew.hold(pose, GimballedStation.pose_look(), 0.1)
+	crew.look(ACROSS + DOWN)  # mid-carry: the crew member's own look
+	crew.step(-LEVEL * 9.8, 0.0)  # let go before arriving
+
+	for i in 120:
+		crew.hold(pose, GimballedStation.pose_look(), 0.1)
+
+	var screen := Basis(Vector3.RIGHT, GimballedStation.pose_look())
+	assert_float(crew.view().basis.z.dot((pose.basis * screen).z)).is_greater(0.999)
+
+
 func test_a_new_carry_begins_by_easing_the_look_to_the_screen() -> void:
 	var crew := _crew()
 	var pose := _pose(LEVEL)

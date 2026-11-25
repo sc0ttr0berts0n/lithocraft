@@ -237,7 +237,7 @@ func face() -> Pointing.Face:
 	var font := _screen_text.font if _screen_text.font else ThemeDB.fallback_font
 	var line_m := (font.get_height(_screen_text.font_size) + _screen_text.line_spacing) \
 			* _screen_text.pixel_size
-	var lines := _screen_text.text.split("\n")
+	var lines := _lines()
 	# The text's top edge, in face coordinates: centred on its place, or
 	# standing on it when set above a display.
 	var top := _screen_text.position.y - SCREEN_CENTRE.y
@@ -255,14 +255,19 @@ func face() -> Pointing.Face:
 ## What the reading at this index of face().readings shows: its line of
 ## screen text, or "" for the display.
 func reading(index: int) -> String:
-	var lines := _screen_text.text.split("\n") if _screen_text else PackedStringArray()
+	var lines := _lines()
 	return lines[index] if index >= 0 and index < lines.size() else ""
 
 
-## True if the reading at this index of face().readings is the display.
+## True if the reading at this index of face().readings is the display: it
+## comes after the last line of text.
 func is_display(index: int) -> bool:
-	return _display != null and _screen_text != null \
-			and index == _screen_text.text.split("\n").size()
+	return _display != null and index == _lines().size()
+
+
+## The screen text's lines, the name first; none on an empty mount.
+func _lines() -> PackedStringArray:
+	return _screen_text.text.split("\n") if _screen_text else PackedStringArray()
 
 
 ## The screen of a Station pivoting at pivot with its cradle at cradle, as a
