@@ -58,11 +58,22 @@ const _GEOTHERMAL_K_PER_M := 0.03
 ## play (ADR 0001).
 const _WEAR_PER_K_S := 1.0e-5
 
-## Navigation's power draw: the share of the Reactor's output the scanner takes
-## while it listens, in the same units as set_power(), with the cost of its
-## pulses averaged in. The power budget (ticket #10) counts this against the
-## Reactor through navigation_draw(). Tuned for play (ADR 0001).
+## Navigation's power request: the scanner's draw while it listens, in the same
+## units as set_power(), with the cost of its pulses averaged in. Tuned for
+## play (ADR 0001).
 const _NAVIGATION_DRAW := 0.05
+
+## The power budget. The Reactor's output in the units of set_power() with the
+## Head running steadily, and with it idling under Quiet Ship. Sized so the
+## Drive at full, Navigation and Thermal's base pumps just fit while the Head
+## runs, and pumping heat into the Column does not. Tuned for play (ADR 0001).
+const _REACTOR_FULL_OUTPUT := 1.1
+const _REACTOR_IDLE_OUTPUT := 0.1
+## Thermal's power request: its pumps always run, and pumping heat into the
+## Column costs more for each share of heat sent there. Tuned for play
+## (ADR 0001).
+const _THERMAL_BASE_DRAW := 0.03
+const _THERMAL_COLUMN_DRAW := 0.2
 
 ## How fast the Head spins down to idle under Quiet Ship, and back up after,
 ## as a share of full running per second. The vessel coasts while it spins
@@ -132,6 +143,18 @@ var _quiet_ship := false
 var _head_activity := 1.0
 ## The vessel's own noise during the last step, 0 when silent.
 var _noise := 0.0
+## The power budget during the last step: the Reactor's output, and what each
+## Station asked for and was given, in the units of set_power().
+var _reactor_output := 0.0
+var _drive_request := 0.0
+var _thermal_request := 0.0
+var _navigation_request := 0.0
+var _drive_draw := 0.0
+var _thermal_draw := 0.0
+var _navigation_draw := 0.0
+## How steady the Head's plasma is, 0 (lost) to 1 (steady). The Reactor's
+## output scales with it. Always steady until the Shift (ticket #11).
+var _plasma_stability := 1.0
 ## Navigation's point cloud, oldest first, and whether a pulse is waiting to
 ## be sent on the next step.
 var _points: Array[ScanPoint] = []
@@ -146,6 +169,7 @@ func _init(layout: MediumLayout) -> void:
 	_vessel_temperature = surroundings_temperature()
 	_hull_settling_at = _vessel_temperature
 	_scan_random.seed = 13
+	_share_power()
 
 
 # --- Commands -------------------------------------------------------------
@@ -187,7 +211,8 @@ func advance(dt: float) -> void:
 	_pitch = move_toward(_pitch, _pitch_setting, _PITCH_RATE * dt)
 	_head_activity = move_toward(_head_activity, 0.0 if _quiet_ship else 1.0,
 			_HEAD_SPIN_RATE * dt)
-	var power := _power * _head_activity
+	_share_power()
+	var power := _drive_draw
 	var medium := _layout.medium_at(_depth)
 	# The grip waves can only push as hard as the wall holds; the rest slips.
 	var grip := medium.strength * _GRIP_PER_STRENGTH
@@ -195,9 +220,11 @@ func advance(dt: float) -> void:
 	_slip = 0.0 if power <= 0.0 else (power - gripped_power) / power
 	_speed = _FULL_POWER_SPEED * gripped_power / medium.hardness
 	# Every system that draws power makes heat: the Drive (power lost to slip
-	# included; less while the Head idles) and Navigation.
-	_heat_produced = (power + navigation_draw()) * _HEAT_PER_POWER
-	_heat_to_column = _heat_produced * _heat_split
+	# included; less while the Head idles), Thermal and Navigation.
+	_heat_produced = power_drawn() * _HEAT_PER_POWER
+	# Heat reaches the Column only as far as Thermal's pumps are powered; the
+	# rest goes out through the hull.
+	_heat_to_column = _heat_produced * _heat_split * thermal_supplied()
 	_shed_heat_outward(_heat_produced - _heat_to_column, dt)
 	_noise = _head_activity * _HEAD_HUM + _DRIVE_NOISE * power * (1.0 + _slip)
 	var travelled := _speed * dt
@@ -276,10 +303,75 @@ func noise() -> float:
 	return _noise
 
 
-## Navigation's power draw, as a share of the Reactor's output in the same
-## units as set_power(). For the power budget (ticket #10) to count.
+## The Reactor's output during the last step: the power the Stations share,
+## in the units of set_power(). Lower while the Head idles under Quiet Ship,
+## and with an unsteady plasma.
+func reactor_output() -> float:
+	return _reactor_output
+
+
+## How steady the Head's plasma is, 0 (lost) to 1 (steady).
+func plasma_stability() -> float:
+	return _plasma_stability
+
+
+## How hard the Head is running, 0 (idle, Quiet Ship) to 1 (running).
+func head_activity() -> float:
+	return _head_activity
+
+
+## Power every Station asked for in the last step. May exceed reactor_output().
+func power_requested() -> float:
+	return _drive_request + _thermal_request + _navigation_request
+
+
+## Power every Station was given in the last step. Never exceeds
+## reactor_output().
+func power_drawn() -> float:
+	return _drive_draw + _thermal_draw + _navigation_draw
+
+
+## Power each Station asked for in the last step. The Drive asks for its power
+## setting (less while the Head idles); Thermal for its pumps, more the more
+## heat it sends into the Column; Navigation for the scanner.
+func drive_request() -> float:
+	return _drive_request
+
+
+func thermal_request() -> float:
+	return _thermal_request
+
+
+func navigation_request() -> float:
+	return _navigation_request
+
+
+## Power each Station was given in the last step: its request, unless the
+## Reactor ran short (see _share_power() for the rule).
+func drive_draw() -> float:
+	return _drive_draw
+
+
+func thermal_draw() -> float:
+	return _thermal_draw
+
+
 func navigation_draw() -> float:
-	return _NAVIGATION_DRAW
+	return _navigation_draw
+
+
+## Share of its request each Station was given in the last step, 0 to 1. Below
+## 1 the Station is starved.
+func drive_supplied() -> float:
+	return _supplied(_drive_draw, _drive_request)
+
+
+func thermal_supplied() -> float:
+	return _supplied(_thermal_draw, _thermal_request)
+
+
+func navigation_supplied() -> float:
+	return _supplied(_navigation_draw, _navigation_request)
 
 
 ## Navigation's point cloud: every point every pulse has returned this dive,
@@ -365,6 +457,33 @@ func hull_warning_temperature() -> float:
 ## Hull temperature in kelvin above which heat wears the vessel. For gauges.
 func hull_damage_temperature() -> float:
 	return _HULL_DAMAGE_K
+
+
+# --- Power ----------------------------------------------------------------
+
+## Shares the Reactor's output among the Stations for this step. The shortfall
+## rule: when the Stations ask for more than the Reactor supplies, they are
+## served in a fixed order, Navigation, then Thermal, then the Drive, each
+## given all it asks for while power lasts, the next whatever is left. So
+## asking more of the Drive only throttles the Drive, while Thermal or
+## Navigation asking more takes power from the Drive, and only a Reactor short
+## of even their needs starves them.
+func _share_power() -> void:
+	_reactor_output = _plasma_stability * lerpf(_REACTOR_IDLE_OUTPUT,
+			_REACTOR_FULL_OUTPUT, _head_activity)
+	_navigation_request = _NAVIGATION_DRAW
+	_thermal_request = _THERMAL_BASE_DRAW + _THERMAL_COLUMN_DRAW * _heat_split
+	_drive_request = _power * _head_activity
+	var left := _reactor_output
+	_navigation_draw = minf(_navigation_request, left)
+	left -= _navigation_draw
+	_thermal_draw = minf(_thermal_request, left)
+	left -= _thermal_draw
+	_drive_draw = minf(_drive_request, left)
+
+
+static func _supplied(drawn: float, requested: float) -> float:
+	return 1.0 if requested <= 0.0 else drawn / requested
 
 
 # --- Heat -----------------------------------------------------------------
@@ -468,7 +587,8 @@ func _send_pulse() -> void:
 		var direction := ahead * c + (side * cos(turn) + other_side * sin(turn)) * s
 		for echo in _echoes_along(direction, boundaries):
 			var r: float = echo[0]
-			var strength: float = echo[1]
+			# A starved scanner listens less keenly: its echoes come back weaker.
+			var strength: float = echo[1] * navigation_supplied()
 			var confidence := strength / (strength + _noise + _SCAN_NOISE_FLOOR)
 			if _scan_random.randf() > confidence:
 				continue
