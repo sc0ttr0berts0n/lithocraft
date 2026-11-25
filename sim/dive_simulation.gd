@@ -19,9 +19,25 @@ const _GRIP_PER_STRENGTH := 2.0
 ## Tuned for play (ADR 0001).
 const _SURVEY_STRETCH_M := 10.0
 
+## Habitat frame: the fixed axes of the vessel that felt_acceleration() is
+## given in. TOWARD_HEAD runs along the Bore toward the Head. TOWARD_UNDERSIDE
+## is the outer wall that is underneath when the vessel is level.
+const TOWARD_HEAD := Vector3.FORWARD
+const TOWARD_UNDERSIDE := Vector3.DOWN
+
+## How fast the vessel pitches toward its setting, degrees per second.
+## Slow enough to keep footing as "down" turns. Tuned for play (ADR 0001);
+## tests must not depend on its value.
+const _PITCH_RATE := 5.0
+
+## Earth's surface gravity, m/s^2.
+const _GRAVITY := 9.81
+
 var _layout: MediumLayout
 var _power := 0.0
 var _depth := 0.0
+var _pitch := 90.0
+var _pitch_setting := 90.0
 var _speed := 0.0
 var _slip := 0.0
 ## Metres travelled along the path since the dive began. The path is straight
@@ -48,9 +64,16 @@ func set_power(power: float) -> void:
 	_power = clampf(power, 0.0, 1.0)
 
 
+## Drive: the pitch to steer toward, in degrees. +90 is nose straight down
+## (diving), 0 is level, -90 is nose straight up (climbing).
+func set_pitch(degrees: float) -> void:
+	_pitch_setting = clampf(degrees, -90.0, 90.0)
+
+
 # --- Time step ------------------------------------------------------------
 
 func advance(dt: float) -> void:
+	_pitch = move_toward(_pitch, _pitch_setting, _PITCH_RATE * dt)
 	var medium := _layout.medium_at(_depth)
 	# The grip waves can only push as hard as the wall holds; the rest slips.
 	var grip := medium.strength * _GRIP_PER_STRENGTH
@@ -68,6 +91,19 @@ func advance(dt: float) -> void:
 ## Metres below the surface. Increases as the Lithocraft dives.
 func depth() -> float:
 	return _depth
+
+
+## Degrees. +90 is nose straight down (diving), 0 level, -90 nose straight up.
+func pitch() -> float:
+	return _pitch
+
+
+## The acceleration the crew feel in the Habitat, in m/s^2 in the Habitat
+## frame, pointing the way things fall: the crew's "down". Gravity seen from
+## inside the vessel.
+func felt_acceleration() -> Vector3:
+	var th := deg_to_rad(_pitch)
+	return (TOWARD_UNDERSIDE * cos(th) + TOWARD_HEAD * sin(th)) * _GRAVITY
 
 
 ## Metres per second along the path during the last step.

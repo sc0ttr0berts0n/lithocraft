@@ -5,7 +5,7 @@ config_version=5
 [application]
 
 config/name="Lithocraft"
-run/main_scene="res://view/dive_view.tscn"
+run/main_scene="res://view/habitat.tscn"
 config/features=PackedStringArray("4.7")
 
 [editor_plugins]

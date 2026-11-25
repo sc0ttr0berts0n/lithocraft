@@ -1,13 +1,15 @@
 ## Bare view of a dive: reads the simulation and sends it commands.
-## Holds no game state of its own.
+## Holds no game state of its own. The scene that owns the simulation
+## advances it and hands it over with attach().
 ##
-## Slip is shown here until the Habitat exists (ticket #3): a red SLIP bar and
-## label that shake with slip, and a placeholder grinding noise whose loudness
-## follows DiveSimulation.slip().
+## Slip is shown here as an overlay on the Habitat: a red SLIP bar and
+## label that shake with slip, and a placeholder grinding noise whose
+## loudness follows DiveSimulation.slip().
 ##
-## The Column and the Bore Station survey are shown here too until the Habitat
-## (ticket #3) has a Bore and a Bore Station: a ColumnStrip on the left that
-## scrolls with the simulation, and a SurveyPanel on the right.
+## The Column and the Bore Station survey are shown here too, until the
+## Habitat's Bore and Bore Station read them: a ColumnStrip on the right edge that
+## scrolls with the simulation, and a SurveyPanel beside it.
+class_name DiveView
 extends Control
 
 const POWER_STEP := 0.1
@@ -18,7 +20,7 @@ const SLIP_LOUDEST_DB := -6.0
 ## How far the slip readout shakes at full slip, in pixels.
 const SLIP_SHAKE_PX := 6.0
 
-var _sim := DiveSimulation.new(MediumLayout.first_dive())
+var _sim: DiveSimulation
 var _slip_player: AudioStreamPlayer
 ## Low-passed noise state and a slow judder phase for the grinding sound.
 var _grind := 0.0
@@ -36,9 +38,14 @@ var _judder_phase := 0.0
 
 
 func _ready() -> void:
-	_column_strip.sim = _sim
-	_survey_panel.sim = _sim
 	_power_slider.value_changed.connect(_on_power_changed)
+
+
+## Start reading and commanding this simulation.
+func attach(sim: DiveSimulation) -> void:
+	_sim = sim
+	_column_strip.sim = sim
+	_survey_panel.sim = sim
 	_on_power_changed(_power_slider.value)
 	_start_slip_sound()
 
@@ -50,8 +57,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		_power_slider.value -= POWER_STEP
 
 
-func _physics_process(delta: float) -> void:
-	_sim.advance(delta)
+func _physics_process(_delta: float) -> void:
+	if not _sim:
+		return
 	_depth_label.text = "Depth: %.1f m" % _sim.depth()
 	_medium_label.text = "Medium: %s" % String(_sim.medium().name).capitalize()
 	_speed_label.text = "Speed: %.2f m/s" % _sim.speed()
@@ -59,11 +67,13 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(_delta: float) -> void:
-	_feed_slip_sound(_sim.slip())
+	if _sim:
+		_feed_slip_sound(_sim.slip())
 
 
 func _on_power_changed(value: float) -> void:
-	_sim.set_power(value)
+	if _sim:
+		_sim.set_power(value)
 	_power_label.text = "Power: %d%%" % roundi(value * 100.0)
 
 
