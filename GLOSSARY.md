@@ -48,6 +48,10 @@ _Avoid_: Gear change, transition, retune
 The state in which the Lithocraft halts and idles its Head so Navigation can take a clean scan.
 _Avoid_: Silent running, scan mode
 
+**Arm**:
+The chain-arm that rides a rail around the Bore, catches a crew member by their harness and carries them between Stations whatever "down" is.
+_Avoid_: Crane, grabber, lift, tether
+
 ## Stations
 
 **Station**:
