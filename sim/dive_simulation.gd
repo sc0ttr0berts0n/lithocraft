@@ -76,31 +76,6 @@ const _FAST_LINK_RATE := 2.0
 ## sound_carrying is 1. Far below the fast link. Tuned for play (ADR 0001).
 const _SLOW_LINK_RATE := 0.02
 
-## Heat made per second for each unit of power drawn. Every system that draws
-## power makes heat. Tuned for play (ADR 0001).
-const _HEAT_PER_POWER := 1.0
-## Heat per metre of Column that halves the quality the Bore Station can
-## record. Tuned for play (ADR 0001).
-const _COLUMN_COOK_HEAT_PER_M := 2.0
-## How much heat per second the hull sheds into the surrounding Medium for each
-## kelvin it is hotter than the Medium. Tuned for play (ADR 0001).
-const _HULL_SHED_PER_K := 1.0 / 400.0
-## Heat it takes to warm the hull by one kelvin, so the hull warms and cools
-## over a minute or so rather than at once. Tuned for play (ADR 0001).
-const _HULL_HEAT_PER_K := 0.15
-## Hull temperature in kelvin above which heat damages the vessel. Tuned for
-## play (ADR 0001).
-const _HULL_DAMAGE_K := 600.0
-## How far below _HULL_DAMAGE_K the hull's own temperature brings on the heat
-## warning. Tuned for play (ADR 0001).
-const _HULL_WARNING_MARGIN_K := 50.0
-## How much warmer the ground gets per metre of depth, in kelvin. Earth's crust
-## warms by about 0.025 K/m; tuned for play (ADR 0001).
-const _GEOTHERMAL_K_PER_M := 0.03
-## Wear per second for each kelvin the hull is above _HULL_DAMAGE_K. Tuned for
-## play (ADR 0001).
-const _WEAR_PER_K_S := 1.0e-5
-
 ## Navigation's power request: the scanner's draw while it listens, in the same
 ## units as set_power(), with the cost of its pulses averaged in. Tuned for
 ## play (ADR 0001).
@@ -266,16 +241,8 @@ var _speed := 0.0
 var _slip := 0.0
 ## Thermal: the share of heat sent into the Column; the rest goes outward.
 var _heat_split := 0.0
-## Heat made in the last step, per second.
-var _heat_produced := 0.0
-## Heat sent into the Column in the last step, per second.
-var _heat_to_column := 0.0
-## The hull's temperature in kelvin. Heat sent outward passes through it.
-var _vessel_temperature := 0.0
-## The temperature the hull is heading for at the heat now sent outward.
-var _hull_settling_at := 0.0
-## Damage done to the vessel by heat, 0 (none) to 1.
-var _vessel_wear := 0.0
+## The vessel's heat and the hull it passes through (sim/heat.gd).
+var _heat: Heat
 ## Metres travelled along the path since the dive began.
 var _distance := 0.0
 ## Completed survey entries, oldest first.
@@ -378,8 +345,7 @@ var _paid_before_dive := 0.0
 
 func _init(layout: MediumLayout) -> void:
 	_layout = layout
-	_vessel_temperature = surroundings_temperature()
-	_hull_settling_at = _vessel_temperature
+	_heat = Heat.new(surroundings_temperature())
 	_scan_random.seed = 13
 	_tuning = plasma_frequency()
 	_share_power()
@@ -568,11 +534,10 @@ func _step(dt: float) -> void:
 	# Every system that draws power makes heat: the Drive (power lost to slip
 	# included; less while the Head idles; more while it steers), Thermal and
 	# Navigation. A poor Shift's grinding adds a spike.
-	_heat_produced = power_drawn() * _HEAT_PER_POWER + _heat_spike
 	# Heat reaches the Column only as far as Thermal's pumps are powered; the
 	# rest goes out through the hull.
-	_heat_to_column = _heat_produced * _heat_split * thermal_supplied()
-	_shed_heat_outward(_heat_produced - _heat_to_column, dt)
+	_heat.step(power_drawn(), _heat_spike, _heat_split, thermal_supplied(),
+			surroundings_temperature(), dt)
 	_noise = _head_activity * _HEAD_HUM + _DRIVE_NOISE * power * (1.0 + _slip)
 	var depth_before := depth()
 	# The Head moves along its arc, turning toward the Drive's settings.
@@ -1054,55 +1019,54 @@ func uploaded_survey() -> Array[SurveyStretch]:
 
 ## Heat made in the last step by everything that draws power, per second.
 func heat_produced() -> float:
-	return _heat_produced
+	return _heat.produced()
 
 
 ## Heat sent into the Column in the last step, per second.
 func heat_to_column() -> float:
-	return _heat_to_column
+	return _heat.to_column()
 
 
 ## Heat sent outward through the hull in the last step, per second.
 func heat_outward() -> float:
-	return _heat_produced - _heat_to_column
+	return _heat.outward()
 
 
 ## The hull's temperature in kelvin. Heat sent outward warms it until it is hot
 ## enough above the surrounding Medium to shed that heat.
 func vessel_temperature() -> float:
-	return _vessel_temperature
+	return _heat.vessel_temperature()
 
 
 ## Temperature in kelvin of the Medium around the vessel now: the Medium's own
 ## temperature plus the planet's warming with depth, so it rises even within
 ## one Medium and the hull has less room to shed heat the deeper it goes.
 func surroundings_temperature() -> float:
-	return _layout.medium_at(depth()).temperature + _GEOTHERMAL_K_PER_M * depth()
+	return Heat.surroundings(_layout.medium_at(depth()), depth())
 
 
 ## Damage heat has done to the vessel so far, 0 (none) to 1. It only grows
 ## while the hull is hotter than it can bear.
 func vessel_wear() -> float:
-	return _vessel_wear
+	return _heat.vessel_wear()
 
 
 ## True while heat threatens the vessel: the hull is close to the temperature
 ## at which heat damages it, or the heat now sent outward will take it past
 ## that if nothing changes. Comes on before any damage is done.
 func heat_warning() -> bool:
-	return _vessel_temperature >= hull_warning_temperature() \
-			or _hull_settling_at > hull_damage_temperature()
+	return _heat.warning()
 
 
 ## Hull temperature in kelvin at which heat_warning() comes on regardless of
 ## where the hull is heading. For gauges.
 func hull_warning_temperature() -> float:
-	return _HULL_DAMAGE_K - _HULL_WARNING_MARGIN_K
+	return _heat.warning_temperature()
 
 
 ## Hull temperature in kelvin above which heat wears the vessel. For gauges.
 func hull_damage_temperature() -> float:
-	return _HULL_DAMAGE_K
+	return _heat.damage_temperature()
 
 
 # --- Steering -------------------------------------------------------------
@@ -1336,7 +1300,7 @@ func _update_calls() -> void:
 	var calls := {}
 	_reactor_call(calls)
 	if heat_warning():
-		var over := (_vessel_temperature - hull_warning_temperature()) \
+		var over := (vessel_temperature() - hull_warning_temperature()) \
 				/ (hull_damage_temperature() - hull_warning_temperature())
 		_offer_call(calls, STATION_THERMAL, &"heat_warning", _urgency(_HEAT_WARNING_CALL, over))
 	for starved in [[STATION_THERMAL, thermal_supplied()], [STATION_NAVIGATION, navigation_supplied()]]:
@@ -1430,7 +1394,7 @@ func _make_shift(frequency: float, by_autopilot: bool) -> void:
 	# A poor Shift grinds: the rougher, the bigger the heat spike, the harder
 	# the lurch and the more wear on the Head. A clean one does nothing at all.
 	var roughness := clampf((_CLEAN_SHIFT_GRADE - grade) / _CLEAN_SHIFT_GRADE, 0.0, 1.0)
-	var wear := roughness * _SHIFT_WEAR * (1.0 + _HOT_SHIFT_WEAR * _hull_heat_share())
+	var wear := roughness * _SHIFT_WEAR * (1.0 + _HOT_SHIFT_WEAR * _heat.hull_heat_share(surroundings_temperature()))
 	if roughness > 0.0:
 		_heat_spike += roughness * _SHIFT_SPIKE_HEAT
 		_lurch_peak = roughness * _LURCH_ACCELERATION
@@ -1442,14 +1406,6 @@ func _make_shift(frequency: float, by_autopilot: bool) -> void:
 	if _head_wear >= 1.0:
 		_plasma_lost = true
 		_events.append({type = &"plasma_lost", depth = depth(), distance = _distance})
-
-
-## How hot the hull is, from as cool as the Medium around it (0) to the
-## temperature it can bear (1). A Shift with the hull hot is under bad
-## conditions.
-func _hull_heat_share() -> float:
-	var cool := surroundings_temperature()
-	return clampf((_vessel_temperature - cool) / (_HULL_DAMAGE_K - cool), 0.0, 1.0)
 
 
 ## How far the tuning is from the plasma's wobble, as a share of its frequency.
@@ -1632,21 +1588,6 @@ func _next_to_send() -> SurveyStretch:
 	return _waiting[0]
 
 
-# --- Heat -----------------------------------------------------------------
-
-## Passes heat outward through the hull for dt seconds. The hull settles toward
-## the temperature at which it sheds that heat into the Medium, and wears for
-## as long as it is above the temperature it can bear.
-func _shed_heat_outward(heat: float, dt: float) -> void:
-	_hull_settling_at = surroundings_temperature() + heat / _HULL_SHED_PER_K
-	var toward := exp(-dt * _HULL_SHED_PER_K / _HULL_HEAT_PER_K)
-	_vessel_temperature = _hull_settling_at \
-			+ (_vessel_temperature - _hull_settling_at) * toward
-	var overheat := _vessel_temperature - _HULL_DAMAGE_K
-	if overheat > 0.0:
-		_vessel_wear = minf(1.0, _vessel_wear + _WEAR_PER_K_S * overheat * dt)
-
-
 # --- Survey ---------------------------------------------------------------
 
 ## Records the Column passing through the Bore between two distances along the
@@ -1693,19 +1634,7 @@ func _close_stretch(length := _SURVEY_STRETCH_M) -> void:
 ## Ship shuttering the Bore instruments (ticket #13) lower it here.
 func _recording_quality() -> float:
 	var shutter := _SHUTTERED_QUALITY if shuttered() else 1.0
-	return shutter * _unheated_share()
-
-
-## How much of the Column's record survives the heat sent into it, 0 to 1. What
-## spoils it is the heat each metre of Column takes up: the same heat spread
-## over more Column (moving faster) cooks each metre less.
-func _unheated_share() -> float:
-	if _heat_to_column <= 0.0:
-		return 1.0
-	if _speed <= 0.0:
-		return 0.0
-	var heat_per_metre := _heat_to_column / _speed
-	return 1.0 / (1.0 + heat_per_metre / _COLUMN_COOK_HEAT_PER_M)
+	return shutter * _heat.unheated_share(_speed)
 
 
 ## The Medium of the Column at a distance along the path: the Medium at the
