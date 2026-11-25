@@ -51,3 +51,43 @@ func test_at_equal_power_the_lithocraft_advances_faster_in_sand_than_granite() -
 		granite.advance(10.0)
 
 		assert_float(sand.depth()).is_greater(granite.depth())
+
+
+## A Medium far too weak to push against at any real power. Test values, not
+## tuned constants: only "much weaker than sand" matters.
+func _loose_powder() -> Medium:
+	return Medium.new(&"loose powder", 1.0, 0.01, 0.6, 300.0, 0.1, {&"quartz": 1.0}, 0.1)
+
+
+func test_asking_for_more_power_than_grip_allows_slips_instead_of_speeding_up() -> void:
+	var moderate := DiveSimulation.new(MediumLayout.uniform(_loose_powder()))
+	var full := DiveSimulation.new(MediumLayout.uniform(_loose_powder()))
+
+	moderate.set_power(0.5)
+	full.set_power(1.0)
+	moderate.advance(10.0)
+	full.advance(10.0)
+
+	assert_float(full.depth()).is_equal_approx(moderate.depth(), 0.0001)
+	assert_float(full.slip()).is_greater(moderate.slip())
+
+
+func test_power_within_grip_does_not_slip() -> void:
+	var sim := DiveSimulation.new(MediumLayout.uniform(Medium.granite()))
+
+	sim.set_power(0.01)
+	sim.advance(1.0)
+
+	assert_float(sim.slip()).is_equal(0.0)
+
+
+func test_stronger_medium_grips_better_at_the_same_power() -> void:
+	var weak := DiveSimulation.new(MediumLayout.uniform(Medium.sand()))
+	var strong := DiveSimulation.new(MediumLayout.uniform(Medium.granite()))
+
+	weak.set_power(1.0)
+	strong.set_power(1.0)
+	weak.advance(1.0)
+	strong.advance(1.0)
+
+	assert_float(weak.slip()).is_greater(strong.slip())
