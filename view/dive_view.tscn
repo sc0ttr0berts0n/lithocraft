@@ -84,7 +84,7 @@ step = 0.01
 
 [node name="Hint" type="Label" parent="Panel"]
 layout_mode = 2
-text = "Up / Down arrows or the slider set Drive power"
+text = "Drive power is set at the Drive Station"
 horizontal_alignment = 1
 
 [node name="ColumnStrip" type="Control" parent="."]

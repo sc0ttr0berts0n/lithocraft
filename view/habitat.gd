@@ -20,7 +20,10 @@ const STATIONS := [
 	["Bore Station", Color("b9ff6a")],
 	["", Color.GRAY],
 ]
+## How much one press moves each Drive Station setting.
 const PITCH_STEP := 15.0
+const HEADING_STEP := 15.0
+const POWER_STEP := 0.1
 ## The Column inside the Bore glass.
 const COLUMN_RADIUS := BORE_RADIUS - 0.08
 ## How far the Habitat's Head-side wall is behind the Head, in metres: the
@@ -36,7 +39,10 @@ const HEAT_SPLIT_STEP := 0.1
 const STATION_REACH := 2.0
 
 var _sim := DiveSimulation.new(MediumLayout.first_dive())
+## Drive Station settings: they hold when the crew walks away.
 var _pitch_setting := 90.0
+var _heading_setting := 0.0
+var _power_setting := 0.0
 var _stations: Array[GimballedStation] = []
 var _drive: GimballedStation
 var _thermal: GimballedStation
@@ -50,6 +56,8 @@ var _crew := CrewMember.new()
 
 func _ready() -> void:
 	_sim.set_pitch(_pitch_setting)
+	_sim.set_heading(_heading_setting)
+	_sim.set_power(_power_setting)
 	_sim.set_heat_split(_heat_split)
 	_dive_view.attach(_sim)
 	_build_room()
@@ -70,11 +78,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match (event as InputEventKey).physical_keycode:
-			KEY_1: _steer(90.0)
-			KEY_2: _steer(0.0)
-			KEY_3: _steer(-90.0)
-			KEY_Z: _steer(_pitch_setting - PITCH_STEP)
-			KEY_X: _steer(_pitch_setting + PITCH_STEP)
+			KEY_1: _set_pitch(90.0)
+			KEY_2: _set_pitch(0.0)
+			KEY_3: _set_pitch(-90.0)
+			KEY_Z: _set_pitch(_pitch_setting - PITCH_STEP)
+			KEY_X: _set_pitch(_pitch_setting + PITCH_STEP)
+			KEY_J: _set_heading(_heading_setting - HEADING_STEP)
+			KEY_L: _set_heading(_heading_setting + HEADING_STEP)
+			KEY_T: _set_power(_power_setting + POWER_STEP)
+			KEY_G: _set_power(_power_setting - POWER_STEP)
 			KEY_C: _split_heat(_heat_split - HEAT_SPLIT_STEP)
 			KEY_V: _split_heat(_heat_split + HEAT_SPLIT_STEP)
 			KEY_P: _sim.pulse()
@@ -88,8 +100,7 @@ func _physics_process(delta: float) -> void:
 	var up := -felt.normalized()
 	for station in _stations:
 		station.follow_up(up, delta)
-	_drive.show_reading("Depth %.1f m\nPitch %+.0f deg (set %+.0f)" % [
-		_sim.depth(), _sim.pitch(), _pitch_setting])
+	_show_drive()
 	_show_thermal()
 	_navigation.show_reading("%s  noise %d%%  %d points  draw %d%%\n[P] pulse  [Q] Quiet Ship" % [
 		"QUIET SHIP" if _sim.quiet_ship() else "under way",
@@ -97,15 +108,52 @@ func _physics_process(delta: float) -> void:
 		roundi(_sim.navigation_draw() * 100.0)])
 
 
-## Stand-in pitch control until the Drive Station has its own.
-func _steer(pitch: float) -> void:
+## Whether the crew member can work this Station: within reach of it.
+func _at(station: GimballedStation) -> bool:
+	return _crew.position.distance_to(station.position) <= STATION_REACH
+
+
+## Drive Station: pitch to steer toward. Only within reach of the Drive.
+func _set_pitch(pitch: float) -> void:
+	if not _at(_drive):
+		return
 	_pitch_setting = clampf(pitch, -90.0, 90.0)
 	_sim.set_pitch(_pitch_setting)
 
 
+## Drive Station: compass heading to steer toward.
+func _set_heading(heading: float) -> void:
+	if not _at(_drive):
+		return
+	_heading_setting = fposmod(heading, 360.0)
+	_sim.set_heading(_heading_setting)
+
+
+## Drive Station: share of power sent to advancing.
+func _set_power(power: float) -> void:
+	if not _at(_drive):
+		return
+	_power_setting = clampf(snappedf(power, POWER_STEP), 0.0, 1.0)
+	_sim.set_power(_power_setting)
+
+
+## The Drive Station's screen: depth, heading, pitch and speed, each with the
+## setting it is steering toward, and how hard the Head is steering (turning
+## heats one side of it harder).
+func _show_drive() -> void:
+	var lines := [
+		"Depth %.1f m  Speed %.2f m/s" % [_sim.depth(), _sim.speed()],
+		"Heading %03.0f (set %03.0f)" % [_sim.heading_degrees(), _heading_setting],
+		"Pitch %+.0f deg (set %+.0f)" % [_sim.pitch(), _pitch_setting],
+		"Power %d%%  Steer %d%%" % [
+			roundi(_power_setting * 100.0), roundi(_sim.steering() * 100.0)],
+	]
+	_drive.show_reading("\n".join(lines))
+
+
 ## The heat split is worked at the Thermal Station: only within reach of it.
 func _split_heat(to_column: float) -> void:
-	if _crew.position.distance_to(_thermal.position) > STATION_REACH:
+	if not _at(_thermal):
 		return
 	_heat_split = clampf(snappedf(to_column, HEAT_SPLIT_STEP), 0.0, 1.0)
 	_sim.set_heat_split(_heat_split)
@@ -215,7 +263,7 @@ func _build_stations() -> void:
 		var station := GimballedStation.new()
 		station.station_name = STATIONS[i][0]
 		station.hue = STATIONS[i][1]
-		if station.station_name == "Thermal":
+		if station.station_name in ["Thermal", "Drive"]:
 			station.screen_font_size = 28
 		station.position = outward * pivot_radius
 		add_child(station)
