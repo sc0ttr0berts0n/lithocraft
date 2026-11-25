@@ -135,10 +135,12 @@ func test_rescue_first_brings_the_crew_home_with_the_data_and_bills_the_rescue()
 	assert_float(sim.unsold_value()).is_equal(0.0)
 	assert_int(paid_event.size()).is_equal(1)
 	assert_float(paid_event[0].carried_home).is_greater_equal(aboard)
-	# ...less the rescue and the repairs, each a line in the breakdown.
+	# ...less the rescue and the repairs, each a line in the breakdown, any of
+	# the bill beyond what the dive earned covered.
 	assert_float(paid_event[0].rescue).is_greater(0.0)
 	assert_float(sim.paid()).is_equal_approx(paid + paid_event[0].carried_home
-			- paid_event[0].rescue - paid_event[0].hull_repair - paid_event[0].head_repair, 0.001)
+			- paid_event[0].rescue - paid_event[0].hull_repair - paid_event[0].head_repair
+			+ paid_event[0].covered, 0.001)
 	assert_float(paid_event[0].head_repair).is_greater(0.0)
 
 
@@ -154,6 +156,28 @@ func test_a_longer_rescue_costs_more() -> void:
 
 	assert_float(slow_rescue.rescue_time).is_greater(quick_rescue.rescue_time)
 	assert_float(slow_seen.back().rescue).is_greater(quick_seen.back().rescue)
+
+
+func test_a_rescue_billed_beyond_what_the_dive_earned_pays_nothing_and_covers_the_rest() -> void:
+	# Deep down sealed rock, with every bit of heat sent into the Column so
+	# little of the record survives: the long rescue costs more than it earned.
+	var sim := _stranded(MediumLayout.uniform(_hot_dense(300.0)), 300.0)
+	var paid := sim.paid()
+	var seen := []
+
+	DiveTestKit.run_until(sim, &"rescued", 100000.0, seen, 1.0)
+	var bill: Dictionary = seen.back()
+
+	assert_str(bill.type).is_equal(&"paid")
+	var earned: float = bill.by_link + bill.carried_home
+	var repairs: float = bill.rescue + bill.hull_repair + bill.head_repair
+	assert_float(repairs).is_greater(earned)
+	# The dive pays exactly nothing, never less: what was paid before is kept.
+	assert_float(bill.amount).is_equal(0.0)
+	assert_float(sim.paid()).is_equal_approx(paid, 0.001)
+	# The breakdown still bills every line, and says what was covered.
+	assert_float(bill.rescue).is_greater(0.0)
+	assert_float(bill.covered).is_equal_approx(repairs - earned, 0.001)
 
 
 func test_clock_first_is_death_losing_what_was_not_uploaded() -> void:
