@@ -153,6 +153,12 @@ func rescue_left() -> float:
 	return maxf(_rescue_takes - _waited, 0.0)
 
 
+## Seconds since the Lithocraft was stranded: still counting while stranded,
+## kept once the crew dies, and 0 once relit (the stranding is over).
+func stranded_for() -> float:
+	return _waited
+
+
 ## Seconds the rescue took, from the stranding to its arrival.
 func rescue_took() -> float:
 	return _rescue_takes

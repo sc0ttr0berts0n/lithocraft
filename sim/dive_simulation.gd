@@ -332,6 +332,8 @@ var _self_destructing := false
 var _crew_settings := {}
 ## Why the crew died (&"heat" or &"self_destruct"), or &"" while alive.
 var _death_cause := &""
+## How the dive ended (see outcome()), set once it ends; empty under way.
+var _outcome := {}
 
 
 func _init(layout: MediumLayout) -> void:
@@ -1212,7 +1214,8 @@ func survey_value() -> float:
 ##   &"tunnel_sealed" {distance}: the melt has filled the tunnel behind the
 ##       Tail; the link to the surface is now the slow one.
 ##   &"boundary_approaching", &"boundary_crossed", &"shift_result",
-##       &"plasma_lost": see ticket #11 (shift_test.gd).
+##       &"plasma_lost" {cause, depth, distance}: see ticket #11
+##       (shift_test.gd); `cause` as outcome()'s plasma_lost_by.
 ##   &"station_call" {station, reason, urgency}: a Station has begun calling,
 ##       or calls for a new reason (see call_reason()). The time rate returns
 ##       to normal.
@@ -1324,6 +1327,29 @@ func can_self_destruct() -> bool:
 ## event's `cause`), or &"" while they live.
 func cause_of_death() -> StringName:
 	return _death_cause
+
+
+## How the dive ended and why, in one Dictionary, for the outcome screen:
+##   ending: &"under_way" (not over yet), &"surfaced" (under its own power),
+##       &"brought_home" (the plasma lost with the tunnel open), &"rescued" or
+##       &"dead".
+##   cause: why it ended so. Dead: &"heat" or &"self_destruct" (as
+##       cause_of_death()). Brought home or rescued: why the plasma was lost
+##       (as plasma_lost_by). Surfaced or under way: &"".
+##   plasma_lost_by: why the plasma is lost, &"disrupted" (a rough Shift on a
+##       badly worn Head), &"worn_through" (a poor Shift wore the Head through)
+##       or &"debug"; &"" while it holds (or was relit).
+##   stranded_for: seconds the crew was stranded: rescued, what the rescue
+##       took; dead, how long they waited before the hull failed; stranded
+##       under way, so far; otherwise 0.
+##   depth: where the dive ended, in metres (0 surfaced; the depth now under
+##       way).
+## It holds until new_dive().
+func outcome() -> Dictionary:
+	if not _outcome.is_empty():
+		return _outcome.duplicate()
+	return {ending = &"under_way", cause = &"", plasma_lost_by = _plasma.lost_by(),
+			stranded_for = _stranding.stranded_for() if stranded() else 0.0, depth = depth()}
 
 
 ## How far the crew has held the self-destruct command toward starting it, 0
@@ -1960,6 +1986,8 @@ func _die() -> void:
 	var lost := _lose_unsold()
 	var cause := &"self_destruct" if _self_destructing else &"heat"
 	_death_cause = cause
+	_outcome = {ending = &"dead", cause = cause, plasma_lost_by = _plasma.lost_by(),
+			stranded_for = _stranding.stranded_for(), depth = depth()}
 	_self_destructing = false
 	_speed = 0.0
 	_slip = 0.0
@@ -2029,6 +2057,10 @@ func _surface() -> void:
 ## `rescue_seconds`) are paid for out of it, and &"paid" is raised with what
 ## this dive was paid and why. The dive is over; new_dive() starts another.
 func _come_home(arrival: Dictionary, rescue_seconds := 0.0) -> void:
+	var lost_by := _plasma.lost_by()
+	_outcome = {ending = arrival.type, cause = lost_by if arrival.type != &"surfaced" else &"",
+			plasma_lost_by = lost_by, stranded_for = rescue_seconds,
+			depth = arrival.get("depth", 0.0)}
 	_rest_at_surface()
 	_events.append(arrival)
 	var carried := _sell_aboard()
