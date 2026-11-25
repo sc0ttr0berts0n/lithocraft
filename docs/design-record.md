@@ -190,6 +190,10 @@ On the `prototype/habitat-down` branch. A browser stand-in built with three.js b
   - **Real cost.** Unlike in free fall, the arm has to hold a person against up to about 1 g on a lever of a metre or two. That takes a strong joint and power, so it draws on the power budget and can fail.
   - **Prototyped, not decided.** Added to the prototype on 24 November 2026: a carriage on a rail around the Bore, a chain with a claw that grips a harness between the shoulders, Space to call it or let go, A/D to move one Station left or right. Jump moved to J. It was exercised in level, dive and spin. The developer tried it: "works great. i'm optimistic." Confirmed as the method on 25 November 2026 (see the spec, issue #1); its cost in play is not designed.
 
+## Play tests
+
+- **First dive, 25 November 2026** (`docs/playtests/2026-11-25-first-dive.md`): every system was found, but the player never knew what to do. "I bet you this is fun if I knew what I was doing." Teaching the dive is the biggest gap; mouse look in the Arm is the top control fix.
+
 ## Not yet designed
 
 - Flight in air, space and gas giants beyond the three-step ascent.
