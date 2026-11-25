@@ -404,13 +404,13 @@ func _on_hull_failed(event: Dictionary) -> void:
 
 ## The plasma is lost but the tunnel behind is open: the crew are brought
 ## back up it. Tell them from where, what the survey aboard sold for and what
-## the Head's repair cost, and how to start another dive.
+## the hull's and the Head's repairs cost, and how to start another dive.
 func _on_recovered_through_tunnel(event: Dictionary) -> void:
 	_show_notice([
 		"PLASMA LOST  at %.0f m" % event.depth,
 		"The tunnel behind is open: brought home through it.",
 		"Survey aboard sold: %.0f" % event.carried_home,
-		"Head repair paid: %.0f" % event.head_repair,
+		"Hull repair: -%.0f   Head repair: -%.0f" % [event.hull_repair, event.head_repair],
 		"This dive: %.0f   Paid in all: %.0f" % [event.amount, event.total_paid],
 		"",
 		"[Enter] start another dive",
@@ -428,13 +428,14 @@ func _on_recovered(event: Dictionary) -> void:
 	], RECOVERED_NOTICE_S)
 
 
-## Surfaced and sold: what this dive was paid and why, until the crew starts
-## another dive.
+## Surfaced and sold: what this dive was paid and why, the repairs to its
+## hull and Head taken out, until the crew starts another dive.
 func _on_paid(event: Dictionary) -> void:
 	var lines := [
 		"SURFACED  The survey is sold",
 		"Paid for this dive: %.0f" % event.amount,
 		"  up the link under way %.0f, carried home %.0f" % [event.by_link, event.carried_home],
+		"  hull repair -%.0f, Head repair -%.0f" % [event.hull_repair, event.head_repair],
 		"Column recorded %.0f m in %d stretches, quality %d%%" % [
 			event.metres, event.stretches, roundi(event.mean_quality * 100.0)],
 	]
