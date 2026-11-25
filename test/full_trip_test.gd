@@ -195,7 +195,10 @@ func test_the_payment_breaks_down_what_was_paid_and_why() -> void:
 	# What came up the link during the dive plus what was carried home, less
 	# the repairs, is the whole dive's pay.
 	var earned: float = paid.by_link + paid.carried_home
+	assert_float(earned).is_greater(paid.hull_repair + paid.head_repair)
 	assert_float(earned - paid.hull_repair - paid.head_repair).is_equal_approx(paid.amount, 0.001)
+	# A dive that earns more than its bills pays the difference: none covered.
+	assert_float(paid.covered).is_equal(0.0)
 	assert_float(paid.by_link).is_greater(0.0)
 	assert_float(paid.hull_repair).is_greater_equal(0.0)
 	assert_float(paid.head_repair).is_greater_equal(0.0)

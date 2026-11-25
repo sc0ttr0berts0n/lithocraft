@@ -923,14 +923,16 @@ func survey_value() -> float:
 ##       from `depth`. Followed by &"paid". The dive is over as after
 ##       surfacing (surfaced() is true); new_dive() starts another.
 ##   &"paid" {arrival, amount, by_link, carried_home, hull_repair,
-##       head_repair, rescue, stretches, metres, mean_quality, features,
+##       head_repair, rescue, covered, stretches, metres, mean_quality, features,
 ##       feature_worth, lost_to_quality, by_medium, total_paid}: right after
 ##       the Lithocraft reaches the surface (`arrival`, the &"surfaced",
 ##       &"rescued" or &"brought_home" event just raised), what this dive was
 ##       paid (`amount` = `by_link`, paid while under way, + `carried_home`,
 ##       the survey sold at the surface, - `hull_repair` and `head_repair`,
 ##       the dive's wear repaired in proportion to it, - `rescue`, a rescue in
-##       proportion to how long it took, 0 when there was none) and why:
+##       proportion to how long it took, 0 when there was none, +
+##       `covered`, what those bills came to beyond what the dive earned,
+##       which is not charged: `amount` is never below 0) and why:
 ##       Column recorded and its length-weighted quality, features recorded
 ##       and their worth, the value heat and shuttering took off pristine
 ##       records, and pay per Medium name. `total_paid` is paid() across
@@ -1669,10 +1671,13 @@ func _sell_aboard() -> float:
 ## What putting right a dive that reached the surface cost, each part billed
 ## by Stranding: the hull's wear from heat and the Head's from poor Shifts,
 ## each in proportion to the wear, and a rescue in proportion to its time.
+## `covered` is the part of the bill beyond what the dive earned, which is not
+## charged: a dive's pay never goes below 0 (the game models no debt).
 class Repairs:
 	var hull := 0.0
 	var head := 0.0
 	var rescue := 0.0
+	var covered := 0.0
 
 	func _init(hull_cost: float, head_cost: float, rescue_cost: float) -> void:
 		hull = hull_cost
@@ -1684,12 +1689,16 @@ class Repairs:
 		return hull + head + rescue
 
 
-## Takes what repairing the dive's wear costs out of what has been paid, a
-## rescue that took `rescue_seconds` included, and returns the Repairs.
+## Takes what repairing the dive's wear costs out of what this dive earned, a
+## rescue that took `rescue_seconds` included, and returns the Repairs. It
+## never takes more than the dive earned: the rest is covered, so the dive
+## pays at least 0.
 func _pay_for_repairs(rescue_seconds := 0.0) -> Repairs:
 	var repairs := Repairs.new(_stranding.hull_repair(vessel_wear()),
 			_stranding.head_repair(head_wear()), _stranding.rescue_cost(rescue_seconds))
-	_paid -= repairs.total()
+	var charged := minf(repairs.total(), maxf(_paid - _paid_before_dive, 0.0))
+	repairs.covered = repairs.total() - charged
+	_paid -= charged
 	return repairs
 
 
@@ -1719,7 +1728,8 @@ func _payment(arrival: Dictionary, carried_home: float, repairs: Repairs) -> Dic
 			quality_metres += stretch.quality * stretch.length
 	return {type = &"paid", arrival = arrival, amount = _paid - _paid_before_dive,
 			by_link = _paid_by_link, carried_home = carried_home, hull_repair = repairs.hull,
-			head_repair = repairs.head, rescue = repairs.rescue, stretches = stretches,
+			head_repair = repairs.head, rescue = repairs.rescue, covered = repairs.covered,
+			stretches = stretches,
 			metres = metres,
 			mean_quality = quality_metres / metres if metres > 0.0 else 0.0,
 			features = features, feature_worth = feature_worth,

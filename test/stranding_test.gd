@@ -107,10 +107,11 @@ func test_losing_the_plasma_with_the_tunnel_open_brings_the_crew_home_through_it
 	assert_float(paid.carried_home).is_greater_equal(before.unsold)
 	assert_float(sim.unsold_value()).is_equal(0.0)
 	assert_int(sim.survey().size()).is_equal(sim.uploaded_survey().size())
-	# ...and the worn Head is paid for out of it.
+	# ...and the worn Head is paid for out of it, any of the bill beyond what
+	# the dive earned covered.
 	assert_float(paid.head_repair).is_greater(0.0)
-	assert_float(sim.paid()).is_equal_approx(
-			before.paid + paid.carried_home - paid.head_repair - paid.hull_repair, 0.001)
+	assert_float(sim.paid()).is_equal_approx(before.paid + paid.carried_home
+			- paid.head_repair - paid.hull_repair + paid.covered, 0.001)
 	# What went up the link under way is never less than nothing.
 	assert_float(paid.by_link).is_greater_equal(0.0)
 
@@ -154,11 +155,11 @@ func test_a_rescue_keeps_what_was_paid_and_returns_to_the_surface() -> void:
 
 	assert_array(events).contains([&"rescued", &"paid", &"new_dive"])
 	assert_bool(sim.stranded()).is_false()
-	# What was paid is kept, less the rescue and the repairs, and what was
-	# aboard is paid for on top.
+	# What was paid is kept, less the rescue and the repairs (any beyond what
+	# the dive earned covered), and what was aboard is paid for on top.
 	var bill: Dictionary = seen.back()
 	assert_float(sim.paid()).is_equal_approx(paid + bill.carried_home - bill.rescue
-			- bill.hull_repair - bill.head_repair, 0.001)
+			- bill.hull_repair - bill.head_repair + bill.covered, 0.001)
 	assert_int(sim.uploaded_survey().size()).is_greater(up)
 	# Back at the surface with a fresh vessel: nothing aboard, nothing lost.
 	assert_float(sim.depth()).is_less(1.0)

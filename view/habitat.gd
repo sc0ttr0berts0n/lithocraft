@@ -478,6 +478,8 @@ func _on_paid(event: Dictionary) -> void:
 	])
 	if event.rescue > 0.0:
 		lines.append("  rescue -%.0f" % event.rescue)
+	if event.covered > 0.0:
+		lines.append("  the rest, %.0f beyond what the dive earned, is on us" % event.covered)
 	lines.append("Column recorded %.0f m in %d stretches, quality %d%%" % [
 			event.metres, event.stretches, roundi(event.mean_quality * 100.0)])
 	if event.lost_to_quality >= 0.5:
