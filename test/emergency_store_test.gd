@@ -36,45 +36,14 @@ func _strand(sim: DiveSimulation, uploading: bool, gently := false) -> void:
 ## Head a little, never rough enough to disrupt the plasma, until the Head is
 ## worn through and the plasma lost with it.
 func _wear_through(sim: DiveSimulation) -> void:
-	_wear_gently(sim, 1.0)
+	DiveTestKit.wear_head_gently(sim, 1.0)
 	assert_bool(sim.stranded()).is_true()
 	assert_float(sim.head_wear()).is_equal(1.0)
 
 
-## Gentle Shifts, each a little wide of the wobble, until the Head's wear
-## reaches `wear` or the plasma is lost.
-func _wear_gently(sim: DiveSimulation, wear: float) -> void:
-	var on := sim.plasma_frequency()
-	var off := 0.01
-	for i in 2000:
-		if sim.plasma_lost() or sim.head_wear() >= wear:
-			return
-		sim.shift(on * (1.0 + off))
-		sim.advance(0.1)
-		var results := sim.take_events().filter(
-				func(e: Dictionary) -> bool: return e.type == &"shift_result")
-		# Keep each Shift's wear small: wider while clean or barely worn,
-		# closer once it wears more.
-		if results[0].wear < 0.02:
-			off *= 1.1
-		elif results[0].wear > 0.05:
-			off *= 0.9
-
-
-## Wears the Head gently to a little more than half, then makes Shifts well
-## wide of the wobble until one disrupts the plasma on the worn Head, short of
-## wearing it through. The hull is let cool first, since a hot hull makes each
-## Shift wear the Head harder.
+## Loses the plasma on a Head worn a little past half (DiveTestKit.lose_plasma()).
 func _lose_plasma(sim: DiveSimulation) -> void:
-	sim.set_power(0.0)
-	DiveTestKit.run(sim, 600.0, 1.0)
-	_wear_gently(sim, 0.51)
-	var on := sim.plasma_frequency()
-	for i in 20:
-		if sim.plasma_lost():
-			break
-		sim.shift(on * 1.5)
-		sim.advance(0.1)
+	DiveTestKit.lose_plasma(sim)
 	assert_bool(sim.stranded()).is_true()
 
 

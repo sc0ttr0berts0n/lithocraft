@@ -45,3 +45,41 @@ static func run_until(sim: DiveSimulation, type: StringName, seconds := 600.0,
 ## The types of these events, in order.
 static func types(events: Array) -> Array:
 	return events.map(func(e: Dictionary) -> StringName: return e.type)
+
+
+## Gentle Shifts, each a little wide of the wobble, until the Head's wear
+## reaches `wear` or the plasma is lost: each Shift wears the Head a little,
+## never roughly enough to disrupt the plasma.
+static func wear_head_gently(sim: DiveSimulation, wear: float) -> void:
+	var on := sim.plasma_frequency()
+	var off := 0.01
+	for i in 2000:
+		if sim.plasma_lost() or sim.head_wear() >= wear:
+			return
+		sim.shift(on * (1.0 + off))
+		sim.advance(0.1)
+		var results := sim.take_events().filter(
+				func(e: Dictionary) -> bool: return e.type == &"shift_result")
+		# Keep each Shift's wear small: wider while clean or barely worn,
+		# closer once it wears more.
+		if results[0].wear < 0.02:
+			off *= 1.1
+		elif results[0].wear > 0.05:
+			off *= 0.9
+
+
+## Stops the Drive, lets the hull cool, wears the Head gently to a little more
+## than half, then makes Shifts well wide of the wobble until one disrupts the
+## plasma on the worn Head, short of wearing it through. Sealed in, that
+## strands the Lithocraft where it stands. The hull is let cool first, since a
+## hot hull makes each Shift wear the Head harder.
+static func lose_plasma(sim: DiveSimulation) -> void:
+	sim.set_power(0.0)
+	run(sim, 600.0, 1.0)
+	wear_head_gently(sim, 0.51)
+	var on := sim.plasma_frequency()
+	for i in 20:
+		if sim.plasma_lost():
+			return
+		sim.shift(on * 1.5)
+		sim.advance(0.1)

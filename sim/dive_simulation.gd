@@ -374,7 +374,10 @@ func set_uploading(on: bool) -> void:
 
 
 ## Thermal Station: the share of the heat sent into the Column, 0 to 1. The
-## rest goes outward into the surrounding Medium through the hull.
+## rest goes outward into the surrounding Medium through the hull. While
+## stranded it is how hard the pumps run on the emergency store, carrying the
+## heat soaking into the hull into the Column (see stranding_clock()); they
+## stop when the plasma is lost, so stranding sets it to 0.
 func set_heat_split(to_column: float) -> void:
 	_heat_split = clampf(to_column, 0.0, 1.0)
 
@@ -1143,6 +1146,26 @@ func hull_damage_temperature() -> float:
 	return _heat.damage_temperature()
 
 
+## The stranding clock: seconds until heat soaking in from the melt and rock
+## round the vessel fails the hull with the Head dark. Shorter deeper, where
+## the rock is hotter and presses harder, and the more worn the hull. While
+## stranded it is the live countdown, with Thermal's pumps cooling at the heat
+## split for as long as the emergency store lasts (the link drawing on it
+## too); under way, what it would be if the plasma were lost now, the pumps
+## stopped. INF if the hull would bear the heat for ever.
+func stranding_clock() -> float:
+	if dead():
+		return 0.0
+	var cooling := _heat_split if stranded() else 0.0
+	var draw := _THERMAL_COLUMN_DRAW * cooling
+	if stranded() and not _waiting.is_empty() and link_rate() > 0.0:
+		draw += _LINK_DRAW
+	var cooled_for := INF if draw <= 0.0 else _stranding.store() / draw
+	if cooling <= 0.0:
+		cooled_for = 0.0
+	return _heat.time_to_fail(surroundings_temperature(), depth(), cooling, cooled_for)
+
+
 # --- Steering -------------------------------------------------------------
 
 ## The direction the Drive steers toward, in the world frame.
@@ -1466,14 +1489,19 @@ func _check_stranded() -> void:
 func _strand() -> void:
 	_speed = 0.0
 	_slip = 0.0
+	# Thermal's pumps stop with the Head; the crew restarts them on the store.
+	_heat_split = 0.0
 	var aboard_stretches := _waiting.filter(
 			func(s: SurveyStretch) -> bool: return not s.is_feature_record()).size()
 	_events.append({type = &"stranded", depth = depth(), distance = _distance,
 			aboard = unsold_value(), aboard_stretches = aboard_stretches, paid = _paid})
 
 
-## A step while stranded: nothing moves and the Head is dark. The link sends
-## the survey aboard on the emergency store, as far as the store pays for it.
+## A step while stranded: nothing moves and the Head is dark. Heat soaks into
+## the hull from the melt and rock round it, and Thermal's pumps carry it into
+## the Column at the heat split, on the emergency store. The link sends the
+## survey aboard on the store too, as far as it pays for both. The hull worn
+## through, the crew dies.
 func _step_stranded(dt: float) -> void:
 	if _relight_asked:
 		_relight_asked = false
@@ -1481,11 +1509,19 @@ func _step_stranded(dt: float) -> void:
 		if not stranded():
 			_update_calls()
 			return
+	var cooling := 0.0
+	if _heat_split > 0.0:
+		var wanted_cooling := _THERMAL_COLUMN_DRAW * _heat_split * dt
+		cooling = _heat_split * _stranding.draw(wanted_cooling) / wanted_cooling
+	_heat.soak(surroundings_temperature(), cooling, depth(), dt)
 	if not _waiting.is_empty():
 		var metres := link_rate() * dt
 		if metres > 0.0:
 			var wanted := _LINK_DRAW * dt
 			_upload(metres * _stranding.draw(wanted) / wanted)
+	_check_stranded()
+	if dead():
+		return
 	_update_calls()
 
 

@@ -37,6 +37,23 @@ const _WEAR_PER_K_S := 1.0e-5
 ## as well as heat, and the rock's weight grows with depth (about 27 MPa per
 ## km in Earth's crust). Tuned for play (ADR 0001).
 const _CREEP_STRESS_DEPTH_M := 1000.0
+## With the Head dark, how much hotter than the surrounding rock the heat
+## soaking into the hull is, in kelvin: the melt the Head left round the
+## vessel and in the sealed tunnel behind, and the rock the dive heated, with
+## no pumps running to carry it away. Above the hull's rated temperature even
+## near the surface, so a stranding always runs against a clock; deeper,
+## hotter rock makes it shorter. Tuned for play (ADR 0001). Real basis: a melt
+## front sits near the rock's melting point, far above the far rock.
+const _DARK_SOAK_K := 300.0
+## Heat per second Thermal's pumps carry from the hull into the Column with
+## the Head dark, running at full on the emergency store. Enough to hold a
+## hull below its rated temperature for a while at moderate depth, not
+## forever. Tuned for play (ADR 0001). Real basis: a heat pump moves heat
+## into the cooler Column, as Thermal does while the Head runs.
+const _DARK_COOLING := 0.25
+## Longest stranding clock worked out, in seconds; a hull that would last
+## longer reads as lasting for ever (INF).
+const _LONGEST_CLOCK_S := 1.0e6
 
 ## Heat made in the last step, per second.
 var _produced := 0.0
@@ -79,6 +96,58 @@ func step(power_drawn: float, spike: float, split: float, thermal_supplied: floa
 	_to_column = _produced * split * thermal_supplied
 	_shed_outward(_produced - _to_column, surroundings_k, dt)
 	_creep(depth, dt)
+
+
+## One step of dt seconds with the Head dark: nothing makes heat, and heat
+## soaks into the hull from the melt and rock round it (soak_temperature()).
+## Thermal's pumps, running on the emergency store, carry `cooling` (0 to 1,
+## the share of their full flow) of it into the Column. The overheated hull
+## creeps as it does under way, faster at greater `depth`.
+func soak(surroundings_k: float, cooling: float, depth: float, dt: float) -> void:
+	_produced = 0.0
+	_to_column = cooling * _DARK_COOLING
+	_settling_at = _soak_settling(surroundings_k, cooling)
+	var toward := exp(-dt * _HULL_SHED_PER_K / _HULL_HEAT_PER_K)
+	_temperature = _settling_at + (_temperature - _settling_at) * toward
+	_creep(depth, dt)
+
+
+## The temperature in kelvin heat soaks into the hull at with the Head dark,
+## among surroundings at `surroundings_k`.
+static func soak_temperature(surroundings_k: float) -> float:
+	return surroundings_k + _DARK_SOAK_K
+
+
+## Seconds until the hull fails with the Head dark from now, at `depth` among
+## surroundings at `surroundings_k`: heat soaks in, Thermal's pumps carry
+## `cooling` (0 to 1) of their full flow away for `cooled_for` seconds and
+## then stop. INF if it would bear the heat for ever.
+func time_to_fail(surroundings_k: float, depth: float, cooling: float,
+		cooled_for: float) -> float:
+	var left := 1.0 - _wear
+	if left <= 0.0:
+		return 0.0
+	var stress := _stress_at(depth)
+	var cooled_to := _soak_settling(surroundings_k, cooling)
+	var dark_to := _soak_settling(surroundings_k, 0.0)
+	var wear_at := func(t: float) -> float:
+		var first := minf(t, cooled_for)
+		var wear := _soaked_wear(_temperature, cooled_to, first, stress)
+		if t > cooled_for:
+			var after := _soaked_temperature(_temperature, cooled_to, first)
+			wear += _soaked_wear(after, dark_to, t - cooled_for, stress)
+		return wear
+	if wear_at.call(_LONGEST_CLOCK_S) < left:
+		return INF
+	var low := 0.0
+	var high := _LONGEST_CLOCK_S
+	for i in 60:
+		var middle := (low + high) / 2.0
+		if wear_at.call(middle) < left:
+			low = middle
+		else:
+			high = middle
+	return high
 
 
 ## Heat made in the last step, per second.
@@ -177,6 +246,50 @@ func _shed_outward(heat: float, surroundings_k: float, dt: float) -> void:
 ## stress, which the rock's pressure raises with depth.
 func _creep(depth: float, dt: float) -> void:
 	var overheat := _temperature - _HULL_DAMAGE_K
-	_stress = 1.0 + maxf(depth, 0.0) / _CREEP_STRESS_DEPTH_M
+	_stress = _stress_at(depth)
 	_creep_rate = _WEAR_PER_K_S * overheat * _stress if overheat > 0.0 else 0.0
 	_wear = minf(1.0, _wear + _creep_rate * dt)
+
+
+## The stress on the hull at `depth`: 1 at the surface, growing with the
+## rock's pressure.
+static func _stress_at(depth: float) -> float:
+	return 1.0 + maxf(depth, 0.0) / _CREEP_STRESS_DEPTH_M
+
+
+## Where the hull settles with the Head dark: the soak temperature, less what
+## Thermal's pumps carry away at `cooling` (0 to 1).
+static func _soak_settling(surroundings_k: float, cooling: float) -> float:
+	return soak_temperature(surroundings_k) - cooling * _DARK_COOLING / _HULL_SHED_PER_K
+
+
+## The hull's temperature `seconds` after it was at `from_k`, settling toward
+## `toward_k`.
+static func _soaked_temperature(from_k: float, toward_k: float, seconds: float) -> float:
+	return toward_k + (from_k - toward_k) * exp(-seconds / (_HULL_HEAT_PER_K / _HULL_SHED_PER_K))
+
+
+## The wear creep does over `seconds` to a hull settling from `from_k` toward
+## `toward_k` under `stress`: the creep rule of _creep(), summed exactly over
+## the time the hull spends above its rated temperature.
+static func _soaked_wear(from_k: float, toward_k: float, seconds: float, stress: float) -> float:
+	if seconds <= 0.0:
+		return 0.0
+	var tau := _HULL_HEAT_PER_K / _HULL_SHED_PER_K
+	var limit := _HULL_DAMAGE_K
+	var over := from_k - toward_k
+	# The hull moves steadily toward toward_k, so it is above the limit over
+	# one span of time: [start, end].
+	var start := 0.0
+	var end := seconds
+	if from_k < limit:
+		if toward_k <= limit:
+			return 0.0
+		start = tau * log((toward_k - from_k) / (toward_k - limit))
+	elif toward_k < limit:
+		end = minf(seconds, tau * log((from_k - toward_k) / (limit - toward_k)))
+	if end <= start:
+		return 0.0
+	# Integral of (T - limit) dt, where T = toward_k + over * e^(-t / tau).
+	var heat_time := (toward_k - limit) * (end - start) 			+ over * tau * (exp(-start / tau) - exp(-end / tau))
+	return _WEAR_PER_K_S * stress * heat_time

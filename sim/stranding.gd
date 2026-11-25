@@ -53,16 +53,20 @@ var _dead := false
 
 
 ## Once a step: what the vessel's state comes to now. DIED the step the hull
-## fails (from then on dead() is true), whatever the plasma; STRANDED the step
+## fails (from then on dead() is true, stranded() false), whatever the plasma,
+## stranded or not: the stranding clock running out is death too; STRANDED the step
 ## the plasma is lost with the tunnel sealed (from then on stranded() is true);
 ## BROUGHT_HOME the step it is lost with the tunnel open; NOTHING otherwise,
 ## and every step after any of them.
 func check(plasma_lost: bool, tunnel_sealed: bool, hull_failed: bool) -> StringName:
-	if _stranded or _dead:
+	if _dead:
 		return NOTHING
 	if hull_failed:
 		_dead = true
+		_stranded = false
 		return DIED
+	if _stranded:
+		return NOTHING
 	if not plasma_lost:
 		return NOTHING
 	if not tunnel_sealed:
