@@ -6,6 +6,9 @@
 ##   state out     - read-only query methods, e.g. depth()
 ##   events out    - take_events(): events since the last call, then cleared.
 ##                   Each a Dictionary with a `type` StringName plus fields.
+## Heat (Heat), the plasma and the Shift (Plasma), and stranding (Stranding)
+## are its own subsystems, reached only through this interface; see
+## docs/conventions.md, "Subsystems".
 class_name DiveSimulation
 extends RefCounted
 

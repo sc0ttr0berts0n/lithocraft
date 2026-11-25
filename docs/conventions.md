@@ -4,7 +4,7 @@ How the code is put together and the rules for changing it. Read before changing
 
 ## Layout
 
-- `sim/`: the simulation. Every class is `RefCounted` with a `class_name`; nothing here touches the scene tree, `Input` or rendering. `DiveSimulation` is the one seam; `Medium`, `MediumLayout`, `SurveyStretch`, `ColumnFeature` and `ScanPoint` are data it reads or hands out.
+- `sim/`: the simulation. Every class is `RefCounted` with a `class_name`; nothing here touches the scene tree, `Input` or rendering. `DiveSimulation` is the one seam; `Medium`, `MediumLayout`, `SurveyStretch`, `ColumnFeature` and `ScanPoint` are data it reads or hands out. `Heat`, `Plasma` and `Stranding` are subsystems it owns (see Subsystems).
 - `view/`: scenes and view logic. `view/habitat.tscn` is the main scene. `Arm` (`view/arm.gd`) is view logic as a plain `RefCounted`, tested directly with plain transforms.
 - `test/`: GdUnit4 suites, `*_test.gd`, `extends GdUnitTestSuite`, `func test_...`. Shared helpers in `test/support/dive_test_kit.gd`.
 - Commit the `*.gd.uid` files Godot generates beside each script.
@@ -43,13 +43,13 @@ Ad-hoc checks: a `SceneTree` script outside the repo, run with `-s <script>`, ca
 
 ## Extension points
 
-**A new power-drawing system.** Add its request in `_share_power()`, slotted into the shortfall order (Navigation, then Thermal, then the Drive: each gets all it asks while power lasts), and add its draw to `power_drawn()`. Heat follows, since `heat_produced()` is `power_drawn()` times a constant. Starvation is `<station>_supplied() < 1`; decide what a starved system does.
+**A new power-drawing system.** Add its request in `_share_power()`, slotted into the shortfall order (Navigation, then Thermal, then the Drive: each gets all it asks while power lasts), and add its draw to `power_drawn()`. Heat follows, since `Heat.step()` makes heat from `power_drawn()`. Starvation is `<station>_supplied() < 1`; decide what a starved system does.
 
-**Reactor output.** `reactor_output()` scales with `_plasma_stability`; anything that unsteadies the plasma lowers that, and it flows through the budget with no other change.
+**Reactor output.** `reactor_output()` scales with `Plasma.stability()`; anything that unsteadies the plasma lowers that (in `Plasma.tend()`), and it flows through the budget with no other change.
 
-**Survey quality.** `_recording_quality()` is the one hook: today the shutter term (Quiet Ship) times `_unheated_share()` (heat into the Column). A new effect multiplies in another term there. Survey stretches and feature recording both read it, so nothing else changes.
+**Survey quality.** `_recording_quality()` is the one hook: today the shutter term (Quiet Ship) times `Heat.unheated_share()` (heat into the Column). A new effect multiplies in another term there. Survey stretches and feature recording both read it, so nothing else changes.
 
-**Recovery and new dives.** `recover()` and `new_dive()` share `_start_fresh()`, which resets every script variable to a fresh simulation's except `_KEPT_ON_RECOVERY`. A new per-dive variable needs nothing. A variable that must survive (what was paid, where the crew is) goes in that list; a test in `stranding_test.gd` checks the list against the script's variables. Station settings return to their start, so the view re-sends its own (`habitat.gd::_reset_settings`).
+**Recovery and new dives.** `recover()` and `new_dive()` share `_start_fresh()`, which resets every script variable to a fresh simulation's except `_KEPT_ON_RECOVERY`. A new per-dive variable needs nothing. A variable that must survive (what was paid, where the crew is) goes in that list; a test in `stranding_test.gd` checks the list against the script's variables. The subsystems (`_heat`, `_plasma`, `_stranding`) are replaced whole by a fresh simulation's, so a new variable inside one starts over with no work; one that must survive a recovery lives on `DiveSimulation`, not in the subsystem. Station settings return to their start, so the view re-sends its own (`habitat.gd::_reset_settings`).
 
 **A new Station call.** Add an `_offer_call(calls, station, reason, urgency)` in `_update_calls()`, with urgency from `_urgency(_<KIND>_CALL, share)` and a new `const _<KIND>_CALL := Vector2(begins, worst)` beside the others, never an inline number. A call that begins or changes reason raises `&"station_call"` and drops the time rate to 1.
 
@@ -58,6 +58,20 @@ Ad-hoc checks: a `SceneTree` script outside the repo, run with `-s <script>`, ca
 **Payment.** A stretch pays `SurveyStretch.value()` once all of it is up the link. Surfacing and a recovery through the open tunnel both sell what is aboard through `_sell_aboard()`. A fully recorded feature becomes a `SurveyStretch.feature_record()` on the link queue, not an entry in `survey()`. For "aboard" counts use `unsold_survey()` / `unsold_value()`, not `survey().size()` minus uploads: `uploaded_survey()` spans every dive. Heat and shuttering's cost is `pristine_value() - value()`.
 
 **New minerals.** Add the mineral to `ColumnLook.MINERAL_COLOURS` (its look in the Bore) and to `SurveyStretch._MINERAL_WORTH` (its worth; defaults to 1).
+
+## Subsystems
+
+Heat, the plasma and stranding each live in their own plain class in `sim/`, owned by `DiveSimulation` (`_heat`, `_plasma`, `_stranding`). They are not seams: tests never build or read them, only `DiveSimulation`'s interface. The rules:
+
+- `DiveSimulation` keeps every command, query and event; a subsystem's state reaches the outside only through a `DiveSimulation` query that delegates to it. A new query is added to both.
+- A subsystem knows nothing of the layout, the path, the Stations or the survey, and holds no reference back to the simulation (a recovery swaps it for a fresh one). Whatever it needs (depth, the wobble's frequency, the surroundings' temperature, whether a Station is attended) is passed in on each call. Its tuned constants are its own `const _NAME`.
+- Events a subsystem raises are appended to the `events` array the simulation passes it (`Plasma.tend()`), so `take_events()`'s catalogue still lists them all.
+
+**Heat** (`sim/heat.gd`, `Heat`): heat made, the split into the Column and outward, hull temperature, hull wear, the heat warning, how much of the Column's record survives the heat. `Heat.step()` runs once a step from `_step()` after the power is shared. New heat and hull behaviour goes here: hull integrity and damage by depth (#20), heat soaking in from the rock while the Head is dark (#21), cooling from the emergency store. The Thermal Station's setting (`_heat_split`) and its unattended rule stay on `DiveSimulation`, which hands the split in.
+
+**The plasma and the Shift** (`sim/plasma.gd`, `Plasma`): stability, tuning, the Shift's window and grade, the autopilot Shift, the heat spike and lurch of a poor Shift, Head wear, losing the plasma. `Plasma.tend()` runs once a step at the start of `_step()`, before the power is shared; `open_window()` is called on crossing a Boundary. New plasma, Shift and Head behaviour goes here: a worn Head's lower power, narrower window and harsher grade (#24), a relight (#26). `Plasma.frequency_in(medium)` is the wobble's frequency.
+
+**Stranding and recovery** (`sim/stranding.gd`, `Stranding`): what losing the plasma comes to (`check()` once a step: `STRANDED` sealed in, `BROUGHT_HOME` with the tunnel open), whether the Lithocraft is stranded, the Head's repair bill. `DiveSimulation._check_stranded()` carries the outcome out on the survey, the link and the vessel's place (`_strand()`, `_recover_through_tunnel()`), since those are the simulation's. New stranding behaviour goes here: the emergency store (#26), the stranding clock and rescue time (#21), death; the simulation applies what it decides. The reset itself (`recover()`, `new_dive()`, `_start_fresh()`) stays on `DiveSimulation`, because it resets every part of it.
 
 ## The view
 
