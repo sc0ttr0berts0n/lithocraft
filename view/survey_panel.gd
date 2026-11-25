@@ -1,7 +1,7 @@
 ## The Bore Station's survey readout: one bar per recorded stretch, newest on
 ## the right. Bar height is the stretch's quality; bar colour is the composition
-## it recorded, so a Boundary shows as a change of colour. Placeholder for the
-## Bore Station in the Habitat (ticket #3 and later).
+## it recorded, so a Boundary shows as a change of colour. Stands in for
+## the Bore Station's own screen in the Habitat until that Station has one.
 class_name SurveyPanel
 extends Control
 

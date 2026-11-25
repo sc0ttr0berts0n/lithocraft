@@ -23,7 +23,7 @@ Click to look around with the mouse (Esc lets it go) and walk with WASD. Up and 
 
 Pitch has a stand-in control until the Drive Station gets its own: 1 dives nose-down, 2 levels out, 3 climbs, Z and X step pitch by 15 degrees. "Down" follows the vessel's felt acceleration, so diving puts you on the Head end cap and level travel on the outer wall; the Stations swing on their gimbals to stay upright.
 
-Until the Habitat's Bore and Bore Station show them, the overlay also has the Column at the right edge, sliding from Head (bottom) to Tail (top) at the vessel's speed and coloured by the Medium's composition, and the Bore Station's survey beside it: one bar per surveyed stretch, its height the stretch's quality.
+The Column slides through the Bore in the middle of the Habitat, from the Head end cap toward the Tail at the vessel's real speed. Its look comes from the Medium's composition and porosity, so sand (grey, porous), sandstone (tan) and granite (pink with black mica) differ and a Boundary is seen passing. The overlay repeats the Column as a strip with a metre ruler at the right edge, and beside it shows the Bore Station's survey: one bar per surveyed stretch, its height the stretch's quality.
 
 ## Run the tests
 

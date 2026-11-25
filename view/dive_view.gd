@@ -6,9 +6,10 @@
 ## label that shake with slip, and a placeholder grinding noise whose
 ## loudness follows DiveSimulation.slip().
 ##
-## The Column and the Bore Station survey are shown here too, until the
-## Habitat's Bore and Bore Station read them: a ColumnStrip on the right edge that
-## scrolls with the simulation, and a SurveyPanel beside it.
+## Readouts of the Column and the Bore Station survey sit here too: a
+## ColumnStrip on the right edge with a metre ruler, and a SurveyPanel beside
+## it. The Column itself slides through the Habitat's Bore (habitat.gd); the
+## survey panel stands in for the Bore Station's own screen.
 class_name DiveView
 extends Control
 
