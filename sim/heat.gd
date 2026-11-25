@@ -159,6 +159,11 @@ func time_to_fail(surroundings_k: float, depth: float, cooling: float,
 	return high
 
 
+## Debug only (DiveSimulation's debug commands): sets the hull's wear, 0 to 1.
+func debug_set_wear(wear: float) -> void:
+	_wear = clampf(wear, 0.0, 1.0)
+
+
 ## Heat made in the last step, per second.
 func produced() -> float:
 	return _produced

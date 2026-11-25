@@ -121,6 +121,28 @@ func relight(target: float, roll: float) -> bool:
 	return true
 
 
+## Debug only (DiveSimulation's debug commands): sets the Head's wear, 0 to 1.
+## It does not lose the plasma: only a poor Shift does that.
+func debug_set_wear(wear: float) -> void:
+	_head_wear = clampf(wear, 0.0, 1.0)
+
+
+## Debug only: the plasma goes out, as a Shift that loses it would leave it.
+func debug_lose() -> void:
+	_lost = true
+	_stability = 0.0
+	_shift_asked = NAN
+
+
+## Debug only: retunes the Reactor well wide of a wobble at `target` hertz,
+## so a Shift is due now with its window just opened.
+func debug_mistune(target: float) -> void:
+	if _lost:
+		return
+	_tuning = target * (1.0 + 2.0 * _SHIFT_TOLERANCE)
+	_mistuned_for = 0.0
+
+
 ## The frequency, in hertz, of the wobble cutting this Medium excites.
 static func frequency_in(medium: Medium) -> float:
 	return _PLASMA_HZ_PER_ROOT_HARDNESS * sqrt(medium.hardness)

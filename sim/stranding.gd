@@ -178,6 +178,11 @@ func store_capacity() -> float:
 	return _STORE_CAPACITY
 
 
+## Debug only (DiveSimulation's debug commands): fills the store.
+func debug_refill() -> void:
+	_store = _STORE_CAPACITY
+
+
 ## Draws up to `energy` from the store for something that can run on less
 ## (the link, cooling) and returns what it got: all of it, or what was left.
 func draw(energy: float) -> float:

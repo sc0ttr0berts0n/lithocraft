@@ -177,6 +177,15 @@ const _SELF_DESTRUCT_HOLD_S := 3.0
 ## resistive load and becomes heat (real basis), so a full store is spent in
 ## well under a minute. Tuned for play (ADR 0001).
 const _SELF_DESTRUCT_DUMP := 5.0
+## Debug commands (see "Debug commands" below). The hull's wear at the brink
+## of failure, all but worn through. Not tuned for play: a debug setting.
+const _DEBUG_BRINK_WEAR := 0.98
+## How far past a Boundary debug_next_boundary() leaves the Head, in metres of
+## depth, the share of straight down the Head must point for it to jump (less
+## is near level, where no Boundary lies ahead), and the pieces it moves in.
+const _DEBUG_PAST_BOUNDARY_M := 0.5
+const _DEBUG_LEAST_DESCENT := 0.05
+const _DEBUG_TRAVEL_PIECE_M := 1.0
 ## What a new dive keeps; every other variable starts over as a fresh dive.
 ## The world (the layout), what was paid for, and events not yet taken.
 const _KEPT_BETWEEN_DIVES: Array[StringName] = [&"_layout", &"_paid", &"_uploaded", &"_events",
@@ -545,11 +554,171 @@ func _tend_self_destruct_hold(dt: float) -> void:
 		return
 	_self_destruct_hold += dt
 	if _self_destruct_hold >= _SELF_DESTRUCT_HOLD_S:
-		_self_destructing = true
-		_self_destruct_hold = 0.0
-		_self_destruct_needs_release = true
-		_time_rate = 1.0
-		_events.append({type = &"self_destruct_started", stranded = stranded()})
+		_start_self_destruct()
+
+
+## Self-destruct starts: the Stations are off the crew until it is cancelled
+## or the hull fails. The command must be let go before another hold counts.
+func _start_self_destruct() -> void:
+	_self_destructing = true
+	_self_destruct_hold = 0.0
+	_self_destruct_needs_release = true
+	_time_rate = 1.0
+	_events.append({type = &"self_destruct_started", stranded = stranded()})
+
+
+# --- Debug commands -------------------------------------------------------
+# The developer's shortcuts for testing a dive by hand (the view's numpad
+# debug menu). Not crew controls: no Station works them, they ignore
+# attendance and self-destruct's hold on the Stations, and each reaches the
+# state it names at once rather than on the next step. Every one is named
+# debug_*; none of them does anything once the dive is over (surfaced() or
+# dead()). See docs/conventions.md, "Debug commands".
+
+## Debug: wears the hull by `amount` (negative mends it), clamped to whole and
+## worn through. Worn through, it fails on the next step.
+func debug_wear_hull(amount: float) -> void:
+	if _surfaced or dead():
+		return
+	_heat.debug_set_wear(_heat.vessel_wear() + amount)
+
+
+## Debug: brings the hull to the brink of failure: all but worn through, so it
+## still holds while it bears its heat, and the first heat it cannot bear (or
+## a stranding's soak) fails it within moments.
+func debug_hull_to_brink() -> void:
+	if _surfaced or dead():
+		return
+	_heat.debug_set_wear(maxf(_heat.vessel_wear(), _DEBUG_BRINK_WEAR))
+
+
+## Debug: wears the Head by `amount` (negative mends it), clamped to fresh
+## and worn through. It narrows the Shift and lowers the relight chance as
+## poor Shifts' wear does, but does not itself lose the plasma.
+func debug_wear_head(amount: float) -> void:
+	if _surfaced or dead():
+		return
+	_plasma.debug_set_wear(_plasma.head_wear() + amount)
+
+
+## Debug: the plasma goes out here and now, and what that comes to follows at
+## once: brought home with the tunnel open behind, stranded sealed in. Raises
+## &"plasma_lost", then what follows as a lost plasma's events.
+func debug_lose_plasma() -> void:
+	if _surfaced or dead() or plasma_lost():
+		return
+	_plasma.debug_lose()
+	_share_power()
+	_events.append({type = &"plasma_lost", depth = depth(), distance = _distance})
+	_check_stranded()
+	if stranded():
+		_update_calls()
+
+
+## Debug: strands the Lithocraft here: the whole tunnel behind is sealed (if
+## it was not already), then the plasma is lost (debug_lose_plasma()), so the
+## rescue must cut down through all of it. Ignored until the Tail has left the
+## surface, when there is no tunnel behind to seal.
+func debug_strand() -> void:
+	if _surfaced or dead() or stranded() or _tail_at <= 0.0:
+		return
+	if not _tunnel_sealed:
+		_tunnel_sealed = true
+		_sealed_metres = _tail_at
+		_events.append({type = &"tunnel_sealed", distance = _tail_at})
+	debug_lose_plasma()
+
+
+## Debug: fills the emergency store, whether or not it is being drawn on.
+func debug_refill_store() -> void:
+	if _surfaced or dead():
+		return
+	_stranding.debug_refill()
+
+
+## Debug: the Head comes up to the surface now, from wherever it is (a
+## stranding ends there too), and the dive ends as any surfacing does: the
+## survey aboard sold and the repairs billed. Raises &"surfaced", then
+## &"paid".
+func debug_surface() -> void:
+	if _surfaced or dead():
+		return
+	if stranded():
+		_stranding.rescued()
+	_surface()
+
+
+## Debug: runs the dive on `seconds` of simulated time at once, in the steps a
+## raised time rate takes. Unlike a raised rate, a Station call does not cut
+## it short; it stops only if the dive ends. The Stations are as they were:
+## those no one is at steady themselves (the Reactor's autopilot Shifts).
+func debug_skip(seconds: float) -> void:
+	var steps := ceili(seconds / _FAST_STEP_S)
+	for i in steps:
+		if _surfaced or dead():
+			return
+		_step(seconds / steps)
+
+
+## Debug: starts self-destruct now, as a full hold at Thermal would, whoever
+## is at Thermal. The crew cancel it as ever. Raises &"self_destruct_started".
+func debug_self_destruct() -> void:
+	if _surfaced or dead() or _self_destructing:
+		return
+	_start_self_destruct()
+
+
+## Debug: a Shift is due now: the Reactor is mistuned well wide of the
+## plasma's wobble, its window just opened, as after crossing a Boundary.
+## Ignored while the plasma is lost.
+func debug_shift_due() -> void:
+	if _surfaced or dead():
+		return
+	_plasma.debug_mistune(plasma_frequency())
+
+
+## Debug: the Head jumps along the way it points to just past the next
+## Boundary ahead (deeper diving, shallower climbing), as if it had cut there
+## in no time: the Column it passed is recorded, its features found, the
+## tunnel behind made (and sealed in dense rock), the Boundary crossed (a
+## Shift comes due), but no heat is made and no survey goes up the link.
+## Ignored while stranded, travelling level, or with no Boundary ahead.
+func debug_next_boundary() -> void:
+	if _surfaced or dead() or stranded():
+		return
+	var down := -_direction.y
+	if absf(down) < _DEBUG_LEAST_DESCENT:
+		return
+	var target := NAN
+	for b in _layout.boundary_depths():
+		if down > 0.0 and b > depth():
+			target = b
+			break
+		if down < 0.0 and b < depth():
+			target = b
+	if is_nan(target):
+		return
+	var beyond := target + signf(down) * _DEBUG_PAST_BOUNDARY_M
+	_debug_travel((beyond - depth()) / down)
+
+
+## Moves the Head `metres` along the way it points in short pieces, each as a
+## step's movement would be but taking no time: path, survey, features,
+## Boundaries and the tunnel follow.
+func _debug_travel(metres: float) -> void:
+	var left := metres
+	while left > 0.0:
+		var piece := minf(left, _DEBUG_TRAVEL_PIECE_M)
+		left -= piece
+		var depth_before := depth()
+		_position += _direction * piece
+		_find_features(depth_before, depth(), piece)
+		var from := _distance
+		_distance += piece
+		_remember_path()
+		_record_survey(from, _distance)
+		_watch_boundaries(depth_before)
+		_update_tunnel()
 
 
 # --- Time step ------------------------------------------------------------
