@@ -22,7 +22,7 @@ const STATIONS := [
 ]
 const PITCH_STEP := 15.0
 
-var _sim := DiveSimulation.new(MediumLayout.uniform(Medium.sand()))
+var _sim := DiveSimulation.new(MediumLayout.first_dive())
 var _pitch_setting := 90.0
 var _stations: Array[GimballedStation] = []
 var _drive: GimballedStation

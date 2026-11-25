@@ -19,7 +19,7 @@ Open the folder in the Godot 4.7 editor and press F5, or from a shell:
 <godot-binary> --path .
 ```
 
-Click to look around with the mouse (Esc lets it go) and walk with WASD. Up and Down arrows (or the slider) set Drive power; depth rises while power is above zero.
+Click to look around with the mouse (Esc lets it go) and walk with WASD. Up and Down arrows (or the slider) set Drive power; depth rises while power is above zero. The dive passes sand, then sandstone, then granite. Asking for more power than the Medium's grip allows shows a red SLIP readout and plays a grinding noise (placeholder) instead of going faster.
 
 Pitch has a stand-in control until the Drive Station gets its own: 1 dives nose-down, 2 levels out, 3 climbs, Z and X step pitch by 15 degrees. "Down" follows the vessel's felt acceleration, so diving puts you on the Head end cap and level travel on the outer wall; the Stations swing on their gimbals to stay upright.
 
