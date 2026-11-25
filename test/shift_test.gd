@@ -51,6 +51,121 @@ func test_a_boundary_ahead_is_announced_before_it_is_crossed() -> void:
 	assert_str(String(crossed.to)).is_equal("hard")
 
 
+## Crosses the one Boundary, then performs a Shift to `frequency` (the
+## plasma's own by default) after waiting `wait` seconds, and returns the Shift
+## result event. Only the step that takes the Shift is advanced afterwards.
+func _shift_after(wait: float, off_by := 1.0, sim: DiveSimulation = null) -> Dictionary:
+	if sim == null:
+		sim = _one_boundary()
+	_run_until(sim, &"boundary_crossed")
+	for i in int(wait / 0.1):
+		sim.advance(0.1)
+	sim.take_events()
+	sim.shift(sim.plasma_frequency() * off_by)
+	sim.advance(0.1)
+	for event in sim.take_events():
+		if event.type == &"shift_result":
+			return event
+	return {}
+
+
+func test_unattended_the_reactor_autopilot_shifts_late_and_poorly() -> void:
+	var sim := _one_boundary()
+	_run_until(sim, &"boundary_crossed")
+
+	var result := _run_until(sim, &"shift_result")
+
+	assert_bool(result.autopilot).is_true()
+	assert_bool(result.clean).is_false()
+	assert_bool(sim.shift_due()).is_false()
+
+
+func test_a_poor_shift_spikes_the_heat_wears_the_head_and_lurches() -> void:
+	var clean_sim := _one_boundary()
+	var poor_sim := _one_boundary()
+	var clean := _shift_after(0.0, 1.0, clean_sim)
+	var poor := _shift_after(_window() + 4.0, 1.0, poor_sim)
+	assert_bool(clean.clean).is_true()
+	assert_bool(poor.clean).is_false()
+	# Both are tuned now and draw the same power; only the poor one grinds.
+	var clean_heat := clean_sim.heat_produced()
+	var poor_heat := poor_sim.heat_produced()
+	var clean_felt := clean_sim.felt_acceleration()
+	var poor_felt := poor_sim.felt_acceleration()
+	for i in 100:
+		clean_sim.advance(0.1)
+		poor_sim.advance(0.1)
+
+	assert_float(clean_sim.head_wear()).is_equal(0.0)
+	assert_float(poor_sim.head_wear()).is_greater(0.0)
+	# The heat spike: a poor Shift makes more heat than the same running does
+	# once it has passed; a clean one makes none.
+	assert_float(clean_heat).is_equal_approx(clean_sim.heat_produced(), 1e-6)
+	assert_float(poor_heat).is_greater(poor_sim.heat_produced() + 1e-3)
+	# The lurch: felt in the Habitat as a jolt on top of gravity, then gone.
+	assert_float(clean_sim.lurch()).is_equal(0.0)
+	assert_vector(clean_felt).is_equal_approx(clean_sim.felt_acceleration(), Vector3.ONE * 1e-6)
+	assert_float(poor_felt.distance_to(poor_sim.felt_acceleration())).is_greater(0.5)
+	assert_float(poor_sim.lurch()).is_less(0.01)
+
+
+func test_crossing_a_boundary_opens_a_window_for_the_shift() -> void:
+	var sim := _one_boundary()
+	assert_bool(sim.shift_due()).is_false()
+	assert_float(sim.shift_window()).is_equal(0.0)
+
+	_run_until(sim, &"boundary_crossed")
+
+	assert_bool(sim.shift_due()).is_true()
+	assert_float(sim.shift_window()).is_greater(0.0)
+
+
+func test_a_new_load_unsettles_the_plasma_until_the_shift_matches_it() -> void:
+	var sim := _one_boundary()
+	_run_until(sim, &"boundary_crossed")
+	sim.advance(0.1)
+	assert_float(sim.plasma_stability()).is_less(1.0)
+
+	sim.shift(sim.plasma_frequency())
+	sim.advance(0.1)
+
+	assert_bool(sim.shift_due()).is_false()
+	assert_float(sim.plasma_stability()).is_equal(1.0)
+
+
+func test_harder_rock_loads_the_plasma_into_a_different_wobble() -> void:
+	var sim := _one_boundary()
+	var soft_frequency := sim.plasma_frequency()
+	_run_until(sim, &"boundary_crossed")
+
+	assert_float(sim.plasma_frequency()).is_not_equal(soft_frequency)
+
+
+## Seconds the window for the Shift stays open after crossing a Boundary.
+func _window() -> float:
+	var sim := _one_boundary()
+	_run_until(sim, &"boundary_crossed")
+	return sim.shift_window()
+
+
+func test_a_shift_inside_the_window_grades_better_than_one_entered_late() -> void:
+	var in_time := _shift_after(0.0)
+	var late := _shift_after(_window() + 1.0)
+
+	assert_dict(in_time).is_not_empty()
+	assert_dict(late).is_not_empty()
+	assert_float(late.grade).is_less(in_time.grade)
+
+
+func test_a_shift_matching_the_plasma_grades_better_than_a_mismatched_one() -> void:
+	var matched := _shift_after(0.0)
+	var mismatched := _shift_after(0.0, 1.3)
+
+	assert_float(mismatched.grade).is_less(matched.grade)
+	assert_bool(matched.clean).is_true()
+	assert_bool(mismatched.clean).is_false()
+
+
 func test_the_boundary_is_crossed_when_the_head_enters_the_new_medium() -> void:
 	var sim := _one_boundary()
 
