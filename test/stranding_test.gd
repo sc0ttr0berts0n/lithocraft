@@ -43,7 +43,7 @@ func _careless_dive(open_to := 40.0, dense := true) -> DiveSimulation:
 	return sim
 
 
-func test_losing_the_plasma_sealed_in_strands_and_discards_the_unsold_survey() -> void:
+func test_losing_the_plasma_sealed_in_strands_and_the_recovery_loses_the_unsold_survey() -> void:
 	var sim := _careless_dive()
 	var unsold := [0.0]
 	var seen := []
@@ -57,13 +57,17 @@ func test_losing_the_plasma_sealed_in_strands_and_discards_the_unsold_survey() -
 	assert_int(types.find(&"tunnel_sealed")).is_less(types.find(&"stranded"))
 	assert_int(types.find(&"plasma_lost")).is_less(types.find(&"stranded"))
 	assert_bool(sim.stranded()).is_true()
-	# There was survey aboard to lose, and it is gone.
+	# There was survey aboard, and it is still aboard while stranded...
 	assert_float(unsold[0]).is_greater(0.0)
-	assert_float(stranded.lost).is_greater_equal(unsold[0])
+	assert_float(stranded.aboard).is_greater_equal(unsold[0])
+	assert_float(sim.unsold_value()).is_equal(stranded.aboard)
+	# ...until the recovery, which loses it.
+	sim.recover()
+	var recovered: Array = sim.take_events().filter(
+			func(e: Dictionary) -> bool: return e.type == &"recovered")
+	assert_float(recovered[0].lost).is_equal(stranded.aboard)
 	assert_float(sim.unsold_value()).is_equal(0.0)
 	assert_array(sim.unsold_survey()).is_empty()
-	# What is left of the survey is only what reached the surface.
-	assert_int(sim.survey().size()).is_equal(sim.uploaded_survey().size())
 
 
 func test_losing_the_plasma_with_the_tunnel_open_does_not_strand() -> void:

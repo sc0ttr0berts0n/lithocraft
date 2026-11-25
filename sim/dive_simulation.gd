@@ -78,6 +78,12 @@ const _FAST_LINK_RATE := 2.0
 ## Survey metres per second sound through rock carries, in a Medium whose
 ## sound_carrying is 1. Far below the fast link. Tuned for play (ADR 0001).
 const _SLOW_LINK_RATE := 0.02
+## What the link draws while sending, in the units of set_power(). Counted
+## only once the plasma is lost, when it runs on the emergency store. Real
+## basis: a sound source strong enough to carry through rock takes power.
+## Tuned for play (ADR 0001): the store sends a few stretches, or pays for a
+## relight or two, not both.
+const _LINK_DRAW := 0.05
 
 ## Navigation's power request: the scanner's draw while it listens, in the same
 ## units as set_power(), with the cost of its pulses averaged in. Tuned for
@@ -233,6 +239,8 @@ var _sending: SurveyStretch = null
 ## is paid for only once all of it is up.
 var _sent := {}
 var _upload_priority := UPLOAD_OLDEST_FIRST
+## Whether the link sends the survey aboard up (set_uploading()).
+var _uploading := true
 ## Events raised since the last take_events(), oldest first.
 var _events: Array[Dictionary] = []
 ## Quiet Ship: set by Navigation; the Head spins down and the Bore shutters.
@@ -350,6 +358,13 @@ func set_upload_priority(priority: StringName) -> void:
 		_sending = null
 
 
+## Bore Station: whether the link sends the survey aboard up to the surface.
+## On at the start of a dive. While stranded the link runs on the emergency
+## store, so stopping it keeps the store for a relight.
+func set_uploading(on: bool) -> void:
+	_uploading = on
+
+
 ## Thermal Station: the share of the heat sent into the Column, 0 to 1. The
 ## rest goes outward into the surrounding Medium through the hull.
 func set_heat_split(to_column: float) -> void:
@@ -387,22 +402,27 @@ func set_attended(station: StringName, attended: bool) -> void:
 ## How many times normal to run the simulation: advance(dt) then runs
 ## dt x rate simulated seconds. Clamped to 1..max_time_rate(). Any Station call
 ## returns it to 1, and while any Station is still calling it cannot be raised
-## above 1: time runs fast only through quiet stretches.
+## above 1: time runs fast only through quiet stretches. Stranded, it can be:
+## the crew wait on the link and the store, and nothing else moves.
 func set_time_rate(rate: float) -> void:
-	var fastest := 1.0 if not _calls.is_empty() else _MAX_TIME_RATE
+	var fastest := _MAX_TIME_RATE if _calls.is_empty() or stranded() else 1.0
 	_time_rate = clampf(rate, 1.0, fastest)
 
 
 ## The recovery after a stranding: the crew and the Lithocraft are brought
 ## back to the surface, ready to dive again as at the start of a dive, with
 ## every Station setting back at its start. What was paid (paid(),
-## uploaded_survey()) is kept; the lost survey stays lost. Ignored unless
+## uploaded_survey()) is kept; the survey still aboard is lost. Ignored unless
 ## stranded(). Raises &"recovered".
 func recover() -> void:
 	if not stranded():
 		return
+	var lost_value := unsold_value()
+	var lost_stretches := _waiting.filter(
+			func(s: SurveyStretch) -> bool: return not s.is_feature_record()).size()
 	_start_fresh()
-	_events.append({type = &"recovered", paid = _paid})
+	_events.append({type = &"recovered", paid = _paid, lost = lost_value,
+			lost_stretches = lost_stretches})
 
 
 ## Start another dive after surfacing: the Lithocraft is at the surface ready
@@ -454,8 +474,11 @@ func advance(dt: float) -> void:
 
 
 func _step(dt: float) -> void:
-	if stranded() or _surfaced:
-		return  # The dive is over; nothing moves until recover() or new_dive().
+	if _surfaced:
+		return  # The dive is over; nothing moves until new_dive().
+	if stranded():
+		_step_stranded(dt)
+		return
 	_head_activity = move_toward(_head_activity, 0.0 if _quiet_ship else 1.0,
 			_HEAD_SPIN_RATE * dt)
 	_plasma.tend(dt, plasma_frequency(), attended(STATION_REACTOR),
@@ -918,6 +941,24 @@ func surfaced() -> bool:
 	return _surfaced
 
 
+## True once the plasma is lost and the Lithocraft has fallen back on the
+## emergency store for power: the link, a relight (and anything else that runs
+## with the Head dark) draw on it. False again once the Head is relit.
+func on_emergency_store() -> bool:
+	return plasma_lost()
+
+
+## Energy left in the emergency store, in the units of set_power() x seconds.
+## Full at the start of a dive; spent only once the plasma is lost.
+func emergency_store() -> float:
+	return _stranding.store()
+
+
+## Energy the emergency store holds when full.
+func emergency_store_capacity() -> float:
+	return _stranding.store_capacity()
+
+
 ## True once the tunnel behind has been filled somewhere, so no continuous open
 ## tunnel reaches the surface. It stays sealed for the rest of the dive.
 func tunnel_sealed() -> bool:
@@ -938,8 +979,11 @@ func seal_porosity() -> float:
 ## How fast survey data goes up to the surface now, in metres of survey per
 ## second. Light up the open glass-lined tunnel is fast; once sealed, it is
 ## sound through the rock: a trickle that follows how well the Medium the
-## Lithocraft is in carries sound.
+## Lithocraft is in carries sound. 0 while the link is stopped
+## (set_uploading()), or stranded with the emergency store spent.
 func link_rate() -> float:
+	if not _uploading or (stranded() and _stranding.store() <= 0.0):
+		return 0.0
 	if not _tunnel_sealed:
 		return _FAST_LINK_RATE
 	return _SLOW_LINK_RATE * medium().sound_carrying
@@ -1312,22 +1356,27 @@ func _check_stranded() -> void:
 		_recover_through_tunnel()
 
 
-## Losing the plasma while sealed in strands the Lithocraft. The survey data
-## not yet up the link is lost with it; what reached the surface stays paid.
+## Losing the plasma while sealed in strands the Lithocraft, on the emergency
+## store. The survey data not yet up the link stays aboard: the link can still
+## send it, on the store, until the recovery loses what is left.
 func _strand() -> void:
-	var lost_value := unsold_value()
-	var lost_stretches := _waiting.filter(
+	_speed = 0.0
+	_slip = 0.0
+	var aboard_stretches := _waiting.filter(
 			func(s: SurveyStretch) -> bool: return not s.is_feature_record()).size()
-	var lost := {}
-	for stretch in _waiting:
-		lost[stretch] = true
-	_survey_value -= lost_value
-	_survey.assign(_survey.filter(func(s: SurveyStretch) -> bool: return not lost.has(s)))
-	_waiting.clear()
-	_sent.clear()
-	_sending = null
 	_events.append({type = &"stranded", depth = depth(), distance = _distance,
-			lost = lost_value, lost_stretches = lost_stretches, paid = _paid})
+			aboard = unsold_value(), aboard_stretches = aboard_stretches, paid = _paid})
+
+
+## A step while stranded: nothing moves and the Head is dark. The link sends
+## the survey aboard on the emergency store, as far as the store pays for it.
+func _step_stranded(dt: float) -> void:
+	if not _waiting.is_empty():
+		var metres := link_rate() * dt
+		if metres > 0.0:
+			var wanted := _LINK_DRAW * dt
+			_upload(metres * _stranding.draw(wanted) / wanted)
+	_update_calls()
 
 
 ## The plasma is lost but the tunnel behind is open all the way up: the
