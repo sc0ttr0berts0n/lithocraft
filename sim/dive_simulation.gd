@@ -33,6 +33,10 @@ const _PITCH_RATE := 5.0
 ## Earth's surface gravity, m/s^2.
 const _GRAVITY := 9.81
 
+## Heat made per second for each unit of power drawn. Every system that draws
+## power makes heat. Tuned for play (ADR 0001).
+const _HEAT_PER_POWER := 1.0
+
 var _layout: MediumLayout
 var _power := 0.0
 var _depth := 0.0
@@ -40,6 +44,10 @@ var _pitch := 90.0
 var _pitch_setting := 90.0
 var _speed := 0.0
 var _slip := 0.0
+## Thermal: the share of heat sent into the Column; the rest goes outward.
+var _heat_split := 0.0
+## Heat made in the last step, per second.
+var _heat_produced := 0.0
 ## Metres travelled along the path since the dive began. The path is straight
 ## down until steering lands (ticket #8), so for now it equals depth.
 var _distance := 0.0
@@ -70,6 +78,12 @@ func set_pitch(degrees: float) -> void:
 	_pitch_setting = clampf(degrees, -90.0, 90.0)
 
 
+## Thermal Station: the share of the heat sent into the Column, 0 to 1. The
+## rest goes outward into the surrounding Medium through the hull.
+func set_heat_split(to_column: float) -> void:
+	_heat_split = clampf(to_column, 0.0, 1.0)
+
+
 # --- Time step ------------------------------------------------------------
 
 func advance(dt: float) -> void:
@@ -80,6 +94,8 @@ func advance(dt: float) -> void:
 	var gripped_power := minf(_power, grip)
 	_slip = 0.0 if _power <= 0.0 else (_power - gripped_power) / _power
 	_speed = _FULL_POWER_SPEED * gripped_power / medium.hardness
+	# Every system that draws power makes heat; power lost to slip included.
+	_heat_produced = _power * _HEAT_PER_POWER
 	var travelled := _speed * dt
 	_depth += travelled
 	_record_survey(_distance, _distance + travelled)
@@ -140,6 +156,11 @@ func column_at(behind_head: float) -> Medium:
 ## the path, oldest first. A copy; changing it does not change the record.
 func survey() -> Array[SurveyStretch]:
 	return _survey.duplicate()
+
+
+## Heat made in the last step by everything that draws power, per second.
+func heat_produced() -> float:
+	return _heat_produced
 
 
 # --- Survey ---------------------------------------------------------------
