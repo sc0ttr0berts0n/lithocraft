@@ -35,6 +35,9 @@ var _sim := DiveSimulation.new(MediumLayout.first_dive())
 var _pitch_setting := 90.0
 var _stations: Array[GimballedStation] = []
 var _drive: GimballedStation
+var _bore_station: GimballedStation
+## A ring on the Bore glass that rides along with the feature being observed.
+var _feature_ring: MeshInstance3D
 var _crew := CrewMember.new()
 
 @onready var _dive_view: DiveView = %DiveView
@@ -66,6 +69,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_3: _steer(-90.0)
 			KEY_Z: _steer(_pitch_setting - PITCH_STEP)
 			KEY_X: _steer(_pitch_setting + PITCH_STEP)
+			KEY_F: _observe_next_feature()
 
 
 func _physics_process(delta: float) -> void:
@@ -77,12 +81,66 @@ func _physics_process(delta: float) -> void:
 		station.follow_up(up, delta)
 	_drive.show_reading("Depth %.1f m\nPitch %+.0f deg (set %+.0f)" % [
 		_sim.depth(), _sim.pitch(), _pitch_setting])
+	_bore_station.show_reading(_bore_reading())
+	_place_feature_ring()
 
 
 ## Stand-in pitch control until the Drive Station has its own.
 func _steer(pitch: float) -> void:
 	_pitch_setting = clampf(pitch, -90.0, 90.0)
 	_sim.set_pitch(_pitch_setting)
+
+
+## Stand-in Bore Station control until it has its own: observe the next
+## feature in the Column not yet recorded, nearest the Tail first, cycling.
+func _observe_next_feature() -> void:
+	var candidates := _sim.features_in_column().filter(
+			func(f: ColumnFeature) -> bool: return not f.is_recorded())
+	if candidates.is_empty():
+		_sim.set_observed_feature(-1)
+		return
+	var ids := candidates.map(func(f: ColumnFeature) -> int: return f.id)
+	var current := ids.find(_sim.observed_feature())
+	_sim.set_observed_feature(ids[(current + 1) % ids.size()])
+
+
+func _bore_reading() -> String:
+	var in_column := _sim.features_in_column()
+	var lines := PackedStringArray()
+	lines.append("Survey value %d" % roundi(_sim.survey_value()))
+	var observed := _sim.observed_feature()
+	var found_observed := false
+	for feature in in_column:
+		var where := _sim.distance() - feature.at
+		var state := "RECORDED" if feature.is_recorded() else "%d%%" % roundi(100.0 * feature.recorded)
+		var marker := ">" if feature.id == observed else " "
+		if feature.id == observed:
+			found_observed = true
+		lines.append("%s %s %.1f m  %s" % [marker, String(feature.kind).capitalize(), where, state])
+	if in_column.is_empty():
+		lines.append("No features in the Column")
+	elif not found_observed:
+		lines.append("[F] observe a feature")
+	return "\n".join(lines)
+
+
+## Keeps the ring on the observed feature while it is in the Habitat's
+## stretch of the Bore.
+func _place_feature_ring() -> void:
+	_feature_ring.visible = false
+	var observed := _sim.observed_feature()
+	if observed < 0:
+		return
+	for feature in _sim.features_in_column():
+		if feature.id != observed:
+			continue
+		var into_habitat := _sim.distance() - feature.at - HABITAT_BEHIND_HEAD_M
+		if into_habitat < 0.0 or into_habitat > LENGTH:
+			return
+		_feature_ring.position.z = -LENGTH / 2.0 + into_habitat
+		(_feature_ring.material_override as StandardMaterial3D).albedo_color = (
+				FeatureLook.RECORDED_COLOUR if feature.is_recorded() else FeatureLook.OBSERVING_COLOUR)
+		_feature_ring.visible = true
 
 
 func _build_room() -> void:
@@ -111,6 +169,14 @@ func _build_room() -> void:
 	glass_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	glass_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_add_along_axis(glass, glass_material, 0.0)
+	var ring := TorusMesh.new()
+	ring.inner_radius = BORE_RADIUS + 0.005
+	ring.outer_radius = BORE_RADIUS + 0.035
+	var ring_material := _surface(FeatureLook.OBSERVING_COLOUR)
+	ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_add_along_axis(ring, ring_material, 0.0)
+	_feature_ring = get_child(get_child_count() - 1)
+	_feature_ring.visible = false
 
 	# Ribs round the outer wall and along it, so walking and turning show.
 	for z in [-LENGTH / 3.0, 0.0, LENGTH / 3.0]:
@@ -174,6 +240,8 @@ func _build_stations() -> void:
 		_stations.append(station)
 		if station.station_name == "Drive":
 			_drive = station
+		elif station.station_name == "Bore Station":
+			_bore_station = station
 
 
 ## The Column as an open tube along the Bore, with the whole texture on its

@@ -8,7 +8,7 @@ extends Control
 ## How many of the most recent stretches are shown.
 const SHOWN_STRETCHES := 30
 const BAR_GAP_PX := 2.0
-const HEADER_PX := 44.0
+const HEADER_PX := 60.0
 
 var sim: DiveSimulation
 
@@ -27,6 +27,8 @@ func _draw() -> void:
 			-1, 14, Color(0.7, 0.85, 1.0))
 	draw_string(font, Vector2(8.0, 36.0), _summary(survey), HORIZONTAL_ALIGNMENT_LEFT,
 			size.x - 16.0, 12, Color.WHITE)
+	draw_string(font, Vector2(8.0, 52.0), _value_line(), HORIZONTAL_ALIGNMENT_LEFT,
+			size.x - 16.0, 12, FeatureLook.RECORDED_COLOUR)
 
 	var chart := Rect2(8.0, HEADER_PX, size.x - 16.0, size.y - HEADER_PX - 8.0)
 	draw_rect(chart, Color(0.15, 0.16, 0.18))
@@ -55,3 +57,10 @@ func _summary(survey: Array[SurveyStretch]) -> String:
 		String(latest.medium_name).capitalize(),
 		roundi(100.0 * latest.quality),
 	]
+
+
+## The survey's value so far, and how many features of interest went into it.
+func _value_line() -> String:
+	var recorded := sim.found_features().filter(
+			func(f: ColumnFeature) -> bool: return f.is_recorded()).size()
+	return "value %d  (features recorded: %d)" % [roundi(sim.survey_value()), recorded]
