@@ -426,7 +426,8 @@ func set_quiet_ship(on: bool) -> void:
 ## An unattended Station holds its last setting and applies a simple
 ## steadying rule: the Reactor's autopilot makes a Shift on frequency but
 ## late, so poorly; Thermal slowly sends heat into the Column while the hull
-## warns. Attended, a Station leaves everything to the crew. All start
+## warns; the Drive backs its power off to the grip limit while it slips.
+## Attended, a Station leaves everything to the crew. All start
 ## unattended.
 func set_attended(station: StringName, attended: bool) -> void:
 	if station in STATIONS:
@@ -1229,8 +1230,11 @@ func _on_boundary_crossed(from: Medium, to: Medium) -> void:
 # --- Unattended Stations and calls ----------------------------------------
 
 ## The steadying rules of Stations no one is at. Steady conditions leave every
-## setting as it was.
+## setting as it was. The Drive backs its power off to what the wall can
+## grip once the grip waves slip: the slipped share only made heat and noise.
 func _steady_unattended(dt: float) -> void:
+	if not attended(STATION_DRIVE) and _slip > 0.0:
+		_power *= 1.0 - _slip
 	if not attended(STATION_THERMAL) and heat_warning():
 		_heat_split = minf(1.0, _heat_split + _UNATTENDED_SPLIT_RATE * dt)
 

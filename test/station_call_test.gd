@@ -96,6 +96,30 @@ func test_unattended_thermal_is_slow_to_answer_a_sudden_heat() -> void:
 	assert_float(sim.heat_split()).is_less(0.1)
 
 
+## Full power against a wall too weak to take it: the grip waves slip.
+func _slipping(attended: bool) -> DiveSimulation:
+	var sim := DiveSimulation.new(MediumLayout.uniform(DiveTestKit.rock(1.0, 0.2, 0.3)))
+	sim.set_power(1.0)
+	sim.set_attended(DiveSimulation.STATION_DRIVE, attended)
+	return sim
+
+
+func test_an_unattended_drive_backs_its_power_off_to_what_the_wall_can_grip() -> void:
+	var left := _slipping(false)
+	var held := _slipping(true)
+	for i in 20:
+		left.advance(0.5)
+		held.advance(0.5)
+
+	assert_float(held.slip()).is_greater(0.0)
+	assert_float(held.power()).is_equal(1.0)
+	assert_float(left.slip()).is_less(0.01)
+	assert_float(left.power()).is_less(1.0)
+	# Backing off only stops the slipping: no speed is given up for it.
+	assert_float(left.speed()).is_equal_approx(held.speed(), held.speed() * 0.02)
+	assert_float(left.heat_produced()).is_less(held.heat_produced())
+
+
 ## Crosses the one Boundary with the Reactor attended or not; if attended,
 ## the crew Shifts to the plasma's frequency within the window. Returns the
 ## Shift result.
