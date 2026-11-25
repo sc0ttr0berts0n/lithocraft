@@ -6,6 +6,12 @@ extends Node3D
 
 ## How quickly the gimbal settles onto a new "up", per second.
 const SWING_RATE := 3.0
+## Middle of the screen, in the cradle's frame.
+const SCREEN_CENTRE := Vector3(0, 0.2, 0)
+## Eyes of a crew member working the Station, in the cradle's frame: in front
+## of the screen and at standing eye height (1.65 m) above a floor 1.1 m
+## below the pivot.
+const POSE_EYE := Vector3(0, 0.55, -0.85)
 
 var station_name := ""
 var hue := Color.WHITE
@@ -45,7 +51,7 @@ func _ready() -> void:
 	screen_mesh.size = Vector3(0.8, 0.4, 0.02)
 	screen.mesh = screen_mesh
 	screen.material_override = _material(Color(0.04, 0.07, 0.09))
-	screen.position = Vector3(0, 0.2, 0)
+	screen.position = SCREEN_CENTRE
 	_cradle.add_child(screen)
 
 	# The screen faces the Head; the crew work it from the Head side.
@@ -54,7 +60,7 @@ func _ready() -> void:
 	_screen_text.modulate = hue
 	_screen_text.pixel_size = 0.0015
 	_screen_text.font_size = screen_font_size
-	_screen_text.position = Vector3(0, 0.2, -0.015)
+	_screen_text.position = SCREEN_CENTRE + Vector3(0, 0, -0.015)
 	_screen_text.rotation = Vector3(0, PI, 0)
 	_cradle.add_child(_screen_text)
 
@@ -108,6 +114,34 @@ func show_reading(text: String) -> void:
 		_screen_text.text = "%s\n%s" % [station_name, text]
 
 
+## Where a crew member's eyes are held to work this Station, Habitat frame:
+## origin at the eyes, basis upright with the cradle, facing the screen.
+func pose() -> Transform3D:
+	return pose_for(position, _cradle.basis)
+
+
+## The middle of this Station's screen, Habitat frame.
+func screen_centre() -> Vector3:
+	return screen_centre_for(position, _cradle.basis)
+
+
+## The working pose of a Station pivoting at pivot with its cradle at cradle.
+## The eyes are where a person standing STATION_HANG below the pivot would
+## have them, on the Head side of the cradle, as the screen faces that way.
+static func pose_for(pivot: Vector3, cradle: Basis) -> Transform3D:
+	var facing_screen := cradle * Basis(Vector3.UP, PI)
+	return Transform3D(facing_screen, pivot + cradle * POSE_EYE)
+
+
+static func screen_centre_for(pivot: Vector3, cradle: Basis) -> Vector3:
+	return pivot + cradle * SCREEN_CENTRE
+
+
+## How far to look down from level, in radians, to see the screen from the pose.
+static func pose_look() -> float:
+	return -atan2(POSE_EYE.y - SCREEN_CENTRE.y, -POSE_EYE.z)
+
+
 ## Show a live picture (e.g. a SubViewport's texture) filling the Station's
 ## screen. The name and reading move above the screen.
 func show_display(texture: Texture2D) -> void:
@@ -122,7 +156,7 @@ func show_display(texture: Texture2D) -> void:
 	material.albedo_texture = texture
 	display.material_override = material
 	# Faces the Head, like the text.
-	display.position = Vector3(0, 0.2, -0.012)
+	display.position = SCREEN_CENTRE + Vector3(0, 0, -0.012)
 	display.rotation = Vector3(0, PI, 0)
 	_cradle.add_child(display)
 	_screen_text.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM

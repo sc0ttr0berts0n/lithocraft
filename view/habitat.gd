@@ -20,7 +20,14 @@ const STATIONS := [
 	["Bore Station", Color("b9ff6a")],
 	["", Color.GRAY],
 ]
+## How much one press moves each Drive Station setting.
 const PITCH_STEP := 15.0
+const HEADING_STEP := 15.0
+const POWER_STEP := 0.1
+## The Arm's rail runs round the Bore this far out from its glass.
+const RAIL_GAP := 0.15
+## How quickly the look settles onto a Station's screen while carried, per second.
+const LOOK_SETTLE_RATE := 4.0
 ## The Column inside the Bore glass.
 const COLUMN_RADIUS := BORE_RADIUS - 0.08
 ## How far the Habitat's Head-side wall is behind the Head, in metres: the
@@ -41,7 +48,10 @@ const SHIFT_DIAL_STEP := 0.02
 const LURCH_SHAKE_M := 0.004
 
 var _sim := DiveSimulation.new(MediumLayout.first_dive())
+## Drive Station settings: they hold when the crew walks away.
 var _pitch_setting := 90.0
+var _heading_setting := 0.0
+var _power_setting := 0.0
 var _stations: Array[GimballedStation] = []
 var _reactor: GimballedStation
 var _drive: GimballedStation
@@ -53,6 +63,9 @@ var _thermal: GimballedStation
 var _heat_split := 0.0
 var _navigation: GimballedStation
 var _crew := CrewMember.new()
+var _arm := Arm.new(BORE_RADIUS + RAIL_GAP)
+## The Stations in use, in order round the ring; the Arm carries to these.
+var _in_use: Array[GimballedStation] = []
 ## The Reactor's waveform display, which holds the Shift dial.
 var _plasma_display: PlasmaDisplay
 ## True from a Boundary announced ahead until it is crossed.
@@ -63,6 +76,8 @@ var _boundary_ahead := false
 
 func _ready() -> void:
 	_sim.set_pitch(_pitch_setting)
+	_sim.set_heading(_heading_setting)
+	_sim.set_power(_power_setting)
 	_sim.set_heat_split(_heat_split)
 	_dive_view.attach(_sim)
 	_build_room()
@@ -74,6 +89,10 @@ func _ready() -> void:
 	_crew.position = Vector3(0, -(OUTER_RADIUS + BORE_RADIUS) / 2.0, -LENGTH / 2.0 + CrewMember.BODY)
 	_crew.basis = Basis.looking_at(Vector3.RIGHT, Vector3.BACK)
 	add_child(_crew)
+	var arm_view := ArmView.new()
+	arm_view.arm = _arm
+	arm_view.rail_radius = BORE_RADIUS + RAIL_GAP
+	add_child(arm_view)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -83,16 +102,25 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match (event as InputEventKey).physical_keycode:
-			KEY_1: _steer(90.0)
-			KEY_2: _steer(0.0)
-			KEY_3: _steer(-90.0)
-			KEY_Z: _steer(_pitch_setting - PITCH_STEP)
-			KEY_X: _steer(_pitch_setting + PITCH_STEP)
+			KEY_1: _set_pitch(90.0)
+			KEY_2: _set_pitch(0.0)
+			KEY_3: _set_pitch(-90.0)
+			KEY_Z: _set_pitch(_pitch_setting - PITCH_STEP)
+			KEY_X: _set_pitch(_pitch_setting + PITCH_STEP)
+			KEY_J: _set_heading(_heading_setting - HEADING_STEP)
+			KEY_L: _set_heading(_heading_setting + HEADING_STEP)
+			KEY_T: _set_power(_power_setting + POWER_STEP)
+			KEY_G: _set_power(_power_setting - POWER_STEP)
 			KEY_F: _observe_next_feature()
 			KEY_C: _split_heat(_heat_split - HEAT_SPLIT_STEP)
 			KEY_V: _split_heat(_heat_split + HEAT_SPLIT_STEP)
 			KEY_P: _sim.pulse()
 			KEY_Q: _sim.set_quiet_ship(not _sim.quiet_ship())
+			KEY_SPACE: _arm.press()
+			KEY_A:
+				_arm.shift(-1)
+			KEY_D:
+				_arm.shift(1)
 			KEY_N: _turn_shift_dial(-1)
 			KEY_M: _turn_shift_dial(1)
 			KEY_R: _shift()
@@ -105,18 +133,21 @@ func _physics_process(delta: float) -> void:
 			&"boundary_approaching": _boundary_ahead = true
 			&"boundary_crossed": _boundary_ahead = false
 	var felt := _sim.felt_acceleration()
-	_crew.step(felt, delta)
-	_crew.shake(_sim.lurch() * LURCH_SHAKE_M)
 	var up := -felt.normalized()
 	for station in _stations:
 		station.follow_up(up, delta)
+	_arm.step(delta, _crew.eye(), _station_poses())
+	if _arm.is_holding():
+		var settle := 0.0 if _arm.arrived() else 1.0 - exp(-delta * LOOK_SETTLE_RATE)
+		_crew.hold(_arm.held_eye(), GimballedStation.pose_look(), settle)
+	else:
+		_crew.step(felt, delta)
+	_crew.shake(_sim.lurch() * LURCH_SHAKE_M)
 	_drive.set_supplied(_sim.drive_supplied())
 	_thermal.set_supplied(_sim.thermal_supplied())
 	_navigation.set_supplied(_sim.navigation_supplied())
 	_show_reactor()
-	_drive.show_reading("Depth %.1f m\nPitch %+.0f deg (set %+.0f)\n%s" % [
-		_sim.depth(), _sim.pitch(), _pitch_setting,
-		_power_line(_sim.drive_request(), _sim.drive_draw())])
+	_show_drive()
 	_bore_station.show_reading(_bore_reading())
 	_place_feature_ring()
 	_show_thermal()
@@ -126,10 +157,59 @@ func _physics_process(delta: float) -> void:
 		_power_line(_sim.navigation_request(), _sim.navigation_draw())])
 
 
-## Stand-in pitch control until the Drive Station has its own.
-func _steer(pitch: float) -> void:
+func _station_poses() -> Array[Transform3D]:
+	var poses: Array[Transform3D] = []
+	for station in _in_use:
+		poses.append(station.pose())
+	return poses
+
+
+## Whether the crew member can work this Station: seated at it by the Arm, or
+## standing within reach of it.
+func _at(station: GimballedStation) -> bool:
+	if _arm.is_holding() and _arm.arrived() and _arm.station() >= 0 \
+			and _in_use[_arm.station()] == station:
+		return true
+	return _crew.position.distance_to(station.position) <= STATION_REACH
+
+
+## Drive Station: pitch to steer toward. Only within reach of the Drive.
+func _set_pitch(pitch: float) -> void:
+	if not _at(_drive):
+		return
 	_pitch_setting = clampf(pitch, -90.0, 90.0)
 	_sim.set_pitch(_pitch_setting)
+
+
+## Drive Station: compass heading to steer toward.
+func _set_heading(heading: float) -> void:
+	if not _at(_drive):
+		return
+	_heading_setting = fposmod(heading, 360.0)
+	_sim.set_heading(_heading_setting)
+
+
+## Drive Station: share of power sent to advancing.
+func _set_power(power: float) -> void:
+	if not _at(_drive):
+		return
+	_power_setting = clampf(snappedf(power, POWER_STEP), 0.0, 1.0)
+	_sim.set_power(_power_setting)
+
+
+## The Drive Station's screen: depth, heading, pitch and speed, each with the
+## setting it is steering toward, and how hard the Head is steering (turning
+## heats one side of it harder).
+func _show_drive() -> void:
+	var lines := [
+		"Depth %.1f m  Speed %.2f m/s" % [_sim.depth(), _sim.speed()],
+		"Heading %03.0f (set %03.0f)" % [_sim.heading_degrees(), _heading_setting],
+		"Pitch %+.0f deg (set %+.0f)" % [_sim.pitch(), _pitch_setting],
+		"Set %d%%  Steer %d%%" % [
+			roundi(_power_setting * 100.0), roundi(_sim.steering() * 100.0)],
+		_power_line(_sim.drive_request(), _sim.drive_draw()),
+	]
+	_drive.show_reading("\n".join(lines))
 
 
 ## A Station's power: what it asks for and gets, and STARVED when short.
@@ -174,16 +254,16 @@ func _show_reactor() -> void:
 
 
 ## Stand-in Reactor control until the Station has its own: turn the Shift dial
-## one step down or up. Worked at the Reactor Station: only within reach of it.
+## one step down or up. Worked at the Reactor Station: only when at it.
 func _turn_shift_dial(direction: int) -> void:
-	if _crew.position.distance_to(_reactor.position) > STATION_REACH:
+	if not _at(_reactor):
 		return
 	_plasma_display.dial *= 1.0 + SHIFT_DIAL_STEP * direction
 
 
-## Shift to the frequency on the dial. Only within reach of the Reactor.
+## Shift to the frequency on the dial. Only when at the Reactor.
 func _shift() -> void:
-	if _crew.position.distance_to(_reactor.position) > STATION_REACH:
+	if not _at(_reactor):
 		return
 	_sim.shift(_plasma_display.dial)
 
@@ -199,7 +279,7 @@ static func _bar(requested: float, drawn: float) -> String:
 ## feature in the Column not yet recorded, nearest the Tail first, cycling.
 ## Worked at the Bore Station: only within reach of it.
 func _observe_next_feature() -> void:
-	if _crew.position.distance_to(_bore_station.position) > STATION_REACH:
+	if not _at(_bore_station):
 		return
 	var candidates := _sim.features_in_column().filter(
 			func(f: ColumnFeature) -> bool: return not f.is_recorded())
@@ -252,7 +332,7 @@ func _place_feature_ring() -> void:
 
 ## The heat split is worked at the Thermal Station: only within reach of it.
 func _split_heat(to_column: float) -> void:
-	if _crew.position.distance_to(_thermal.position) > STATION_REACH:
+	if not _at(_thermal):
 		return
 	_heat_split = clampf(snappedf(to_column, HEAT_SPLIT_STEP), 0.0, 1.0)
 	_sim.set_heat_split(_heat_split)
@@ -371,11 +451,13 @@ func _build_stations() -> void:
 		var station := GimballedStation.new()
 		station.station_name = STATIONS[i][0]
 		station.hue = STATIONS[i][1]
-		if station.station_name in ["Thermal", "Reactor"]:
+		if station.station_name in ["Thermal", "Reactor", "Drive"]:
 			station.screen_font_size = 28
 		station.position = outward * pivot_radius
 		add_child(station)
 		_stations.append(station)
+		if not station.station_name.is_empty():
+			_in_use.append(station)
 		if station.station_name == "Reactor":
 			_reactor = station
 			_reactor.show_display(_make_plasma_display())

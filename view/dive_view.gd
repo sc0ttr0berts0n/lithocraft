@@ -1,6 +1,7 @@
 ## Bare view of a dive: reads the simulation and sends it commands.
 ## Holds no game state of its own. The scene that owns the simulation
-## advances it and hands it over with attach().
+## advances it and hands it over with attach(). Drive power is set at the
+## Drive Station in the Habitat; the power bar here only shows it.
 ##
 ## Slip is shown here as an overlay on the Habitat: a red SLIP bar and
 ## label that shake with slip, and a placeholder grinding noise whose
@@ -17,7 +18,6 @@
 class_name DiveView
 extends Control
 
-const POWER_STEP := 0.1
 ## Placeholder slip sound: sample rate and loudness range of the grinding noise.
 const SLIP_MIX_RATE := 22050.0
 const SLIP_SILENT_DB := -60.0
@@ -50,7 +50,7 @@ var _judder_phase := 0.0
 
 
 func _ready() -> void:
-	_power_slider.value_changed.connect(_on_power_changed)
+	_power_slider.editable = false
 
 
 ## Start reading and commanding this simulation.
@@ -59,16 +59,11 @@ func attach(sim: DiveSimulation) -> void:
 	_column_strip.sim = sim
 	_survey_panel.sim = sim
 	_tunnel_panel.sim = sim
-	_on_power_changed(_power_slider.value)
 	_start_slip_sound()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed(&"ui_up"):
-		_power_slider.value += POWER_STEP
-	elif event.is_action_pressed(&"ui_down"):
-		_power_slider.value -= POWER_STEP
-	elif _sim and _is_key_press(event, KEY_U):
+	if _sim and _is_key_press(event, KEY_U):
 		var next := (UPLOAD_PRIORITIES.find(_sim.upload_priority()) + 1) % UPLOAD_PRIORITIES.size()
 		_sim.set_upload_priority(UPLOAD_PRIORITIES[next])
 
@@ -85,18 +80,14 @@ func _physics_process(_delta: float) -> void:
 	_depth_label.text = "Depth: %.1f m" % _sim.depth()
 	_medium_label.text = "Medium: %s" % String(_sim.medium().name).capitalize()
 	_speed_label.text = "Speed: %.2f m/s" % _sim.speed()
+	_power_slider.value = _sim.power()
+	_power_label.text = "Power: %d%%" % roundi(_sim.power() * 100.0)
 	_show_slip(_sim.slip())
 
 
 func _process(_delta: float) -> void:
 	if _sim:
 		_feed_slip_sound(_sim.slip())
-
-
-func _on_power_changed(value: float) -> void:
-	if _sim:
-		_sim.set_power(value)
-	_power_label.text = "Power: %d%%" % roundi(value * 100.0)
 
 
 func _show_slip(slip: float) -> void:

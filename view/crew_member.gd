@@ -66,6 +66,22 @@ func shake(metres: float) -> void:
 	_camera.v_offset = randf_range(-metres, metres)
 
 
+## Where the eyes are and which way the body faces (Habitat frame).
+func eye() -> Transform3D:
+	return Transform3D(basis, position + basis.y * EYE)
+
+
+## Held by the Arm instead of stepping: eyes put at eye, nothing falls.
+## look_toward is the up/down look to ease toward, by weight (0..1).
+func hold(eye_pose: Transform3D, look_toward: float, weight: float) -> void:
+	basis = eye_pose.basis.orthonormalized()
+	position = eye_pose.origin - basis.y * EYE
+	_velocity = Vector3.ZERO
+	_grounded = false
+	_look = lerpf(_look, look_toward, weight)
+	_camera.rotation = Vector3(_look, 0, 0)
+
+
 func _wish_direction() -> Vector3:
 	var forward := -basis.z
 	var right := basis.x

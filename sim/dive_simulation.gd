@@ -30,10 +30,24 @@ const _FEATURE_RECORD_S := 20.0
 const TOWARD_HEAD := Vector3.FORWARD
 const TOWARD_UNDERSIDE := Vector3.DOWN
 
-## How fast the vessel pitches toward its setting, degrees per second.
-## Slow enough to keep footing as "down" turns. Tuned for play (ADR 0001);
-## tests must not depend on its value.
-const _PITCH_RATE := 5.0
+## Steering. The Head turns the Lithocraft by heating one side of its rim
+## harder than the other, so the vessel cuts faster on that side and its path
+## bends. The tightest arc it can cut, in metres of radius. Tuned for play
+## (ADR 0001); tests read minimum_turn_radius(), never this.
+const _MIN_TURN_RADIUS_M := 250.0
+## How fast the uneven heating builds up or dies away, as a share of full
+## steering per second: the vessel answers the helm slowly. Tuned for play.
+const _STEER_RESPONSE := 0.1
+## Within this many degrees of the setting the steering eases off, so the
+## vessel settles onto its heading instead of swinging past. Tuned for play.
+const _STEER_EASE_DEG := 10.0
+## Extra Drive power at full steering, as a share of its setting: the hot side
+## of the Head runs hotter than the cool side is eased, and that extra goes
+## into heat, not push. Tuned for play.
+const _STEER_HEAT := 0.5
+## The path the Column was cut along is remembered as points at least this
+## far apart (straight runs are merged into one piece). Metres.
+const _PATH_SAMPLE_M := 0.5
 
 ## Upload priorities for set_upload_priority(): which waiting survey stretch
 ## goes up the link next.
@@ -180,9 +194,21 @@ const _WEAR_UNSTEADINESS := 0.3
 
 var _layout: MediumLayout
 var _power := 0.0
-var _depth := 0.0
-var _pitch := 90.0
+## Where the Head is in the world frame (see head_position()) and the way it
+## points there, unit length. Starts at the surface, nose straight down.
+var _position := Vector3.ZERO
+var _direction := Vector3.DOWN
+## Drive settings: the pitch and compass heading to steer toward, degrees.
 var _pitch_setting := 90.0
+var _heading_setting := 0.0
+## The last compass heading the vessel had while not pointing straight up or
+## down, where heading has no meaning. Degrees, 0 along -Z, 90 along +X.
+var _bearing := 0.0
+## How hard the Head is steering: 0 even heating, 1 the tightest arc.
+var _steering := 0.0
+## The path so far as (distance along it, depth) points, for the Column.
+var _path_distances := PackedFloat64Array([0.0])
+var _path_depths := PackedFloat64Array([0.0])
 var _speed := 0.0
 var _slip := 0.0
 ## Thermal: the share of heat sent into the Column; the rest goes outward.
@@ -197,8 +223,7 @@ var _vessel_temperature := 0.0
 var _hull_settling_at := 0.0
 ## Damage done to the vessel by heat, 0 (none) to 1.
 var _vessel_wear := 0.0
-## Metres travelled along the path since the dive began. The path is straight
-## down until steering lands (ticket #8), so for now it equals depth.
+## Metres travelled along the path since the dive began.
 var _distance := 0.0
 ## Completed survey entries, oldest first.
 var _survey: Array[SurveyStretch] = []
@@ -296,9 +321,18 @@ func set_power(power: float) -> void:
 
 
 ## Drive: the pitch to steer toward, in degrees. +90 is nose straight down
-## (diving), 0 is level, -90 is nose straight up (climbing).
+## (diving), 0 is level, -90 is nose straight up (climbing). The vessel turns
+## toward it along an arc no tighter than minimum_turn_radius(), and only
+## while it moves.
 func set_pitch(degrees: float) -> void:
 	_pitch_setting = clampf(degrees, -90.0, 90.0)
+
+
+## Drive: the compass heading to steer toward, in degrees: 0 along the world's
+## -Z, 90 along +X. Turned toward like pitch. Has no effect while the pitch
+## setting is straight up or down.
+func set_heading(degrees: float) -> void:
+	_heading_setting = fposmod(degrees, 360.0)
 
 
 ## Bore Station: which feature in the Column to observe and record, by id
@@ -351,34 +385,37 @@ func shift(frequency: float) -> void:
 # --- Time step ------------------------------------------------------------
 
 func advance(dt: float) -> void:
-	_pitch = move_toward(_pitch, _pitch_setting, _PITCH_RATE * dt)
 	_head_activity = move_toward(_head_activity, 0.0 if _quiet_ship else 1.0,
 			_HEAD_SPIN_RATE * dt)
 	_tend_plasma(dt)
 	_share_power()
-	var power := _drive_draw
-	var medium := _layout.medium_at(_depth)
+	# Steering heats one side of the Head harder; that share of the Drive's
+	# draw goes into heat, not into pushing.
+	var power := _drive_draw / (1.0 + _STEER_HEAT * _steering)
+	var medium := _layout.medium_at(depth())
 	# The grip waves can only push as hard as the wall holds; the rest slips.
 	var grip := medium.strength * _GRIP_PER_STRENGTH
 	var gripped_power := minf(power, grip)
 	_slip = 0.0 if power <= 0.0 else (power - gripped_power) / power
 	_speed = _FULL_POWER_SPEED * gripped_power / medium.hardness
 	# Every system that draws power makes heat: the Drive (power lost to slip
-	# included; less while the Head idles), Thermal and Navigation. A poor
-	# Shift's grinding adds a spike.
+	# included; less while the Head idles; more while it steers), Thermal and
+	# Navigation. A poor Shift's grinding adds a spike.
 	_heat_produced = power_drawn() * _HEAT_PER_POWER + _heat_spike
 	# Heat reaches the Column only as far as Thermal's pumps are powered; the
 	# rest goes out through the hull.
 	_heat_to_column = _heat_produced * _heat_split * thermal_supplied()
 	_shed_heat_outward(_heat_produced - _heat_to_column, dt)
 	_noise = _head_activity * _HEAD_HUM + _DRIVE_NOISE * power * (1.0 + _slip)
+	var depth_before := depth()
+	# The Head moves along its arc, turning toward the Drive's settings.
+	_steer(_speed, dt)
 	var travelled := _speed * dt
-	var depth_before := _depth
-	_depth += travelled
 	_record_survey(_distance, _distance + travelled)
 	_record_observed_feature(dt, travelled)
-	_find_features(depth_before, _depth, travelled)
+	_find_features(depth_before, depth(), travelled)
 	_distance += travelled
+	_remember_path()
 	_watch_boundaries(depth_before)
 	_update_tunnel()
 	_upload(link_rate() * dt)
@@ -391,19 +428,44 @@ func advance(dt: float) -> void:
 
 ## Metres below the surface. Increases as the Lithocraft dives.
 func depth() -> float:
-	return _depth
+	return -_position.y
 
 
 ## Degrees. +90 is nose straight down (diving), 0 level, -90 nose straight up.
+## The pitch of the path itself: the way the Head is cutting.
 func pitch() -> float:
-	return _pitch
+	return rad_to_deg(asin(clampf(-_direction.y, -1.0, 1.0)))
+
+
+## Compass heading in degrees, 0 to 360: 0 along the world's -Z, 90 along +X.
+## While the Head points straight up or down, the last heading it had.
+func heading_degrees() -> float:
+	return _bearing
+
+
+## Drive power setting, 0 to 1.
+func power() -> float:
+	return _power
+
+
+## Radius in metres of the tightest arc the Lithocraft can cut. No command
+## turns it tighter, however slow or fast it goes.
+func minimum_turn_radius() -> float:
+	return _MIN_TURN_RADIUS_M
+
+
+## How hard the Head is steering now, 0 (heated evenly, going straight) to 1
+## (the tightest arc). Builds up and dies away slowly.
+func steering() -> float:
+	return _steering
 
 
 ## The acceleration the crew feel in the Habitat, in m/s^2 in the Habitat
 ## frame, pointing the way things fall: the crew's "down". Gravity seen from
-## inside the vessel, plus the shudder of a poor Shift's lurch along the Bore.
+## inside the vessel (turns are too wide for their own pull to be felt), plus
+## the shudder of a poor Shift's lurch along the Bore.
 func felt_acceleration() -> Vector3:
-	var th := deg_to_rad(_pitch)
+	var th := deg_to_rad(pitch())
 	return (TOWARD_UNDERSIDE * cos(th) + TOWARD_HEAD * sin(th)) * _GRAVITY \
 			+ TOWARD_HEAD * lurch() * cos(TAU * _LURCH_HZ * _lurch_age)
 
@@ -439,7 +501,7 @@ func slip() -> float:
 
 ## The Medium the Lithocraft is in now.
 func medium() -> Medium:
-	return _layout.medium_at(_depth)
+	return _layout.medium_at(depth())
 
 
 ## Metres travelled along the path since the dive began.
@@ -489,7 +551,7 @@ func plasma_stability() -> float:
 ## plasma now. Harder rock loads the Head more and wobbles it faster, so
 ## crossing a Boundary changes it. A Shift matches it.
 func plasma_frequency() -> float:
-	return _PLASMA_HZ_PER_ROOT_HARDNESS * sqrt(_layout.medium_at(_depth).hardness)
+	return _PLASMA_HZ_PER_ROOT_HARDNESS * sqrt(_layout.medium_at(depth()).hardness)
 
 
 ## The frequency, in hertz, the Reactor is tuned to hold the plasma at: the
@@ -527,8 +589,9 @@ func power_drawn() -> float:
 
 
 ## Power each Station asked for in the last step. The Drive asks for its power
-## setting (less while the Head idles); Thermal for its pumps, more the more
-## heat it sends into the Column; Navigation for the scanner.
+## setting (less while the Head idles, more while it steers); Thermal for its
+## pumps, more the more heat it sends into the Column; Navigation for the
+## scanner.
 func drive_request() -> float:
 	return _drive_request
 
@@ -582,17 +645,15 @@ func point_count() -> int:
 
 
 ## Where the Head is in the world frame the point cloud is given in: metres
-## from where the dive began, +Y up (so y = -depth), the vessel's level
-## heading along -Z. The path is straight down until ticket #8 bends it.
+## from where the dive began, +Y up (so y = -depth), compass heading 0 along -Z.
 func head_position() -> Vector3:
-	return Vector3(0.0, -_depth, 0.0)
+	return _position
 
 
-## The way the Head points in the world frame, unit length, from the pitch:
-## straight down (-Y) diving, along -Z level.
+## The way the Head points in the world frame, unit length: straight down (-Y)
+## diving, along -Z travelling level at heading 0.
 func heading() -> Vector3:
-	var th := deg_to_rad(_pitch)
-	return Vector3(0.0, -sin(th), -cos(th))
+	return _direction
 
 
 ## The Bore Station's survey so far: one SurveyStretch per completed stretch of
@@ -712,7 +773,7 @@ func vessel_temperature() -> float:
 ## temperature plus the planet's warming with depth, so it rises even within
 ## one Medium and the hull has less room to shed heat the deeper it goes.
 func surroundings_temperature() -> float:
-	return _layout.medium_at(_depth).temperature + _GEOTHERMAL_K_PER_M * _depth
+	return _layout.medium_at(depth()).temperature + _GEOTHERMAL_K_PER_M * depth()
 
 
 ## Damage heat has done to the vessel so far, 0 (none) to 1. It only grows
@@ -740,6 +801,93 @@ func hull_damage_temperature() -> float:
 	return _HULL_DAMAGE_K
 
 
+# --- Steering -------------------------------------------------------------
+
+## The direction the settings ask for, in the world frame.
+func _wanted_direction() -> Vector3:
+	var p := deg_to_rad(_pitch_setting)
+	var h := deg_to_rad(_heading_setting)
+	return Vector3(cos(p) * sin(h), -sin(p), -cos(p) * cos(h)).normalized()
+
+
+## Turns the Head toward the settings for dt seconds at this speed, and moves
+## it along the arc. The steering builds toward what the remaining turn needs
+## at a limited rate, and the path bends by at most speed / minimum radius
+## radians per second, so a stopped vessel cannot turn and none turns tighter
+## than its minimum arc. The Head only ever moves the way it points.
+func _steer(speed: float, dt: float) -> void:
+	var wanted := _wanted_direction()
+	var remaining := _direction.angle_to(wanted)
+	var needed := clampf(rad_to_deg(remaining) / _STEER_EASE_DEG, 0.0, 1.0)
+	_steering = move_toward(_steering, needed, _STEER_RESPONSE * dt)
+	var turn := minf(remaining, _steering * speed / _MIN_TURN_RADIUS_M * dt)
+	var before := _direction
+	if turn > 0.0:
+		if turn >= remaining:
+			_direction = wanted
+		else:
+			_direction = _direction.rotated(_turn_axis(wanted), turn).normalized()
+	# Along the arc: the chord points halfway between the two directions and
+	# is a little shorter than the arc.
+	var travelled := speed * dt
+	if turn > 1e-9:
+		var chord := 2.0 * sin(turn / 2.0) / turn
+		_position += (before + _direction).normalized() * travelled * chord
+	else:
+		_position += _direction * travelled
+	if Vector2(_direction.x, _direction.z).length() > 1e-4:
+		_bearing = fposmod(rad_to_deg(atan2(_direction.x, -_direction.z)), 360.0)
+
+
+## The axis to turn about to bring the Head round toward wanted. A straight
+## about-turn goes round sideways when the Head is not vertical, and over the
+## bearing when it points straight up or down.
+func _turn_axis(wanted: Vector3) -> Vector3:
+	var axis := _direction.cross(wanted)
+	if axis.length() > 1e-6:
+		return axis.normalized()
+	var sideways := Vector3.UP - _direction * _direction.dot(Vector3.UP)
+	if sideways.length() > 1e-4:
+		return sideways.normalized()
+	var h := deg_to_rad(_bearing)
+	return Vector3(cos(h), 0.0, sin(h)) * signf(-_direction.y)
+
+
+## Adds the Head's place to the remembered path, merging short or straight
+## pieces so a long dive stays small.
+func _remember_path() -> void:
+	var last := _path_distances.size() - 1
+	var piece := _distance - _path_distances[last]
+	if piece <= 0.0:
+		return
+	var mergeable := false
+	if last > 0:
+		var previous := _path_distances[last] - _path_distances[last - 1]
+		var previous_slope := (_path_depths[last] - _path_depths[last - 1]) / previous
+		var slope := (depth() - _path_depths[last]) / piece
+		mergeable = previous < _PATH_SAMPLE_M or absf(slope - previous_slope) < 1e-9
+	if mergeable:
+		_path_distances[last] = _distance
+		_path_depths[last] = depth()
+	else:
+		_path_distances.append(_distance)
+		_path_depths.append(depth())
+
+
+## Depth of the path at a distance along it. Behind the start of the dive the
+## path is taken as straight down from the surface.
+func _depth_at_distance(along_path: float) -> float:
+	if along_path <= 0.0:
+		return along_path
+	var last := _path_distances.size() - 1
+	if along_path >= _path_distances[last]:
+		return _path_depths[last]
+	var i := _path_distances.bsearch(along_path, false)
+	var d0 := _path_distances[i - 1]
+	var d1 := _path_distances[i]
+	return lerpf(_path_depths[i - 1], _path_depths[i], (along_path - d0) / (d1 - d0))
+
+
 # --- Power ----------------------------------------------------------------
 
 ## Shares the Reactor's output among the Stations for this step. The shortfall
@@ -754,7 +902,7 @@ func _share_power() -> void:
 			_REACTOR_FULL_OUTPUT, _head_activity)
 	_navigation_request = _NAVIGATION_DRAW
 	_thermal_request = _THERMAL_BASE_DRAW + _THERMAL_COLUMN_DRAW * _heat_split
-	_drive_request = _power * _head_activity
+	_drive_request = _power * _head_activity * (1.0 + _STEER_HEAT * _steering)
 	var left := _reactor_output
 	_navigation_draw = minf(_navigation_request, left)
 	left -= _navigation_draw
@@ -829,26 +977,26 @@ func _in_column(feature: ColumnFeature) -> bool:
 ## ahead in the direction the Head's depth is changing.
 func _watch_boundaries(depth_before: float) -> void:
 	var before := _layout.medium_at(depth_before)
-	var after := _layout.medium_at(_depth)
+	var after := _layout.medium_at(depth())
 	if after != before:
 		_announced_boundary = NAN
 		_events.append({type = &"boundary_crossed", from = before.name, to = after.name,
-				depth = _depth, distance = _distance})
+				depth = depth(), distance = _distance})
 		_on_boundary_crossed(before, after)
-	if is_equal_approx(_depth, depth_before):
+	if is_equal_approx(depth(), depth_before):
 		return
-	var downward := _depth > depth_before
+	var downward := depth() > depth_before
 	var ahead := NAN
 	for b in _layout.boundary_depths():
-		var gap := b - _depth if downward else _depth - b
-		if gap > 0.0 and gap <= _BOUNDARY_APPROACH_M and (is_nan(ahead) or gap < absf(ahead - _depth)):
+		var gap := b - depth() if downward else depth() - b
+		if gap > 0.0 and gap <= _BOUNDARY_APPROACH_M and (is_nan(ahead) or gap < absf(ahead - depth())):
 			ahead = b
 	if is_nan(ahead) or ahead == _announced_boundary:
 		return
 	_announced_boundary = ahead
 	var beyond := _layout.medium_at(ahead + (0.01 if downward else -0.01))
 	_events.append({type = &"boundary_approaching", from = after.name, to = beyond.name,
-			depth = ahead, depth_to_go = absf(ahead - _depth)})
+			depth = ahead, depth_to_go = absf(ahead - depth())})
 
 
 ## The load on the Head has changed, so the plasma's wobble has too: a new
@@ -907,7 +1055,7 @@ func _make_shift(frequency: float, by_autopilot: bool) -> void:
 			wear = wear if roughness > 0.0 else 0.0})
 	if _head_wear >= 1.0:
 		_plasma_lost = true
-		_events.append({type = &"plasma_lost", depth = _depth, distance = _distance})
+		_events.append({type = &"plasma_lost", depth = depth(), distance = _distance})
 
 
 ## How hot the hull is, from as cool as the Medium around it (0) to the
@@ -1059,10 +1207,10 @@ func _unheated_share() -> float:
 	return 1.0 / (1.0 + heat_per_metre / _COLUMN_COOK_HEAT_PER_M)
 
 
-## The Medium of the Column at a distance along the path. The path is straight
-## down for now, so distance is depth.
+## The Medium of the Column at a distance along the path: the Medium at the
+## depth the path had there.
 func _medium_at_distance(along_path: float) -> Medium:
-	return _layout.medium_at(along_path)
+	return _layout.medium_at(_depth_at_distance(along_path))
 
 
 # --- Scan -----------------------------------------------------------------
@@ -1078,7 +1226,7 @@ func _send_pulse() -> void:
 	var ahead := heading()
 	var side := ahead.cross(Vector3.RIGHT if absf(ahead.x) < 0.9 else Vector3.UP).normalized()
 	var other_side := ahead.cross(side)
-	var boundaries := _boundaries_near(_depth)
+	var boundaries := _boundaries_near(depth())
 	var min_cos := cos(deg_to_rad(_PULSE_CONE_DEG))
 	for ray in _PULSE_RAYS:
 		var c := _scan_random.randf_range(min_cos, 1.0)
@@ -1108,7 +1256,7 @@ func _echoes_along(direction: Vector3, boundaries: Array) -> Array:
 		return []
 	var crossings := []
 	for b in boundaries:
-		var r: float = (b - _depth) / down
+		var r: float = (b - depth()) / down
 		if r > 0.0:
 			crossings.append(r)
 	crossings.sort()
@@ -1117,7 +1265,7 @@ func _echoes_along(direction: Vector3, boundaries: Array) -> Array:
 	var passed := 1.0
 	var travelled := 0.0
 	for r in crossings:
-		var depth_at: float = _depth + down * r
+		var depth_at: float = depth() + down * r
 		var before := _layout.medium_at(depth_at - signf(down) * 0.01)
 		var after := _layout.medium_at(depth_at + signf(down) * 0.01)
 		faded += 2.0 * (r - travelled) / (before.sound_carrying * _SCAN_REACH_M)

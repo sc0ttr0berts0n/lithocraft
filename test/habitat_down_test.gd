@@ -12,8 +12,10 @@ func _sand_dive() -> DiveSimulation:
 	return DiveSimulation.new(MediumLayout.uniform(Medium.sand()))
 
 
+## Under way, since the Lithocraft turns only by cutting its path round.
 func _settled_at(pitch: float) -> DiveSimulation:
 	var sim := _sand_dive()
+	sim.set_power(1.0)
 	sim.set_pitch(pitch)
 	sim.advance(SETTLE)
 	return sim
@@ -40,7 +42,7 @@ func test_pitch_moves_toward_its_setting_gradually_rather_than_jumping() -> void
 	var sim := _settled_at(90.0)
 
 	sim.set_pitch(0.0)
-	sim.advance(0.5)
+	sim.advance(5.0)
 
 	assert_float(sim.pitch()).is_less(90.0)
 	assert_float(sim.pitch()).is_greater(0.0)
