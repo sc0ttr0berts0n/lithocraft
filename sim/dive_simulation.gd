@@ -48,6 +48,9 @@ const _HULL_HEAT_PER_K := 0.15
 ## Hull temperature in kelvin above which heat damages the vessel. Tuned for
 ## play (ADR 0001).
 const _HULL_DAMAGE_K := 600.0
+## How far below _HULL_DAMAGE_K the hull's own temperature brings on the heat
+## warning. Tuned for play (ADR 0001).
+const _HULL_WARNING_MARGIN_K := 50.0
 ## How much warmer the ground gets per metre of depth, in kelvin. Earth's crust
 ## warms by about 0.025 K/m; tuned for play (ADR 0001).
 const _GEOTHERMAL_K_PER_M := 0.03
@@ -70,6 +73,8 @@ var _heat_produced := 0.0
 var _heat_to_column := 0.0
 ## The hull's temperature in kelvin. Heat sent outward passes through it.
 var _vessel_temperature := 0.0
+## The temperature the hull is heading for at the heat now sent outward.
+var _hull_settling_at := 0.0
 ## Damage done to the vessel by heat, 0 (none) to 1.
 var _vessel_wear := 0.0
 ## Metres travelled along the path since the dive began. The path is straight
@@ -88,6 +93,7 @@ var _stretch_quality := 0.0
 func _init(layout: MediumLayout) -> void:
 	_layout = layout
 	_vessel_temperature = surroundings_temperature()
+	_hull_settling_at = _vessel_temperature
 
 
 # --- Commands -------------------------------------------------------------
@@ -219,15 +225,35 @@ func vessel_wear() -> float:
 	return _vessel_wear
 
 
+## True while heat threatens the vessel: the hull is close to the temperature
+## at which heat damages it, or the heat now sent outward will take it past
+## that if nothing changes. Comes on before any damage is done.
+func heat_warning() -> bool:
+	return _vessel_temperature >= hull_warning_temperature() \
+			or _hull_settling_at > hull_damage_temperature()
+
+
+## Hull temperature in kelvin at which heat_warning() comes on regardless of
+## where the hull is heading. For gauges.
+func hull_warning_temperature() -> float:
+	return _HULL_DAMAGE_K - _HULL_WARNING_MARGIN_K
+
+
+## Hull temperature in kelvin above which heat wears the vessel. For gauges.
+func hull_damage_temperature() -> float:
+	return _HULL_DAMAGE_K
+
+
 # --- Heat -----------------------------------------------------------------
 
 ## Passes heat outward through the hull for dt seconds. The hull settles toward
 ## the temperature at which it sheds that heat into the Medium, and wears for
 ## as long as it is above the temperature it can bear.
 func _shed_heat_outward(heat: float, dt: float) -> void:
-	var settled := surroundings_temperature() + heat / _HULL_SHED_PER_K
+	_hull_settling_at = surroundings_temperature() + heat / _HULL_SHED_PER_K
 	var toward := exp(-dt * _HULL_SHED_PER_K / _HULL_HEAT_PER_K)
-	_vessel_temperature = settled + (_vessel_temperature - settled) * toward
+	_vessel_temperature = _hull_settling_at \
+			+ (_vessel_temperature - _hull_settling_at) * toward
 	var overheat := _vessel_temperature - _HULL_DAMAGE_K
 	if overheat > 0.0:
 		_vessel_wear = minf(1.0, _vessel_wear + _WEAR_PER_K_S * overheat * dt)
