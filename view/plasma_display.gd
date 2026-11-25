@@ -9,7 +9,9 @@
 ##            (white). Turn the dial until the two lie on each other, then
 ##            Shift. Under it, faint, what the plasma would do after.
 ## Along the bottom, the window for the Shift: a bar that shrinks while it is
-## open and turns red once it has closed.
+## open and turns red once it has closed. Its full width is a fresh Head's
+## window; what a worn Head has lost of it is struck through in red at the
+## right end, so the narrower window shows before a Shift is ever due.
 ##
 ## Reads only the simulation, plus `dial` (the frequency the crew have set but
 ## not yet shifted to), which the Habitat sets.
@@ -41,7 +43,8 @@ func _ready() -> void:
 class _Canvas extends Control:
 	var display: PlasmaDisplay
 	var _time := 0.0
-	## The longest window seen, so the bar shows the share of it left.
+	## The longest window seen (a fresh Head's: every dive starts with one),
+	## so the bar shows the share of it left and what wear has taken.
 	var _window_full := 0.0
 
 	func _process(delta: float) -> void:
@@ -81,11 +84,23 @@ class _Canvas extends Control:
 		draw_line(Vector2(0, lane), Vector2(w, lane), Color(1, 1, 1, 0.15), 1.0)
 		# The window for the Shift.
 		var bar := Rect2(8.0, h * 0.78, w - 16.0, h * 0.14)
+		_window_full = maxf(_window_full, sim.shift_window_length())
+		var kept := sim.shift_window_length() / _window_full if _window_full > 0.0 else 1.0
+		if kept < 0.999:
+			var worn := Rect2(bar.position + Vector2(bar.size.x * kept, 0.0),
+					Vector2(bar.size.x * (1.0 - kept), bar.size.y))
+			draw_rect(worn, Color(PlasmaDisplay.LATE, 0.25))
+			draw_line(worn.position, worn.end, PlasmaDisplay.LATE, 2.0)
+			draw_line(worn.position + Vector2(0, worn.size.y), worn.position + Vector2(worn.size.x, 0),
+					PlasmaDisplay.LATE, 2.0)
+			draw_string(font, worn.position + Vector2(4, -6), "WORN",
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 20, PlasmaDisplay.LATE)
+		bar.size.x *= kept
 		if sim.shift_due():
 			var left := sim.shift_window()
-			_window_full = maxf(_window_full, left)
 			if left > 0.0:
-				draw_rect(Rect2(bar.position, Vector2(bar.size.x * left / _window_full, bar.size.y)), hue)
+				draw_rect(Rect2(bar.position, Vector2(bar.size.x * left / sim.shift_window_length(),
+						bar.size.y)), hue)
 				draw_string(font, bar.position + Vector2(4, bar.size.y - 6), "SHIFT  %.1f s" % left,
 						HORIZONTAL_ALIGNMENT_LEFT, -1, 24, PlasmaDisplay.BACKGROUND)
 			else:

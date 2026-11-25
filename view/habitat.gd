@@ -357,7 +357,8 @@ func _show_reactor() -> void:
 			["Drv", _sim.drive_request(), _sim.drive_draw()]]:
 		lines.append("%s %s%s" % [row[0], _bar(row[1], row[2]),
 				"  STARVED" if row[2] < row[1] - 0.0005 else ""])
-	var shift_line := "Head wear %d%%" % roundi(_sim.head_wear() * 100.0)
+	var shift_line := "Head wear %d%%  window %.1f s" % [roundi(_sim.head_wear() * 100.0),
+			_sim.shift_window_length()]
 	if _sim.plasma_lost():
 		shift_line += "  PLASMA LOST"
 	elif _sim.shift_due():
