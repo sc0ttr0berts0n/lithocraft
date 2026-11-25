@@ -1,6 +1,7 @@
 ## The Bore Station's survey readout: one bar per recorded stretch, newest on
 ## the right. Bar height is the stretch's quality; bar colour is the composition
-## it recorded, so a Boundary shows as a change of colour. Stands in for
+## it recorded, so a Boundary shows as a change of colour. Stretches recorded
+## while Quiet Ship shuttered the Bore are outlined and marked "Q". Stands in for
 ## the Bore Station's own screen in the Habitat until that Station has one.
 class_name SurveyPanel
 extends Control
@@ -9,6 +10,8 @@ extends Control
 const SHOWN_STRETCHES := 30
 const BAR_GAP_PX := 2.0
 const HEADER_PX := 60.0
+## Outline and "Q" over stretches recorded with the Bore shuttered (Quiet Ship).
+const SHUTTERED_COLOUR := Color(0.55, 0.8, 1.0, 0.8)
 
 var sim: DiveSimulation
 
@@ -40,6 +43,15 @@ func _draw() -> void:
 		var bar := Rect2(chart.position.x + i * bar_w, chart.end.y - bar_h,
 				bar_w - BAR_GAP_PX, bar_h)
 		draw_rect(bar, ColumnLook.blended_colour(stretch.composition))
+		if stretch.shuttered:
+			# Quiet Ship shuttered the Bore for part of this stretch.
+			draw_rect(Rect2(bar.position.x, chart.position.y, bar.size.x, chart.size.y),
+					SHUTTERED_COLOUR, false, 1.0)
+			draw_string(font, Vector2(bar.position.x, chart.position.y + 12.0), "Q",
+					HORIZONTAL_ALIGNMENT_CENTER, bar.size.x, 10, SHUTTERED_COLOUR)
+	if sim.shuttered():
+		draw_string(font, Vector2(chart.end.x - 90.0, 18.0), "SHUTTERED",
+				HORIZONTAL_ALIGNMENT_RIGHT, 82.0, 12, SHUTTERED_COLOUR)
 	# Full-quality line.
 	draw_line(chart.position, Vector2(chart.end.x, chart.position.y), Color(1, 1, 1, 0.4), 1.0)
 
