@@ -192,10 +192,13 @@ func test_the_payment_breaks_down_what_was_paid_and_why() -> void:
 	var trip := _careful_trip()
 	var paid := _first(trip.events, &"paid")
 
-	# What came up the link during the dive plus what was carried home is the
-	# whole dive's pay.
-	assert_float(paid.by_link + paid.carried_home).is_equal_approx(paid.amount, 0.001)
+	# What came up the link during the dive plus what was carried home, less
+	# the repairs, is the whole dive's pay.
+	var earned: float = paid.by_link + paid.carried_home
+	assert_float(earned - paid.hull_repair - paid.head_repair).is_equal_approx(paid.amount, 0.001)
 	assert_float(paid.by_link).is_greater(0.0)
+	assert_float(paid.hull_repair).is_greater_equal(0.0)
+	assert_float(paid.head_repair).is_greater_equal(0.0)
 	# Paid for each Medium the dive went through.
 	var by_medium: Dictionary = paid.by_medium
 	for medium in [&"sand", &"sandstone", &"granite"]:
@@ -203,7 +206,7 @@ func test_the_payment_breaks_down_what_was_paid_and_why() -> void:
 	var medium_total := 0.0
 	for medium in by_medium:
 		medium_total += by_medium[medium]
-	assert_float(medium_total).is_equal_approx(paid.amount, 0.001)
+	assert_float(medium_total).is_equal_approx(earned, 0.001)
 	assert_int(paid.stretches).is_greater(0)
 	assert_float(paid.metres).is_greater(TURN_AT_M)
 	assert_float(paid.mean_quality).is_between(0.0, 1.0)
