@@ -89,9 +89,13 @@ func _link_line() -> String:
 
 
 func _upload_line() -> String:
-	var aboard := sim.survey().size() - sim.uploaded_survey().size()
+	# Stretches only: records of features go up the link too, but are counted
+	# on the survey panel.
+	var up := sim.uploaded_survey().filter(
+			func(s: SurveyStretch) -> bool: return not s.is_feature_record()).size()
+	var aboard := sim.survey().size() - up
 	return "Aboard %d  up %d  paid %.0f   [U] %s" % [
-		aboard, sim.uploaded_survey().size(), sim.paid(),
+		aboard, up, sim.paid(),
 		PRIORITY_NAMES.get(sim.upload_priority(), "?"),
 	]
 

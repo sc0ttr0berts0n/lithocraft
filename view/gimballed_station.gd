@@ -27,6 +27,10 @@ var _screen_text: Label3D
 var _call_light: OmniLight3D
 var _calling := false
 var _call_phase := 0.0
+## Share of the power it asks for the Station is getting, 0 to 1. Below 1 its
+## screen browns out: dimmer the less it gets, and flickering.
+var _supplied := 1.0
+var _flicker := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
@@ -72,6 +76,10 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not _call_light:
 		return
+	_screen_text.modulate = hue
+	if _supplied < 1.0:
+		var dim := lerpf(0.25, 0.8, _supplied) * _flicker.randf_range(0.6, 1.0)
+		_screen_text.modulate = Color(hue * dim, 1.0)
 	if _calling:
 		_call_phase = fmod(_call_phase + delta * CALL_PULSE_HZ, 1.0)
 		_call_light.light_energy = CALL_LIGHT_ENERGY * (0.5 + 0.5 * sin(_call_phase * TAU))
@@ -88,6 +96,16 @@ func set_calling(calling: bool) -> void:
 
 func is_calling() -> bool:
 	return _calling
+
+
+## Tell the Station what share of the power it asks for it is getting, 0 to 1.
+## Starved (below 1), its screen dims and flickers so it shows at the Station.
+func set_supplied(share: float) -> void:
+	_supplied = clampf(share, 0.0, 1.0)
+
+
+func is_starved() -> bool:
+	return _supplied < 1.0
 
 
 ## Text shown on the Station's screen, under its name.
