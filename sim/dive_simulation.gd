@@ -867,20 +867,21 @@ func survey_value() -> float:
 ##       with `paid` kept, ready to dive again.
 ##   &"surfaced" {distance}: the Head has come back up to the surface; the
 ##       dive is over.
-##   &"paid" {amount, by_link, carried_home, stretches, metres, mean_quality,
-##       features, feature_worth, lost_to_quality, by_medium, total_paid}:
-##       right after surfaced, what this dive was paid (`amount` = `by_link`,
-##       paid while under way, + `carried_home`, the survey sold on
-##       surfacing) and why: Column recorded and its length-weighted quality,
+##   &"paid" {amount, by_link, carried_home, hull_repair, head_repair,
+##       stretches, metres, mean_quality, features, feature_worth,
+##       lost_to_quality, by_medium, total_paid}: right after surfaced, what
+##       this dive was paid (`amount` = `by_link`, paid while under way, +
+##       `carried_home`, the survey sold on surfacing, - `hull_repair` and
+##       `head_repair`, the dive's wear repaired in proportion to it) and why: Column recorded and its length-weighted quality,
 ##       features recorded and their worth, the value heat and shuttering
 ##       took off pristine records, and pay per Medium name. `total_paid` is
 ##       paid() across every dive.
-##   &"recovered_through_tunnel" {depth, distance, carried_home, head_repair,
-##       amount, total_paid}: the plasma was lost with the tunnel still open,
-##       so the crew and the Lithocraft were brought back up it from `depth`.
-##       The survey aboard was sold (`carried_home`) and the worn Head's
-##       repair paid for out of it; `amount` is this dive's pay after the
-##       repair, `total_paid` paid() across every dive. The dive is over as
+##   &"recovered_through_tunnel" {depth, distance, carried_home, hull_repair,
+##       head_repair, amount, total_paid}: the plasma was lost with the tunnel
+##       still open, so the crew and the Lithocraft were brought back up it
+##       from `depth`. The survey aboard was sold (`carried_home`) and the
+##       hull's and the Head's repairs paid for out of it, as on surfacing;
+##       `amount` is this dive's pay after the repairs, `total_paid` paid() across every dive. The dive is over as
 ##       after surfacing (surfaced() is true); new_dive() starts another.
 ##   &"hull_failed" {depth, distance, lost, lost_stretches, rebuy,
 ##       rebuy_charged, amount, total_paid}: heat wore the hull through and
@@ -1386,32 +1387,32 @@ func _lose_unsold() -> Array:
 
 ## The plasma is lost but the tunnel behind is open all the way up: the
 ## Lithocraft is hauled back up it to the surface with the crew and everything
-## aboard. The survey aboard is kept and sold on return, as on surfacing, and
-## the worn Head's repair is paid for out of it. The dive is over, as after
+## aboard. The survey aboard is kept and sold on return, and the repairs paid
+## for out of it, as on surfacing. The dive is over, as after
 ## surfacing; new_dive() starts another. Raises &"recovered_through_tunnel".
 func _recover_through_tunnel() -> void:
 	var from_depth := depth()
 	_position = Vector3.ZERO
 	_rest_at_surface()
 	var carried := _sell_aboard()
-	var repair := _stranding.head_repair(head_wear())
-	_paid -= repair
+	var repairs := _pay_for_repairs()
 	_events.append({type = &"recovered_through_tunnel", depth = from_depth,
-			distance = _distance, carried_home = carried, head_repair = repair,
-			amount = _paid - _paid_before_dive, total_paid = _paid})
+			distance = _distance, carried_home = carried, hull_repair = repairs.hull,
+			head_repair = repairs.head, amount = _paid - _paid_before_dive, total_paid = _paid})
 
 
 # --- Surfacing and the sale -----------------------------------------------
 
 ## The Head has come back up to the surface: the Lithocraft stops there, the
-## survey still aboard (the last part-stretch included) is sold, and the dive
-## is over. Raises &"surfaced", then &"paid" with what this dive was paid and
-## why.
+## survey still aboard (the last part-stretch included) is sold, the dive's
+## wear is repaired out of the pay, and the dive is over. Raises &"surfaced",
+## then &"paid" with what this dive was paid and why.
 func _surface() -> void:
 	_position.y = 0.0  # The Head rests at the surface.
 	_rest_at_surface()
 	_events.append({type = &"surfaced", distance = _distance})
-	_events.append(_payment(_sell_aboard()))
+	var carried := _sell_aboard()
+	_events.append(_payment(carried, _pay_for_repairs()))
 
 
 ## The dive is over with the Lithocraft at the surface: it stops, no Station
@@ -1441,11 +1442,22 @@ func _sell_aboard() -> float:
 	return carried
 
 
+## Takes what repairing the dive's wear costs out of what has been paid: the
+## hull's wear from heat and the Head's from poor Shifts, each in proportion to
+## the wear. Returns {hull, head}, what each repair cost.
+func _pay_for_repairs() -> Dictionary:
+	var repairs := {hull = _stranding.hull_repair(vessel_wear()),
+			head = _stranding.head_repair(head_wear())}
+	_paid -= repairs.hull + repairs.head
+	return repairs
+
+
 ## The &"paid" event for this dive: everything it was paid, by link while
-## under way and for the survey carried home, and why: how much Column was
-## recorded and how well, what the features were worth, what each Medium paid,
-## and what heat and shuttering cost against pristine records.
-func _payment(carried_home: float) -> Dictionary:
+## under way and for the survey carried home, less the `repairs`
+## (_pay_for_repairs()), and why: how much Column was recorded and how well,
+## what the features were worth, what each Medium paid, and what heat and
+## shuttering cost against pristine records.
+func _payment(carried_home: float, repairs: Dictionary) -> Dictionary:
 	var by_medium := {}
 	var stretches := 0
 	var metres := 0.0
@@ -1465,8 +1477,9 @@ func _payment(carried_home: float) -> Dictionary:
 			metres += stretch.length
 			quality_metres += stretch.quality * stretch.length
 	var amount := _paid - _paid_before_dive
-	return {type = &"paid", amount = amount, by_link = amount - carried_home,
-			carried_home = carried_home, stretches = stretches, metres = metres,
+	return {type = &"paid", amount = amount,
+			by_link = amount + repairs.hull + repairs.head - carried_home,
+			carried_home = carried_home, hull_repair = repairs.hull, head_repair = repairs.head, stretches = stretches, metres = metres,
 			mean_quality = quality_metres / metres if metres > 0.0 else 0.0,
 			features = features, feature_worth = feature_worth,
 			lost_to_quality = lost_to_quality, by_medium = by_medium, total_paid = _paid}
