@@ -72,6 +72,30 @@ _Avoid_: Recovery, evacuation, retrieval
 The chain-arm that rides a rail around the Bore, catches a crew member by their harness and carries them between Stations whatever "down" is.
 _Avoid_: Crane, grabber, lift, tether
 
+**Scenario**:
+A dive chosen from the start menu, with its own starting state, Orders and Checklist: the First dive, or a drill such as the Shift drill.
+_Avoid_: Level, mission, tutorial
+
+**Orders**:
+What surface control asks of a Scenario's dive, set out as goals, each achieved or not yet.
+_Avoid_: Objectives, quests, briefing
+
+**Checklist**:
+A Scenario's ordered steps, grouped in phases, each ticked off when the simulation sees it done.
+_Avoid_: Tutorial, hints, to-do list
+
+**Surface control**:
+The people at the surface who send the Orders and messages down the link.
+_Avoid_: Mission control, HQ, dispatcher
+
+**Autopilot**:
+A Station's own safe but mediocre control of its system, engaged by a switch and disengaged by any crew command that changes that Station's setting.
+_Avoid_: AI, auto mode, unattended
+
+**Explainer**:
+The short account of a reading opened by pointing at it: what it is, what it reads now, and what it asks of the crew.
+_Avoid_: Tooltip, help, manual
+
 ## Stations
 
 **Station**:
