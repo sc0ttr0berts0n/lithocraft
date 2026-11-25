@@ -360,7 +360,7 @@ func _init(layout: MediumLayout) -> void:
 func set_power(power: float) -> void:
 	if _off_the_crew():
 		return
-	_crew_command(STATION_DRIVE)
+	_disengage_on_command(STATION_DRIVE)
 	_power = clampf(power, 0.0, 1.0)
 
 
@@ -373,7 +373,7 @@ func set_power(power: float) -> void:
 func set_course(heading_degrees: float, pitch_degrees: float) -> void:
 	if _off_the_crew():
 		return
-	_crew_command(STATION_NAVIGATION)
+	_disengage_on_command(STATION_NAVIGATION)
 	_course_heading = fposmod(heading_degrees, 360.0)
 	_course_pitch = clampf(pitch_degrees, -90.0, 90.0)
 
@@ -385,7 +385,7 @@ func set_course(heading_degrees: float, pitch_degrees: float) -> void:
 func set_steering_effort(effort: float) -> void:
 	if _off_the_crew():
 		return
-	_crew_command(STATION_DRIVE)
+	_disengage_on_command(STATION_DRIVE)
 	_steering_effort = clampf(effort, 0.0, 1.0)
 
 
@@ -397,7 +397,7 @@ func override_course(heading_degrees: float, pitch_degrees: float) -> void:
 		return
 	if not attended(STATION_DRIVE):
 		return
-	_crew_command(STATION_DRIVE)
+	_disengage_on_command(STATION_DRIVE)
 	_overriding = true
 	_override_heading = fposmod(heading_degrees, 360.0)
 	_override_pitch = clampf(pitch_degrees, -90.0, 90.0)
@@ -407,7 +407,7 @@ func override_course(heading_degrees: float, pitch_degrees: float) -> void:
 func end_override() -> void:
 	if _off_the_crew():
 		return
-	_crew_command(STATION_DRIVE)
+	_disengage_on_command(STATION_DRIVE)
 	_overriding = false
 
 
@@ -427,7 +427,7 @@ func set_observed_feature(id: int) -> void:
 ## it has sent.
 func set_upload_priority(priority: StringName) -> void:
 	if priority in [UPLOAD_OLDEST_FIRST, UPLOAD_NEWEST_FIRST, UPLOAD_MOST_VALUABLE_FIRST]:
-		_crew_command(STATION_BORE)
+		_disengage_on_command(STATION_BORE)
 		_upload_priority = priority
 		_sending = null
 
@@ -436,7 +436,7 @@ func set_upload_priority(priority: StringName) -> void:
 ## On at the start of a dive. While stranded the link runs on the emergency
 ## store, so stopping it keeps the store for a relight.
 func set_uploading(on: bool) -> void:
-	_crew_command(STATION_BORE)
+	_disengage_on_command(STATION_BORE)
 	_uploading = on
 
 
@@ -448,7 +448,7 @@ func set_uploading(on: bool) -> void:
 func set_heat_split(to_column: float) -> void:
 	if _off_the_crew():
 		return
-	_crew_command(STATION_THERMAL)
+	_disengage_on_command(STATION_THERMAL)
 	_heat_split = clampf(to_column, 0.0, 1.0)
 
 
@@ -468,7 +468,7 @@ func pulse() -> void:
 func set_quiet_ship(on: bool) -> void:
 	if _off_the_crew():
 		return
-	_crew_command(STATION_NAVIGATION)
+	_disengage_on_command(STATION_NAVIGATION)
 	_quiet_ship = on
 
 
@@ -488,9 +488,9 @@ func set_attended(station: StringName, attended: bool) -> void:
 ## the Course (ending any override) at slow, safe power, steering gently, and
 ## backs its power off to the grip limit while it slips. Navigation's and the
 ## Bore Station's have no rule yet. Off, a Station holds its setting and does
-## nothing more; its calls still come. Any crew command that changes a
-## Station's setting disengages its autopilot; taking a reading (a pulse,
-## observing a feature) does not. Every autopilot starts off each dive.
+## nothing more; its calls still come. Any crew command at a Station that
+## changes its setting or acts (a Shift, a relight) disengages its autopilot;
+## taking a reading (a pulse, observing a feature) does not. Every autopilot starts off each dive.
 ## Disengaging raises &"autopilot_off".
 func set_autopilot(station: StringName, engaged: bool) -> void:
 	if not station in STATIONS or (station != STATION_BORE and _off_the_crew()):
@@ -506,8 +506,9 @@ func set_autopilot(station: StringName, engaged: bool) -> void:
 		_power = _AUTOPILOT_DRIVE_POWER
 
 
-## A crew command has changed this Station's setting: its autopilot lets go.
-func _crew_command(station: StringName) -> void:
+## The crew has taken this Station's controls (any command but a reading):
+## its autopilot lets go.
+func _disengage_on_command(station: StringName) -> void:
 	_disengage(station, AUTOPILOT_OFF_BY_COMMAND)
 
 
@@ -562,7 +563,8 @@ func _start_fresh() -> void:
 func relight() -> void:
 	if _off_the_crew():
 		return
-	_crew_command(STATION_REACTOR)
+	if stranded():  # Only stranded does a relight do anything.
+		_disengage_on_command(STATION_REACTOR)
 	_relight_asked = true
 
 
@@ -573,7 +575,7 @@ func relight() -> void:
 func shift(frequency: float) -> void:
 	if _off_the_crew():
 		return
-	_crew_command(STATION_REACTOR)
+	_disengage_on_command(STATION_REACTOR)
 	_plasma.ask_shift(frequency)
 
 

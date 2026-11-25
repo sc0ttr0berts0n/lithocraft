@@ -34,7 +34,6 @@ func _setting_commands() -> Array:
 		[DiveSimulation.STATION_NAVIGATION, func(s: DiveSimulation) -> void: s.set_quiet_ship(true)],
 		[DiveSimulation.STATION_THERMAL, func(s: DiveSimulation) -> void: s.set_heat_split(0.5)],
 		[DiveSimulation.STATION_REACTOR, func(s: DiveSimulation) -> void: s.shift(s.plasma_frequency())],
-		[DiveSimulation.STATION_REACTOR, func(s: DiveSimulation) -> void: s.relight()],
 		[DiveSimulation.STATION_BORE, func(s: DiveSimulation) -> void: s.set_upload_priority(DiveSimulation.UPLOAD_NEWEST_FIRST)],
 		[DiveSimulation.STATION_BORE, func(s: DiveSimulation) -> void: s.set_uploading(false)],
 	]

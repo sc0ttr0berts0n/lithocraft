@@ -404,12 +404,11 @@ func _switch_autopilot(station: StringName) -> void:
 	_sim.set_autopilot(station, not _sim.autopilot(station))
 
 
-## The Station in use with this simulation name.
-func _station_named(sim_name: StringName) -> GimballedStation:
+## A Station's autopilot let go: its disconnect warning and flashing caption.
+func _on_autopilot_off(event: Dictionary) -> void:
 	for station in _in_use:
-		if _sim_names[station] == sim_name:
-			return station
-	return null
+		if _sim_names[station] == event.station:
+			station.autopilot_off()
 
 
 ## Thermal: pressed, starts holding to arm self-destruct (released, the hold
@@ -441,7 +440,7 @@ func _physics_process(delta: float) -> void:
 			&"new_dive": _on_new_dive(event)
 			&"self_destruct_started": _on_self_destruct_started(event)
 			&"self_destruct_cancelled": _on_self_destruct_cancelled(event)
-			&"autopilot_off": _station_named(event.station).autopilot_off()
+			&"autopilot_off": _on_autopilot_off(event)
 	_fade_notice(delta)
 	_show_calls()
 	var felt := _sim.felt_acceleration()
