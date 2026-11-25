@@ -50,6 +50,9 @@ var _settling_at := 0.0
 var _wear := 0.0
 ## Wear per second in the last step: how fast the overheated hull creeps.
 var _creep_rate := 0.0
+## The stress on the hull in the last step, 1 at the surface, growing with
+## depth under the rock's pressure.
+var _stress := 1.0
 
 
 ## Starts with the hull at the temperature of its surroundings, in kelvin.
@@ -108,6 +111,17 @@ func creep_rate() -> float:
 	return _creep_rate
 
 
+## True while heat is wearing the hull: it is hotter than it can bear.
+func taking_damage() -> bool:
+	return _creep_rate > 0.0
+
+
+## The stress on the hull in the last step: 1 at the surface, greater deeper
+## down where the rock presses harder.
+func stress() -> float:
+	return _stress
+
+
 ## True once heat has worn the hull through.
 func failed() -> bool:
 	return _wear >= 1.0
@@ -163,6 +177,6 @@ func _shed_outward(heat: float, surroundings_k: float, dt: float) -> void:
 ## stress, which the rock's pressure raises with depth.
 func _creep(depth: float, dt: float) -> void:
 	var overheat := _temperature - _HULL_DAMAGE_K
-	var stress := 1.0 + maxf(depth, 0.0) / _CREEP_STRESS_DEPTH_M
-	_creep_rate = _WEAR_PER_K_S * overheat * stress if overheat > 0.0 else 0.0
+	_stress = 1.0 + maxf(depth, 0.0) / _CREEP_STRESS_DEPTH_M
+	_creep_rate = _WEAR_PER_K_S * overheat * _stress if overheat > 0.0 else 0.0
 	_wear = minf(1.0, _wear + _creep_rate * dt)
