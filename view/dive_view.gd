@@ -4,6 +4,10 @@
 ## Slip is shown here until the Habitat exists (ticket #3): a red SLIP bar and
 ## label that shake with slip, and a placeholder grinding noise whose loudness
 ## follows DiveSimulation.slip().
+##
+## The Column and the Bore Station survey are shown here too until the Habitat
+## (ticket #3) has a Bore and a Bore Station: a ColumnStrip on the left that
+## scrolls with the simulation, and a SurveyPanel on the right.
 extends Control
 
 const POWER_STEP := 0.1
@@ -27,9 +31,13 @@ var _judder_phase := 0.0
 @onready var _speed_label: Label = %SpeedLabel
 @onready var _slip_label: Label = %SlipLabel
 @onready var _slip_bar: ProgressBar = %SlipBar
+@onready var _column_strip: ColumnStrip = %ColumnStrip
+@onready var _survey_panel: SurveyPanel = %SurveyPanel
 
 
 func _ready() -> void:
+	_column_strip.sim = _sim
+	_survey_panel.sim = _sim
 	_power_slider.value_changed.connect(_on_power_changed)
 	_on_power_changed(_power_slider.value)
 	_start_slip_sound()
