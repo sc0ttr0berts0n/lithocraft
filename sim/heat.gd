@@ -100,15 +100,19 @@ func step(power_drawn: float, spike: float, split: float, thermal_supplied: floa
 	_creep(depth, dt)
 
 
-## One step of dt seconds with the Head dark: nothing makes heat, and heat
-## soaks into the hull from the melt and rock round it (soak_temperature()).
-## Thermal's pumps, running on the emergency store, carry `cooling` (0 to 1,
-## the share of their full flow) of it into the Column. The overheated hull
-## creeps as it does under way, faster at greater `depth`.
-func soak(surroundings_k: float, cooling: float, depth: float, dt: float) -> void:
-	_produced = 0.0
+## One step of dt seconds with the Head dark: heat soaks into the hull from
+## the melt and rock round it (soak_temperature()). Thermal's pumps, running
+## on the emergency store, carry `cooling` (0 to 1, the share of their full
+## flow) of it into the Column. Nothing makes heat but `dumped`, power (in the
+## units of set_power()) the emergency store discharges into the hull itself,
+## as self-destruct does: stored energy through a resistive load all becomes
+## heat. The overheated hull creeps as it does under way, faster at greater
+## `depth`.
+func soak(surroundings_k: float, cooling: float, depth: float, dt: float,
+		dumped := 0.0) -> void:
+	_produced = dumped * _HEAT_PER_POWER
 	_to_column = cooling * _DARK_COOLING
-	_settling_at = _soak_settling(surroundings_k, cooling)
+	_settling_at = _soak_settling(surroundings_k, cooling, dumped)
 	var toward := exp(-dt * _HULL_SHED_PER_K / _HULL_HEAT_PER_K)
 	_temperature = _settling_at + (_temperature - _settling_at) * toward
 	_creep(depth, dt)
@@ -122,17 +126,18 @@ static func soak_temperature(surroundings_k: float) -> float:
 
 ## Seconds until the hull fails with the Head dark from now, at `depth` among
 ## surroundings at `surroundings_k`: heat soaks in, Thermal's pumps carry
-## `cooling` (0 to 1) of their full flow away for `cooled_for` seconds and
-## then stop. INF if it would bear the heat for ever. The wear by any time is
+## `cooling` (0 to 1) of their full flow away, and the store dumps `dumped`
+## power into the hull (as soak()), for `cooled_for` seconds while the store
+## lasts, and then both stop. INF if it would bear the heat for ever. The wear by any time is
 ## exact (_soaked_wear()); the time it reaches failure is found by bisection
 ## up to _LONGEST_CLOCK_S.
 func time_to_fail(surroundings_k: float, depth: float, cooling: float,
-		cooled_for: float) -> float:
+		cooled_for: float, dumped := 0.0) -> float:
 	var left := 1.0 - _wear
 	if left <= 0.0:
 		return 0.0
 	var stress := _stress_at(depth)
-	var cooled_to := _soak_settling(surroundings_k, cooling)
+	var cooled_to := _soak_settling(surroundings_k, cooling, dumped)
 	var dark_to := _soak_settling(surroundings_k, 0.0)
 	var wear_at := func(t: float) -> float:
 		var first := minf(t, cooled_for)
@@ -262,9 +267,11 @@ static func _stress_at(depth: float) -> float:
 
 
 ## Where the hull settles with the Head dark: the soak temperature, less what
-## Thermal's pumps carry away at `cooling` (0 to 1).
-static func _soak_settling(surroundings_k: float, cooling: float) -> float:
-	return soak_temperature(surroundings_k) - cooling * _DARK_COOLING / _HULL_SHED_PER_K
+## Thermal's pumps carry away at `cooling` (0 to 1), plus the heat of power
+## `dumped` into it from the store.
+static func _soak_settling(surroundings_k: float, cooling: float, dumped := 0.0) -> float:
+	return soak_temperature(surroundings_k) \
+			+ (dumped * _HEAT_PER_POWER - cooling * _DARK_COOLING) / _HULL_SHED_PER_K
 
 
 ## The hull's temperature `seconds` after it was at `from_k`, settling toward

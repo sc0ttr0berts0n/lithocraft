@@ -453,9 +453,12 @@ func set_attended(station: StringName, attended: bool) -> void:
 ## dt x rate simulated seconds. Clamped to 1..max_time_rate(). Any Station call
 ## returns it to 1, and while any Station is still calling it cannot be raised
 ## above 1: time runs fast only through quiet stretches. Stranded, it can be:
-## the crew wait on the link and the store, and nothing else moves.
+## the crew wait on the link and the store, and nothing else moves. So it can
+## while self-destruct runs, with the Stations off the crew: calls neither
+## hold it down nor return it to 1.
 func set_time_rate(rate: float) -> void:
-	var fastest := _MAX_TIME_RATE if _calls.is_empty() or stranded() else 1.0
+	var fastest := _MAX_TIME_RATE if _calls.is_empty() or stranded() or _self_destructing \
+			else 1.0
 	_time_rate = clampf(rate, 1.0, fastest)
 
 
@@ -1278,17 +1281,19 @@ func hull_damage_temperature() -> float:
 ## round the vessel fails the hull with the Head dark. Shorter deeper, where
 ## the rock is hotter and presses harder, and the more worn the hull. While
 ## stranded it runs live, with Thermal's pumps cooling at the heat split for
-## as long as the emergency store lasts (the link drawing on it too, as
+## as long as the emergency store lasts (the link, and a running
+## self-destruct dumping it into the hull, drawing on it too, as
 ## _step_stranded() draws them); under way, what it would be if the plasma
 ## were lost now, the pumps stopped. INF if the hull would bear the heat for
 ## ever.
 func stranding_clock() -> float:
 	if dead():
 		return 0.0
-	if not stranded() or _heat_split <= 0.0:
+	if not stranded() or (_heat_split <= 0.0 and _dump_draw() <= 0.0):
 		return _heat.time_to_fail(surroundings_temperature(), depth(), 0.0, 0.0)
-	var cooled_for := _stranding.store() / (_cooling_draw() + _link_draw())
-	return _heat.time_to_fail(surroundings_temperature(), depth(), _heat_split, cooled_for)
+	var lasts := _stranding.store() / (_dump_draw() + _cooling_draw() + _link_draw())
+	return _heat.time_to_fail(surroundings_temperature(), depth(), _heat_split, lasts,
+			_dump_draw())
 
 
 # --- Steering -------------------------------------------------------------
@@ -1547,7 +1552,8 @@ func _update_calls() -> void:
 		if calls[station][0] != was:
 			_events.append({type = &"station_call", station = station,
 					reason = calls[station][0], urgency = calls[station][1]})
-			_time_rate = 1.0
+			if not _self_destructing:
+				_time_rate = 1.0
 	_calls = calls
 
 
@@ -1647,11 +1653,15 @@ func _step_stranded(dt: float) -> void:
 		if not stranded():
 			_update_calls()
 			return
+	var dumped := 0.0
+	if _self_destructing:
+		_heat_split = 0.0  # The pumps stop: every bit of the store's heat stays in.
+		dumped = _stranding.draw(_dump_draw() * dt) / dt
 	var cooling := 0.0
 	var cooling_draw := _cooling_draw() * dt
 	if cooling_draw > 0.0:
 		cooling = _heat_split * _stranding.draw(cooling_draw) / cooling_draw
-	_heat.soak(surroundings_temperature(), cooling, depth(), dt)
+	_heat.soak(surroundings_temperature(), cooling, depth(), dt, dumped)
 	var link_draw := _link_draw() * dt
 	if link_draw > 0.0:
 		_upload(link_rate() * dt * _stranding.draw(link_draw) / link_draw)
@@ -1662,6 +1672,13 @@ func _step_stranded(dt: float) -> void:
 		_rescue()
 		return
 	_update_calls()
+
+
+## What self-destruct dumps from the emergency store into the hull per second
+## while stranded, else 0. Drawn first. The one reckoning of it:
+## _step_stranded() draws it and stranding_clock() counts on it.
+func _dump_draw() -> float:
+	return _SELF_DESTRUCT_DUMP if _self_destructing and stranded() else 0.0
 
 
 ## What Thermal's pumps draw from the emergency store per second at the heat
@@ -1769,6 +1786,7 @@ func _rest_at_surface() -> void:
 	_speed = 0.0
 	_slip = 0.0
 	_surfaced = true
+	_self_destructing = false  # Home alive: nothing left to destroy.
 	_calls = {}
 	_time_rate = 1.0
 

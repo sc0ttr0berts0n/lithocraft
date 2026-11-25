@@ -103,6 +103,19 @@ func test_self_destruct_takes_the_stations_off_the_crew() -> void:
 	assert_float(sim.heat_outward()).is_equal_approx(sim.heat_produced(), 1e-9)
 
 
+func test_a_self_destruct_under_way_can_be_waited_out_fast() -> void:
+	var sim := _under_way()
+	_arm(sim)
+	DiveTestKit.run(sim, 300.0)
+	assert_bool(sim.heat_warning()).is_true()
+
+	sim.set_time_rate(sim.max_time_rate())
+	DiveTestKit.run(sim, 1.0)
+
+	assert_bool(sim.dead()).is_false()
+	assert_float(sim.time_rate()).is_greater(1.0)
+
+
 func test_death_by_self_destruct_is_its_own_cause_with_the_usual_price() -> void:
 	var destructing := _under_way()
 	var cooked := _under_way()
@@ -125,6 +138,112 @@ func test_death_by_self_destruct_is_its_own_cause_with_the_usual_price() -> void
 	assert_float(destructing.unsold_value()).is_equal(0.0)
 	assert_float(destructed[0].rebuy).is_equal(overheated[0].rebuy)
 	assert_bool(destructing.self_destructing()).is_false()
+
+
+## Test values only. Hot dense rock the melt fills behind the Tail, so the
+## tunnel seals at once and a lost plasma strands the Lithocraft; it carries
+## no sound, so nothing goes up once sealed.
+func _hot_dense() -> Medium:
+	return Medium.new(&"hot_dense", 1.0, 3.0, 0.0, 450.0, 1.0, {&"quartz": 1.0}, 0.0)
+
+
+## A dive deep into hot dense rock, its heat all sent into the Column so the
+## hull stays whole, then stranded where it stands, deep enough that the
+## stranding clock runs out before the rescue arrives.
+func _stranded() -> DiveSimulation:
+	var sim := DiveSimulation.new(MediumLayout.uniform(_hot_dense()))
+	sim.set_attended(DiveSimulation.STATION_THERMAL, true)
+	sim.set_heat_split(1.0)
+	sim.set_power(1.0)
+	DiveTestKit.run(sim, 300.0, 0.5)
+	DiveTestKit.lose_plasma(sim)
+	sim.take_events()
+	assert_bool(sim.stranded()).is_true()
+	assert_float(sim.stranding_clock()).is_less(sim.rescue_time())
+	return sim
+
+
+func test_self_destruct_stranded_spends_the_store_into_the_hull_and_fails_it_before_the_clock() -> void:
+	var sim := _stranded()
+	var clock := sim.stranding_clock()
+	var store := sim.emergency_store()
+	assert_float(store).is_greater(0.0)
+	var twin := _stranded()
+
+	_arm(sim)
+	DiveTestKit.run(sim, 5.0)
+	DiveTestKit.run(twin, 5.0 + sim.self_destruct_hold_length())
+
+	# The store goes into the hull as heat: spent, and the hull hotter for it.
+	assert_float(sim.emergency_store()).is_less(store)
+	assert_float(sim.vessel_temperature()).is_greater(twin.vessel_temperature())
+	var failed := []
+	var death := _time_to_death(sim, clock * 2.0, failed)
+	assert_float(death).is_less(clock)
+	assert_float(sim.emergency_store()).is_equal(0.0)
+	assert_str(String(failed[0].cause)).is_equal("self_destruct")
+
+
+func test_the_stranding_clock_counts_a_running_self_destruct() -> void:
+	var sim := _stranded()
+	var before := sim.stranding_clock()
+
+	_arm(sim)
+	var clock := sim.stranding_clock()
+	var death := _time_to_death(sim, before * 2.0)
+
+	assert_float(clock).is_less(before)
+	assert_float(death).is_between(clock * 0.95, clock * 1.05 + 1.0)
+
+
+func test_cancelling_under_way_returns_the_stations_and_keeps_the_wear() -> void:
+	var sim := _under_way()
+	_arm(sim)
+	DiveTestKit.run(sim, 300.0)
+	var wear := sim.vessel_wear()
+	assert_float(wear).is_greater(0.0)
+	sim.take_events()
+
+	sim.cancel_self_destruct()
+	sim.set_power(0.0)
+	sim.set_heat_split(1.0)
+	sim.advance(1.0)
+
+	assert_bool(sim.self_destructing()).is_false()
+	assert_array(DiveTestKit.types(sim.take_events())).contains([&"self_destruct_cancelled"])
+	assert_float(sim.power()).is_equal(0.0)
+	assert_float(sim.heat_split()).is_equal(1.0)
+	assert_float(sim.vessel_wear()).is_greater_equal(wear)
+	# Cancelled in time, the hull holds: the dive goes on.
+	DiveTestKit.run(sim, 600.0)
+	assert_bool(sim.dead()).is_false()
+
+
+func test_cancelling_stranded_stops_the_dump_and_the_store_spent_stays_spent() -> void:
+	var sim := _stranded()
+	sim.set_uploading(false)  # Only the dump draws on the store.
+	var store := sim.emergency_store()
+	_arm(sim)
+	DiveTestKit.run(sim, 3.0)
+
+	sim.cancel_self_destruct()
+	var left := sim.emergency_store()
+	DiveTestKit.run(sim, 10.0)
+
+	assert_float(left).is_less(store)
+	assert_float(sim.emergency_store()).is_equal(left)
+	assert_bool(sim.stranded()).is_true()
+
+
+func test_a_hold_after_cancelling_needs_the_command_let_go_first() -> void:
+	var sim := _under_way()
+	_arm(sim)
+	sim.hold_self_destruct(true)  # Pressed again to cancel, and held on.
+	sim.cancel_self_destruct()
+
+	DiveTestKit.run(sim, sim.self_destruct_hold_length() * 2.0, STEP)
+
+	assert_bool(sim.self_destructing()).is_false()
 
 
 func test_the_hold_counts_only_with_the_crew_at_thermal() -> void:
