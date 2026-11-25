@@ -15,6 +15,8 @@ const POSE_EYE := Vector3(0, 0.55, -0.85)
 ## The screen's size and colour; the key panel beside it matches.
 const SCREEN_SIZE := Vector2(0.8, 0.4)
 const SCREEN_COLOUR := Color(0.04, 0.07, 0.09)
+## A live picture's size on the screen (show_display()).
+const DISPLAY_SIZE := Vector2(0.76, 0.36)
 ## The key panel: its gap from the screen, its width, one row's height, a key
 ## prompt's size, and the size of what each key does.
 const KEYS_GAP := 0.02
@@ -51,6 +53,8 @@ var footer := ""
 
 var _cradle := Node3D.new()
 var _screen_text: Label3D
+## The live picture on the screen, if show_display() put one there.
+var _display: MeshInstance3D
 var _call_light: OmniLight3D
 var _call_sound: AudioStreamPlayer3D
 ## How urgently the Station calls, 0 (not calling) to 1.
@@ -223,14 +227,64 @@ static func pose_look() -> float:
 	return -atan2(POSE_EYE.y - SCREEN_CENTRE.y, -POSE_EYE.z)
 
 
+## This Station's screen as the centre dot sees it (Habitat frame), with its
+## readings: one per line of its screen text, the name first, then its
+## display if it shows one (see reading()). An empty mount has no readings.
+func face() -> Pointing.Face:
+	var screen := face_for(position, _cradle.basis)
+	if _screen_text == null:
+		return screen
+	var font := _screen_text.font if _screen_text.font else ThemeDB.fallback_font
+	var line_m := (font.get_height(_screen_text.font_size) + _screen_text.line_spacing) \
+			* _screen_text.pixel_size
+	var lines := _screen_text.text.split("\n")
+	# The text's top edge, in face coordinates: centred on its place, or
+	# standing on it when set above a display.
+	var top := _screen_text.position.y - SCREEN_CENTRE.y
+	if _screen_text.vertical_alignment == VERTICAL_ALIGNMENT_CENTER:
+		top += line_m * lines.size() / 2.0
+	elif _screen_text.vertical_alignment == VERTICAL_ALIGNMENT_BOTTOM:
+		top += line_m * lines.size()
+	for i in lines.size():
+		screen.readings.append(Rect2(-SCREEN_SIZE.x / 2.0, top - line_m * (i + 1), SCREEN_SIZE.x, line_m))
+	if _display:
+		screen.readings.append(Rect2(-DISPLAY_SIZE / 2.0, DISPLAY_SIZE))
+	return screen
+
+
+## What the reading at this index of face().readings shows: its line of
+## screen text, or "" for the display.
+func reading(index: int) -> String:
+	var lines := _screen_text.text.split("\n") if _screen_text else PackedStringArray()
+	return lines[index] if index >= 0 and index < lines.size() else ""
+
+
+## True if the reading at this index of face().readings is the display.
+func is_display(index: int) -> bool:
+	return _display != null and _screen_text != null \
+			and index == _screen_text.text.split("\n").size()
+
+
+## The screen of a Station pivoting at pivot with its cradle at cradle, as a
+## face with no readings: facing the working pose, the crew's right as x.
+static func face_for(pivot: Vector3, cradle: Basis) -> Pointing.Face:
+	var screen := Pointing.Face.new()
+	# The screen box's front, on the Head side where its text faces.
+	var front := SCREEN_CENTRE + Vector3(0, 0, -0.01)
+	screen.transform = Transform3D(cradle * Basis(Vector3.UP, PI), pivot + cradle * front)
+	screen.bounds = Rect2(-SCREEN_SIZE / 2.0, SCREEN_SIZE)
+	return screen
+
+
 ## Show a live picture (e.g. a SubViewport's texture) filling the Station's
 ## screen. The name and reading move above the screen.
 func show_display(texture: Texture2D) -> void:
 	if _screen_text == null:
 		return
 	var display := MeshInstance3D.new()
+	_display = display
 	var quad := QuadMesh.new()
-	quad.size = Vector2(0.76, 0.36)
+	quad.size = DISPLAY_SIZE
 	display.mesh = quad
 	var material := StandardMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
