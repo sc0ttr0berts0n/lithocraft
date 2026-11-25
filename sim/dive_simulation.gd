@@ -1032,6 +1032,11 @@ func paid() -> float:
 	return _paid
 
 
+## Whether the link sends the survey aboard up; see set_uploading().
+func uploading() -> bool:
+	return _uploading
+
+
 ## The upload priority in force, one of the UPLOAD_* priorities.
 func upload_priority() -> StringName:
 	return _upload_priority

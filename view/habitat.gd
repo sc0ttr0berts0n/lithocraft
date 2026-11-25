@@ -156,6 +156,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_G: _set_power(_power_setting - POWER_STEP)
 			KEY_F: _observe_next_feature()
 			KEY_U: _cycle_upload_priority()
+			KEY_B: _toggle_uploading()
 			KEY_F1: _controls.visible = not _controls.visible
 			KEY_F3: _dive_view.visible = not _dive_view.visible
 			KEY_C: _split_heat(_heat_split - HEAT_SPLIT_STEP)
@@ -170,6 +171,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_N: _turn_shift_dial(-1)
 			KEY_M: _turn_shift_dial(1)
 			KEY_R: _shift()
+			KEY_I: _relight()
 			KEY_ENTER, KEY_KP_ENTER:
 				_sim.recover()
 				_sim.new_dive()
@@ -190,6 +192,7 @@ func _physics_process(delta: float) -> void:
 			&"stranded": _on_stranded(event)
 			&"recovered_through_tunnel": _on_recovered_through_tunnel(event)
 			&"recovered": _on_recovered(event)
+			&"relight_result": _on_relight_result(event)
 			&"paid": _on_paid(event)
 			&"new_dive": _on_new_dive(event)
 	_fade_recovered_notice(delta)
@@ -361,28 +364,75 @@ func _show_reactor() -> void:
 			_sim.shift_window_length()]
 	if _sim.plasma_lost():
 		shift_line += "  PLASMA LOST"
+		lines.append(shift_line)
+		lines.append(_store_line())
+		lines.append(_relight_line())
+		_reactor.show_reading("\n".join(lines))
+		return
 	elif _sim.shift_due():
 		shift_line += "  SHIFT DUE  [N/M] dial [R] Shift"
 	elif _boundary_ahead:
 		shift_line += "  BOUNDARY AHEAD"
 	lines.append(shift_line)
+	lines.append(_store_line())
 	_reactor.show_reading("\n".join(lines))
 
 
-## The plasma is lost and the tunnel sealed: the dive is over. Tell the crew
-## where, what it cost, and how to call the recovery.
+## The emergency store on the Reactor screen: how full, and whether the
+## Lithocraft is running on it.
+func _store_line() -> String:
+	var share := _sim.emergency_store() / _sim.emergency_store_capacity()
+	return "Emergency store %s %d%%%s" % [_bar(1.0, share), roundi(share * 100.0),
+			"  ON STORE" if _sim.on_emergency_store() else ""]
+
+
+## The relight the Reactor can try while stranded: its pulse against the
+## store, its chance on this Head, and the key, or why it cannot.
+func _relight_line() -> String:
+	var cost := _sim.relight_cost() / _sim.emergency_store_capacity()
+	var odds := "Relight: pulse %d%% of store, chance %d%%" % [roundi(cost * 100.0),
+			roundi(_sim.relight_chance() * 100.0)]
+	if not _sim.stranded():
+		return odds
+	if _sim.emergency_store() < _sim.relight_cost():
+		return odds + "  STORE TOO LOW"
+	return odds + "  [I] relight"
+
+
+## The plasma is lost and the tunnel sealed: stranded, on the emergency
+## store. Tell the crew where, what is still aboard, and what the store can
+## buy: a relight at the Reactor, the link sending the survey up, or the
+## recovery.
 func _on_stranded(event: Dictionary) -> void:
-	_recovered_notice_left = 0.0
-	_notice.text = "
-".join([
+	_show_notice([
 		"STRANDED  at %.0f m" % event.depth,
-		"The plasma is lost and the tunnel behind is sealed.",
-		"Unsold survey lost: %d stretches, worth %.0f" % [event.lost_stretches, event.lost],
+		"The plasma is lost and the tunnel behind is sealed: on the emergency store.",
+		"Survey aboard: %d stretches, worth %.0f, lost at the recovery" % [
+			event.aboard_stretches, event.aboard],
 		"Paid, and kept: %.0f" % event.paid,
 		"",
+		"[I] at the Reactor: relight the Head (chance %d%%, costs %d%% of the store)" % [
+			roundi(_sim.relight_chance() * 100.0),
+			roundi(_sim.relight_cost() / _sim.emergency_store_capacity() * 100.0)],
+		"[B] at the Bore Station: stop or start the link, which runs on the store",
 		"[Enter] call the recovery",
-	])
-	_notice.visible = true
+	], 0.0)
+
+
+## A relight's outcome: lit, the dive goes on; failed or refused, the crew
+## are still stranded, with what is left in the store.
+func _on_relight_result(event: Dictionary) -> void:
+	var left := roundi(event.store / _sim.emergency_store_capacity() * 100.0)
+	match event.outcome:
+		&"lit":
+			_show_notice(["RELIT  The Head's plasma holds again",
+					"Store left %d%%. Power up at the Drive [T]." % left], RECOVERED_NOTICE_S)
+		&"failed":
+			_show_notice(["RELIGHT FAILED  the pulse is spent", "Store left %d%%" % left,
+					"[I] try again   [Enter] call the recovery"], 0.0)
+		&"refused":
+			_show_notice(["RELIGHT REFUSED  the store cannot pay the pulse",
+					"Store left %d%%" % left, "[Enter] call the recovery"], 0.0)
 
 
 ## The plasma is lost but the tunnel behind is open: the crew are brought
@@ -530,6 +580,23 @@ func _observe_next_feature() -> void:
 	var ids := candidates.map(func(f: ColumnFeature) -> int: return f.id)
 	var current := ids.find(_sim.observed_feature())
 	_sim.set_observed_feature(ids[(current + 1) % ids.size()])
+
+
+## Bore Station: stop or start the link. While stranded it runs on the
+## emergency store, so stopping it keeps the store for a relight. Only when at
+## the Bore Station.
+func _toggle_uploading() -> void:
+	if not _at(_bore_station):
+		return
+	_sim.set_uploading(not _sim.uploading())
+
+
+## Reactor: try to relight the Head from the emergency store. Only when at the
+## Reactor; the simulation ignores it unless stranded.
+func _relight() -> void:
+	if not _at(_reactor):
+		return
+	_sim.relight()
 
 
 ## Bore Station: which waiting survey data goes up the link first, cycling

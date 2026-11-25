@@ -86,7 +86,10 @@ func _draw_trend(graph: Rect2, font: Font) -> void:
 
 func _link_line() -> String:
 	var kind := "slow, sound through rock" if sim.tunnel_sealed() else "fast, light up the tunnel"
-	return "Link: %s  %.2f m of survey/s" % [kind, sim.link_rate()]
+	if not sim.uploading():
+		return "Link: STOPPED [B]  (%s)" % kind
+	var store := "  on the store" if sim.on_emergency_store() else ""
+	return "Link: %s  %.2f m of survey/s%s" % [kind, sim.link_rate(), store]
 
 
 func _upload_line() -> String:

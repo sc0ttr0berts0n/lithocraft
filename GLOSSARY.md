@@ -52,6 +52,14 @@ _Avoid_: Silent running, scan mode
 The heading and pitch Navigation plots for the Lithocraft to follow; the Drive steers toward it.
 _Avoid_: Route, waypoint, path, heading (for the plotted target)
 
+**Emergency store**:
+The one store of energy the Lithocraft falls back on once the Head's plasma is lost; the link, a relight and cooling all draw on it.
+_Avoid_: Battery, backup, reserve
+
+**Relight**:
+Striking the Head's lost plasma again with a large pulse from the emergency store.
+_Avoid_: Restart, reboot, reignite
+
 **Arm**:
 The chain-arm that rides a rail around the Bore, catches a crew member by their harness and carries them between Stations whatever "down" is.
 _Avoid_: Crane, grabber, lift, tether

@@ -87,6 +87,7 @@ func test_with_the_link_stopped_the_store_is_kept_and_nothing_goes_up() -> void:
 
 	DiveTestKit.run(sim, 1200.0, 1.0)
 
+	assert_bool(sim.uploading()).is_false()
 	assert_float(sim.link_rate()).is_equal(0.0)
 	assert_float(sim.paid()).is_equal(paid)
 	assert_float(sim.emergency_store()).is_equal(store)
