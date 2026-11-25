@@ -1025,10 +1025,11 @@ func hull_creep_rate() -> float:
 	return _heat.creep_rate()
 
 
-## True while heat is wearing the hull now (hull_creep_rate() above 0): the
-## view's sparks and shake play exactly while this holds.
+## True while heat is wearing the hull now (hull_creep_rate() above 0) and
+## time runs: false once the crew is dead, stranded or surfaced, when advance()
+## no longer steps. The view's sparks and shake play exactly while this holds.
 func hull_taking_damage() -> bool:
-	return _heat.taking_damage()
+	return _heat.taking_damage() and not (dead() or stranded() or surfaced())
 
 
 ## The stress the rock's pressure puts on the hull now, 1 at the surface and

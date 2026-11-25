@@ -183,6 +183,17 @@ func test_the_dead_crew_goes_no_further() -> void:
 	assert_array(sim.take_events()).is_empty()
 
 
+func test_once_the_hull_has_failed_it_is_no_longer_taking_damage() -> void:
+	var sim := _reckless()
+	var damaging := [false]
+
+	DiveTestKit.run_until(sim, &"hull_failed", 20000.0, [], 1.0,
+			func() -> void: damaging[0] = sim.hull_taking_damage())
+
+	assert_bool(damaging[0]).is_true()
+	assert_bool(sim.hull_taking_damage()).is_false()
+
+
 func test_death_shows_a_rebuy_but_charges_nothing_while_there_is_no_balance() -> void:
 	var sim := _reckless()
 	var paid_before := [0.0]
