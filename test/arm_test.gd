@@ -196,11 +196,11 @@ func test_every_station_in_use_can_be_reached_with_left_and_right_at_every_pitch
 func test_pressing_again_lets_go_and_the_arm_goes_back_to_its_rail() -> void:
 	for up in [LEVEL, DIVING, CLIMBING]:
 		var arm := _seated_at(2, up)
-		var seat := arm.held_eye()
+		var eye := arm.held_eye()
 
 		arm.press()
 		var released := arm.is_holding()
-		_run(arm, seat, _poses(up))
+		_run(arm, eye, _poses(up))
 
 		assert_bool(released).is_false()
 		assert_int(arm.station()).is_equal(-1)

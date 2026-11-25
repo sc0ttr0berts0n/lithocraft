@@ -36,7 +36,7 @@ const TOWARD_UNDERSIDE := Vector3.DOWN
 ## (ADR 0001); tests read minimum_turn_radius(), never this.
 const _MIN_TURN_RADIUS_M := 250.0
 ## How fast the uneven heating builds up or dies away, as a share of full
-## steering per second: the vessel answers the helm slowly. Tuned for play.
+## steering per second: the vessel answers the Drive slowly. Tuned for play.
 const _STEER_RESPONSE := 0.1
 ## Within this many degrees of the setting the steering eases off, so the
 ## vessel settles onto its heading instead of swinging past. Tuned for play.
@@ -209,6 +209,19 @@ const STATIONS: Array[StringName] = [STATION_REACTOR, STATION_DRIVE, STATION_THE
 ## per second while the hull warns: its steadying rule, slow on purpose so a
 ## sudden heat outruns it. Tuned for play (ADR 0001).
 const _UNATTENDED_SPLIT_RATE := 0.01
+## How urgently each kind of call is made, 0 to 1: x when it begins, y at its
+## worst (the hull at the damage temperature, a Station given nothing, the Tail
+## about to leave the tunnel open, a feature about to leave through the Tail,
+## the Shift's window long closed, the Boundary reached). So the Reactor's
+## Shift and a hot hull always call louder than a feature passing by. Losing
+## the plasma calls as loudly as anything can. Tuned for play (ADR 0001).
+const _HEAT_WARNING_CALL := Vector2(0.5, 1.0)
+const _STARVED_CALL := Vector2(0.3, 0.8)
+const _SEAL_COMING_CALL := Vector2(0.4, 0.9)
+const _FEATURE_CALL := Vector2(0.2, 0.6)
+const _SHIFT_DUE_CALL := Vector2(0.6, 1.0)
+const _BOUNDARY_AHEAD_CALL := Vector2(0.2, 0.5)
+const _EMERGENCY_CALL_URGENCY := 1.0
 ## The fastest the simulation may be run, as a multiple of normal. Turns take
 ## minutes at normal rate. Tuned for play (ADR 0001).
 const _MAX_TIME_RATE := 64.0
@@ -224,7 +237,7 @@ const _KEPT_ON_RECOVERY: Array[StringName] = [&"_layout", &"_paid", &"_uploaded"
 var _layout: MediumLayout
 var _power := 0.0
 ## Where the Head is in the world frame (see head_position()) and the way it
-## points there, unit length. Starts at the surface, nose straight down.
+## points there, unit length. Starts at the surface, Head straight down.
 var _position := Vector3.ZERO
 var _direction := Vector3.DOWN
 ## Drive settings: the pitch and compass heading to steer toward, degrees.
@@ -368,8 +381,8 @@ func set_power(power: float) -> void:
 	_power = clampf(power, 0.0, 1.0)
 
 
-## Drive: the pitch to steer toward, in degrees. +90 is nose straight down
-## (diving), 0 is level, -90 is nose straight up (climbing). The vessel turns
+## Drive: the pitch to steer toward, in degrees. +90 is the Head straight down
+## (diving), 0 is level, -90 is the Head straight up (climbing). The vessel turns
 ## toward it along an arc no tighter than minimum_turn_radius(), and only
 ## while it moves.
 func set_pitch(degrees: float) -> void:
@@ -477,7 +490,7 @@ func _start_fresh() -> void:
 	_paid_before_dive = _paid
 
 
-## Reactor Station: perform a Shift, retuning the Reactor to hold the plasma
+## Reactor Station: perform a Shift, setting the Reactor to hold the plasma
 ## at this frequency in hertz, on the next step. The closer it matches the
 ## plasma's wobble (plasma_frequency()), and the sooner after a Boundary, the
 ## better it grades; see the &"shift_result" event.
@@ -593,7 +606,7 @@ func depth() -> float:
 	return -_position.y
 
 
-## Degrees. +90 is nose straight down (diving), 0 level, -90 nose straight up.
+## Degrees. +90 is the Head straight down (diving), 0 level, -90 straight up.
 ## The pitch of the path itself: the way the Head is cutting.
 func pitch() -> float:
 	return rad_to_deg(asin(clampf(-_direction.y, -1.0, 1.0)))
@@ -1248,20 +1261,22 @@ func _update_calls() -> void:
 	if heat_warning():
 		var over := (_vessel_temperature - hull_warning_temperature()) \
 				/ (hull_damage_temperature() - hull_warning_temperature())
-		_offer_call(calls, STATION_THERMAL, &"heat_warning", 0.5 + 0.5 * clampf(over, 0.0, 1.0))
+		_offer_call(calls, STATION_THERMAL, &"heat_warning", _urgency(_HEAT_WARNING_CALL, over))
 	for starved in [[STATION_THERMAL, thermal_supplied()], [STATION_NAVIGATION, navigation_supplied()]]:
 		if starved[1] < 1.0:
-			_offer_call(calls, starved[0], &"starved", 0.3 + 0.5 * (1.0 - starved[1]))
+			_offer_call(calls, starved[0], &"starved", _urgency(_STARVED_CALL, 1.0 - starved[1]))
 	if _tunnel_sealed:
 		_seal_coming_at = NAN
 	elif not is_nan(_seal_coming_at):
-		var tail_to_go := clampf((_distance - _seal_coming_at) / _VESSEL_LENGTH_M, 0.0, 1.0)
-		_offer_call(calls, STATION_BORE, &"tunnel_about_to_seal", 0.4 + 0.5 * tail_to_go)
+		var tail_to_go := (_distance - _seal_coming_at) / _VESSEL_LENGTH_M
+		_offer_call(calls, STATION_BORE, &"tunnel_about_to_seal",
+				_urgency(_SEAL_COMING_CALL, tail_to_go))
 	if _observed < 0:
 		for feature in _features:
 			if not feature.is_recorded() and _in_column(feature):
 				var to_tail := (_distance - feature.at) / _VESSEL_LENGTH_M
-				_offer_call(calls, STATION_BORE, &"feature_in_column", 0.2 + 0.4 * to_tail)
+				_offer_call(calls, STATION_BORE, &"feature_in_column",
+						_urgency(_FEATURE_CALL, to_tail))
 	for station in calls:
 		var was: StringName = _calls[station][0] if _calls.has(station) else &""
 		if calls[station][0] != was:
@@ -1273,16 +1288,22 @@ func _update_calls() -> void:
 
 func _reactor_call(calls: Dictionary) -> void:
 	if _stranded:
-		_offer_call(calls, STATION_REACTOR, &"stranded", 1.0)
+		_offer_call(calls, STATION_REACTOR, &"stranded", _EMERGENCY_CALL_URGENCY)
 	elif _plasma_lost:
-		_offer_call(calls, STATION_REACTOR, &"plasma_lost", 1.0)
+		_offer_call(calls, STATION_REACTOR, &"plasma_lost", _EMERGENCY_CALL_URGENCY)
 	elif shift_due():
-		_offer_call(calls, STATION_REACTOR, &"shift_due",
-				0.6 + 0.4 * clampf(_mistuned_for / (_SHIFT_WINDOW_S + _AUTOPILOT_LATE_S), 0.0, 1.0))
+		_offer_call(calls, STATION_REACTOR, &"shift_due", _urgency(_SHIFT_DUE_CALL,
+				_mistuned_for / (_SHIFT_WINDOW_S + _AUTOPILOT_LATE_S)))
 	elif not is_nan(_announced_boundary):
 		var to_go := absf(_announced_boundary - depth()) / _BOUNDARY_APPROACH_M
 		_offer_call(calls, STATION_REACTOR, &"boundary_approaching",
-				0.2 + 0.3 * (1.0 - clampf(to_go, 0.0, 1.0)))
+				_urgency(_BOUNDARY_AHEAD_CALL, 1.0 - to_go))
+
+
+## A call's urgency from its range (x when it begins, y at its worst) and how
+## far along that range things have gone, 0 to 1.
+static func _urgency(call_range: Vector2, share: float) -> float:
+	return lerpf(call_range.x, call_range.y, clampf(share, 0.0, 1.0))
 
 
 ## Keeps the most urgent call for each Station.
@@ -1318,7 +1339,7 @@ func _tend_plasma(dt: float) -> void:
 			/ (1.0 + _mistuning() / _MISTUNING_HALF)
 
 
-## Retunes the Reactor to `frequency` and grades the Shift: how closely it
+## Makes the Shift to `frequency` and grades it: how closely it
 ## matches the plasma's wobble, times how late it came after the window.
 func _make_shift(frequency: float, by_autopilot: bool) -> void:
 	var target := plasma_frequency()
