@@ -1,0 +1,250 @@
+<!doctype html>
+<!--
+  PROTOTYPE - throwaway. Not game code.
+  Question: does a walkable Habitat ring feel right when "down" is whatever
+  the vessel's real acceleration is (diving, level, climbing, spinning, coasting)?
+  Assumption: built in three.js rather than Godot because the question is about
+  geometry and motion, not the engine. Double-click to run (needs internet for three.js).
+-->
+<meta charset="utf-8">
+<title>PROTOTYPE - Habitat "down"</title>
+<style>
+  body { margin: 0; overflow: hidden; background: #000; color: #cfe3ee;
+         font: 13px/1.45 ui-monospace, Menlo, monospace; }
+  #hud, #help { position: fixed; left: 12px; background: rgba(0,0,0,.72);
+         padding: 10px 12px; border-radius: 6px; white-space: pre; pointer-events: none; }
+  #hud { top: 12px; }
+  #help { bottom: 12px; color: #9fb4c0; }
+  #cross { position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px;
+         border-radius: 50%; background: #fff8; pointer-events: none; }
+  b { color: #ffd28a; font-weight: normal; }
+</style>
+<div id="hud"></div>
+<div id="cross"></div>
+<div id="help">PROTOTYPE - Habitat "down"      click to capture mouse (or use arrow keys to look)
+WASD walk   Space jump
+1 dive (nose down)   2 level   3 climb / thrust (tail down)   4 spin   5 coast (no gravity)
+Z / X  pitch -/+ 15 deg      [ / ]  spin rpm -/+ 1</div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+// Habitat: an annular drum around the Bore. Vessel axis is Z; the Head is at +Z.
+const RIN = 0.8, ROUT = 3.3, LEN = 2.4, BODY = 0.3, EYE = 1.35, G = 9.81;
+const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(80, 1, 0.05, 50);
+function resize() {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+function tex(label, bg, fg, repeatX = 1, repeatY = 1) {
+  const c = document.createElement('canvas'); c.width = c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = bg; g.fillRect(0, 0, 512, 512);
+  g.strokeStyle = fg; g.lineWidth = 3;
+  for (let i = 0; i <= 512; i += 64) {
+    g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 512); g.stroke();
+    g.beginPath(); g.moveTo(0, i); g.lineTo(512, i); g.stroke();
+  }
+  if (label) {
+    g.fillStyle = fg; g.font = 'bold 44px sans-serif'; g.textAlign = 'center';
+    for (const [x, y] of [[256, 70], [256, 470], [70, 270], [442, 270]]) g.fillText(label, x, y);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeatX, repeatY);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const basic = (map, extra = {}) => new THREE.MeshBasicMaterial({ map, side: THREE.DoubleSide, ...extra });
+
+// Outer wall
+const wallGeo = new THREE.CylinderGeometry(ROUT, ROUT, LEN, 64, 1, true).rotateX(Math.PI / 2);
+scene.add(new THREE.Mesh(wallGeo, basic(tex('', '#2a3238', '#5d7480', 16, 2))));
+// End caps: Head end is warm, Tail end is cool
+const capGeo = new THREE.RingGeometry(RIN, ROUT, 64);
+const fore = new THREE.Mesh(capGeo, basic(tex('HEAD', '#3d2a18', '#e0964a')));
+fore.position.z = LEN / 2; scene.add(fore);
+const aft = new THREE.Mesh(capGeo, basic(tex('TAIL', '#16283c', '#5aa2e0')));
+aft.position.z = -LEN / 2; scene.add(aft);
+
+// Bore: glass wall with the Column scrolling through it
+const strata = (() => {
+  const c = document.createElement('canvas'); c.width = 64; c.height = 1024;
+  const g = c.getContext('2d'); let y = 0;
+  const cols = ['#c9a36b', '#a8743f', '#7c5a3a', '#55504c', '#8d8f93', '#3a3432', '#b9b4a6', '#6d3b2c'];
+  while (y < 1024) {
+    const h = 10 + Math.random() * 90;
+    g.fillStyle = cols[Math.floor(Math.random() * cols.length)]; g.fillRect(0, y, 64, h);
+    if (Math.random() < 0.25) { g.fillStyle = '#ffe9a8'; g.fillRect(Math.random() * 40, y + h / 2, 22, 5); }
+    y += h;
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 0.25); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+scene.add(new THREE.Mesh(new THREE.CylinderGeometry(RIN - 0.08, RIN - 0.08, LEN, 48, 1, true).rotateX(Math.PI / 2), basic(strata)));
+scene.add(new THREE.Mesh(new THREE.CylinderGeometry(RIN, RIN, LEN, 48, 1, true).rotateX(Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.12, side: THREE.DoubleSide })));
+
+// Six gimballed Stations, hung on arms from the outer wall
+const NAMES = ['Reactor', 'Drive', 'Thermal', 'Navigation', 'Bore', 'Fabricator'];
+const HUES = ['#ff7a45', '#ffd24a', '#ff4a6a', '#4ad2ff', '#b9ff6a', '#c79bff'];
+const stations = NAMES.map((name, i) => {
+  const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+  const pivot = new THREE.Vector3(Math.cos(a) * 2.2, Math.sin(a) * 2.2, 0);
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, ROUT - 2.2), new THREE.MeshBasicMaterial({ color: 0x8a99a3 }));
+  arm.position.copy(pivot).multiplyScalar((ROUT + 2.2) / 2 / 2.2);
+  arm.quaternion.setFromUnitVectors(Y, pivot.clone().normalize());
+  scene.add(arm);
+  const g = new THREE.Group(); g.position.copy(pivot);
+  const desk = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.04, 0.5), new THREE.MeshBasicMaterial({ color: 0x4a565e }));
+  desk.position.y = -0.08; g.add(desk);
+  const c = document.createElement('canvas'); c.width = 256; c.height = 128;
+  const x = c.getContext('2d'); x.fillStyle = '#0b1116'; x.fillRect(0, 0, 256, 128);
+  x.strokeStyle = HUES[i]; x.lineWidth = 6; x.strokeRect(3, 3, 250, 122);
+  x.fillStyle = HUES[i]; x.font = 'bold 34px sans-serif'; x.textAlign = 'center'; x.fillText(name, 128, 60);
+  x.font = '18px sans-serif'; x.fillText('this side up', 128, 98);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.4), basic(t));
+  screen.position.set(0, 0.2, 0); g.add(screen);
+  scene.add(g);
+  return g;
+});
+
+// ---- Vessel state -------------------------------------------------------
+// pitch: +90 = nose straight down (diving), 0 = level, -90 = tail down (climbing or under thrust)
+const vessel = { mode: 'level', pitch: 0, pitchTarget: 0, grav: 1, gravTarget: 1, spin: 0, spinTarget: 0, rpm: 10 };
+const MODES = {
+  Digit1: ['dive', 90, 1, 0], Digit2: ['level', 0, 1, 0], Digit3: ['climb / thrust', -90, 1, 0],
+  Digit4: ['spin', null, 0, 1], Digit5: ['coast', null, 0, 0],
+};
+function accelAt(p, v) {
+  const th = vessel.pitch * Math.PI / 180, k = vessel.grav * G;
+  const a = new THREE.Vector3(0, -Math.cos(th) * k, Math.sin(th) * k);
+  const w = vessel.spin * vessel.rpm * Math.PI * 2 / 60;
+  a.x += w * w * p.x; a.y += w * w * p.y;            // centrifugal
+  if (v) { a.x += 2 * w * v.y; a.y -= 2 * w * v.x; }  // Coriolis
+  return a;
+}
+function upAt(p) {
+  const a = accelAt(p, null);
+  return a.length() < 0.3 ? null : a.normalize().negate();
+}
+
+// ---- Player -------------------------------------------------------------
+const pos = new THREE.Vector3(0, -(ROUT - BODY), 0), vel = new THREE.Vector3();
+const bodyQ = new THREE.Quaternion().setFromAxisAngle(Y, -Math.PI / 2); // local +Y is up; start facing along the ring
+let look = 0, grounded = false;
+const keys = {};
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (MODES[e.code]) {
+    const [m, pitch, grav, spin] = MODES[e.code];
+    vessel.mode = m; if (pitch !== null) vessel.pitchTarget = pitch;
+    vessel.gravTarget = grav; vessel.spinTarget = spin;
+  }
+  if (e.code === 'KeyZ') vessel.pitchTarget = Math.max(-90, vessel.pitchTarget - 15);
+  if (e.code === 'KeyX') vessel.pitchTarget = Math.min(90, vessel.pitchTarget + 15);
+  if (e.code === 'BracketLeft') vessel.rpm = Math.max(1, vessel.rpm - 1);
+  if (e.code === 'BracketRight') vessel.rpm = Math.min(30, vessel.rpm + 1);
+  if (e.code === 'Space' && grounded) vel.addScaledVector(Y.clone().applyQuaternion(bodyQ), 3.5);
+  if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+renderer.domElement.addEventListener('click', () => renderer.domElement.requestPointerLock());
+function turn(dx, dy) {
+  bodyQ.multiply(new THREE.Quaternion().setFromAxisAngle(Y, -dx));
+  look = Math.max(-1.5, Math.min(1.5, look - dy));
+}
+addEventListener('mousemove', e => {
+  if (document.pointerLockElement) turn(e.movementX * 0.0025, e.movementY * 0.0025);
+});
+
+const toward = (v, t, rate) => v + Math.max(-rate, Math.min(rate, t - v));
+function alignUp(q, target, k) {
+  const cur = Y.clone().applyQuaternion(q);
+  const d = new THREE.Quaternion().setFromUnitVectors(cur, target);
+  q.premultiply(new THREE.Quaternion().slerp(d, k)).normalize();
+}
+
+function step(dt) {
+  vessel.pitch = toward(vessel.pitch, vessel.pitchTarget, 20 * dt);
+  vessel.grav = toward(vessel.grav, vessel.gravTarget, 0.4 * dt);
+  vessel.spin = toward(vessel.spin, vessel.spinTarget, 0.4 * dt);
+
+  turn(((keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0)) * 1.8 * dt,
+       ((keys.ArrowDown ? 1 : 0) - (keys.ArrowUp ? 1 : 0)) * 1.2 * dt);
+
+  const upT = upAt(pos);
+  if (upT) alignUp(bodyQ, upT, 1 - Math.exp(-dt * 6));
+  const up = Y.clone().applyQuaternion(bodyQ);
+  const fwd = Z.clone().negate().applyQuaternion(bodyQ), right = X.clone().applyQuaternion(bodyQ);
+  const f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0), r = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+  const wish = fwd.clone().multiplyScalar(f).addScaledVector(right, r);
+  if (wish.lengthSq() > 0) wish.normalize();
+
+  vel.addScaledVector(accelAt(pos, vel), dt);
+  if (grounded) {
+    const vn = vel.dot(up), vt = vel.clone().addScaledVector(up, -vn);
+    vt.lerp(wish.multiplyScalar(3), 1 - Math.exp(-dt * 10));
+    vel.copy(vt).addScaledVector(up, vn);
+  } else if (!upT) {
+    // coasting: weak push in the look direction so you can still get about
+    const q = bodyQ.clone().multiply(new THREE.Quaternion().setFromAxisAngle(X, look));
+    vel.addScaledVector(Z.clone().negate().applyQuaternion(q), f * 1.5 * dt);
+    vel.addScaledVector(right, r * 1.5 * dt);
+  }
+  pos.addScaledVector(vel, dt);
+
+  grounded = false;
+  const hit = n => {
+    const vn = vel.dot(n); if (vn < 0) vel.addScaledVector(n, -vn);
+    if (upT && up.dot(n) > 0.6) grounded = true;
+  };
+  let rad = Math.hypot(pos.x, pos.y) || 1e-6;
+  if (rad > ROUT - BODY) { const s = (ROUT - BODY) / rad; pos.x *= s; pos.y *= s; hit(new THREE.Vector3(-pos.x, -pos.y, 0).normalize()); }
+  if (rad < RIN + BODY) { const s = (RIN + BODY) / rad; pos.x *= s; pos.y *= s; hit(new THREE.Vector3(pos.x, pos.y, 0).normalize()); }
+  if (pos.z > LEN / 2 - BODY) { pos.z = LEN / 2 - BODY; hit(new THREE.Vector3(0, 0, -1)); }
+  if (pos.z < -LEN / 2 + BODY) { pos.z = -LEN / 2 + BODY; hit(new THREE.Vector3(0, 0, 1)); }
+
+  for (const s of stations) { const u = upAt(s.position); if (u) alignUp(s.quaternion, u, 1 - Math.exp(-dt * 3)); }
+  strata.offset.y += dt * 0.08;
+
+  camera.position.copy(pos).addScaledVector(up, EYE);
+  camera.quaternion.copy(bodyQ).multiply(new THREE.Quaternion().setFromAxisAngle(X, look));
+}
+
+const hud = document.getElementById('hud');
+function drawHud() {
+  const up = Y.clone().applyQuaternion(bodyQ);
+  const feet = accelAt(pos.clone().addScaledVector(up, -BODY), null).length() / G;
+  const head = accelAt(pos.clone().addScaledVector(up, EYE), null).length() / G;
+  const a = accelAt(pos, null), n = a.length();
+  const axial = n < 0.3 ? 0 : a.z / n;
+  const floor = n < 0.3 ? 'none - you float'
+    : axial > 0.7 ? 'Head end cap' : axial < -0.7 ? 'Tail end cap'
+    : Math.abs(axial) < 0.3 ? 'outer wall' : 'between cap and wall (sloped)';
+  hud.innerHTML =
+`mode        <b>${vessel.mode}</b>
+pitch       <b>${vessel.pitch.toFixed(0)} deg</b>  (target ${vessel.pitchTarget})
+spin        <b>${(vessel.spin * vessel.rpm).toFixed(1)} rpm</b>  (set ${vessel.rpm})
+floor is    <b>${floor}</b>
+g at feet   <b>${feet.toFixed(2)}</b>
+g at head   <b>${head.toFixed(2)}</b>
+standing    <b>${grounded ? 'yes' : 'no'}</b>   speed ${vel.length().toFixed(1)} m/s`;
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  step(dt); drawHud(); renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.__proto = { vessel, pos, vel, get grounded() { return grounded; } };
+</script>
