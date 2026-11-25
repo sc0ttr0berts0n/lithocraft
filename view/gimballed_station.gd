@@ -18,15 +18,33 @@ var hue := Color.WHITE
 ## Font size of the screen's text; smaller fits more lines on the screen.
 var screen_font_size := 48
 
-## Pulses of the call light per second, and its brightest energy.
-const CALL_PULSE_HZ := 2.0
+## Seconds between call beats at the least and the most urgent, and the call
+## light's brightest energy (on each beat; it fades between them).
+const CALL_BEAT_CALM_S := 1.4
+const CALL_BEAT_URGENT_S := 0.3
 const CALL_LIGHT_ENERGY := 2.5
+const CALL_LIGHT_FADE_S := 0.25
+## How far up the call tone climbs at full urgency, as a pitch scale.
+const CALL_PITCH_RISE := 0.5
+## Sample rate and pip shape of the call tone.
+const _TONE_RATE := 22050
+const _PIP_S := 0.08
+const _PIP_GAP_S := 0.06
+
+## The Station's call: its own tone (base frequency in hertz) and the number of
+## pips in each beat, so each Station sounds different. Set before _ready.
+var call_tone_hz := 440.0
+var call_pips := 1
+## Text shown under the reading, e.g. the time rate. Every Station shows it.
+var footer := ""
 
 var _cradle := Node3D.new()
 var _screen_text: Label3D
 var _call_light: OmniLight3D
-var _calling := false
-var _call_phase := 0.0
+var _call_sound: AudioStreamPlayer3D
+## How urgently the Station calls, 0 (not calling) to 1.
+var _urgency := 0.0
+var _until_beat := 0.0
 ## Share of the power it asks for the Station is getting, 0 to 1. Below 1 its
 ## screen browns out: dimmer the less it gets, and flickering.
 var _supplied := 1.0
@@ -72,6 +90,13 @@ func _ready() -> void:
 	_call_light.position = Vector3(0, 0.5, -0.3)
 	_cradle.add_child(_call_light)
 
+	# Its own tone, from where it hangs, so the ring tells the ear which way.
+	_call_sound = AudioStreamPlayer3D.new()
+	_call_sound.stream = _call_tone()
+	_call_sound.unit_size = 2.0
+	_call_sound.position = SCREEN_CENTRE
+	_cradle.add_child(_call_sound)
+
 
 func _process(delta: float) -> void:
 	if not _call_light:
@@ -80,22 +105,61 @@ func _process(delta: float) -> void:
 	if _supplied < 1.0:
 		var dim := lerpf(0.25, 0.8, _supplied) * _flicker.randf_range(0.6, 1.0)
 		_screen_text.modulate = Color(hue * dim, 1.0)
-	if _calling:
-		_call_phase = fmod(_call_phase + delta * CALL_PULSE_HZ, 1.0)
-		_call_light.light_energy = CALL_LIGHT_ENERGY * (0.5 + 0.5 * sin(_call_phase * TAU))
-	else:
-		_call_phase = 0.0
-		_call_light.light_energy = 0.0
+	_call_light.light_energy *= exp(-delta / CALL_LIGHT_FADE_S)
+	if _urgency <= 0.0:
+		_until_beat = 0.0
+		return
+	_until_beat -= delta
+	if _until_beat <= 0.0:
+		_until_beat = beat_seconds(_urgency)
+		_call_light.light_energy = CALL_LIGHT_ENERGY
+		_call_sound.pitch_scale = pitch_scale(_urgency)
+		_call_sound.play()
 
 
-## Call for attention with the Station's own light, pulsing in its hue, or
-## stop calling. The screen says why.
-func set_calling(calling: bool) -> void:
-	_calling = calling
+## Call for attention, 0 (stop) to 1 (most urgent): a beat of the Station's
+## own tone and a flash of its own light, faster and higher the more urgent.
+## Nothing is drawn over the view; the screen says why.
+func set_call(urgency: float) -> void:
+	_urgency = clampf(urgency, 0.0, 1.0)
 
 
 func is_calling() -> bool:
-	return _calling
+	return _urgency > 0.0
+
+
+## Seconds between beats of a call this urgent.
+static func beat_seconds(urgency: float) -> float:
+	return lerpf(CALL_BEAT_CALM_S, CALL_BEAT_URGENT_S, clampf(urgency, 0.0, 1.0))
+
+
+## Pitch scale of the call tone for a call this urgent.
+static func pitch_scale(urgency: float) -> float:
+	return 1.0 + CALL_PITCH_RISE * clampf(urgency, 0.0, 1.0)
+
+
+## One beat of the call: call_pips short pips of the Station's tone, with a
+## little of its octave so it carries, each faded in and out to avoid clicks.
+func _call_tone() -> AudioStreamWAV:
+	var pip := int(_PIP_S * _TONE_RATE)
+	var gap := int(_PIP_GAP_S * _TONE_RATE)
+	var frames := call_pips * (pip + gap)
+	var data := PackedByteArray()
+	data.resize(frames * 2)
+	for i in frames:
+		var in_pip := i % (pip + gap)
+		var value := 0.0
+		if in_pip < pip:
+			var t := float(i) / _TONE_RATE
+			var envelope := minf(1.0, minf(in_pip, pip - in_pip) / (0.01 * _TONE_RATE))
+			value = envelope * (0.8 * sin(TAU * call_tone_hz * t) + 0.2 * sin(TAU * 2.0 * call_tone_hz * t))
+		data.encode_s16(i * 2, int(value * 0.6 * 32767.0))
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = _TONE_RATE
+	wav.stereo = false
+	wav.data = data
+	return wav
 
 
 ## Tell the Station what share of the power it asks for it is getting, 0 to 1.
@@ -111,7 +175,8 @@ func is_starved() -> bool:
 ## Text shown on the Station's screen, under its name.
 func show_reading(text: String) -> void:
 	if _screen_text:
-		_screen_text.text = "%s\n%s" % [station_name, text]
+		_screen_text.text = "%s\n%s%s" % [station_name, text,
+				"" if footer.is_empty() else "\n" + footer]
 
 
 ## Where a crew member's eyes are held to work this Station, Habitat frame:
