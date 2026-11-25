@@ -229,3 +229,26 @@ func test_a_hull_that_bears_its_heat_never_fails() -> void:
 
 	assert_bool(sim.dead()).is_false()
 	assert_array(DiveTestKit.types(seen)).not_contains([&"hull_failed"])
+
+
+func test_a_hull_that_fails_on_the_step_it_surfaces_is_death_not_a_surfacing() -> void:
+	# Down and turned back up at a power the hull bears.
+	var sim := _sim(MediumLayout.uniform(_dense_rock()), 0.1, 0.0)
+	while sim.depth() < 20.0:
+		sim.advance(1.0)
+	sim.set_course(0.0, -90.0)
+	while sim.pitch() > -60.0:
+		sim.advance(1.0)
+	assert_bool(sim.dead()).is_false()
+	sim.take_events()
+
+	# Then full power, every bit of heat outward, for one step long enough both
+	# to climb past the surface and to wear the overheated hull through.
+	sim.set_power(1.0)
+	sim.advance(1.0e6)
+
+	var types := DiveTestKit.types(sim.take_events())
+	assert_bool(sim.dead()).is_true()
+	assert_bool(sim.surfaced()).is_false()
+	assert_array(types).contains([&"hull_failed"])
+	assert_array(types).not_contains([&"surfaced", &"paid"])

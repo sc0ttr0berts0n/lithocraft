@@ -524,7 +524,9 @@ func _step(dt: float) -> void:
 	_watch_boundaries(depth_before)
 	_update_tunnel()
 	_upload(link_rate() * dt)
-	if depth_before > 0.0 and depth() <= 0.0:
+	# A hull that fails on the step the Head surfaces is death all the same
+	# (_check_stranded() below), not a surfacing.
+	if depth_before > 0.0 and depth() <= 0.0 and not _heat.failed():
 		_surface()
 		return
 	if _pulse_pending:
