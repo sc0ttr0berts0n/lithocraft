@@ -82,6 +82,8 @@ var _feature_ring: MeshInstance3D
 var _thermal: GimballedStation
 ## Thermal Station setting: share of heat sent into the Column.
 var _heat_split := 0.0
+## True while the crew holds K at Thermal to arm self-destruct.
+var _holding_self_destruct := false
 var _navigation: GimballedStation
 var _crew := CrewMember.new()
 var _arm := Arm.new(BORE_RADIUS + RAIL_GAP)
@@ -151,6 +153,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event.is_action_pressed(&"ui_cancel"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	elif event is InputEventKey and not event.pressed \
+			and (event as InputEventKey).physical_keycode == KEY_K:
+		_holding_self_destruct = false
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match (event as InputEventKey).physical_keycode:
 			KEY_1: _aim(0.0, 90.0, false)
@@ -183,6 +188,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_M: _turn_shift_dial(1)
 			KEY_R: _shift()
 			KEY_I: _relight()
+			KEY_K: _press_self_destruct()
 			KEY_ENTER, KEY_KP_ENTER: _sim.new_dive()
 			KEY_PERIOD: _sim.set_time_rate(_sim.time_rate() * TIME_RATE_STEP)
 			KEY_COMMA: _sim.set_time_rate(1.0)
@@ -193,6 +199,7 @@ func _physics_process(delta: float) -> void:
 	# their settings and steady themselves.
 	for station in _in_use:
 		_sim.set_attended(_sim_names[station], _at(station))
+	_sim.hold_self_destruct(_holding_self_destruct and _at(_thermal))
 	_sim.advance(delta)
 	for event in _sim.take_events():
 		match event.type:
@@ -203,6 +210,8 @@ func _physics_process(delta: float) -> void:
 			&"relight_result": _on_relight_result(event)
 			&"paid": _on_paid(event)
 			&"new_dive": _on_new_dive(event)
+			&"self_destruct_started": _on_self_destruct_started(event)
+			&"self_destruct_cancelled": _on_self_destruct_cancelled(event)
 	_fade_notice(delta)
 	_show_calls()
 	var felt := _sim.felt_acceleration()
@@ -454,15 +463,52 @@ func _on_relight_result(event: Dictionary) -> void:
 ## breakdown: where, the unsold survey lost, what was paid and kept, and the
 ## rebuy (shown, not charged while there is no balance to take it from).
 func _on_hull_failed(event: Dictionary) -> void:
+	var self_destructed: bool = event.cause == &"self_destruct"
 	_show_notice([
-		"HULL FAILED  at %.0f m" % event.depth,
-		"Heat wore the hull through. The crew is lost.",
+		"SELF-DESTRUCT  at %.0f m" % event.depth if self_destructed
+			else "HULL FAILED  at %.0f m" % event.depth,
+		"The crew chose its end: the hull is cooked through. The crew is lost."
+			if self_destructed else "Heat wore the hull through. The crew is lost.",
 		"Unsold survey lost: %d stretches, worth %.0f" % [event.lost_stretches, event.lost],
 		"Paid for this dive: %.0f   Paid in all: %.0f" % [event.amount, event.total_paid],
 		"Rebuy: %.0f  (charged %.0f: no balance yet)" % [event.rebuy, event.rebuy_charged],
 		"",
 		"[Enter] rebuy and start another dive",
 	], 0.0)
+
+
+## Thermal Station, K: held, arms self-destruct (the simulation counts the
+## hold); pressed while it runs, cancels it.
+func _press_self_destruct() -> void:
+	if not _at(_thermal):
+		return
+	if _sim.self_destructing():
+		_sim.cancel_self_destruct()
+	else:
+		_holding_self_destruct = true
+
+
+## Self-destruct has started: under way the Stations are taken off the crew
+## and every bit of heat goes outward; stranded, the store goes into the hull.
+func _on_self_destruct_started(event: Dictionary) -> void:
+	_holding_self_destruct = false
+	_show_notice([
+		"SELF-DESTRUCT",
+		"The emergency store is dumping into the hull as heat." if event.stranded
+			else "Reactor to full, all heat outward. The Stations are off the crew.",
+		"[K] at Thermal to cancel.  [.] wait faster",
+	], NOTICE_S)
+
+
+## Self-destruct cancelled: the Stations are the crew's again, the wear done
+## (and the store spent) stay.
+func _on_self_destruct_cancelled(event: Dictionary) -> void:
+	_show_notice([
+		"SELF-DESTRUCT CANCELLED",
+		"The store spent stays spent." if event.stranded
+			else "The Stations are yours again: the Drive is at full, all heat outward.",
+		"The wear it did stays.",
+	], NOTICE_S)
 
 
 ## However the Lithocraft reached the surface (surfaced, rescued, or brought
@@ -721,6 +767,7 @@ func _show_thermal() -> void:
 		lines.append("Pumps on store %d%%" % roundi(_heat_split * 100.0))
 	if _sim.stranded() or _sim.tunnel_sealed():
 		lines.append(_race_line())
+	lines.append(_self_destruct_line())
 	if _sim.dead():
 		lines.append("!! HULL FAILED !!")
 	elif _sim.hull_creep_rate() > 0.0:
@@ -729,6 +776,17 @@ func _show_thermal() -> void:
 	elif warning:
 		lines.append("!! HEAT WARNING !!")
 	_thermal.show_reading("\n".join(lines))
+
+
+## Self-destruct at Thermal: the hold filling while K is held, the running
+## self-destruct and how to cancel it, or how to arm it.
+func _self_destruct_line() -> String:
+	if _sim.self_destructing():
+		return "!! SELF-DESTRUCT !!  [K] cancel"
+	var held := _sim.self_destruct_hold()
+	if held > 0.0:
+		return "ARMING SELF-DESTRUCT %s  keep holding [K]" % _bar(1.0, held)
+	return "Self-destruct: hold [K] %.0f s" % _sim.self_destruct_hold_length()
 
 
 ## The stranding clock beside the rescue time, live: while stranded the race
