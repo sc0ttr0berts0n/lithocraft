@@ -174,10 +174,28 @@ func test_a_station_call_returns_the_time_rate_to_normal() -> void:
 	assert_bool(sim.shift_due()).is_false()
 
 
-func test_the_time_rate_can_be_raised_again_after_a_call() -> void:
+func test_the_time_rate_cannot_be_raised_while_a_station_is_still_calling() -> void:
 	var sim := _one_boundary(200.0)
 	sim.set_time_rate(sim.max_time_rate())
 	DiveTestKit.run_until(sim, &"station_call", 600.0, [], 1.0 / 60.0)
+
+	sim.set_time_rate(sim.max_time_rate())
+	assert_float(sim.time_rate()).is_equal(1.0)
+	sim.advance(1.0 / 60.0)
+	sim.set_time_rate(sim.max_time_rate())
+
+	assert_float(sim.call_urgency(DiveSimulation.STATION_REACTOR)).is_greater(0.0)
+	assert_float(sim.time_rate()).is_equal(1.0)
+
+
+func test_the_time_rate_can_be_raised_again_once_no_station_calls() -> void:
+	var sim := _one_boundary(200.0)
+	sim.set_attended(DiveSimulation.STATION_REACTOR, true)
+	DiveTestKit.run_until(sim, &"boundary_crossed", 6000.0)
+	sim.shift(sim.plasma_frequency())
+	sim.advance(0.1)
+	for station in DiveSimulation.STATIONS:
+		assert_float(sim.call_urgency(station)).is_equal(0.0)
 
 	sim.set_time_rate(sim.max_time_rate())
 	sim.advance(1.0 / 60.0)

@@ -12,8 +12,8 @@ const GIVE_UP_S := 60000.0
 
 ## Flies the first dive the way a solo player at the Reactor and Thermal
 ## Stations would: Drive at `power`, heat split `to_column`, a Shift on the
-## plasma's frequency whenever one is due, time run fast between calls, nose
-## down until TURN_AT_M and then nose up until the Lithocraft surfaces. Stops
+## plasma's frequency whenever one is due, time run fast between calls, the
+## Head pitched down until TURN_AT_M and then up until the Lithocraft surfaces. Stops
 ## at the payment. Returns {sim, events, deepest}.
 func _full_trip(to_column := 0.0, power := 1.0) -> Dictionary:
 	var sim := DiveSimulation.new(MediumLayout.first_dive())
@@ -43,6 +43,29 @@ func _full_trip(to_column := 0.0, power := 1.0) -> Dictionary:
 	return {sim = sim, events = events, deepest = deepest}
 
 
+## What a trip down to TURN_AT_M and back should meet, read from the first
+## dive's layout rather than written out, so the layout can be retuned: each
+## Boundary above the turn crossed on the way down, the tunnel sealing once the
+## Head has gone from rock with pore space into rock without, the same
+## Boundaries crossed the other way on the way up, then surfacing and the pay.
+static func _story_of_the_layout(seal_porosity: float) -> Array:
+	var layout := MediumLayout.first_dive()
+	var down := []
+	var up := []
+	var sealing := false
+	for depth in layout.boundary_depths():
+		if depth >= TURN_AT_M:
+			continue
+		var above := layout.medium_at(depth - 0.01)
+		var below := layout.medium_at(depth + 0.01)
+		down.append("boundary_crossed %s>%s" % [above.name, below.name])
+		up.push_front("boundary_crossed %s>%s" % [below.name, above.name])
+		if not sealing and above.porosity >= seal_porosity and below.porosity < seal_porosity:
+			sealing = true
+			down.append("tunnel_sealed")
+	return down + up + ["surfaced", "paid"]
+
+
 static func _of_types(events: Array, types: Array) -> Array:
 	return events.filter(func(e: Dictionary) -> bool: return e.type in types)
 
@@ -63,19 +86,13 @@ func test_a_full_dive_goes_down_through_both_boundaries_and_back_and_is_paid() -
 	var steps := story.map(func(e: Dictionary) -> String:
 		return "%s %s>%s" % [e.type, e.get("from", ""), e.get("to", "")] \
 				if e.type == &"boundary_crossed" else String(e.type))
-	assert_array(steps).is_equal([
-		"boundary_crossed sand>sandstone",
-		"boundary_crossed sandstone>granite",
-		"tunnel_sealed",
-		"boundary_crossed granite>sandstone",
-		"boundary_crossed sandstone>sand",
-		"surfaced",
-		"paid",
-	])
+	var expected := _story_of_the_layout(sim.seal_porosity())
+	assert_array(steps).is_equal(expected)
 	# Each Boundary was announced before it was crossed, and every Shift the
 	# crew made at one was clean.
-	var types: Array = events.map(func(e: Dictionary) -> StringName: return e.type)
-	assert_int(types.count(&"boundary_approaching")).is_equal(4)
+	var types := DiveTestKit.types(events)
+	var crossings := expected.filter(func(s: String) -> bool: return s.begins_with("boundary"))
+	assert_int(types.count(&"boundary_approaching")).is_equal(crossings.size())
 	assert_int(types.find(&"boundary_approaching")).is_less(types.find(&"boundary_crossed"))
 	var shifts := _of_types(events, [&"shift_result"])
 	assert_int(shifts.size()).is_greater_equal(4)

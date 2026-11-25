@@ -435,9 +435,11 @@ func set_attended(station: StringName, attended: bool) -> void:
 
 ## How many times normal to run the simulation: advance(dt) then runs
 ## dt x rate simulated seconds. Clamped to 1..max_time_rate(). Any Station call
-## returns it to 1.
+## returns it to 1, and while any Station is still calling it cannot be raised
+## above 1: time runs fast only through quiet stretches.
 func set_time_rate(rate: float) -> void:
-	_time_rate = clampf(rate, 1.0, _MAX_TIME_RATE)
+	var fastest := 1.0 if not _calls.is_empty() else _MAX_TIME_RATE
+	_time_rate = clampf(rate, 1.0, fastest)
 
 
 ## The recovery after a stranding: the crew and the Lithocraft are brought
