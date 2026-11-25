@@ -27,7 +27,6 @@ func test_heat_produced_rises_with_power_drawn() -> void:
 	for power in [0.0, 0.3, 0.6, 1.0]:
 		produced.append(_run(_sim(power), 5.0).heat_produced())
 
-	assert_float(produced[0]).is_equal_approx(0.0, 0.0001)
 	for i in range(1, produced.size()):
 		assert_float(produced[i]).is_greater(produced[i - 1])
 

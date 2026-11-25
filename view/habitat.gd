@@ -42,6 +42,7 @@ var _drive: GimballedStation
 var _thermal: GimballedStation
 ## Thermal Station setting: share of heat sent into the Column.
 var _heat_split := 0.0
+var _navigation: GimballedStation
 var _crew := CrewMember.new()
 
 @onready var _dive_view: DiveView = %DiveView
@@ -76,6 +77,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_X: _steer(_pitch_setting + PITCH_STEP)
 			KEY_C: _split_heat(_heat_split - HEAT_SPLIT_STEP)
 			KEY_V: _split_heat(_heat_split + HEAT_SPLIT_STEP)
+			KEY_P: _sim.pulse()
+			KEY_Q: _sim.set_quiet_ship(not _sim.quiet_ship())
 
 
 func _physics_process(delta: float) -> void:
@@ -88,6 +91,10 @@ func _physics_process(delta: float) -> void:
 	_drive.show_reading("Depth %.1f m\nPitch %+.0f deg (set %+.0f)" % [
 		_sim.depth(), _sim.pitch(), _pitch_setting])
 	_show_thermal()
+	_navigation.show_reading("%s  noise %d%%  %d points  draw %d%%\n[P] pulse  [Q] Quiet Ship" % [
+		"QUIET SHIP" if _sim.quiet_ship() else "under way",
+		roundi(_sim.noise() * 100.0), _sim.point_count(),
+		roundi(_sim.navigation_draw() * 100.0)])
 
 
 ## Stand-in pitch control until the Drive Station has its own.
@@ -217,6 +224,19 @@ func _build_stations() -> void:
 			_drive = station
 		elif station.station_name == "Thermal":
 			_thermal = station
+		elif station.station_name == "Navigation":
+			_navigation = station
+			_navigation.show_display(_scan_display())
+
+
+## Navigation's point cloud display, drawn in its own world and shown on the
+## Navigation Station's screen.
+func _scan_display() -> Texture2D:
+	var display := ScanDisplay.new()
+	display.size = Vector2i(512, 242)
+	display.sim = _sim
+	add_child(display)
+	return display.get_texture()
 
 
 ## The Column as an open tube along the Bore, with the whole texture on its
