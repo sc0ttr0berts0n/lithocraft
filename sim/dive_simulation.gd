@@ -48,6 +48,9 @@ const _HULL_HEAT_PER_K := 0.15
 ## Hull temperature in kelvin above which heat damages the vessel. Tuned for
 ## play (ADR 0001).
 const _HULL_DAMAGE_K := 600.0
+## How much warmer the ground gets per metre of depth, in kelvin. Earth's crust
+## warms by about 0.025 K/m; tuned for play (ADR 0001).
+const _GEOTHERMAL_K_PER_M := 0.03
 ## Wear per second for each kelvin the hull is above _HULL_DAMAGE_K. Tuned for
 ## play (ADR 0001).
 const _WEAR_PER_K_S := 1.0e-5
@@ -203,10 +206,11 @@ func vessel_temperature() -> float:
 	return _vessel_temperature
 
 
-## Temperature in kelvin of the Medium around the vessel now. It rises with
-## depth, so the hull has less room to shed heat the deeper it goes.
+## Temperature in kelvin of the Medium around the vessel now: the Medium's own
+## temperature plus the planet's warming with depth, so it rises even within
+## one Medium and the hull has less room to shed heat the deeper it goes.
 func surroundings_temperature() -> float:
-	return _layout.medium_at(_depth).temperature
+	return _layout.medium_at(_depth).temperature + _GEOTHERMAL_K_PER_M * _depth
 
 
 ## Damage heat has done to the vessel so far, 0 (none) to 1. It only grows

@@ -60,6 +60,18 @@ func test_heat_sent_outward_wears_the_vessel_and_heat_into_the_column_does_not()
 	assert_float(into_column.vessel_wear()).is_equal_approx(0.0, 0.0001)
 
 
+func test_the_same_power_runs_hotter_deeper_in_the_same_medium() -> void:
+	var sim := _sim(0.5, 0.0)
+	_run(sim, 600.0)
+	var shallow_depth := sim.depth()
+	var shallow := sim.vessel_temperature()
+	_run(sim, 3000.0)
+
+	assert_float(sim.depth()).is_greater(shallow_depth)
+	assert_float(sim.surroundings_temperature()).is_greater(_rock().temperature)
+	assert_float(sim.vessel_temperature()).is_greater(shallow)
+
+
 func test_the_vessel_does_not_wear_from_heat_it_can_shed() -> void:
 	var gentle := _run(_sim(0.1, 0.0), 1200.0)
 
