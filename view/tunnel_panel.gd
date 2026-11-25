@@ -1,7 +1,8 @@
 ## The tunnel behind and the link to the surface: whether the tunnel is open or
 ## sealed, the porosity trend the Tail is heading into, how fast data goes up,
-## what is still aboard and what has been paid. Stands in for the Bore
-## Station's own screen in the Habitat until that Station has one.
+## what is still aboard and what has been paid. Drawn on the Bore Station's own
+## screen (habitat.gd `_bore_display`) and in the debug overlay. [U] cycles the
+## upload priority at the Bore Station.
 ##
 ## The porosity trend is the Column from the Head back past the Tail. The Tail
 ## leaves the tunnel behind it, so the Column between the Head and the Tail is

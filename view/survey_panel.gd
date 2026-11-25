@@ -1,8 +1,9 @@
 ## The Bore Station's survey readout: one bar per recorded stretch, newest on
 ## the right. Bar height is the stretch's quality; bar colour is the composition
 ## it recorded, so a Boundary shows as a change of colour. Stretches recorded
-## while Quiet Ship shuttered the Bore are outlined and marked "Q". Stands in for
-## the Bore Station's own screen in the Habitat until that Station has one.
+## while Quiet Ship shuttered the Bore are outlined and marked "Q". Drawn on the
+## Bore Station's own screen (habitat.gd `_bore_display`) and in the debug
+## overlay.
 class_name SurveyPanel
 extends Control
 
@@ -62,11 +63,11 @@ func _summary(survey: Array[SurveyStretch]) -> String:
 	var total_quality := 0.0
 	for stretch in survey:
 		total_quality += stretch.quality
+	# No Medium names: the crew know the rock by its look in the Bore.
 	var latest: SurveyStretch = survey.back()
-	return "%d stretches  mean quality %d%%  last: %s %d%%" % [
+	return "%d stretches  mean quality %d%%  last %d%%" % [
 		survey.size(),
 		roundi(100.0 * total_quality / survey.size()),
-		String(latest.medium_name).capitalize(),
 		roundi(100.0 * latest.quality),
 	]
 

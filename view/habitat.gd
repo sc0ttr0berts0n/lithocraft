@@ -49,8 +49,19 @@ const STATION_REACH := 2.0
 const SHIFT_DIAL_STEP := 0.02
 ## How far a lurch shakes the crew's view, metres per m/s^2 of jolt.
 const LURCH_SHAKE_M := 0.004
+## How far slipping grip waves shake the crew's view at full slip, metres.
+const SLIP_SHAKE_M := 0.006
 ## How long the word of a recovery stays on screen, in seconds.
 const RECOVERED_NOTICE_S := 8.0
+## Upload priorities in the order the Bore Station's U key cycles them.
+const UPLOAD_PRIORITIES: Array[StringName] = [
+	DiveSimulation.UPLOAD_OLDEST_FIRST,
+	DiveSimulation.UPLOAD_MOST_VALUABLE_FIRST,
+	DiveSimulation.UPLOAD_NEWEST_FIRST,
+]
+## The Bore Station's display: the survey and the tunnel side by side, in the
+## proportions of a Station screen.
+const BORE_DISPLAY_SIZE := Vector2i(768, 363)
 
 var _sim := DiveSimulation.new(MediumLayout.first_dive())
 ## Drive Station settings: they hold when the crew walks away.
@@ -83,6 +94,7 @@ var _notice: Label
 var _recovered_notice_left := 0.0
 
 @onready var _dive_view: DiveView = %DiveView
+@onready var _controls: Label = $Overlay/Controls
 
 
 func _ready() -> void:
@@ -91,6 +103,13 @@ func _ready() -> void:
 	_sim.set_power(_power_setting)
 	_sim.set_heat_split(_heat_split)
 	_dive_view.attach(_sim)
+	# Nothing is drawn over the crew's view (story 52): the overlay is a
+	# developer's debug view [F3], the controls a menu [F1].
+	_dive_view.visible = false
+	_controls.visible = false
+	var slip_sound := SlipSound.new()
+	slip_sound.sim = _sim
+	add_child(slip_sound)
 	_build_room()
 	_build_stations()
 	_build_notice()
@@ -98,6 +117,7 @@ func _ready() -> void:
 		"At the surface of the desert, ready to dive",
 		"Power up at the Drive [T]. Down through sand, sandstone and granite;",
 		"pitch up [3] a few kilometres down to arc home and sell the survey.",
+		"[F1] controls",
 	], RECOVERED_NOTICE_S)
 	_crew.bore_radius = BORE_RADIUS
 	_crew.outer_radius = OUTER_RADIUS
@@ -129,6 +149,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_T: _set_power(_power_setting + POWER_STEP)
 			KEY_G: _set_power(_power_setting - POWER_STEP)
 			KEY_F: _observe_next_feature()
+			KEY_U: _cycle_upload_priority()
+			KEY_F1: _controls.visible = not _controls.visible
+			KEY_F3: _dive_view.visible = not _dive_view.visible
 			KEY_C: _split_heat(_heat_split - HEAT_SPLIT_STEP)
 			KEY_V: _split_heat(_heat_split + HEAT_SPLIT_STEP)
 			KEY_P: _sim.pulse()
@@ -159,6 +182,7 @@ func _physics_process(delta: float) -> void:
 			&"boundary_approaching": _boundary_ahead = true
 			&"boundary_crossed": _boundary_ahead = false
 			&"stranded": _on_stranded(event)
+			&"recovered_through_tunnel": _on_recovered_through_tunnel(event)
 			&"recovered": _on_recovered(event)
 			&"paid": _on_paid(event)
 			&"new_dive": _on_new_dive(event)
@@ -174,7 +198,8 @@ func _physics_process(delta: float) -> void:
 		_crew.hold(_arm.held_eye(), GimballedStation.pose_look(), settle)
 	else:
 		_crew.step(felt, delta)
-	_crew.shake(_sim.lurch() * LURCH_SHAKE_M)
+	# A poor Shift's lurch, and the grip waves slipping on the wall, are felt.
+	_crew.shake(_sim.lurch() * LURCH_SHAKE_M + _sim.slip() * SLIP_SHAKE_M)
 	_drive.set_supplied(_sim.drive_supplied())
 	_thermal.set_supplied(_sim.thermal_supplied())
 	_navigation.set_supplied(_sim.navigation_supplied())
@@ -229,14 +254,13 @@ func _set_power(power: float) -> void:
 	_sim.set_power(_power_setting)
 
 
-## The Drive Station's screen: depth, heading, pitch and speed, each with the
-## setting it is steering toward, and how hard the Head is steering (turning
-## heats one side of it harder).
 ## Each Station calls with its own tone and light as urgently as the
 ## simulation says, and every screen shows the time rate. Unattended Thermal
-## may have moved the heat split, so the Habitat's copy follows it.
+## may have moved the heat split, and an unattended Drive its power, so the
+## Habitat's copies follow them.
 func _show_calls() -> void:
 	_heat_split = _sim.heat_split()
+	_power_setting = _sim.power()
 	var rate := _sim.time_rate()
 	var footer := "Time x%d  [.] faster [,] normal" % roundi(rate) if rate > 1.0 \
 			else "Time x1  [.] faster"
@@ -245,7 +269,11 @@ func _show_calls() -> void:
 		station.footer = footer
 
 
+## The Drive Station's screen: depth, heading, pitch and speed, each with the
+## setting it is steering toward, how hard the Head is steering (turning heats
+## one side of it harder), and whether the grip waves hold the wall or slip.
 func _show_drive() -> void:
+	var slip := _sim.slip()
 	var lines := [
 		"SURFACED  [Enter] dive again" if _sim.surfaced() else
 			"Depth %.1f m  Speed %.2f m/s" % [_sim.depth(), _sim.speed()],
@@ -253,6 +281,8 @@ func _show_drive() -> void:
 		"Pitch %+.0f deg (set %+.0f)" % [_sim.pitch(), _pitch_setting],
 		"Set %d%%  Steer %d%%" % [
 			roundi(_power_setting * 100.0), roundi(_sim.steering() * 100.0)],
+		"GRIP SLIPPING %d%%  ease off [G]" % roundi(slip * 100.0) if slip > 0.0
+			else "Grip holding",
 		_power_line(_sim.drive_request(), _sim.drive_draw()),
 	]
 	_drive.show_reading("\n".join(lines))
@@ -309,6 +339,21 @@ func _on_stranded(event: Dictionary) -> void:
 		"[Enter] call the recovery",
 	])
 	_notice.visible = true
+
+
+## The plasma is lost but the tunnel behind is open: the crew are brought
+## back up it. Tell them from where, what the survey aboard sold for and what
+## the Head's repair cost, and how to start another dive.
+func _on_recovered_through_tunnel(event: Dictionary) -> void:
+	_show_notice([
+		"PLASMA LOST  at %.0f m" % event.depth,
+		"The tunnel behind is open: brought home through it.",
+		"Survey aboard sold: %.0f" % event.carried_home,
+		"Head repair paid: %.0f" % event.head_repair,
+		"This dive: %.0f   Paid in all: %.0f" % [event.amount, event.total_paid],
+		"",
+		"[Enter] start another dive",
+	], 0.0)
 
 
 ## Back at the surface on a fresh dive: the Stations start from their start
@@ -442,6 +487,37 @@ func _observe_next_feature() -> void:
 	var ids := candidates.map(func(f: ColumnFeature) -> int: return f.id)
 	var current := ids.find(_sim.observed_feature())
 	_sim.set_observed_feature(ids[(current + 1) % ids.size()])
+
+
+## Bore Station: which waiting survey data goes up the link first, cycling
+## through UPLOAD_PRIORITIES. Only when at the Bore Station.
+func _cycle_upload_priority() -> void:
+	if not _at(_bore_station):
+		return
+	var next := (UPLOAD_PRIORITIES.find(_sim.upload_priority()) + 1) % UPLOAD_PRIORITIES.size()
+	_sim.set_upload_priority(UPLOAD_PRIORITIES[next])
+
+
+## The Bore Station's display: the survey as it is recorded (quality per
+## stretch, story 14) beside the tunnel and the porosity trend the Tail is
+## heading into (story 26), with the link and the upload priority.
+func _bore_display() -> Texture2D:
+	var viewport := SubViewport.new()
+	viewport.size = BORE_DISPLAY_SIZE
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	viewport.disable_3d = true
+	var half := Vector2(BORE_DISPLAY_SIZE.x / 2.0, BORE_DISPLAY_SIZE.y)
+	var survey := SurveyPanel.new()
+	survey.sim = _sim
+	survey.size = half
+	viewport.add_child(survey)
+	var tunnel := TunnelPanel.new()
+	tunnel.sim = _sim
+	tunnel.position = Vector2(half.x, 0.0)
+	tunnel.size = half
+	viewport.add_child(tunnel)
+	add_child(viewport)
+	return viewport.get_texture()
 
 
 func _bore_reading() -> String:
@@ -622,6 +698,7 @@ func _build_stations() -> void:
 			_drive = station
 		elif station.station_name == "Bore Station":
 			_bore_station = station
+			_bore_station.show_display(_bore_display())
 		elif station.station_name == "Thermal":
 			_thermal = station
 		elif station.station_name == "Navigation":

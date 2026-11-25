@@ -1,41 +1,17 @@
-## Bare view of a dive: reads the simulation and sends it commands.
-## Holds no game state of its own. The scene that owns the simulation
-## advances it and hands it over with attach(). Drive power is set at the
-## Drive Station in the Habitat; the power bar here only shows it.
-##
-## Slip is shown here as an overlay on the Habitat: a red SLIP bar and
-## label that shake with slip, and a placeholder grinding noise whose
-## loudness follows DiveSimulation.slip().
-##
-## Readouts of the Column and the Bore Station survey sit here too: a
-## ColumnStrip on the right edge with a metre ruler, and a SurveyPanel beside
-## it. The Column itself slides through the Habitat's Bore (habitat.gd); the
-## survey panel stands in for the Bore Station's own screen.
-##
-## The TunnelPanel below it shows the tunnel behind (open or sealed), the
-## porosity trend the Tail is heading into, the link and payment. U cycles the
-## upload priority, a stand-in until the Bore Station takes the command.
+## Developer debug overlay of a dive, drawn over the Habitat: depth, Medium,
+## speed, a SLIP bar, Drive power, a ColumnStrip on the right edge with a metre
+## ruler, and the SurveyPanel and TunnelPanel. Hidden by default and toggled
+## with F3 (habitat.gd): the crew learn all of this from the vessel itself
+## (story 52), through the Station screens, the Bore, the shake and the sound.
+## Reads the simulation only; holds no game state and sends no commands. The
+## scene that owns the simulation hands it over with attach().
 class_name DiveView
 extends Control
 
-## Placeholder slip sound: sample rate and loudness range of the grinding noise.
-const SLIP_MIX_RATE := 22050.0
-const SLIP_SILENT_DB := -60.0
-const SLIP_LOUDEST_DB := -6.0
 ## How far the slip readout shakes at full slip, in pixels.
 const SLIP_SHAKE_PX := 6.0
-## Upload priorities in the order U cycles through them.
-const UPLOAD_PRIORITIES: Array[StringName] = [
-	DiveSimulation.UPLOAD_OLDEST_FIRST,
-	DiveSimulation.UPLOAD_MOST_VALUABLE_FIRST,
-	DiveSimulation.UPLOAD_NEWEST_FIRST,
-]
 
 var _sim: DiveSimulation
-var _slip_player: AudioStreamPlayer
-## Low-passed noise state and a slow judder phase for the grinding sound.
-var _grind := 0.0
-var _judder_phase := 0.0
 
 @onready var _power_slider: HSlider = %PowerSlider
 @onready var _power_label: Label = %PowerLabel
@@ -53,29 +29,16 @@ func _ready() -> void:
 	_power_slider.editable = false
 
 
-## Start reading and commanding this simulation.
+## Start reading this simulation.
 func attach(sim: DiveSimulation) -> void:
 	_sim = sim
 	_column_strip.sim = sim
 	_survey_panel.sim = sim
 	_tunnel_panel.sim = sim
-	_start_slip_sound()
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if _sim and _is_key_press(event, KEY_U):
-		var next := (UPLOAD_PRIORITIES.find(_sim.upload_priority()) + 1) % UPLOAD_PRIORITIES.size()
-		_sim.set_upload_priority(UPLOAD_PRIORITIES[next])
-
-
-func _is_key_press(event: InputEvent, key: Key) -> bool:
-	var key_event := event as InputEventKey
-	return key_event != null and key_event.pressed and not key_event.echo \
-			and key_event.physical_keycode == key
 
 
 func _physics_process(_delta: float) -> void:
-	if not _sim:
+	if not _sim or not is_visible_in_tree():
 		return
 	_depth_label.text = "Depth: %.1f m" % _sim.depth()
 	_medium_label.text = "Medium: %s" % String(_sim.medium().name).capitalize()
@@ -83,11 +46,6 @@ func _physics_process(_delta: float) -> void:
 	_power_slider.value = _sim.power()
 	_power_label.text = "Power: %d%%" % roundi(_sim.power() * 100.0)
 	_show_slip(_sim.slip())
-
-
-func _process(_delta: float) -> void:
-	if _sim:
-		_feed_slip_sound(_sim.slip())
 
 
 func _show_slip(slip: float) -> void:
@@ -98,32 +56,3 @@ func _show_slip(slip: float) -> void:
 	var shake := Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * SLIP_SHAKE_PX * slip
 	_slip_label.position.x = shake.x
 	_slip_bar.modulate = Color(1.0, 1.0 - slip, 1.0 - slip)
-
-
-# --- Placeholder slip sound -----------------------------------------------
-
-func _start_slip_sound() -> void:
-	var stream := AudioStreamGenerator.new()
-	stream.mix_rate = SLIP_MIX_RATE
-	stream.buffer_length = 0.1
-	_slip_player = AudioStreamPlayer.new()
-	_slip_player.stream = stream
-	_slip_player.volume_db = SLIP_SILENT_DB
-	add_child(_slip_player)
-	_slip_player.play()
-
-
-## Grinding: low-passed noise chopped by a juddering envelope, louder and
-## faster with more slip. Silent when gripping.
-func _feed_slip_sound(slip: float) -> void:
-	var playback := _slip_player.get_stream_playback() as AudioStreamGeneratorPlayback
-	if playback == null:
-		return
-	_slip_player.volume_db = lerpf(SLIP_SILENT_DB, SLIP_LOUDEST_DB, sqrt(slip))
-	var judder_hz := lerpf(6.0, 18.0, slip)
-	for i in playback.get_frames_available():
-		_grind = lerpf(_grind, randf_range(-1.0, 1.0), 0.15)
-		_judder_phase = fmod(_judder_phase + judder_hz / SLIP_MIX_RATE, 1.0)
-		var envelope := 0.4 + 0.6 * absf(sin(_judder_phase * PI))
-		var sample := _grind * envelope * 2.0 if slip > 0.0 else 0.0
-		playback.push_frame(Vector2(sample, sample))
