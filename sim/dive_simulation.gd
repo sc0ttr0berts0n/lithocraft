@@ -191,6 +191,11 @@ const _SHIFT_WEAR := 0.3
 const _HOT_SHIFT_WEAR := 1.0
 ## How much a fully worn Head unsteadies the plasma even when tuned.
 const _WEAR_UNSTEADINESS := 0.3
+## What repairing a Head worn through costs, in the units of paid(), charged
+## in proportion to the wear when the crew is brought home through the open
+## tunnel. About a few hundred metres of good survey. Tuned for play
+## (ADR 0001).
+const _HEAD_REPAIR_COST := 500.0
 
 ## The Stations, as named in set_attended(), call_urgency() and calls.
 const STATION_REACTOR := &"reactor"
@@ -540,6 +545,8 @@ func _step(dt: float) -> void:
 		_send_pulse()
 	_steady_unattended(dt)
 	_check_stranded()
+	if _surfaced:
+		return  # Brought home through the open tunnel.
 	_update_calls()
 
 
@@ -870,6 +877,13 @@ func survey_value() -> float:
 ##       features recorded and their worth, the value heat and shuttering
 ##       took off pristine records, and pay per Medium name. `total_paid` is
 ##       paid() across every dive.
+##   &"recovered_through_tunnel" {depth, distance, carried_home, head_repair,
+##       amount, total_paid}: the plasma was lost with the tunnel still open,
+##       so the crew and the Lithocraft were brought back up it from `depth`.
+##       The survey aboard was sold (`carried_home`) and the worn Head's
+##       repair paid for out of it; `amount` is this dive's pay after the
+##       repair, `total_paid` paid() across every dive. The dive is over as
+##       after surfacing (surfaced() is true); new_dive() starts another.
 ##   &"new_dive" {paid}: new_dive() has the Lithocraft ready at the surface.
 func take_events() -> Array[Dictionary]:
 	var taken := _events
@@ -899,9 +913,10 @@ func stranded() -> bool:
 	return _stranded
 
 
-## True once the Head has come back up to the surface and the survey has been
-## sold: the dive is over and time no longer advances it. new_dive() starts
-## another.
+## True once the Head has come back up to the surface, under its own power or
+## brought back through the open tunnel after losing the plasma, and the
+## survey has been sold: the dive is over and time no longer advances it.
+## new_dive() starts another.
 func surfaced() -> bool:
 	return _surfaced
 
@@ -1343,8 +1358,13 @@ func _mistuning() -> float:
 
 ## Losing the plasma while sealed in strands the Lithocraft. The survey data
 ## not yet up the link is lost with it; what reached the surface stays paid.
+## Losing it with the tunnel still open behind, the crew is brought home
+## through the tunnel instead (_recover_through_tunnel()).
 func _check_stranded() -> void:
-	if _stranded or not (_plasma_lost and _tunnel_sealed):
+	if _stranded or not _plasma_lost:
+		return
+	if not _tunnel_sealed:
+		_recover_through_tunnel()
 		return
 	_stranded = true
 	var lost_value := unsold_value()
@@ -1362,6 +1382,23 @@ func _check_stranded() -> void:
 			lost = lost_value, lost_stretches = lost_stretches, paid = _paid})
 
 
+## The plasma is lost but the tunnel behind is open all the way up: the
+## Lithocraft is hauled back up it to the surface with the crew and everything
+## aboard. The survey aboard is kept and sold on return, as on surfacing, and
+## the worn Head's repair is paid for out of it. The dive is over, as after
+## surfacing; new_dive() starts another. Raises &"recovered_through_tunnel".
+func _recover_through_tunnel() -> void:
+	var from_depth := depth()
+	_position = Vector3.ZERO
+	_rest_at_surface()
+	var carried := _sell_aboard()
+	var repair := _head_wear * _HEAD_REPAIR_COST
+	_paid -= repair
+	_events.append({type = &"recovered_through_tunnel", depth = from_depth,
+			distance = _distance, carried_home = carried, head_repair = repair,
+			amount = _paid - _paid_before_dive, total_paid = _paid})
+
+
 # --- Surfacing and the sale -----------------------------------------------
 
 ## The Head has come back up to the surface: the Lithocraft stops there, the
@@ -1370,12 +1407,24 @@ func _check_stranded() -> void:
 ## why.
 func _surface() -> void:
 	_position.y = 0.0  # The Head rests at the surface.
+	_rest_at_surface()
+	_events.append({type = &"surfaced", distance = _distance})
+	_events.append(_payment(_sell_aboard()))
+
+
+## The dive is over with the Lithocraft at the surface: it stops, no Station
+## calls, and time runs at normal rate until new_dive().
+func _rest_at_surface() -> void:
 	_speed = 0.0
 	_slip = 0.0
 	_surfaced = true
 	_calls = {}
 	_time_rate = 1.0
-	_events.append({type = &"surfaced", distance = _distance})
+
+
+## Sells the survey still aboard, the last part-stretch included, and returns
+## what it was paid.
+func _sell_aboard() -> float:
 	var part := _distance - _stretch_start
 	if part > 0.0:
 		_close_stretch(part)
@@ -1387,7 +1436,7 @@ func _surface() -> void:
 	_waiting.clear()
 	_sent.clear()
 	_sending = null
-	_events.append(_payment(carried))
+	return carried
 
 
 ## The &"paid" event for this dive: everything it was paid, by link while

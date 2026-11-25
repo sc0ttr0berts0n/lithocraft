@@ -79,6 +79,51 @@ func test_losing_the_plasma_with_the_tunnel_open_does_not_strand() -> void:
 	assert_array(DiveTestKit.types(seen)).not_contains([&"stranded"])
 
 
+func test_losing_the_plasma_with_the_tunnel_open_brings_the_crew_home_through_it() -> void:
+	var sim := _careless_dive(40.0, false)
+	var before := {unsold = 0.0, paid = 0.0}
+	var seen := []
+
+	var home := DiveTestKit.run_until(sim, &"recovered_through_tunnel", PLENTY_S, seen, STEP_S,
+			func() -> void: before.merge({unsold = sim.unsold_value(), paid = sim.paid()}, true))
+
+	assert_dict(home).is_not_empty()
+	var types := DiveTestKit.types(seen)
+	assert_int(types.find(&"plasma_lost")).is_less(types.find(&"recovered_through_tunnel"))
+	assert_array(types).not_contains([&"stranded"])
+	assert_bool(sim.stranded()).is_false()
+	# Back at the surface, the dive over.
+	assert_bool(sim.surfaced()).is_true()
+	assert_float(sim.depth()).is_less_equal(0.0)
+	# Unlike a stranding, the survey aboard (the stretch being recorded, at
+	# least) is kept and sold on return...
+	assert_float(home.carried_home).is_greater(0.0)
+	assert_float(home.carried_home).is_greater_equal(before.unsold)
+	assert_float(sim.unsold_value()).is_equal(0.0)
+	assert_int(sim.survey().size()).is_equal(sim.uploaded_survey().size())
+	# ...and the worn Head is paid for out of it.
+	assert_float(home.head_repair).is_greater(0.0)
+	assert_float(sim.paid()).is_equal_approx(
+			before.paid + home.carried_home - home.head_repair, 0.001)
+
+
+func test_after_coming_home_through_the_tunnel_the_crew_can_dive_again() -> void:
+	var sim := _careless_dive(40.0, false)
+	DiveTestKit.run_until(sim, &"recovered_through_tunnel", PLENTY_S, [], STEP_S)
+	var paid := sim.paid()
+
+	sim.new_dive()
+	var types := DiveTestKit.types(sim.take_events())
+	sim.set_power(1.0)
+	DiveTestKit.run(sim, 30.0, STEP_S)
+
+	assert_array(types).contains([&"new_dive"])
+	assert_bool(sim.plasma_lost()).is_false()
+	assert_float(sim.head_wear()).is_equal(0.0)
+	assert_float(sim.depth()).is_greater(10.0)
+	assert_float(sim.paid()).is_greater_equal(paid)
+
+
 func test_a_recovery_keeps_what_was_paid_and_returns_to_the_surface() -> void:
 	var sim := _careless_dive()
 	DiveTestKit.run_until(sim, &"stranded", PLENTY_S, [], STEP_S)
@@ -152,3 +197,17 @@ func test_a_recovery_starts_at_normal_time_with_the_crew_where_they_were() -> vo
 	assert_float(sim.time_rate()).is_equal(1.0)
 	assert_bool(sim.attended(DiveSimulation.STATION_NAVIGATION)).is_true()
 	assert_float(sim.call_urgency(DiveSimulation.STATION_REACTOR)).is_equal(0.0)
+
+
+func test_everything_a_recovery_keeps_is_a_variable_of_the_simulation() -> void:
+	# A variable renamed but left under its old name in the list would
+	# silently stop being kept.
+	var sim := DiveSimulation.new(MediumLayout.uniform(_open_rock()))
+	var variables := []
+	for property in sim.get_property_list():
+		if property.usage & PROPERTY_USAGE_SCRIPT_VARIABLE:
+			variables.append(StringName(property.name))
+
+	assert_array(DiveSimulation._KEPT_ON_RECOVERY).is_not_empty()
+	for kept in DiveSimulation._KEPT_ON_RECOVERY:
+		assert_array(variables).contains([kept])
