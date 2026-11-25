@@ -1173,6 +1173,12 @@ func point_count() -> int:
 	return _points.size()
 
 
+## How many pulses have been sent this dive. The cloud changes only when this
+## does, so a view can rebuild on it without copying points() every frame.
+func pulses_sent() -> int:
+	return _pulses_sent
+
+
 ## The most points the cloud holds.
 func point_capacity() -> int:
 	return _SCAN_POINT_CAPACITY
@@ -2325,7 +2331,7 @@ func _send_pulse() -> void:
 	var over := _points.size() - _SCAN_POINT_CAPACITY
 	if over > 0:
 		for point in _points.slice(0, over):
-			_file_point(point, false)
+			_unfile_point(point)
 		_points = _points.slice(over)
 
 
@@ -2336,8 +2342,7 @@ func _send_pulse() -> void:
 ## out of _points once per pulse. Looks in only the eight cells the point's
 ## reach can touch.
 func _add_point(point: ScanPoint, replaced: Dictionary) -> void:
-	var cell_m := 2.0 * _SCAN_RESOLUTION_M
-	var corner := Vector3i(((point.position / cell_m) - Vector3.ONE * 0.5).floor())
+	var corner := _scan_cell(point.position - Vector3.ONE * _SCAN_RESOLUTION_M)
 	for dx in 2:
 		for dy in 2:
 			for dz in 2:
@@ -2351,19 +2356,22 @@ func _add_point(point: ScanPoint, replaced: Dictionary) -> void:
 						replaced[near] = true
 				if cell.is_empty():
 					_point_cells.erase(key)
-	_file_point(point, true)
+	_file_point(point)
 	_points.append(point)
 
 
-## Files a point in its cell of _point_cells, or takes it out (dropping the
-## cell once it is empty, so the cells held stay bounded by the cloud).
-func _file_point(point: ScanPoint, filed: bool) -> void:
+## Files a point in its cell of _point_cells.
+func _file_point(point: ScanPoint) -> void:
 	var key := _scan_cell(point.position)
-	if filed:
-		if not _point_cells.has(key):
-			_point_cells[key] = []
-		_point_cells[key].append(point)
-		return
+	if not _point_cells.has(key):
+		_point_cells[key] = []
+	_point_cells[key].append(point)
+
+
+## Takes a point out of its cell of _point_cells, dropping the cell once it is
+## empty, so the cells held stay bounded by the cloud.
+func _unfile_point(point: ScanPoint) -> void:
+	var key := _scan_cell(point.position)
 	var cell: Array = _point_cells[key]
 	cell.erase(point)
 	if cell.is_empty():
@@ -2372,7 +2380,7 @@ func _file_point(point: ScanPoint, filed: bool) -> void:
 
 ## The cell of _point_cells a position falls in: cubes twice the resolution
 ## on a side, so every point within the resolution of a position lies in the
-## eight cells round the corner nearest it.
+## eight cells from the one its reach's lowest corner falls in.
 func _scan_cell(position: Vector3) -> Vector3i:
 	return Vector3i((position / (2.0 * _SCAN_RESOLUTION_M)).floor())
 

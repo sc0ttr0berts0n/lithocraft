@@ -1,11 +1,11 @@
 ## Navigation's display: the point cloud, head-up. The Lithocraft is fixed at
 ## the centre with its Head up the screen, seen from over its back and right
 ## side (square to the Head), so the display turns only as the vessel does,
-## never on its own. Rendered into its own world inside this
-## SubViewport so a Station screen can show it as a texture.
+## never on its own. Rendered into its own world inside this SubViewport so a
+## Station screen can show it as a texture.
 ##
-## Reads only the simulation: points() and point_age() for the cloud,
-## head_position(), heading() and heading_degrees() for the vessel,
+## Reads only the simulation: points(), point_age() and pulses_sent() for the
+## cloud; head_position(), heading() and heading_degrees() for the vessel;
 ## course_direction() for the Course Navigation has plotted, drawn as a dashed
 ## line out ahead among the points. The cloud is drawn in world metres and
 ## shifted by the Head's position each frame, so the points stream toward the
@@ -26,7 +26,7 @@ const POINT_PX := 4.0
 ## Confidence colours: a guess is dim violet, certain is bright cyan-white.
 const DOUBTFUL := Color(0.5, 0.35, 1.0)
 const CERTAIN := Color(0.75, 1.0, 1.0)
-## Seconds for a point to fade to a third of its brightness: an old echo
+## Seconds for a point to fade to about a third of its brightness: an old echo
 ## describes rock the vessel has since moved relative to.
 const FADE_S := 90.0
 ## A plumb line under the vessel with a tick every this many metres, to read
@@ -46,6 +46,7 @@ var _cloud := MultiMeshInstance3D.new()
 ## The points drawn, in the multimesh's order; their places are set when the
 ## cloud changes, their colours every frame as they age.
 var _points: Array[ScanPoint] = []
+var _pulses_shown := -1
 var _vessel := Node3D.new()
 var _heading := MeshInstance3D.new()
 var _course := MeshInstance3D.new()
@@ -102,9 +103,9 @@ func _process(_delta: float) -> void:
 	_cloud.position = -sim.head_position()
 	_heading.mesh = _line_to(sim.heading() * 60.0)
 	_course.mesh = _dashes_to(sim.course_direction() * COURSE_M)
-	var points := sim.points()
-	if points.size() != _points.size() or (not points.is_empty() and points.back() != _points.back()):
-		_place_points(points)
+	if sim.pulses_sent() != _pulses_shown:
+		_pulses_shown = sim.pulses_sent()
+		_place_points(sim.points())
 	_fade_points()
 
 

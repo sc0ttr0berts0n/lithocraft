@@ -32,6 +32,10 @@ func _go_quiet(sim: DiveSimulation) -> void:
 			return
 
 
+func _from_pulse(points: Array[ScanPoint], pulse: int) -> Array[ScanPoint]:
+	return points.filter(func(p: ScanPoint) -> bool: return p.pulse == pulse)
+
+
 func _mean_confidence(points: Array[ScanPoint]) -> float:
 	var total := 0.0
 	for point in points:
@@ -232,10 +236,6 @@ func test_the_point_count_matches_the_cloud() -> void:
 	assert_int(sim.point_count()).is_greater(0)
 
 
-func _from_pulse(points: Array[ScanPoint], pulse: int) -> Array[ScanPoint]:
-	return points.filter(func(p: ScanPoint) -> bool: return p.pulse == pulse)
-
-
 func test_points_carry_their_age() -> void:
 	var sim := DiveSimulation.new(_layout(50.0))
 	_go_quiet(sim)
@@ -290,7 +290,5 @@ func test_mashing_pulse_keeps_the_count_at_its_bound() -> void:
 
 	# The cloud fills to its bound and never holds more.
 	assert_int(most).is_equal(bound)
-	assert_int(sim.point_count()).is_less_equal(bound)
 	# The oldest points gave way first: the first pulses' points are gone.
 	assert_int(_from_pulse(sim.points(), 0).size()).is_equal(0)
-
