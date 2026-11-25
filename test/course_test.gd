@@ -22,6 +22,15 @@ func test_navigation_plots_a_course_the_simulation_reports() -> void:
 	assert_float(sim.course_pitch()).is_equal(45.0)
 
 
+func test_the_course_is_the_way_the_lithocraft_points_once_it_has_turned_onto_it() -> void:
+	var sim := _diving()
+
+	sim.set_course(30.0, 45.0)
+	DiveTestKit.run(sim, 6000.0)
+
+	assert_float(sim.course_direction().angle_to(sim.heading())).is_less(0.001)
+
+
 func test_a_course_out_of_range_is_kept_to_real_headings_and_pitches() -> void:
 	var sim := _diving()
 

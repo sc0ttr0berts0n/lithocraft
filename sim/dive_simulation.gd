@@ -661,6 +661,12 @@ func course_pitch() -> float:
 	return _course_pitch
 
 
+## The Course as a unit direction in the world frame (as heading()), for
+## drawing it among the points.
+func course_direction() -> Vector3:
+	return _direction_of(_course_heading, _course_pitch)
+
+
 ## True while the Drive steers toward its own override, not the Course.
 func overriding() -> bool:
 	return _overriding
@@ -1103,8 +1109,13 @@ func hull_damage_temperature() -> float:
 
 ## The direction the Drive steers toward, in the world frame.
 func _wanted_direction() -> Vector3:
-	var p := deg_to_rad(steered_pitch())
-	var h := deg_to_rad(steered_heading())
+	return _direction_of(steered_heading(), steered_pitch())
+
+
+## A unit vector in the world frame for a compass heading and pitch, degrees.
+static func _direction_of(heading_degrees: float, pitch_degrees: float) -> Vector3:
+	var p := deg_to_rad(pitch_degrees)
+	var h := deg_to_rad(heading_degrees)
 	return Vector3(cos(p) * sin(h), -sin(p), -cos(p) * cos(h)).normalized()
 
 

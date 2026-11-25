@@ -3,7 +3,8 @@
 ## this SubViewport so a Station screen can show it as a texture.
 ##
 ## Reads only the simulation: points() for the cloud, head_position() and
-## heading() for the vessel. The cloud is drawn in world metres and shifted by
+## heading() for the vessel, course_direction() for the Course Navigation has
+## plotted, drawn as a dashed line out ahead among the points. The cloud is drawn in world metres and shifted by
 ## the Head's position each frame, so the vessel moves through it at exactly
 ## the simulation's speed; it is rebuilt only when a pulse adds points.
 class_name ScanDisplay
@@ -24,6 +25,11 @@ const CERTAIN := Color(0.75, 1.0, 1.0)
 ## range by.
 const TICK_M := 50.0
 const PLUMB_M := 400.0
+## The Course line: how far out it reaches, metres, its dashes, and its colour
+## (Navigation's own hue, apart from the vessel's amber heading).
+const COURSE_M := 300.0
+const COURSE_DASH_M := 12.0
+const COURSE_COLOUR := Color(0.3, 0.85, 1.0)
 
 var sim: DiveSimulation
 
@@ -31,6 +37,7 @@ var _cloud := MultiMeshInstance3D.new()
 var _shown := -1
 var _vessel := Node3D.new()
 var _heading := MeshInstance3D.new()
+var _course := MeshInstance3D.new()
 var _camera := Camera3D.new()
 var _orbit := 0.0
 
@@ -69,6 +76,8 @@ func _ready() -> void:
 	_vessel.add_child(hull)
 	_heading.material_override = _line_material(Color(1.0, 0.8, 0.3, 0.8))
 	_vessel.add_child(_heading)
+	_course.material_override = _line_material(COURSE_COLOUR)
+	_vessel.add_child(_course)
 	var plumb := MeshInstance3D.new()
 	plumb.mesh = _plumb_line()
 	plumb.material_override = _line_material(Color(0.4, 0.5, 0.6, 0.6))
@@ -86,6 +95,7 @@ func _process(delta: float) -> void:
 	# The vessel stays at the centre; the cloud moves past it.
 	_cloud.position = -head
 	_heading.mesh = _line_to(sim.heading() * 60.0)
+	_course.mesh = _dashes_to(sim.course_direction() * COURSE_M)
 	if sim.point_count() != _shown:
 		_show_points(sim.points())
 
@@ -107,6 +117,19 @@ static func _line_to(end: Vector3) -> ImmediateMesh:
 	mesh.surface_begin(Mesh.PRIMITIVE_LINES)
 	mesh.surface_add_vertex(Vector3.ZERO)
 	mesh.surface_add_vertex(end)
+	mesh.surface_end()
+	return mesh
+
+
+static func _dashes_to(end: Vector3) -> ImmediateMesh:
+	var mesh := ImmediateMesh.new()
+	mesh.surface_begin(Mesh.PRIMITIVE_LINES)
+	var length := end.length()
+	var along := 0.0
+	while along < length:
+		mesh.surface_add_vertex(end * (along / length))
+		mesh.surface_add_vertex(end * (minf(along + COURSE_DASH_M, length) / length))
+		along += 2.0 * COURSE_DASH_M
 	mesh.surface_end()
 	return mesh
 

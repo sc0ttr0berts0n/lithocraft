@@ -23,10 +23,12 @@ const STATIONS := [
 ]
 ## Each press of the faster key multiplies the time rate by this.
 const TIME_RATE_STEP := 4.0
-## How much one press moves each Drive Station setting.
+## How much one press moves the Course at Navigation, or the Drive's
+## override, and the Drive's power and steering effort.
 const PITCH_STEP := 15.0
 const HEADING_STEP := 15.0
 const POWER_STEP := 0.1
+const EFFORT_STEP := 0.1
 ## The Arm's rail runs round the Bore this far out from its glass.
 const RAIL_GAP := 0.15
 ## How quickly the look settles onto a Station's screen while carried, per second.
@@ -64,10 +66,10 @@ const UPLOAD_PRIORITIES: Array[StringName] = [
 const BORE_DISPLAY_SIZE := Vector2i(768, 363)
 
 var _sim := DiveSimulation.new(MediumLayout.first_dive())
-## Drive Station settings: they hold when the crew walks away.
-var _pitch_setting := 90.0
-var _heading_setting := 0.0
+## Drive Station settings: they hold when the crew walks away. The Course
+## (Navigation's) and any override are read from the simulation.
 var _power_setting := 0.0
+var _effort_setting := 1.0
 var _stations: Array[GimballedStation] = []
 var _reactor: GimballedStation
 var _drive: GimballedStation
@@ -98,8 +100,8 @@ var _recovered_notice_left := 0.0
 
 
 func _ready() -> void:
-	_sim.set_pitch(_pitch_setting)
-	_sim.set_heading(_heading_setting)
+	_sim.set_course(0.0, 90.0)
+	_sim.set_steering_effort(_effort_setting)
 	_sim.set_power(_power_setting)
 	_sim.set_heat_split(_heat_split)
 	_dive_view.attach(_sim)
@@ -116,7 +118,8 @@ func _ready() -> void:
 	_show_notice([
 		"At the surface of the desert, ready to dive",
 		"Power up at the Drive [T]. Down through sand, sandstone and granite;",
-		"pitch up [3] a few kilometres down to arc home and sell the survey.",
+		"a few kilometres down, plot a climbing Course at Navigation [3]",
+		"to arc home and sell the survey.",
 		"[F1] controls",
 	], RECOVERED_NOTICE_S)
 	_crew.bore_radius = BORE_RADIUS
@@ -139,13 +142,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match (event as InputEventKey).physical_keycode:
-			KEY_1: _set_pitch(90.0)
-			KEY_2: _set_pitch(0.0)
-			KEY_3: _set_pitch(-90.0)
-			KEY_Z: _set_pitch(_pitch_setting - PITCH_STEP)
-			KEY_X: _set_pitch(_pitch_setting + PITCH_STEP)
-			KEY_J: _set_heading(_heading_setting - HEADING_STEP)
-			KEY_L: _set_heading(_heading_setting + HEADING_STEP)
+			KEY_1: _aim(0.0, 90.0, false)
+			KEY_2: _aim(0.0, 0.0, false)
+			KEY_3: _aim(0.0, -90.0, false)
+			KEY_Z: _aim(0.0, -PITCH_STEP, true)
+			KEY_X: _aim(0.0, PITCH_STEP, true)
+			KEY_J: _aim(-HEADING_STEP, 0.0, true)
+			KEY_L: _aim(HEADING_STEP, 0.0, true)
+			KEY_O: _end_override()
+			KEY_Y: _set_effort(_effort_setting + EFFORT_STEP)
+			KEY_H: _set_effort(_effort_setting - EFFORT_STEP)
 			KEY_T: _set_power(_power_setting + POWER_STEP)
 			KEY_G: _set_power(_power_setting - POWER_STEP)
 			KEY_F: _observe_next_feature()
@@ -154,8 +160,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_F3: _dive_view.visible = not _dive_view.visible
 			KEY_C: _split_heat(_heat_split - HEAT_SPLIT_STEP)
 			KEY_V: _split_heat(_heat_split + HEAT_SPLIT_STEP)
-			KEY_P: _sim.pulse()
-			KEY_Q: _sim.set_quiet_ship(not _sim.quiet_ship())
+			KEY_P: _pulse()
+			KEY_Q: _toggle_quiet_ship()
 			KEY_SPACE: _arm.press()
 			KEY_A:
 				_arm.shift(-1)
@@ -208,10 +214,7 @@ func _physics_process(delta: float) -> void:
 	_bore_station.show_reading(_bore_reading())
 	_place_feature_ring()
 	_show_thermal()
-	_navigation.show_reading("%s  noise %d%%  %d points\n%s\n[P] pulse  [Q] Quiet Ship" % [
-		"QUIET SHIP" if _sim.quiet_ship() else "under way",
-		roundi(_sim.noise() * 100.0), _sim.point_count(),
-		_power_line(_sim.navigation_request(), _sim.navigation_draw())])
+	_show_navigation()
 
 
 func _station_poses() -> Array[Transform3D]:
@@ -230,20 +233,43 @@ func _at(station: GimballedStation) -> bool:
 	return _crew.position.distance_to(station.position) <= STATION_REACH
 
 
-## Drive Station: pitch to steer toward. Only within reach of the Drive.
-func _set_pitch(pitch: float) -> void:
-	if not _at(_drive):
-		return
-	_pitch_setting = clampf(pitch, -90.0, 90.0)
-	_sim.set_pitch(_pitch_setting)
+## The heading and pitch keys. At Navigation they plot the Course; at the
+## Drive they override it, starting from what the Drive steers toward now.
+## `relative`: move by the amounts given; else set the pitch to `pitch`
+## (and keep the heading).
+func _aim(heading: float, pitch: float, relative: bool) -> void:
+	if _at(_navigation):
+		var p := _sim.course_pitch() + pitch if relative else pitch
+		_sim.set_course(_sim.course_heading() + heading, p)
+	elif _at(_drive):
+		var p := _sim.steered_pitch() + pitch if relative else pitch
+		_sim.override_course(_sim.steered_heading() + heading, p)
 
 
-## Drive Station: compass heading to steer toward.
-func _set_heading(heading: float) -> void:
+## Drive Station: give up the override and steer toward the Course again.
+func _end_override() -> void:
+	if _at(_drive):
+		_sim.end_override()
+
+
+## Drive Station: how hard to steer toward the Course.
+func _set_effort(effort: float) -> void:
 	if not _at(_drive):
 		return
-	_heading_setting = fposmod(heading, 360.0)
-	_sim.set_heading(_heading_setting)
+	_effort_setting = clampf(snappedf(effort, EFFORT_STEP), 0.0, 1.0)
+	_sim.set_steering_effort(_effort_setting)
+
+
+## Navigation: send a pulse. Only at Navigation.
+func _pulse() -> void:
+	if _at(_navigation):
+		_sim.pulse()
+
+
+## Navigation: Quiet Ship on or off. Only at Navigation.
+func _toggle_quiet_ship() -> void:
+	if _at(_navigation):
+		_sim.set_quiet_ship(not _sim.quiet_ship())
 
 
 ## Drive Station: share of power sent to advancing.
@@ -269,23 +295,40 @@ func _show_calls() -> void:
 		station.footer = footer
 
 
-## The Drive Station's screen: depth, heading, pitch and speed, each with the
-## setting it is steering toward, how hard the Head is steering (turning heats
-## one side of it harder), and whether the grip waves hold the wall or slip.
+## The Drive Station's screen: depth and speed; heading and pitch now beside
+## the Course Navigation plotted (and the Drive's override, if it holds one);
+## power, the steering effort and how hard the Head is steering (turning heats
+## one side of it harder); and whether the grip waves hold the wall or slip.
 func _show_drive() -> void:
 	var slip := _sim.slip()
 	var lines := [
 		"SURFACED  [Enter] dive again" if _sim.surfaced() else
 			"Depth %.1f m  Speed %.2f m/s" % [_sim.depth(), _sim.speed()],
-		"Heading %03.0f (set %03.0f)" % [_sim.heading_degrees(), _heading_setting],
-		"Pitch %+.0f deg (set %+.0f)" % [_sim.pitch(), _pitch_setting],
-		"Set %d%%  Steer %d%%" % [
-			roundi(_power_setting * 100.0), roundi(_sim.steering() * 100.0)],
+		"Heading %03.0f  Course %03.0f" % [_sim.heading_degrees(), _sim.course_heading()],
+		"Pitch %+.0f  Course %+.0f deg" % [_sim.pitch(), _sim.course_pitch()],
+		"OVERRIDE %03.0f %+.0f  [O] back to Course" % [
+			_sim.steered_heading(), _sim.steered_pitch()] if _sim.overriding()
+			else "Following the Course",
+		"Set %d%%  Effort %d%%  Steer %d%%" % [roundi(_power_setting * 100.0),
+			roundi(_effort_setting * 100.0), roundi(_sim.steering() * 100.0)],
 		"GRIP SLIPPING %d%%  ease off [G]" % roundi(slip * 100.0) if slip > 0.0
 			else "Grip holding",
 		_power_line(_sim.drive_request(), _sim.drive_draw()),
 	]
 	_drive.show_reading("\n".join(lines))
+
+
+## Navigation's screen, over its point cloud (which shows the Course): the
+## Course plotted, how quiet the vessel is, the points heard and its power.
+func _show_navigation() -> void:
+	_navigation.show_reading("\n".join([
+		"Course %03.0f  %+.0f deg%s" % [_sim.course_heading(), _sim.course_pitch(),
+			"  (Drive overriding)" if _sim.overriding() else ""],
+		"%s  noise %d%%  %d points" % ["QUIET SHIP" if _sim.quiet_ship() else "under way",
+			roundi(_sim.noise() * 100.0), _sim.point_count()],
+		_power_line(_sim.navigation_request(), _sim.navigation_draw()),
+		"[P] pulse  [Q] Quiet Ship",
+	]))
 
 
 ## A Station's power: what it asks for and gets, and STARVED when short.
@@ -411,12 +454,11 @@ func _show_notice(lines: Array, seconds: float) -> void:
 
 ## The Stations start a dive from their start settings, so the Habitat's do too.
 func _reset_settings() -> void:
-	_pitch_setting = 90.0
-	_heading_setting = 0.0
 	_power_setting = 0.0
+	_effort_setting = 1.0
 	_heat_split = 0.0
-	_sim.set_pitch(_pitch_setting)
-	_sim.set_heading(_heading_setting)
+	_sim.set_course(0.0, 90.0)
+	_sim.set_steering_effort(_effort_setting)
 	_sim.set_power(_power_setting)
 	_sim.set_heat_split(_heat_split)
 	_plasma_display.dial = _sim.plasma_tuning()
