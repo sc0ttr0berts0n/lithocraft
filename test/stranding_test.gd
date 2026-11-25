@@ -1,4 +1,4 @@
-# Stranding and recovery, tested at the simulation's interface. Assert
+# Stranding, rescue and coming home through the tunnel, tested at the simulation's interface. Assert
 # relationships, never tuned constants (ADR 0001).
 extends GdUnitTestSuite
 
@@ -43,7 +43,7 @@ func _careless_dive(open_to := 40.0, dense := true) -> DiveSimulation:
 	return sim
 
 
-func test_losing_the_plasma_sealed_in_strands_and_the_recovery_loses_the_unsold_survey() -> void:
+func test_losing_the_plasma_sealed_in_strands_with_the_survey_aboard_and_calls_a_rescue() -> void:
 	var sim := _careless_dive()
 	var unsold := [0.0]
 	var seen := []
@@ -57,17 +57,14 @@ func test_losing_the_plasma_sealed_in_strands_and_the_recovery_loses_the_unsold_
 	assert_int(types.find(&"tunnel_sealed")).is_less(types.find(&"stranded"))
 	assert_int(types.find(&"plasma_lost")).is_less(types.find(&"stranded"))
 	assert_bool(sim.stranded()).is_true()
-	# There was survey aboard, and it is still aboard while stranded...
+	# There was survey aboard, and it is still aboard while stranded.
 	assert_float(unsold[0]).is_greater(0.0)
 	assert_float(stranded.aboard).is_greater_equal(unsold[0])
 	assert_float(sim.unsold_value()).is_equal(stranded.aboard)
-	# ...until the recovery, which loses it.
-	sim.recover()
-	var recovered: Array = sim.take_events().filter(
-			func(e: Dictionary) -> bool: return e.type == &"recovered")
-	assert_float(recovered[0].lost).is_equal(stranded.aboard)
-	assert_float(sim.unsold_value()).is_equal(0.0)
-	assert_array(sim.unsold_survey()).is_empty()
+	# A rescue is on its way, against the clock.
+	assert_float(stranded.rescue_time).is_greater(0.0)
+	assert_float(stranded.rescue_time).is_equal(sim.rescue_time())
+	assert_float(stranded.clock).is_greater(0.0)
 
 
 func test_losing_the_plasma_with_the_tunnel_open_does_not_strand() -> void:
@@ -128,21 +125,34 @@ func test_after_coming_home_through_the_tunnel_the_crew_can_dive_again() -> void
 	assert_float(sim.paid()).is_greater_equal(paid)
 
 
-func test_a_recovery_keeps_what_was_paid_and_returns_to_the_surface() -> void:
+## Strands `sim`, waits for the rescue, and starts another dive.
+func _rescued_and_diving_again(sim: DiveSimulation) -> void:
+	DiveTestKit.run_until(sim, &"stranded", PLENTY_S, [], STEP_S)
+	DiveTestKit.run_until(sim, &"rescued", PLENTY_S, [], 1.0)
+	sim.new_dive()
+
+
+func test_a_rescue_keeps_what_was_paid_and_returns_to_the_surface() -> void:
 	var sim := _careless_dive()
 	DiveTestKit.run_until(sim, &"stranded", PLENTY_S, [], STEP_S)
 	var paid := sim.paid()
 	var up := sim.uploaded_survey().size()
 	assert_float(paid).is_greater(0.0)
 
-	sim.recover()
+	var seen := []
+	DiveTestKit.run_until(sim, &"rescued", PLENTY_S, seen, 1.0)
+	sim.new_dive()
 	sim.advance(0.25)
-	var events := DiveTestKit.types(sim.take_events())
+	var events := DiveTestKit.types(seen + sim.take_events())
 
-	assert_array(events).contains([&"recovered"])
+	assert_array(events).contains([&"rescued", &"paid", &"new_dive"])
 	assert_bool(sim.stranded()).is_false()
-	assert_float(sim.paid()).is_equal(paid)
-	assert_int(sim.uploaded_survey().size()).is_equal(up)
+	# What was paid is kept, less the rescue and the repairs, and what was
+	# aboard is paid for on top.
+	var bill: Dictionary = seen.back()
+	assert_float(sim.paid()).is_equal_approx(paid + bill.carried_home - bill.rescue
+			- bill.hull_repair - bill.head_repair, 0.001)
+	assert_int(sim.uploaded_survey().size()).is_greater(up)
 	# Back at the surface with a fresh vessel: nothing aboard, nothing lost.
 	assert_float(sim.depth()).is_less(1.0)
 	assert_bool(sim.tunnel_sealed()).is_false()
@@ -151,11 +161,10 @@ func test_a_recovery_keeps_what_was_paid_and_returns_to_the_surface() -> void:
 	assert_float(sim.unsold_value()).is_equal(0.0)
 
 
-func test_after_a_recovery_the_crew_can_dive_again_and_be_paid_more() -> void:
+func test_after_a_rescue_the_crew_can_dive_again_and_be_paid_more() -> void:
 	var sim := _careless_dive()
-	DiveTestKit.run_until(sim, &"stranded", PLENTY_S, [], STEP_S)
+	_rescued_and_diving_again(sim)
 	var paid := sim.paid()
-	sim.recover()
 	sim.take_events()
 
 	sim.set_power(1.0)
@@ -165,18 +174,6 @@ func test_after_a_recovery_the_crew_can_dive_again_and_be_paid_more() -> void:
 	assert_float(sim.depth()).is_greater(10.0)
 	assert_float(sim.speed()).is_greater(0.0)
 	assert_float(sim.paid()).is_greater(paid)
-
-
-func test_a_recovery_is_only_for_a_stranded_dive() -> void:
-	var sim := _careless_dive()
-	for i in 80:
-		sim.advance(0.25)
-	var depth := sim.depth()
-
-	sim.recover()
-
-	assert_float(sim.depth()).is_equal(depth)
-	assert_array(DiveTestKit.types(sim.take_events())).not_contains([&"recovered"])
 
 
 func test_a_stranding_is_a_reactor_call_that_returns_the_time_rate_to_normal() -> void:
@@ -190,20 +187,21 @@ func test_a_stranding_is_a_reactor_call_that_returns_the_time_rate_to_normal() -
 	assert_float(sim.time_rate()).is_equal(1.0)
 
 
-func test_a_recovery_starts_at_normal_time_with_the_crew_where_they_were() -> void:
+func test_a_dive_after_a_rescue_starts_at_normal_time_with_the_crew_where_they_were() -> void:
 	var sim := _careless_dive()
 	sim.set_attended(DiveSimulation.STATION_NAVIGATION, true)
 	DiveTestKit.run_until(sim, &"stranded", PLENTY_S, [], STEP_S)
 	sim.set_time_rate(sim.max_time_rate())
 
-	sim.recover()
+	DiveTestKit.run_until(sim, &"rescued", PLENTY_S, [], 1.0)
+	sim.new_dive()
 
 	assert_float(sim.time_rate()).is_equal(1.0)
 	assert_bool(sim.attended(DiveSimulation.STATION_NAVIGATION)).is_true()
 	assert_float(sim.call_urgency(DiveSimulation.STATION_REACTOR)).is_equal(0.0)
 
 
-func test_everything_a_recovery_keeps_is_a_variable_of_the_simulation() -> void:
+func test_everything_a_new_dive_keeps_is_a_variable_of_the_simulation() -> void:
 	# A variable renamed but left under its old name in the list would
 	# silently stop being kept.
 	var sim := DiveSimulation.new(MediumLayout.uniform(_open_rock()))
@@ -212,6 +210,6 @@ func test_everything_a_recovery_keeps_is_a_variable_of_the_simulation() -> void:
 		if property.usage & PROPERTY_USAGE_SCRIPT_VARIABLE:
 			variables.append(StringName(property.name))
 
-	assert_array(DiveSimulation._KEPT_ON_RECOVERY).is_not_empty()
-	for kept in DiveSimulation._KEPT_ON_RECOVERY:
+	assert_array(DiveSimulation._KEPT_BETWEEN_DIVES).is_not_empty()
+	for kept in DiveSimulation._KEPT_BETWEEN_DIVES:
 		assert_array(variables).contains([kept])

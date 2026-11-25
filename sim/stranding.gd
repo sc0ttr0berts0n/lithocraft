@@ -1,9 +1,11 @@
-## Stranding, recovery and death: what losing the Head's plasma, or the hull,
+## Stranding, rescue and death: what losing the Head's plasma, or the hull,
 ## comes to. Plasma lost with the tunnel sealed behind, the Lithocraft is
-## stranded: it cannot move and no tunnel leads up, until recover(). Lost with
-## the tunnel still open, the crew and the Lithocraft are brought home up it.
-## Whenever the Lithocraft reaches the surface its repair is billed: the hull's
-## wear and the Head's. A hull worn through by heat fails and
+## stranded: it cannot move and no tunnel leads up, until it is relit or a
+## rescue, called at once, reaches it (rescue_time()). Lost with the tunnel
+## still open, the crew and the Lithocraft are brought home up it. Whenever
+## the Lithocraft reaches the surface its repair is billed: the hull's wear
+## and the Head's, and a rescue's time. A hull worn through by heat (stranded
+## or not: the stranding clock running out) fails and
 ## the crew dies, with an Elite-style rebuy of the vessel. Owned by
 ## DiveSimulation, which asks it once a step what the vessel's state comes to
 ## and carries that out on the survey, the link and the vessel's place; it
@@ -42,9 +44,23 @@ const _HULL_REPAIR_COST := 1200.0
 ## Elite; well above any repair. Tuned for play (ADR 0001).
 const _REBUY_COST := 2000.0
 
-## True once the plasma is lost while sealed in: the dive is over until
-## recover().
+## Rescue. The rescuers run fast down the open tunnel behind, then cut slowly
+## through the length the melt sealed, in metres per second. Tuned for play
+## (ADR 0001) so a stranding deep in sealed rock races its clock. Real basis:
+## an open, glass-lined tunnel is a road; a sealed one must be cut again.
+const _RESCUE_RUN_SPEED := 5.0
+const _RESCUE_CUT_SPEED := 0.2
+## What a rescue costs per second it takes, in the units of paid(): a rescue
+## sits between a clean surfacing and a rebuy. Tuned for play (ADR 0001).
+const _RESCUE_COST_PER_S := 0.4
+
+## True once the plasma is lost while sealed in: the Lithocraft cannot move
+## until it is relit, rescued, or the hull fails.
 var _stranded := false
+## How long the rescue called at the stranding takes, and how long the crew
+## has waited for it, in seconds.
+var _rescue_takes := 0.0
+var _waited := 0.0
 ## Energy left in the emergency store, in the units of set_power() x seconds.
 ## Full at the start of a dive; nothing recharges it until the next.
 var _store := _STORE_CAPACITY
@@ -103,10 +119,53 @@ func head_repair(head_wear: float) -> float:
 	return head_wear * _HEAD_REPAIR_COST
 
 
-## The Head has been relit from the store: the stranding is over and the dive
-## goes on. Losing the plasma again strands it again.
+## The Head has been relit from the store: the stranding is over, the rescue
+## called off, and the dive goes on. Losing the plasma again strands it again.
 func relit() -> void:
 	_stranded = false
+	_rescue_takes = 0.0
+	_waited = 0.0
+
+
+## Seconds a rescue takes to reach a Lithocraft with `open_m` metres of open
+## tunnel and `sealed_m` metres of sealed tunnel behind it: a fast run down the
+## open length plus a slow cut through the sealed length.
+static func rescue_time(open_m: float, sealed_m: float) -> float:
+	return maxf(open_m, 0.0) / _RESCUE_RUN_SPEED + maxf(sealed_m, 0.0) / _RESCUE_CUT_SPEED
+
+
+## Calls the rescue as the Lithocraft is stranded: it arrives in `seconds`.
+func call_rescue(seconds: float) -> void:
+	_rescue_takes = seconds
+	_waited = 0.0
+
+
+## Waits dt seconds for the rescue while stranded. True the step it arrives.
+func wait_for_rescue(dt: float) -> bool:
+	if not _stranded:
+		return false
+	_waited += dt
+	return _waited >= _rescue_takes
+
+
+## Seconds until the rescue arrives.
+func rescue_left() -> float:
+	return maxf(_rescue_takes - _waited, 0.0)
+
+
+## Seconds the rescue took, from the stranding to its arrival.
+func rescue_took() -> float:
+	return _rescue_takes
+
+
+## The rescue has reached the Lithocraft: the stranding is over.
+func rescued() -> void:
+	_stranded = false
+
+
+## What a rescue that took this many seconds costs, in the units of paid().
+func rescue_cost(seconds: float) -> float:
+	return seconds * _RESCUE_COST_PER_S
 
 
 ## Energy left in the emergency store.

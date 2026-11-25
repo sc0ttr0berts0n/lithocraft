@@ -168,9 +168,9 @@ const _MAX_TIME_RATE := 64.0
 ## Longest step taken while running fast, in simulated seconds, so a fast rate
 ## costs a few steps a frame, not one per normal-rate frame.
 const _FAST_STEP_S := 0.25
-## What a recovery keeps; every other variable starts over as a fresh dive.
+## What a new dive keeps; every other variable starts over as a fresh dive.
 ## The world (the layout), what was paid for, and events not yet taken.
-const _KEPT_ON_RECOVERY: Array[StringName] = [&"_layout", &"_paid", &"_uploaded", &"_events",
+const _KEPT_BETWEEN_DIVES: Array[StringName] = [&"_layout", &"_paid", &"_uploaded", &"_events",
 		# Where the crew is: the view tells the simulation, not the dive.
 		&"_attended",
 		# The luck of relights runs on from dive to dive.
@@ -229,6 +229,10 @@ var _stretch_shuttered := false
 ## True once the melt has filled the tunnel somewhere behind: from then on no
 ## continuous open tunnel reaches the surface.
 var _tunnel_sealed := false
+## Metres of the tunnel behind the Tail the melt has filled, and how far along
+## the path the Tail has left the tunnel so far.
+var _sealed_metres := 0.0
+var _tail_at := 0.0
 ## Survey stretches whose data has reached the surface, in the order they
 ## arrived, and what was paid for them all.
 var _uploaded: Array[SurveyStretch] = []
@@ -271,12 +275,13 @@ var _pulses_sent := 0
 var _scan_random := RandomNumberGenerator.new()
 ## Depth of the Boundary last announced as approaching, or NAN for none.
 var _announced_boundary := NAN
-## Stranding and recovery: what losing the plasma comes to (sim/stranding.gd).
+## Stranding, rescue and death: what losing the plasma or the hull comes to
+## (sim/stranding.gd).
 var _stranding := Stranding.new()
 ## A relight asked for since the last step.
 var _relight_asked := false
 ## The luck of relights. Fixed seed, so a run is the same every time; kept
-## across recoveries, so each dive does not replay the last one's luck.
+## between dives, so each dive does not replay the last one's luck.
 var _relight_random := RandomNumberGenerator.new()
 ## Stations a crew member is at (StringName -> true).
 var _attended := {}
@@ -420,24 +425,10 @@ func set_time_rate(rate: float) -> void:
 	_time_rate = clampf(rate, 1.0, fastest)
 
 
-## The recovery after a stranding: the crew and the Lithocraft are brought
-## back to the surface, ready to dive again as at the start of a dive, with
-## every Station setting back at its start. What was paid (paid(),
-## uploaded_survey()) is kept; the survey still aboard is lost. Ignored unless
-## stranded(). Raises &"recovered".
-func recover() -> void:
-	if not stranded():
-		return
-	var lost := _lose_unsold()
-	_start_fresh()
-	_events.append({type = &"recovered", paid = _paid, lost = lost[0],
-			lost_stretches = lost[1]})
-
-
-## Start another dive after surfacing, or after death in a rebought
+## Start another dive after surfacing (under its own power, brought home
+## through the open tunnel, or rescued), or after death in a rebought
 ## Lithocraft: it is at the surface ready to dive with a whole hull, every
-## Station setting back at its start, as after a recovery. What was paid is
-## kept. Ignored unless surfaced() or dead(). Raises &"new_dive".
+## Station setting back at its start. What was paid is kept. Ignored unless surfaced() or dead(). Raises &"new_dive".
 func new_dive() -> void:
 	if not (_surfaced or dead()):
 		return
@@ -446,12 +437,12 @@ func new_dive() -> void:
 
 
 ## Resets every script variable to a fresh simulation's except those kept
-## between dives (_KEPT_ON_RECOVERY), and starts counting a new dive's pay.
+## between dives (_KEPT_BETWEEN_DIVES), and starts counting a new dive's pay.
 func _start_fresh() -> void:
 	var fresh := DiveSimulation.new(_layout)
 	for property in get_property_list():
 		if property.usage & PROPERTY_USAGE_SCRIPT_VARIABLE \
-				and not StringName(property.name) in _KEPT_ON_RECOVERY:
+				and not StringName(property.name) in _KEPT_BETWEEN_DIVES:
 			set(property.name, fresh.get(property.name))
 	_dive_uploaded_from = _uploaded.size()
 	_paid_before_dive = _paid
@@ -903,14 +894,19 @@ func survey_value() -> float:
 ##   &"station_call" {station, reason, urgency}: a Station has begun calling,
 ##       or calls for a new reason (see call_reason()). The time rate returns
 ##       to normal.
-##   &"stranded" {depth, distance, aboard, aboard_stretches, paid}: the plasma
-##       was lost while sealed in; the Lithocraft is on the emergency store.
+##   &"stranded" {depth, distance, aboard, aboard_stretches, paid,
+##       rescue_time, clock}: the plasma was lost while sealed in; the
+##       Lithocraft is on the emergency store and a rescue is called.
 ##       `aboard` is the value of the unsold survey still aboard
-##       (`aboard_stretches` stretches of it), lost at the recovery unless the
-##       link sends it first; `paid` is kept.
-##   &"recovered" {paid, lost, lost_stretches}: recover() has brought the
-##       crew back to the surface with `paid` kept, ready to dive again. The
-##       survey still aboard is lost: worth `lost`, `lost_stretches` stretches.
+##       (`aboard_stretches` stretches of it): the rescue brings it home, the
+##       hull failing first loses what the link has not sent. `paid` is kept.
+##       `rescue_time` is how long the rescue will take, `clock` the stranding
+##       clock (stranding_clock()) as it stands.
+##   &"rescued" {depth, distance, rescue_time}: the rescue reached the
+##       Lithocraft at `depth` after `rescue_time` seconds and brought the
+##       crew and everything aboard to the surface. Followed by &"paid", whose
+##       `rescue` line is the rescue's cost. The dive is over as after
+##       surfacing (surfaced() is true); new_dive() starts another.
 ##   &"relight_result" {outcome, chance, spent, store}: a relight asked for
 ##       while stranded. `outcome` &"lit" (the stranding is over), &"failed"
 ##       (the pulse spent, still stranded) or &"refused" (the store held less
@@ -919,11 +915,13 @@ func survey_value() -> float:
 ##   &"surfaced" {distance}: the Head has come back up to the surface; the
 ##       dive is over.
 ##   &"paid" {amount, by_link, carried_home, hull_repair, head_repair,
-##       stretches, metres, mean_quality, features, feature_worth,
-##       lost_to_quality, by_medium, total_paid}: right after surfaced, what
-##       this dive was paid (`amount` = `by_link`, paid while under way, +
-##       `carried_home`, the survey sold on surfacing, - `hull_repair` and
-##       `head_repair`, the dive's wear repaired in proportion to it) and why: Column recorded and its length-weighted quality,
+##       rescue, stretches, metres, mean_quality, features, feature_worth,
+##       lost_to_quality, by_medium, total_paid}: right after surfaced or
+##       rescued, what this dive was paid (`amount` = `by_link`, paid while
+##       under way, + `carried_home`, the survey sold on surfacing, -
+##       `hull_repair` and `head_repair`, the dive's wear repaired in
+##       proportion to it, - `rescue`, a rescue in proportion to how long it
+##       took, 0 when there was none) and why: Column recorded and its length-weighted quality,
 ##       features recorded and their worth, the value heat and shuttering
 ##       took off pristine records, and pay per Medium name. `total_paid` is
 ##       paid() across every dive.
@@ -965,8 +963,9 @@ func unsold_value() -> float:
 
 
 ## True once the plasma has been lost while sealed in: the Lithocraft cannot
-## move and no tunnel leads up. The dive is over; time no longer advances it.
-## recover() brings the crew back to the surface.
+## move and no tunnel leads up. Time runs on the emergency store until the
+## Head is relit, the rescue arrives (rescue_time()) or heat soaking in fails
+## the hull (stranding_clock()).
 func stranded() -> bool:
 	return _stranding.stranded()
 
@@ -1019,6 +1018,16 @@ func relight_chance() -> float:
 ## tunnel reaches the surface. It stays sealed for the rest of the dive.
 func tunnel_sealed() -> bool:
 	return _tunnel_sealed
+
+
+## Seconds until a rescue reaches the Lithocraft. While stranded it counts
+## down from the stranding; under way, what a rescue would take if the plasma
+## were lost now. A fast run down the open tunnel behind plus a slow cut
+## through the length the melt sealed, so a longer sealed length is slower.
+func rescue_time() -> float:
+	if stranded():
+		return _stranding.rescue_left()
+	return Stranding.rescue_time(_tail_at - _sealed_metres, _sealed_metres)
 
 
 ## Metres from the Head back to the Tail, where the tunnel behind is made.
@@ -1115,10 +1124,11 @@ func hull_creep_rate() -> float:
 
 
 ## True while heat is wearing the hull now (hull_creep_rate() above 0) and
-## time runs: false once the crew is dead, stranded or surfaced, when advance()
-## no longer steps. The view's sparks and shake play exactly while this holds.
+## time runs: stranded too, as heat soaks in with the Head dark; false once
+## the crew is dead or surfaced, when advance() no longer steps. The view's
+## sparks and shake play exactly while this holds.
 func hull_taking_damage() -> bool:
-	return _heat.taking_damage() and not (dead() or stranded() or surfaced())
+	return _heat.taking_damage() and not (dead() or surfaced())
 
 
 ## The stress the rock's pressure puts on the hull now, 1 at the surface and
@@ -1484,17 +1494,20 @@ func _check_stranded() -> void:
 
 
 ## Losing the plasma while sealed in strands the Lithocraft, on the emergency
-## store. The survey data not yet up the link stays aboard: the link can still
-## send it, on the store, until the recovery loses what is left.
+## store, and calls the rescue. The survey data not yet up the link stays
+## aboard: the link can still send it, on the store, as insurance against the
+## hull failing before the rescue arrives.
 func _strand() -> void:
 	_speed = 0.0
 	_slip = 0.0
 	# Thermal's pumps stop with the Head; the crew restarts them on the store.
 	_heat_split = 0.0
+	_stranding.call_rescue(Stranding.rescue_time(_tail_at - _sealed_metres, _sealed_metres))
 	var aboard_stretches := _waiting.filter(
 			func(s: SurveyStretch) -> bool: return not s.is_feature_record()).size()
 	_events.append({type = &"stranded", depth = depth(), distance = _distance,
-			aboard = unsold_value(), aboard_stretches = aboard_stretches, paid = _paid})
+			aboard = unsold_value(), aboard_stretches = aboard_stretches, paid = _paid,
+			rescue_time = rescue_time(), clock = stranding_clock()})
 
 
 ## A step while stranded: nothing moves and the Head is dark. Heat soaks into
@@ -1521,6 +1534,9 @@ func _step_stranded(dt: float) -> void:
 			_upload(metres * _stranding.draw(wanted) / wanted)
 	_check_stranded()
 	if dead():
+		return
+	if _stranding.wait_for_rescue(dt):
+		_rescue()
 		return
 	_update_calls()
 
@@ -1573,6 +1589,24 @@ func _recover_through_tunnel() -> void:
 			head_repair = repairs.head, amount = _paid - _paid_before_dive, total_paid = _paid})
 
 
+## The rescue has reached the stranded Lithocraft and brought it, the crew
+## and everything aboard back up to the surface. As on surfacing the survey
+## aboard is sold and the hull's and the Head's repairs paid for out of it,
+## and the rescue too, in proportion to how long it took. The dive is over, as
+## after surfacing; new_dive() starts another. Raises &"rescued", then &"paid"
+## with the breakdown.
+func _rescue() -> void:
+	var from_depth := depth()
+	var took := _stranding.rescue_took()
+	_stranding.rescued()
+	_position = Vector3.ZERO
+	_rest_at_surface()
+	_events.append({type = &"rescued", depth = from_depth, distance = _distance,
+			rescue_time = took})
+	var carried := _sell_aboard()
+	_events.append(_payment(carried, _pay_for_repairs(took)))
+
+
 # --- Surfacing and the sale -----------------------------------------------
 
 ## The Head has come back up to the surface: the Lithocraft stops there, the
@@ -1616,11 +1650,13 @@ func _sell_aboard() -> float:
 
 ## Takes what repairing the dive's wear costs out of what has been paid: the
 ## hull's wear from heat and the Head's from poor Shifts, each in proportion to
-## the wear. Returns {hull, head}, what each repair cost.
-func _pay_for_repairs() -> Dictionary:
+## the wear; and a rescue that took `rescue_seconds`, in proportion to its
+## time. Returns {hull, head, rescue}, what each cost.
+func _pay_for_repairs(rescue_seconds := 0.0) -> Dictionary:
 	var repairs := {hull = _stranding.hull_repair(vessel_wear()),
-			head = _stranding.head_repair(head_wear())}
-	_paid -= repairs.hull + repairs.head
+			head = _stranding.head_repair(head_wear()),
+			rescue = _stranding.rescue_cost(rescue_seconds)}
+	_paid -= repairs.hull + repairs.head + repairs.rescue
 	return repairs
 
 
@@ -1650,8 +1686,10 @@ func _payment(carried_home: float, repairs: Dictionary) -> Dictionary:
 			quality_metres += stretch.quality * stretch.length
 	var amount := _paid - _paid_before_dive
 	return {type = &"paid", amount = amount,
-			by_link = amount + repairs.hull + repairs.head - carried_home,
-			carried_home = carried_home, hull_repair = repairs.hull, head_repair = repairs.head, stretches = stretches, metres = metres,
+			by_link = amount + repairs.hull + repairs.head + repairs.rescue - carried_home,
+			carried_home = carried_home, hull_repair = repairs.hull,
+			head_repair = repairs.head, rescue = repairs.rescue, stretches = stretches,
+			metres = metres,
 			mean_quality = quality_metres / metres if metres > 0.0 else 0.0,
 			features = features, feature_worth = feature_worth,
 			lost_to_quality = lost_to_quality, by_medium = by_medium, total_paid = _paid}
@@ -1660,14 +1698,18 @@ func _payment(carried_home: float, repairs: Dictionary) -> Dictionary:
 # --- The tunnel behind ----------------------------------------------------
 
 ## The Tail leaves the tunnel behind it: lined and open in porous Medium,
-## filled with melt in dense Medium. Once filled, it stays filled.
+## filled with melt in dense Medium. Once filled, it stays filled; the filled
+## metres are counted, for the rescue to cut through.
 func _update_tunnel() -> void:
-	if _tunnel_sealed:
-		return
 	var tail := _distance - _VESSEL_LENGTH_M
-	if tail < 0.0:
-		return  # The Tail has not yet left the surface.
-	if _medium_at_distance(tail).porosity < _SEAL_POROSITY:
+	if tail <= _tail_at:
+		return  # The Tail has not yet left the surface, or not moved.
+	var left := tail - _tail_at
+	_tail_at = tail
+	if _medium_at_distance(tail).porosity >= _SEAL_POROSITY:
+		return
+	_sealed_metres += left
+	if not _tunnel_sealed:
 		_tunnel_sealed = true
 		_events.append({type = &"tunnel_sealed", distance = tail})
 

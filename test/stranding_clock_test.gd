@@ -90,3 +90,103 @@ func test_spending_the_store_on_cooling_lengthens_the_clock() -> void:
 	assert_float(cooled.emergency_store()).is_less(store)
 	assert_float(left.emergency_store()).is_equal(store)
 	assert_float(_time_to_death(cooled, 100000.0)).is_greater(_time_to_death(left, 100000.0))
+
+
+func test_a_longer_sealed_length_is_slower_to_rescue() -> void:
+	# The same rock but for its porosity, so both reach the same depth: one
+	# sealed behind from 40 m, the other open down to 200 m.
+	var long_sealed := _stranded(MediumLayout.layered(
+			[[0.0, _hot_open(300.0)], [40.0, _hot_dense(300.0)]]), 200.0)
+	var short_sealed := _stranded(MediumLayout.layered(
+			[[0.0, _hot_open(300.0)], [200.0, _hot_dense(300.0)]]), 200.0)
+	assert_float(long_sealed.depth()).is_equal_approx(short_sealed.depth(), 0.5)
+	assert_float(long_sealed.depth()).is_greater(250.0)
+
+	assert_float(long_sealed.rescue_time()).is_greater(short_sealed.rescue_time())
+	assert_float(short_sealed.rescue_time()).is_greater(0.0)
+
+
+func test_rescue_time_counts_down_while_stranded() -> void:
+	var sim := _stranded(MediumLayout.uniform(_hot_dense(300.0)), 60.0)
+	var before := sim.rescue_time()
+
+	DiveTestKit.run(sim, 10.0)
+
+	assert_float(sim.rescue_time()).is_equal_approx(before - 10.0, 0.01)
+
+
+func test_rescue_first_brings_the_crew_home_with_the_data_and_bills_the_rescue() -> void:
+	var sim := _stranded(MediumLayout.uniform(_hot_dense(300.0)), 60.0)
+	assert_float(sim.rescue_time()).is_less(sim.stranding_clock())
+	var aboard := sim.unsold_value()
+	var paid := sim.paid()
+	assert_float(aboard).is_greater(0.0)
+	var seen := []
+
+	var rescued := DiveTestKit.run_until(sim, &"rescued", 100000.0, seen, 1.0)
+	var paid_event: Array = seen.filter(func(e: Dictionary) -> bool: return e.type == &"paid")
+
+	assert_dict(rescued).is_not_empty()
+	assert_bool(sim.dead()).is_false()
+	assert_bool(sim.stranded()).is_false()
+	assert_bool(sim.surfaced()).is_true()
+	assert_float(sim.depth()).is_less_equal(0.0)
+	# The data aboard came home and was sold...
+	assert_float(sim.unsold_value()).is_equal(0.0)
+	assert_int(paid_event.size()).is_equal(1)
+	assert_float(paid_event[0].carried_home).is_greater_equal(aboard)
+	# ...less the rescue and the repairs, each a line in the breakdown.
+	assert_float(paid_event[0].rescue).is_greater(0.0)
+	assert_float(sim.paid()).is_equal_approx(paid + paid_event[0].carried_home
+			- paid_event[0].rescue - paid_event[0].hull_repair - paid_event[0].head_repair, 0.001)
+	assert_float(paid_event[0].head_repair).is_greater(0.0)
+
+
+func test_a_longer_rescue_costs_more() -> void:
+	var quick := _stranded(MediumLayout.uniform(_hot_dense(300.0)), 60.0)
+	var slow := _stranded(MediumLayout.uniform(_hot_dense(300.0)), 120.0)
+	assert_float(slow.rescue_time()).is_greater(quick.rescue_time())
+	var quick_seen := []
+	var slow_seen := []
+
+	var quick_rescue := DiveTestKit.run_until(quick, &"rescued", 100000.0, quick_seen, 1.0)
+	var slow_rescue := DiveTestKit.run_until(slow, &"rescued", 100000.0, slow_seen, 1.0)
+
+	assert_float(slow_rescue.rescue_time).is_greater(quick_rescue.rescue_time)
+	assert_float(slow_seen.back().rescue).is_greater(quick_seen.back().rescue)
+
+
+func test_clock_first_is_death_losing_what_was_not_uploaded() -> void:
+	var sim := _stranded(MediumLayout.uniform(_hot_dense()), 300.0)
+	var clock := sim.stranding_clock()
+	assert_float(clock).is_less(sim.rescue_time())
+	var aboard := sim.unsold_value()
+	var paid := sim.paid()
+	assert_float(aboard).is_greater(0.0)
+	var seen := []
+	var waited := [0.0]
+
+	var failed := DiveTestKit.run_until(sim, &"hull_failed", 100000.0, seen, 1.0,
+			func() -> void: waited[0] += 1.0)
+
+	assert_dict(failed).is_not_empty()
+	assert_array(DiveTestKit.types(seen)).not_contains([&"rescued", &"paid"])
+	assert_bool(sim.dead()).is_true()
+	assert_bool(sim.stranded()).is_false()
+	assert_float(failed.lost).is_equal(aboard)
+	assert_float(sim.paid()).is_equal(paid)
+	assert_float(failed.rebuy).is_greater(0.0)
+	# The clock read at the stranding was true to the hull.
+	assert_float(waited[0]).is_between(clock * 0.95, clock * 1.05 + 1.0)
+	assert_float(sim.stranding_clock()).is_equal(0.0)
+
+
+func test_the_hull_is_felt_taking_damage_while_heat_soaks_in_stranded() -> void:
+	var sim := _stranded(MediumLayout.uniform(_hot_dense()), 300.0)
+	assert_bool(sim.hull_taking_damage()).is_false()
+
+	DiveTestKit.run(sim, 120.0)
+
+	assert_bool(sim.stranded()).is_true()
+	assert_bool(sim.hull_taking_damage()).is_true()
+	assert_float(sim.hull_creep_rate()).is_greater(0.0)
