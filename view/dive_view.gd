@@ -12,7 +12,7 @@
 ## survey panel stands in for the Bore Station's own screen.
 ##
 ## The TunnelPanel below it shows the tunnel behind (open or sealed), the
-## porosity trend the Tail is heading into, the link and payment. P cycles the
+## porosity trend the Tail is heading into, the link and payment. U cycles the
 ## upload priority, a stand-in until the Bore Station takes the command.
 class_name DiveView
 extends Control
@@ -24,7 +24,7 @@ const SLIP_SILENT_DB := -60.0
 const SLIP_LOUDEST_DB := -6.0
 ## How far the slip readout shakes at full slip, in pixels.
 const SLIP_SHAKE_PX := 6.0
-## Upload priorities in the order P cycles through them.
+## Upload priorities in the order U cycles through them.
 const UPLOAD_PRIORITIES: Array[StringName] = [
 	DiveSimulation.UPLOAD_OLDEST_FIRST,
 	DiveSimulation.UPLOAD_MOST_VALUABLE_FIRST,
@@ -68,7 +68,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_power_slider.value += POWER_STEP
 	elif event.is_action_pressed(&"ui_down"):
 		_power_slider.value -= POWER_STEP
-	elif _sim and _is_key_press(event, KEY_P):
+	elif _sim and _is_key_press(event, KEY_U):
 		var next := (UPLOAD_PRIORITIES.find(_sim.upload_priority()) + 1) % UPLOAD_PRIORITIES.size()
 		_sim.set_upload_priority(UPLOAD_PRIORITIES[next])
 

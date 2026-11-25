@@ -90,7 +90,7 @@ func _link_line() -> String:
 
 func _upload_line() -> String:
 	var aboard := sim.survey().size() - sim.uploaded_survey().size()
-	return "Aboard %d  up %d  paid %.0f   [P] %s" % [
+	return "Aboard %d  up %d  paid %.0f   [U] %s" % [
 		aboard, sim.uploaded_survey().size(), sim.paid(),
 		PRIORITY_NAMES.get(sim.upload_priority(), "?"),
 	]
