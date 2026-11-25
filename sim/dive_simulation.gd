@@ -91,6 +91,15 @@ func distance() -> float:
 	return _distance
 
 
+## The Medium of the Column at the given distance behind the Head, in metres
+## (0 = at the Head, increasing toward the Tail). The Column is the uncut
+## Medium the Head passed through there, so a Boundary the Head has crossed
+## slides back through the Bore at the vessel's speed. Behind the start of the
+## dive it is the Medium at the surface.
+func column_at(behind_head: float) -> Medium:
+	return _medium_at_distance(_distance - behind_head)
+
+
 ## The Bore Station's survey so far: one SurveyStretch per completed stretch of
 ## the path, oldest first. A copy; changing it does not change the record.
 func survey() -> Array[SurveyStretch]:
