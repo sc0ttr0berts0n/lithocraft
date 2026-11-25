@@ -8,13 +8,18 @@ extends RefCounted
 
 ## Where a binding works when it is not at a Station.
 const ANYWHERE := &"anywhere"
+## Where the developer's debug keys work: anywhere, but only while the numpad
+## debug menu is open. Not crew controls: each runs a simulation debug command
+## (DiveSimulation.debug_*) or a view toggle.
+const DEBUG := &"debug"
 ## The mouse as a key: any mouse button pressed.
 const MOUSE := -1
 
 ## One line per binding, in the order the F1 controls and each Station's panel
 ## show them:
-## - `where`: ANYWHERE, or the simulation's name for the Station the crew must
-##   be at (the Habitat checks `_at`, so handlers need not).
+## - `where`: ANYWHERE, DEBUG (only while the debug menu is open), or the
+##   simulation's name for the Station the crew must be at (the Habitat
+##   checks `_at`, so handlers need not).
 ## - `keys`: physical keycodes (or MOUSE); the handler is told which by index.
 ## - `does`: what the keys do, shown beside their prompts. Several keys share
 ##   one line, "/" between what each does.
@@ -37,6 +42,7 @@ const BINDINGS: Array[Dictionary] = [
 	{where = ANYWHERE, keys = [KEY_ENTER, KEY_KP_ENTER], does = "surfaced or dead: dive again", action = &"new_dive"},
 	{where = ANYWHERE, keys = [KEY_F1], does = "these controls", action = &"toggle_controls"},
 	{where = ANYWHERE, keys = [KEY_F3], does = "debug overlay", action = &"toggle_debug"},
+	{where = ANYWHERE, keys = [KEY_KP_SUBTRACT], does = "debug menu", action = &"debug_menu"},
 	{where = DiveSimulation.STATION_NAVIGATION, keys = [KEY_1, KEY_2, KEY_3], does = "Course dive / level / climb", action = &"plot_pitch"},
 	{where = DiveSimulation.STATION_NAVIGATION, keys = [KEY_Z, KEY_X], does = "Course pitch -/+15 deg", action = &"plot_pitch_step"},
 	{where = DiveSimulation.STATION_NAVIGATION, keys = [KEY_J, KEY_L], does = "Course heading -/+15 deg", action = &"plot_heading_step"},
@@ -56,6 +62,22 @@ const BINDINGS: Array[Dictionary] = [
 	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_N, KEY_M], does = "Shift dial down / up", action = &"shift_dial"},
 	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_R], does = "Shift", action = &"shift"},
 	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_I], does = "stranded: relight the Head", action = &"relight"},
+	# The numpad debug menu, laid out as the numpad: one key each, so the
+	# menu can write what each does beside it.
+	{where = DEBUG, keys = [KEY_KP_DIVIDE], does = "debug overlay (F3)", action = &"debug_overlay"},
+	{where = DEBUG, keys = [KEY_KP_MULTIPLY], does = "surface now", action = &"debug_surface"},
+	{where = DEBUG, keys = [KEY_KP_ADD], does = "skip 5 minutes", action = &"debug_skip"},
+	{where = DEBUG, keys = [KEY_KP_7], does = "hull wear +10%", action = &"debug_hull_wear_up"},
+	{where = DEBUG, keys = [KEY_KP_4], does = "hull wear -10%", action = &"debug_hull_wear_down"},
+	{where = DEBUG, keys = [KEY_KP_1], does = "hull to the brink", action = &"debug_hull_brink"},
+	{where = DEBUG, keys = [KEY_KP_8], does = "Head wear +10%", action = &"debug_head_wear_up"},
+	{where = DEBUG, keys = [KEY_KP_5], does = "Head wear -10%", action = &"debug_head_wear_down"},
+	{where = DEBUG, keys = [KEY_KP_2], does = "a Shift due now", action = &"debug_shift_due"},
+	{where = DEBUG, keys = [KEY_KP_9], does = "to the next Boundary", action = &"debug_next_boundary"},
+	{where = DEBUG, keys = [KEY_KP_6], does = "strand now", action = &"debug_strand"},
+	{where = DEBUG, keys = [KEY_KP_3], does = "lose the plasma", action = &"debug_lose_plasma"},
+	{where = DEBUG, keys = [KEY_KP_0], does = "refill the emergency store", action = &"debug_refill_store"},
+	{where = DEBUG, keys = [KEY_KP_PERIOD], does = "self-destruct now", action = &"debug_self_destruct"},
 ]
 
 ## Short names for keys where Godot's own is long or a word for a symbol.
@@ -65,6 +87,12 @@ const _NAMES := {
 	KEY_ESCAPE: "Esc",
 	KEY_KP_ENTER: "Enter",
 	MOUSE: "Click",
+	KEY_KP_ADD: "Num +",
+	KEY_KP_SUBTRACT: "Num -",
+	KEY_KP_MULTIPLY: "Num *",
+	KEY_KP_DIVIDE: "Num /",
+	KEY_KP_PERIOD: "Num .",
+	KEY_NUMLOCK: "Num Lock",
 }
 
 
@@ -134,8 +162,10 @@ static func held(action: StringName) -> Array[bool]:
 	return down
 
 
-## A key's short name as written in text: "T", "Enter", ".".
+## A key's short name as written in text: "T", "Enter", ".", "Num 7".
 static func name_of(code: int) -> String:
+	if code >= KEY_KP_0 and code <= KEY_KP_9:
+		return "Num %d" % (code - KEY_KP_0)
 	return _NAMES.get(code, OS.get_keycode_string(code))
 
 

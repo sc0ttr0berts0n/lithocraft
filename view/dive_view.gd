@@ -1,7 +1,7 @@
 ## Developer debug overlay of a dive, drawn over the Habitat: depth, Medium,
 ## speed, a SLIP bar, Drive power, a ColumnStrip on the right edge with a metre
 ## ruler, and the SurveyPanel and TunnelPanel. Hidden by default and toggled
-## with F3 (habitat.gd): the crew learn all of this from the vessel itself
+## with F3, or from the numpad debug menu (habitat.gd): the crew learn all of this from the vessel itself
 ## (story 52), through the Station screens, the Bore, the shake and the sound.
 ## Reads the simulation only; holds no game state and sends no commands. The
 ## scene that owns the simulation hands it over with attach().

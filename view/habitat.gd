@@ -69,6 +69,9 @@ const UPLOAD_PRIORITIES: Array[StringName] = [
 ## The Bore Station's display: the survey and the tunnel side by side, in the
 ## proportions of a Station screen.
 const BORE_DISPLAY_SIZE := Vector2i(768, 363)
+## The debug menu's steps: wear per press (hull or Head), and time skipped.
+const DEBUG_WEAR_STEP := 0.1
+const DEBUG_SKIP_S := 300.0
 
 var _sim := DiveSimulation.new(MediumLayout.first_dive())
 ## Drive Station settings: they hold when the crew walks away. The Course
@@ -109,6 +112,8 @@ var _hull_feel := HullFeel.new()
 @onready var _dive_view: DiveView = %DiveView
 ## The F1 controls, built from the key map.
 var _controls := ControlsPanel.new()
+## The numpad debug menu (numpad minus); its keys work only while it shows.
+var _debug_menu := DebugPanel.new()
 
 
 func _ready() -> void:
@@ -131,6 +136,8 @@ func _ready() -> void:
 	_build_room()
 	_build_stations()
 	_build_notice()
+	# Over the notice: the developer opened it to use it.
+	_build_debug_menu()
 	_show_notice([
 		"At the surface of the desert, ready to dive",
 		"Power up at the Drive %s. Down through sand, sandstone and granite;" % KeyMap.label(&"power_step", 0),
@@ -155,17 +162,22 @@ func _ready() -> void:
 ## the first binding that applies where the crew stands, so what each screen
 ## shows is what the key does.
 func _unhandled_input(event: InputEvent) -> void:
-	var found := KeyMap.find(KeyMap.code_of(event), _wheres())
+	var code := KeyMap.code_of(event)
+	var found := KeyMap.find(code, _wheres())
 	if not found.is_empty():
 		call("_key_%s" % found.action, found.index)
+		_debug_menu.flash(code)
 
 
-## Where the crew can work now: anywhere, and each Station they are at.
+## Where the crew can work now: anywhere, each Station they are at, and the
+## debug menu's keys while it shows.
 func _wheres() -> Array:
 	var wheres: Array = [KeyMap.ANYWHERE]
 	for station in _in_use:
 		if _at(station):
 			wheres.append(_sim_names[station])
+	if _debug_menu.visible:
+		wheres.append(KeyMap.DEBUG)
 	return wheres
 
 
@@ -204,10 +216,79 @@ func _key_new_dive(_index: int) -> void:
 
 func _key_toggle_controls(_index: int) -> void:
 	_controls.visible = not _controls.visible
+	if _controls.visible:
+		_debug_menu.visible = false
 
 
 func _key_toggle_debug(_index: int) -> void:
 	_dive_view.visible = not _dive_view.visible
+
+
+## The numpad debug menu; it and the F1 controls share the lower left, so
+## opening one closes the other.
+func _key_debug_menu(_index: int) -> void:
+	_debug_menu.visible = not _debug_menu.visible
+	if _debug_menu.visible:
+		_controls.visible = false
+
+
+# The debug menu's keys: each a simulation debug command (DiveSimulation's
+# debug_*), not a crew control; or, for the overlay, a view toggle.
+
+func _key_debug_overlay(index: int) -> void:
+	_key_toggle_debug(index)
+
+
+func _key_debug_surface(_index: int) -> void:
+	_sim.debug_surface()
+
+
+func _key_debug_skip(_index: int) -> void:
+	_sim.debug_skip(DEBUG_SKIP_S)
+
+
+func _key_debug_hull_wear_up(_index: int) -> void:
+	_sim.debug_wear_hull(DEBUG_WEAR_STEP)
+
+
+func _key_debug_hull_wear_down(_index: int) -> void:
+	_sim.debug_wear_hull(-DEBUG_WEAR_STEP)
+
+
+func _key_debug_hull_brink(_index: int) -> void:
+	_sim.debug_hull_to_brink()
+
+
+func _key_debug_head_wear_up(_index: int) -> void:
+	_sim.debug_wear_head(DEBUG_WEAR_STEP)
+
+
+func _key_debug_head_wear_down(_index: int) -> void:
+	_sim.debug_wear_head(-DEBUG_WEAR_STEP)
+
+
+func _key_debug_shift_due(_index: int) -> void:
+	_sim.debug_shift_due()
+
+
+func _key_debug_next_boundary(_index: int) -> void:
+	_sim.debug_next_boundary()
+
+
+func _key_debug_strand(_index: int) -> void:
+	_sim.debug_strand()
+
+
+func _key_debug_lose_plasma(_index: int) -> void:
+	_sim.debug_lose_plasma()
+
+
+func _key_debug_refill_store(_index: int) -> void:
+	_sim.debug_refill_store()
+
+
+func _key_debug_self_destruct(_index: int) -> void:
+	_sim.debug_self_destruct()
 
 
 ## Navigation: plot the Course's pitch, dive / level / climb.
@@ -673,6 +754,18 @@ func _build_controls() -> void:
 	_controls.offset_bottom = -16.0
 	_controls.visible = false
 	$Overlay.add_child(_controls)
+
+
+## The numpad debug menu in the lower left, where the F1 controls go, hidden
+## until asked for.
+func _build_debug_menu() -> void:
+	_debug_menu.sim = _sim
+	_debug_menu.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_debug_menu.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_debug_menu.offset_left = 16.0
+	_debug_menu.offset_bottom = -16.0
+	_debug_menu.visible = false
+	$Overlay.add_child(_debug_menu)
 
 
 ## A plain notice in the middle of the screen, hidden until needed.

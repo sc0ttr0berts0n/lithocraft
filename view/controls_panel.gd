@@ -1,5 +1,6 @@
-## The F1 controls: every binding on the key map, place by place (the keys
-## that work anywhere first), each as its key prompts and what it does. A menu
+## The F1 controls: every crew binding on the key map, place by place (the
+## keys that work anywhere first; the debug menu's own keys left to it), each
+## as its key prompts and what it does. A menu
 ## the crew opens, hidden by default; built from the key map, so it cannot
 ## disagree with the keys.
 class_name ControlsPanel
@@ -24,11 +25,16 @@ func _ready() -> void:
 	columns.add_theme_constant_override(&"separation", 28)
 	columns.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(columns)
+	# The debug keys are not the crew's: the debug menu shows them, as a
+	# numpad, and F1 only the key that opens it.
+	var places := KeyMap.places().filter(func(w: StringName) -> bool: return w != KeyMap.DEBUG)
 	# Two columns, a place never split between them.
-	var total := KeyMap.bindings().size() + KeyMap.places().size()
+	var total := places.size()
+	for where in places:
+		total += KeyMap.bindings_at(where).size()
 	var column := _column(columns)
 	var lines := 0
-	for where in KeyMap.places():
+	for where: StringName in places:
 		var here := KeyMap.bindings_at(where)
 		if lines > 0 and lines + here.size() > total / 2.0 + 1.0 and columns.get_child_count() < 2:
 			column = _column(columns)
@@ -53,21 +59,7 @@ func _row(binding: Dictionary) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for code: int in KeyPrompt.distinct(binding.keys):
-		var key := TextureRect.new()
-		key.texture = KeyPrompt.texture(code)
-		key.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		key.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		key.custom_minimum_size = Vector2(KEY_PX, KEY_PX)
-		key.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var glyph := KeyPrompt.glyph(code)
-		if not glyph.is_empty():
-			var mark := _words(glyph, FONT_SIZE)
-			mark.add_theme_color_override(&"font_color", Color.BLACK)
-			mark.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-			mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			mark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			key.add_child(mark)
-		row.add_child(key)
+		row.add_child(KeyPrompt.rect(code, Vector2(KEY_PX, KEY_PX), FONT_SIZE))
 	row.add_child(_words(binding.does, FONT_SIZE))
 	return row
 

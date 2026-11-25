@@ -101,6 +101,38 @@ func test_a_label_for_one_key_names_only_that_key() -> void:
 	assert_str(label).not_contains(KeyMap.name_of(keys[1]))
 
 
+func test_the_debug_menu_opens_from_anywhere() -> void:
+	assert_str(String(KeyMap.binding(&"debug_menu").where)).is_equal(String(KeyMap.ANYWHERE))
+	assert_bool(KeyMap.bindings_at(KeyMap.DEBUG).is_empty()).is_false()
+
+
+func test_a_debug_key_does_what_the_debug_menu_shows_wherever_the_crew_stands() -> void:
+	for binding in KeyMap.bindings_at(KeyMap.DEBUG):
+		for i in binding.keys.size():
+			for station in STATIONS_IN_USE:
+				var found := KeyMap.find(binding.keys[i], [KeyMap.ANYWHERE, station, KeyMap.DEBUG])
+				assert_str(String(found.get(&"action", &""))).override_failure_message(
+						"%s in the debug menu at %s runs %s" % [KeyMap.name_of(binding.keys[i]),
+						station, found.get(&"action", &"nothing")]).is_equal(String(binding.action))
+
+
+func test_debug_keys_do_nothing_while_the_debug_menu_is_closed() -> void:
+	var everywhere: Array = [KeyMap.ANYWHERE]
+	everywhere.append_array(STATIONS_IN_USE)
+	for binding in KeyMap.bindings_at(KeyMap.DEBUG):
+		for code in binding.keys:
+			assert_str(String(KeyMap.find(code, everywhere).get(&"action", &""))).is_not_equal(
+					String(binding.action))
+
+
+func test_the_numpad_keys_show_as_numpad_prompts() -> void:
+	assert_str(KeyPrompt.glyph(KEY_KP_7)).is_empty()
+	assert_str(KeyPrompt.glyph(KEY_KP_SUBTRACT)).is_empty()
+	assert_str(KeyPrompt.glyph(KEY_KP_PERIOD)).is_equal(".")
+	assert_object(KeyPrompt.texture(KEY_KP_ADD, true)).is_not_equal(KeyPrompt.texture(KEY_KP_ADD))
+	assert_str(KeyMap.label(&"debug_menu")).contains("Num")
+
+
 func test_no_two_keys_at_one_place_clash() -> void:
 	for where in KeyMap.places():
 		var seen := {}
