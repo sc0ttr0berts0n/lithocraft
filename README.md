@@ -7,7 +7,7 @@ Built with Godot 4.7 (standard, not .NET).
 ## Layout
 
 - `sim/`: the simulation. Plain GDScript classes (`RefCounted`) with no scene nodes, rendering or input. Commands in, `advance(dt)`, state out.
-- `view/`: scenes that read the simulation and send it commands. `view/habitat.tscn` is the main scene: it owns the simulation and shows the Habitat in first person, with the `view/dive_view.tscn` power panel as an overlay.
+- `view/`: scenes that read the simulation and send it commands. `view/habitat.tscn` is the main scene: it owns the simulation and shows the Habitat in first person. `view/dive_view.tscn` is a developer overlay, off by default (F3).
 - `test/`: GdUnit4 test suites. They test only through the simulation's interface.
 - `addons/gdUnit4/`: vendored GdUnit4 v6.2.3.
 
@@ -19,11 +19,9 @@ Open the folder in the Godot 4.7 editor and press F5, or from a shell:
 <godot-binary> --path .
 ```
 
-Click to look around with the mouse (Esc lets it go) and walk with WASD. Up and Down arrows (or the slider) set Drive power; depth rises while power is above zero. The dive passes sand, then sandstone, then granite. Asking for more power than the Medium's grip allows shows a red SLIP readout and plays a grinding noise (placeholder) instead of going faster.
+You start at the surface in the Habitat, in first person. Click to look around with the mouse (Esc lets it go) and walk with WASD. Space calls the Arm, which carries you to the nearest Station; A / D move you to the next Station left or right, and Space lets go. Each Station's keys work only while you are at it. F1 shows every key; `docs/conventions.md` has the full key map.
 
-Pitch has a stand-in control until the Drive Station gets its own: 1 dives nose-down, 2 levels out, 3 climbs, Z and X step pitch by 15 degrees. "Down" follows the vessel's felt acceleration, so diving puts you on the Head end cap and level travel on the outer wall; the Stations swing on their gimbals to stay upright.
-
-The Column slides through the Bore in the middle of the Habitat, from the Head end cap toward the Tail at the vessel's real speed. Its look comes from the Medium's composition and porosity, so sand (grey, porous), sandstone (tan) and granite (pink with black mica) differ and a Boundary is seen passing. The overlay repeats the Column as a strip with a metre ruler at the right edge, and beside it shows the Bore Station's survey: one bar per surveyed stretch, its height the stretch's quality.
+A dive in brief: plot the Course at Navigation, set power at the Drive, split heat at Thermal, Shift at the Reactor as you cross each Boundary, and record the Column at the Bore Station. "Down" follows the vessel's real acceleration and everything you know comes from the Stations, the Bore and the sound of the vessel; F3 toggles a developer overlay. `.` speeds time up and any Station call drops it back. Surfacing sells the survey; Enter starts another dive.
 
 ## Run the tests
 
