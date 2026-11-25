@@ -128,48 +128,6 @@ const _BOUNDARY_SEARCH_STEP_M := 1.0
 ## Reactor Station can prepare for the Shift. Tuned for play (ADR 0001).
 const _BOUNDARY_APPROACH_M := 30.0
 
-## The plasma and the Shift. The load on the Head excites the plasma into a
-## wobble whose frequency rises with the hardness of the Medium being cut; the
-## Reactor holds it steady by driving an opposing wave at the frequency it is
-## tuned to. Frequency of the wobble per root of hardness, in hertz (a
-## frequency a crew can see on a screen, not a real plasma mode). Tuned for
-## play (ADR 0001).
-const _PLASMA_HZ_PER_ROOT_HARDNESS := 0.8
-## How far the tuning may be from the wobble, as a share of its frequency, and
-## still hold the plasma: beyond it a Shift is due. A Shift this far off
-## matches 1/e. Tuned for play (ADR 0001).
-const _SHIFT_TOLERANCE := 0.12
-## Mistuning (share of the wobble's frequency) at which the plasma, and so the
-## Reactor's output, is half as steady. Tuned for play (ADR 0001).
-const _MISTUNING_HALF := 0.4
-## Seconds from crossing a Boundary in which a Shift loses nothing to lateness.
-const _SHIFT_WINDOW_S := 10.0
-## Seconds after the window closes over which a late Shift's grade falls to
-## 1/e. Tuned for play (ADR 0001).
-const _SHIFT_LATE_S := 4.0
-## Seconds after the window closes at which the Reactor's autopilot makes the
-## Shift itself: on frequency, but late, so poorly. Tuned for play (ADR 0001).
-const _AUTOPILOT_LATE_S := 6.0
-## Grade at or above which a Shift is clean and passes smoothly.
-const _CLEAN_SHIFT_GRADE := 0.8
-## What a poor Shift costs at its roughest (roughness 1; a Shift just short of
-## clean is barely rough). The heat spike's heat per second at its peak and
-## the seconds it takes to fade to 1/e; the lurch's jolt along the Bore in
-## m/s^2 at its peak, how fast it shudders and how soon it fades; the wear on
-## the Head. Tuned for play (ADR 0001): left to the autopilot, the way down
-## through two Boundaries survives even with the hull hot, but a third poor
-## Shift with the hull hot (or a few more with it cool) loses the plasma.
-const _SHIFT_SPIKE_HEAT := 2.0
-const _SHIFT_SPIKE_S := 1.5
-const _LURCH_ACCELERATION := 14.0
-const _LURCH_HZ := 3.0
-const _LURCH_S := 0.4
-const _SHIFT_WEAR := 0.3
-## How much worse a poor Shift wears the Head with the hull at the temperature
-## it can bear than with it as cool as the Medium around it. Bad conditions.
-const _HOT_SHIFT_WEAR := 1.0
-## How much a fully worn Head unsteadies the plasma even when tuned.
-const _WEAR_UNSTEADINESS := 0.3
 ## What repairing a Head worn through costs, in the units of paid(), charged
 ## in proportion to the wear when the crew is brought home through the open
 ## tunnel. About a few hundred metres of good survey. Tuned for play
@@ -295,9 +253,8 @@ var _navigation_request := 0.0
 var _drive_draw := 0.0
 var _thermal_draw := 0.0
 var _navigation_draw := 0.0
-## How steady the Head's plasma is, 0 (lost) to 1 (steady). The Reactor's
-## output scales with it. Always steady until the Shift (ticket #11).
-var _plasma_stability := 1.0
+## The Head's plasma and the Shift, and the Head's wear (sim/plasma.gd).
+var _plasma: Plasma
 ## Navigation's point cloud, oldest first, and whether a pulse is waiting to
 ## be sent on the next step.
 var _points: Array[ScanPoint] = []
@@ -307,24 +264,9 @@ var _pulses_sent := 0
 var _scan_random := RandomNumberGenerator.new()
 ## Depth of the Boundary last announced as approaching, or NAN for none.
 var _announced_boundary := NAN
-## The frequency the Reactor is tuned to hold the plasma at, in hertz.
-var _tuning := 0.0
-## Seconds the plasma has been mistuned (a Shift due), 0 while tuned.
-var _mistuned_for := 0.0
-## A Shift asked for since the last step (its frequency), or NAN.
-var _shift_asked := NAN
-## Wear on the Head from poor Shifts, 0 (none) to 1 (the plasma is lost).
-var _head_wear := 0.0
-## True once the Head's plasma has gone out. It stays out.
-var _plasma_lost := false
 ## True once the plasma is lost while sealed in: the dive is over until
 ## recover() (ticket #12).
 var _stranded := false
-## Extra heat per second from the last poor Shift, fading.
-var _heat_spike := 0.0
-## The last poor Shift's lurch: its peak jolt in m/s^2 and seconds since.
-var _lurch_peak := 0.0
-var _lurch_age := 0.0
 ## Stations a crew member is at (StringName -> true).
 var _attended := {}
 ## How many times normal the simulation runs, 1 or more.
@@ -347,7 +289,7 @@ func _init(layout: MediumLayout) -> void:
 	_layout = layout
 	_heat = Heat.new(surroundings_temperature())
 	_scan_random.seed = 13
-	_tuning = plasma_frequency()
+	_plasma = Plasma.new(plasma_frequency())
 	_share_power()
 
 
@@ -494,7 +436,7 @@ func _start_fresh() -> void:
 ## plasma's wobble (plasma_frequency()), and the sooner after a Boundary, the
 ## better it grades; see the &"shift_result" event.
 func shift(frequency: float) -> void:
-	_shift_asked = maxf(frequency, 0.0)
+	_plasma.ask_shift(frequency)
 
 
 # --- Time step ------------------------------------------------------------
@@ -520,7 +462,8 @@ func _step(dt: float) -> void:
 		return  # The dive is over; nothing moves until recover() or new_dive().
 	_head_activity = move_toward(_head_activity, 0.0 if _quiet_ship else 1.0,
 			_HEAD_SPIN_RATE * dt)
-	_tend_plasma(dt)
+	_plasma.tend(dt, plasma_frequency(), attended(STATION_REACTOR),
+			_heat.hull_heat_share(surroundings_temperature()), _events, depth(), _distance)
 	_share_power()
 	# Steering heats one side of the Head harder; that share of the Drive's
 	# draw goes into heat, not into pushing.
@@ -536,7 +479,7 @@ func _step(dt: float) -> void:
 	# Navigation. A poor Shift's grinding adds a spike.
 	# Heat reaches the Column only as far as Thermal's pumps are powered; the
 	# rest goes out through the hull.
-	_heat.step(power_drawn(), _heat_spike, _heat_split, thermal_supplied(),
+	_heat.step(power_drawn(), _plasma.heat_spike(), _heat_split, thermal_supplied(),
 			surroundings_temperature(), dt)
 	_noise = _head_activity * _HEAD_HUM + _DRIVE_NOISE * power * (1.0 + _slip)
 	var depth_before := depth()
@@ -678,25 +621,25 @@ func steering() -> float:
 func felt_acceleration() -> Vector3:
 	var th := deg_to_rad(pitch())
 	return (TOWARD_UNDERSIDE * cos(th) + TOWARD_HEAD * sin(th)) * _GRAVITY \
-			+ TOWARD_HEAD * lurch() * cos(TAU * _LURCH_HZ * _lurch_age)
+			+ TOWARD_HEAD * lurch() * _plasma.shudder()
 
 
 ## How hard a poor Shift's lurch is jolting the vessel now, in m/s^2: sharp at
 ## the Shift, gone in a moment. 0 after a clean one.
 func lurch() -> float:
-	return _lurch_peak * exp(-_lurch_age / _LURCH_S)
+	return _plasma.lurch()
 
 
 ## Wear on the Head from poor Shifts, 0 (none) to 1. It only accumulates; a
 ## worn Head holds the plasma less steadily, and a Head worn through loses it.
 func head_wear() -> float:
-	return _head_wear
+	return _plasma.head_wear()
 
 
 ## True once the plasma has been lost: the Reactor supplies nothing, so the
 ## vessel halts. It stays lost.
 func plasma_lost() -> bool:
-	return _plasma_lost
+	return _plasma.lost()
 
 
 ## Metres per second along the path during the last step.
@@ -755,32 +698,32 @@ func reactor_output() -> float:
 
 ## How steady the Head's plasma is, 0 (lost) to 1 (steady).
 func plasma_stability() -> float:
-	return _plasma_stability
+	return _plasma.stability()
 
 
 ## The frequency, in hertz, of the wobble the load on the Head excites in the
 ## plasma now. Harder rock loads the Head more and wobbles it faster, so
 ## crossing a Boundary changes it. A Shift matches it.
 func plasma_frequency() -> float:
-	return _PLASMA_HZ_PER_ROOT_HARDNESS * sqrt(_layout.medium_at(depth()).hardness)
+	return Plasma.frequency_in(_layout.medium_at(depth()))
 
 
 ## The frequency, in hertz, the Reactor is tuned to hold the plasma at: the
 ## opposing wave it drives. Set by the last Shift.
 func plasma_tuning() -> float:
-	return _tuning
+	return _plasma.tuning()
 
 
 ## True while the tuning no longer holds the plasma's wobble (after crossing a
 ## Boundary, or after a Shift wide of the mark) and a Shift is due.
 func shift_due() -> bool:
-	return _mistuning() > _SHIFT_TOLERANCE
+	return _plasma.due(plasma_frequency())
 
 
 ## Seconds left in the window in which a due Shift loses nothing to lateness;
 ## 0 when no Shift is due or the window has closed.
 func shift_window() -> float:
-	return maxf(0.0, _SHIFT_WINDOW_S - _mistuned_for) if shift_due() else 0.0
+	return _plasma.window(plasma_frequency())
 
 
 ## How hard the Head is running, 0 (idle, Quiet Ship) to 1 (running).
@@ -1172,7 +1115,7 @@ func _depth_at_distance(along_path: float) -> float:
 ## Navigation asking more takes power from the Drive, and only a Reactor short
 ## of even their needs starves them.
 func _share_power() -> void:
-	_reactor_output = _plasma_stability * lerpf(_REACTOR_IDLE_OUTPUT,
+	_reactor_output = _plasma.stability() * lerpf(_REACTOR_IDLE_OUTPUT,
 			_REACTOR_FULL_OUTPUT, _head_activity)
 	_navigation_request = _NAVIGATION_DRAW
 	_thermal_request = _THERMAL_BASE_DRAW + _THERMAL_COLUMN_DRAW * _heat_split
@@ -1276,7 +1219,7 @@ func _watch_boundaries(depth_before: float) -> void:
 ## The load on the Head has changed, so the plasma's wobble has too: a new
 ## window for the Shift opens.
 func _on_boundary_crossed(from: Medium, to: Medium) -> void:
-	_mistuned_for = 0.0
+	_plasma.open_window()
 	if not _tunnel_sealed and to.porosity < _SEAL_POROSITY and from.porosity >= _SEAL_POROSITY:
 		_seal_coming_at = _distance
 
@@ -1330,11 +1273,11 @@ func _update_calls() -> void:
 func _reactor_call(calls: Dictionary) -> void:
 	if _stranded:
 		_offer_call(calls, STATION_REACTOR, &"stranded", _EMERGENCY_CALL_URGENCY)
-	elif _plasma_lost:
+	elif plasma_lost():
 		_offer_call(calls, STATION_REACTOR, &"plasma_lost", _EMERGENCY_CALL_URGENCY)
 	elif shift_due():
 		_offer_call(calls, STATION_REACTOR, &"shift_due", _urgency(_SHIFT_DUE_CALL,
-				_mistuned_for / (_SHIFT_WINDOW_S + _AUTOPILOT_LATE_S)))
+				_plasma.overdue_share()))
 	elif not is_nan(_announced_boundary):
 		var to_go := absf(_announced_boundary - depth()) / _BOUNDARY_APPROACH_M
 		_offer_call(calls, STATION_REACTOR, &"boundary_approaching",
@@ -1354,66 +1297,6 @@ static func _offer_call(calls: Dictionary, station: StringName, reason: StringNa
 		calls[station] = [reason, urgency]
 
 
-# --- The plasma and the Shift ---------------------------------------------
-
-## Once a step, before the power is shared: times the mistuned plasma, takes
-## a Shift asked for, lets the autopilot make an overdue one, and sets how
-## steady the plasma is.
-func _tend_plasma(dt: float) -> void:
-	_mistuned_for = _mistuned_for + dt if shift_due() else 0.0
-	_lurch_age += dt
-	_heat_spike *= exp(-dt / _SHIFT_SPIKE_S)
-	if _plasma_lost:
-		_shift_asked = NAN
-		_plasma_stability = 0.0
-		return
-	if not is_nan(_shift_asked):
-		_make_shift(_shift_asked, false)
-		_shift_asked = NAN
-	if shift_due() and not attended(STATION_REACTOR) \
-			and _mistuned_for >= _SHIFT_WINDOW_S + _AUTOPILOT_LATE_S:
-		_make_shift(plasma_frequency(), true)
-	if _plasma_lost:
-		_plasma_stability = 0.0
-		return
-	_plasma_stability = (1.0 - _WEAR_UNSTEADINESS * _head_wear) \
-			/ (1.0 + _mistuning() / _MISTUNING_HALF)
-
-
-## Makes the Shift to `frequency` and grades it: how closely it
-## matches the plasma's wobble, times how late it came after the window.
-func _make_shift(frequency: float, by_autopilot: bool) -> void:
-	var target := plasma_frequency()
-	var error := absf(frequency - target) / target
-	var matched := exp(-pow(error / _SHIFT_TOLERANCE, 2.0))
-	var late := maxf(0.0, _mistuned_for - _SHIFT_WINDOW_S) if shift_due() else 0.0
-	var grade := matched * exp(-late / _SHIFT_LATE_S)
-	_tuning = frequency
-	if not shift_due():
-		_mistuned_for = 0.0
-	# A poor Shift grinds: the rougher, the bigger the heat spike, the harder
-	# the lurch and the more wear on the Head. A clean one does nothing at all.
-	var roughness := clampf((_CLEAN_SHIFT_GRADE - grade) / _CLEAN_SHIFT_GRADE, 0.0, 1.0)
-	var wear := roughness * _SHIFT_WEAR * (1.0 + _HOT_SHIFT_WEAR * _heat.hull_heat_share(surroundings_temperature()))
-	if roughness > 0.0:
-		_heat_spike += roughness * _SHIFT_SPIKE_HEAT
-		_lurch_peak = roughness * _LURCH_ACCELERATION
-		_lurch_age = 0.0
-		_head_wear = minf(1.0, _head_wear + wear)
-	_events.append({type = &"shift_result", grade = grade,
-			clean = roughness <= 0.0, late = late, autopilot = by_autopilot,
-			wear = wear if roughness > 0.0 else 0.0})
-	if _head_wear >= 1.0:
-		_plasma_lost = true
-		_events.append({type = &"plasma_lost", depth = depth(), distance = _distance})
-
-
-## How far the tuning is from the plasma's wobble, as a share of its frequency.
-func _mistuning() -> float:
-	var target := plasma_frequency()
-	return absf(_tuning - target) / target
-
-
 # --- Stranding -----------------------------------------------------------
 
 ## Losing the plasma while sealed in strands the Lithocraft. The survey data
@@ -1421,7 +1304,7 @@ func _mistuning() -> float:
 ## Losing it with the tunnel still open behind, the crew is brought home
 ## through the tunnel instead (_recover_through_tunnel()).
 func _check_stranded() -> void:
-	if _stranded or not _plasma_lost:
+	if _stranded or not plasma_lost():
 		return
 	if not _tunnel_sealed:
 		_recover_through_tunnel()
@@ -1452,7 +1335,7 @@ func _recover_through_tunnel() -> void:
 	_position = Vector3.ZERO
 	_rest_at_surface()
 	var carried := _sell_aboard()
-	var repair := _head_wear * _HEAD_REPAIR_COST
+	var repair := head_wear() * _HEAD_REPAIR_COST
 	_paid -= repair
 	_events.append({type = &"recovered_through_tunnel", depth = from_depth,
 			distance = _distance, carried_home = carried, head_repair = repair,
