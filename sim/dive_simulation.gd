@@ -128,12 +128,6 @@ const _BOUNDARY_SEARCH_STEP_M := 1.0
 ## Reactor Station can prepare for the Shift. Tuned for play (ADR 0001).
 const _BOUNDARY_APPROACH_M := 30.0
 
-## What repairing a Head worn through costs, in the units of paid(), charged
-## in proportion to the wear when the crew is brought home through the open
-## tunnel. About a few hundred metres of good survey. Tuned for play
-## (ADR 0001).
-const _HEAD_REPAIR_COST := 500.0
-
 ## The Stations, as named in set_attended(), call_urgency() and calls.
 const STATION_REACTOR := &"reactor"
 const STATION_DRIVE := &"drive"
@@ -264,9 +258,8 @@ var _pulses_sent := 0
 var _scan_random := RandomNumberGenerator.new()
 ## Depth of the Boundary last announced as approaching, or NAN for none.
 var _announced_boundary := NAN
-## True once the plasma is lost while sealed in: the dive is over until
-## recover() (ticket #12).
-var _stranded := false
+## Stranding and recovery: what losing the plasma comes to (sim/stranding.gd).
+var _stranding := Stranding.new()
 ## Stations a crew member is at (StringName -> true).
 var _attended := {}
 ## How many times normal the simulation runs, 1 or more.
@@ -403,7 +396,7 @@ func set_time_rate(rate: float) -> void:
 ## uploaded_survey()) is kept; the lost survey stays lost. Ignored unless
 ## stranded(). Raises &"recovered".
 func recover() -> void:
-	if not _stranded:
+	if not stranded():
 		return
 	_start_fresh()
 	_events.append({type = &"recovered", paid = _paid})
@@ -458,7 +451,7 @@ func advance(dt: float) -> void:
 
 
 func _step(dt: float) -> void:
-	if _stranded or _surfaced:
+	if stranded() or _surfaced:
 		return  # The dive is over; nothing moves until recover() or new_dive().
 	_head_activity = move_toward(_head_activity, 0.0 if _quiet_ship else 1.0,
 			_HEAD_SPIN_RATE * dt)
@@ -905,7 +898,7 @@ func unsold_value() -> float:
 ## move and no tunnel leads up. The dive is over; time no longer advances it.
 ## recover() brings the crew back to the surface.
 func stranded() -> bool:
-	return _stranded
+	return _stranding.stranded()
 
 
 ## True once the Head has come back up to the surface, under its own power or
@@ -1271,7 +1264,7 @@ func _update_calls() -> void:
 
 
 func _reactor_call(calls: Dictionary) -> void:
-	if _stranded:
+	if stranded():
 		_offer_call(calls, STATION_REACTOR, &"stranded", _EMERGENCY_CALL_URGENCY)
 	elif plasma_lost():
 		_offer_call(calls, STATION_REACTOR, &"plasma_lost", _EMERGENCY_CALL_URGENCY)
@@ -1299,17 +1292,20 @@ static func _offer_call(calls: Dictionary, station: StringName, reason: StringNa
 
 # --- Stranding -----------------------------------------------------------
 
+## Carries out what losing the plasma comes to, as the Stranding decides:
+## stranded while sealed in (_strand()), or brought home through the open
+## tunnel (_recover_through_tunnel()).
+func _check_stranded() -> void:
+	var outcome := _stranding.check(plasma_lost(), _tunnel_sealed)
+	if outcome == Stranding.STRANDED:
+		_strand()
+	elif outcome == Stranding.BROUGHT_HOME:
+		_recover_through_tunnel()
+
+
 ## Losing the plasma while sealed in strands the Lithocraft. The survey data
 ## not yet up the link is lost with it; what reached the surface stays paid.
-## Losing it with the tunnel still open behind, the crew is brought home
-## through the tunnel instead (_recover_through_tunnel()).
-func _check_stranded() -> void:
-	if _stranded or not plasma_lost():
-		return
-	if not _tunnel_sealed:
-		_recover_through_tunnel()
-		return
-	_stranded = true
+func _strand() -> void:
 	var lost_value := unsold_value()
 	var lost_stretches := _waiting.filter(
 			func(s: SurveyStretch) -> bool: return not s.is_feature_record()).size()
@@ -1335,7 +1331,7 @@ func _recover_through_tunnel() -> void:
 	_position = Vector3.ZERO
 	_rest_at_surface()
 	var carried := _sell_aboard()
-	var repair := head_wear() * _HEAD_REPAIR_COST
+	var repair := _stranding.head_repair(head_wear())
 	_paid -= repair
 	_events.append({type = &"recovered_through_tunnel", depth = from_depth,
 			distance = _distance, carried_home = carried, head_repair = repair,
