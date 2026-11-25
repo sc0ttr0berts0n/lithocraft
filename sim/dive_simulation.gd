@@ -170,7 +170,8 @@ const _MAX_TIME_RATE := 64.0
 const _FAST_STEP_S := 0.25
 ## Self-destruct. Seconds the crew must hold the command at Thermal to arm
 ## it, in real time (advance()'s dt, whatever the time rate), so it is never
-## set off by a slip of the hand. The developer's design (25 November 2026).
+## set off by a slip of the hand. The developer's design value (25 November
+## 2026), not a constant tuned for play under ADR 0001.
 const _SELF_DESTRUCT_HOLD_S := 3.0
 ## Stranded, how fast self-destruct dumps the emergency store into the hull as
 ## heat, in the units of set_power(): all the stored energy goes through a
@@ -326,6 +327,11 @@ var _self_destruct_held := false
 var _self_destruct_hold := 0.0
 var _self_destruct_needs_release := false
 var _self_destructing := false
+## The crew's settings from just before self-destruct started, which a cancel
+## restores: power, heat_split, quiet_ship.
+var _crew_settings := {}
+## Why the crew died (&"heat" or &"self_destruct"), or &"" while alive.
+var _death_cause := &""
 
 
 func _init(layout: MediumLayout) -> void:
@@ -341,8 +347,8 @@ func _init(layout: MediumLayout) -> void:
 
 ## Drive Station: the share of available power sent to advancing, 0 to 1.
 func set_power(power: float) -> void:
-	if _self_destructing:
-		return  # The Stations are off the crew.
+	if _off_the_crew():
+		return
 	_power = clampf(power, 0.0, 1.0)
 
 
@@ -353,8 +359,8 @@ func set_power(power: float) -> void:
 ## and only while it moves. Heading has no effect while the pitch is straight
 ## up or down.
 func set_course(heading_degrees: float, pitch_degrees: float) -> void:
-	if _self_destructing:
-		return  # The Stations are off the crew.
+	if _off_the_crew():
+		return
 	_course_heading = fposmod(heading_degrees, 360.0)
 	_course_pitch = clampf(pitch_degrees, -90.0, 90.0)
 
@@ -364,8 +370,8 @@ func set_course(heading_degrees: float, pitch_degrees: float) -> void:
 ## makes more heat. An unattended Drive never steers harder than a gentle
 ## share of full, whatever this is.
 func set_steering_effort(effort: float) -> void:
-	if _self_destructing:
-		return  # The Stations are off the crew.
+	if _off_the_crew():
+		return
 	_steering_effort = clampf(effort, 0.0, 1.0)
 
 
@@ -373,8 +379,8 @@ func set_steering_effort(effort: float) -> void:
 ## instead of the Course, until end_override() or until nobody is at the
 ## Drive. Ignored while the Drive is unattended.
 func override_course(heading_degrees: float, pitch_degrees: float) -> void:
-	if _self_destructing:
-		return  # The Stations are off the crew.
+	if _off_the_crew():
+		return
 	if not attended(STATION_DRIVE):
 		return
 	_overriding = true
@@ -384,8 +390,8 @@ func override_course(heading_degrees: float, pitch_degrees: float) -> void:
 
 ## Drive: gives up an override and steers toward the Course again.
 func end_override() -> void:
-	if _self_destructing:
-		return  # The Stations are off the crew.
+	if _off_the_crew():
+		return
 	_overriding = false
 
 
@@ -421,16 +427,16 @@ func set_uploading(on: bool) -> void:
 ## heat soaking into the hull into the Column (see stranding_clock()); they
 ## stop when the plasma is lost, so stranding sets it to 0.
 func set_heat_split(to_column: float) -> void:
-	if _self_destructing:
-		return  # The Stations are off the crew.
+	if _off_the_crew():
+		return
 	_heat_split = clampf(to_column, 0.0, 1.0)
 
 
 ## Navigation: send one sound pulse ahead. Its echoes are added to the point
 ## cloud on the next step.
 func pulse() -> void:
-	if _self_destructing:
-		return  # The Stations are off the crew.
+	if _off_the_crew():
+		return
 	_pulse_pending = true
 
 
@@ -439,8 +445,8 @@ func pulse() -> void:
 ## vessel's own noise; the Bore instruments are shuttered while it lasts. Off,
 ## the Head spins back up and the Drive's power setting applies again.
 func set_quiet_ship(on: bool) -> void:
-	if _self_destructing:
-		return  # The Stations are off the crew.
+	if _off_the_crew():
+		return
 	_quiet_ship = on
 
 
@@ -500,8 +506,8 @@ func _start_fresh() -> void:
 ## lights with relight_chance(); lit, the stranding ends and the dive goes on;
 ## failed, the energy is spent. Raises &"relight_result".
 func relight() -> void:
-	if _self_destructing:
-		return  # The Stations are off the crew.
+	if _off_the_crew():
+		return
 	_relight_asked = true
 
 
@@ -510,8 +516,8 @@ func relight() -> void:
 ## plasma's wobble (plasma_frequency()), and the sooner after a Boundary, the
 ## better it grades; see the &"shift_result" event.
 func shift(frequency: float) -> void:
-	if _self_destructing:
-		return  # The Stations are off the crew.
+	if _off_the_crew():
+		return
 	_plasma.ask_shift(frequency)
 
 
@@ -525,7 +531,8 @@ func shift(frequency: float) -> void:
 ## hull, the Stations taken off the crew (their commands are ignored, the
 ## Reactor's Shifts left to its autopilot) so the hull fails. Stranded, with
 ## the Head dark, it dumps the emergency store into the hull as heat, the
-## pumps stopped. Raises &"self_destruct_started".
+## pumps stopped; with the store empty it would do nothing, so the hold does
+## not count (can_self_destruct()). Raises &"self_destruct_started".
 func hold_self_destruct(held: bool) -> void:
 	_self_destruct_held = held
 	if not held:
@@ -533,23 +540,30 @@ func hold_self_destruct(held: bool) -> void:
 		_self_destruct_needs_release = false
 
 
-## Thermal Station: cancels a running self-destruct. The Stations return to
-## the crew with the settings self-destruct left; the wear done, and the store
-## spent, stay spent. Raises &"self_destruct_cancelled".
+## Thermal Station: cancels a running self-destruct. It is not a one-way
+## door: the Stations return to the crew with the settings they had just
+## before it started (the Drive's power, the heat split or the pumps, Quiet
+## Ship), except that pumps stopped by losing the plasma meanwhile stay
+## stopped. Only the wear done, and the store spent, stay. Raises
+## &"self_destruct_cancelled".
 func cancel_self_destruct() -> void:
 	if not _self_destructing:
 		return
 	_self_destructing = false
 	_self_destruct_hold = 0.0
 	_self_destruct_needs_release = true
+	_power = _crew_settings.power
+	_heat_split = _crew_settings.heat_split
+	_quiet_ship = _crew_settings.quiet_ship
 	_events.append({type = &"self_destruct_cancelled", stranded = stranded()})
 
 
 ## Counts the self-destruct hold over dt real seconds, and starts it once held
-## long enough at an attended Thermal.
+## long enough at an attended Thermal. A hold that could do nothing (see
+## can_self_destruct()) does not count.
 func _tend_self_destruct_hold(dt: float) -> void:
 	if _self_destructing or _self_destruct_needs_release or not _self_destruct_held \
-			or not attended(STATION_THERMAL):
+			or not attended(STATION_THERMAL) or not can_self_destruct():
 		_self_destruct_hold = 0.0
 		return
 	_self_destruct_hold += dt
@@ -558,13 +572,22 @@ func _tend_self_destruct_hold(dt: float) -> void:
 
 
 ## Self-destruct starts: the Stations are off the crew until it is cancelled
-## or the hull fails. The command must be let go before another hold counts.
+## or the hull fails, and their settings are kept for a cancel to restore.
+## The command must be let go before another hold counts.
 func _start_self_destruct() -> void:
 	_self_destructing = true
 	_self_destruct_hold = 0.0
 	_self_destruct_needs_release = true
+	_crew_settings = {power = _power, heat_split = _heat_split, quiet_ship = _quiet_ship}
 	_time_rate = 1.0
 	_events.append({type = &"self_destruct_started", stranded = stranded()})
+
+
+## True while self-destruct has the Stations: a Station's command returns
+## early on it (the Bore Station's stay the crew's, so the link can still
+## send). The one guard for that rule.
+func _off_the_crew() -> bool:
+	return _self_destructing
 
 
 # --- Debug commands -------------------------------------------------------
@@ -572,109 +595,139 @@ func _start_self_destruct() -> void:
 # debug menu). Not crew controls: no Station works them, they ignore
 # attendance and self-destruct's hold on the Stations, and each reaches the
 # state it names at once rather than on the next step. Every one is named
-# debug_*; none of them does anything once the dive is over (surfaced() or
-# dead()). See docs/conventions.md, "Debug commands".
+# debug_* and returns why it could not act, or &"" when it did, so the menu
+# can say so: &"dive_over" once the dive is over (surfaced() or dead(), for
+# every one of them), &"plasma_lost", &"stranded", &"tail_at_surface",
+# &"self_destructing", &"store_empty", &"level", &"no_boundary_ahead". See
+# docs/conventions.md, "Debug commands".
 
 ## Debug: wears the hull by `amount` (negative mends it), clamped to whole and
 ## worn through. Worn through, it fails on the next step.
-func debug_wear_hull(amount: float) -> void:
-	if _surfaced or dead():
-		return
+func debug_wear_hull(amount: float) -> StringName:
+	if _debug_dive_over():
+		return &"dive_over"
 	_heat.debug_set_wear(_heat.vessel_wear() + amount)
+	return &""
 
 
 ## Debug: brings the hull to the brink of failure: all but worn through, so it
 ## still holds while it bears its heat, and the first heat it cannot bear (or
 ## a stranding's soak) fails it within moments.
-func debug_hull_to_brink() -> void:
-	if _surfaced or dead():
-		return
+func debug_hull_to_brink() -> StringName:
+	if _debug_dive_over():
+		return &"dive_over"
 	_heat.debug_set_wear(maxf(_heat.vessel_wear(), _DEBUG_BRINK_WEAR))
+	return &""
 
 
 ## Debug: wears the Head by `amount` (negative mends it), clamped to fresh
 ## and worn through. It narrows the Shift and lowers the relight chance as
 ## poor Shifts' wear does, but does not itself lose the plasma.
-func debug_wear_head(amount: float) -> void:
-	if _surfaced or dead():
-		return
+func debug_wear_head(amount: float) -> StringName:
+	if _debug_dive_over():
+		return &"dive_over"
 	_plasma.debug_set_wear(_plasma.head_wear() + amount)
+	return &""
 
 
-## Debug: the plasma goes out here and now, and what that comes to follows at
-## once: brought home with the tunnel open behind, stranded sealed in. Raises
-## &"plasma_lost", then what follows as a lost plasma's events.
-func debug_lose_plasma() -> void:
-	if _surfaced or dead() or plasma_lost():
-		return
-	_plasma.debug_lose()
+## Debug: the plasma goes out here and now, by the plasma's own loss path,
+## and what that comes to follows at once: brought home with the tunnel open
+## behind, stranded sealed in. Raises &"plasma_lost", then what follows as a
+## lost plasma's events. Refused once it is lost.
+func debug_lose_plasma() -> StringName:
+	if _debug_dive_over():
+		return &"dive_over"
+	if plasma_lost():
+		return &"plasma_lost"
+	_plasma.debug_lose(_events, depth(), _distance)
 	_share_power()
-	_events.append({type = &"plasma_lost", depth = depth(), distance = _distance})
 	_check_stranded()
 	if stranded():
 		_update_calls()
+	return &""
 
 
 ## Debug: strands the Lithocraft here: the whole tunnel behind is sealed (if
 ## it was not already), then the plasma is lost (debug_lose_plasma()), so the
-## rescue must cut down through all of it. Ignored until the Tail has left the
-## surface, when there is no tunnel behind to seal.
-func debug_strand() -> void:
-	if _surfaced or dead() or stranded() or _tail_at <= 0.0:
-		return
+## rescue must cut down through all of it. Refused while stranded, or until
+## the Tail has left the surface, when there is no tunnel behind to seal.
+func debug_strand() -> StringName:
+	if _debug_dive_over():
+		return &"dive_over"
+	if stranded():
+		return &"stranded"
+	if _tail_at <= 0.0:
+		return &"tail_at_surface"
 	if not _tunnel_sealed:
 		_tunnel_sealed = true
 		_sealed_metres = _tail_at
 		_events.append({type = &"tunnel_sealed", distance = _tail_at})
-	debug_lose_plasma()
+	return debug_lose_plasma()
 
 
 ## Debug: fills the emergency store, whether or not it is being drawn on.
-func debug_refill_store() -> void:
-	if _surfaced or dead():
-		return
+func debug_refill_store() -> StringName:
+	if _debug_dive_over():
+		return &"dive_over"
 	_stranding.debug_refill()
+	return &""
 
 
-## Debug: the Head comes up to the surface now, from wherever it is (a
-## stranding ends there too), and the dive ends as any surfacing does: the
-## survey aboard sold and the repairs billed. Raises &"surfaced", then
-## &"paid".
-func debug_surface() -> void:
-	if _surfaced or dead():
-		return
+## Debug: the dive ends at the surface now. Under way the Head comes up as
+## any surfacing does: the survey aboard sold and the repairs billed; raises
+## &"surfaced", then &"paid". Stranded, the rescue arrives now, by the real
+## rescue (_rescue()), its line billed as for a rescue that ran its course;
+## raises &"rescued", then &"paid".
+func debug_surface() -> StringName:
+	if _debug_dive_over():
+		return &"dive_over"
 	if stranded():
-		_stranding.rescued()
-	_surface()
+		_rescue()
+	else:
+		_surface()
+	return &""
 
 
 ## Debug: runs the dive on `seconds` of simulated time at once, in the steps a
 ## raised time rate takes. Unlike a raised rate, a Station call does not cut
 ## it short; it stops only if the dive ends. The Stations are as they were:
 ## those no one is at steady themselves (the Reactor's autopilot Shifts).
-func debug_skip(seconds: float) -> void:
+func debug_skip(seconds: float) -> StringName:
+	if _debug_dive_over():
+		return &"dive_over"
 	var steps := ceili(seconds / _FAST_STEP_S)
 	for i in steps:
 		if _surfaced or dead():
-			return
+			break
 		_step(seconds / steps)
+	return &""
 
 
 ## Debug: starts self-destruct now, as a full hold at Thermal would, whoever
-## is at Thermal. The crew cancel it as ever. Raises &"self_destruct_started".
-func debug_self_destruct() -> void:
-	if _surfaced or dead() or _self_destructing:
-		return
+## is at Thermal. The crew cancel it as ever. Refused while it runs, or when
+## it could do nothing (see can_self_destruct()). Raises
+## &"self_destruct_started".
+func debug_self_destruct() -> StringName:
+	if _debug_dive_over():
+		return &"dive_over"
+	if _self_destructing:
+		return &"self_destructing"
+	if not can_self_destruct():
+		return &"store_empty"
 	_start_self_destruct()
+	return &""
 
 
 ## Debug: a Shift is due now: the Reactor is mistuned well wide of the
 ## plasma's wobble, its window just opened, as after crossing a Boundary.
-## Ignored while the plasma is lost.
-func debug_shift_due() -> void:
-	if _surfaced or dead():
-		return
+## Refused while the plasma is lost.
+func debug_shift_due() -> StringName:
+	if _debug_dive_over():
+		return &"dive_over"
+	if plasma_lost():
+		return &"plasma_lost"
 	_plasma.debug_mistune(plasma_frequency())
+	return &""
 
 
 ## Debug: the Head jumps along the way it points to just past the next
@@ -682,13 +735,15 @@ func debug_shift_due() -> void:
 ## in no time: the Column it passed is recorded, its features found, the
 ## tunnel behind made (and sealed in dense rock), the Boundary crossed (a
 ## Shift comes due), but no heat is made and no survey goes up the link.
-## Ignored while stranded, travelling level, or with no Boundary ahead.
-func debug_next_boundary() -> void:
-	if _surfaced or dead() or stranded():
-		return
+## Refused while stranded, travelling level, or with no Boundary ahead.
+func debug_next_boundary() -> StringName:
+	if _debug_dive_over():
+		return &"dive_over"
+	if stranded():
+		return &"stranded"
 	var down := -_direction.y
 	if absf(down) < _DEBUG_LEAST_DESCENT:
-		return
+		return &"level"
 	var target := NAN
 	for b in _layout.boundary_depths():
 		if down > 0.0 and b > depth():
@@ -697,28 +752,23 @@ func debug_next_boundary() -> void:
 		if down < 0.0 and b < depth():
 			target = b
 	if is_nan(target):
-		return
+		return &"no_boundary_ahead"
 	var beyond := target + signf(down) * _DEBUG_PAST_BOUNDARY_M
-	_debug_travel((beyond - depth()) / down)
-
-
-## Moves the Head `metres` along the way it points in short pieces, each as a
-## step's movement would be but taking no time: path, survey, features,
-## Boundaries and the tunnel follow.
-func _debug_travel(metres: float) -> void:
-	var left := metres
+	var left := (beyond - depth()) / down
+	# In short pieces, each moved as a step moves the Head but taking no time.
 	while left > 0.0:
 		var piece := minf(left, _DEBUG_TRAVEL_PIECE_M)
 		left -= piece
 		var depth_before := depth()
 		_position += _direction * piece
-		_find_features(depth_before, depth(), piece)
-		var from := _distance
-		_distance += piece
-		_remember_path()
-		_record_survey(from, _distance)
-		_watch_boundaries(depth_before)
-		_update_tunnel()
+		_follow_the_head(depth_before, piece, 0.0)
+	return &""
+
+
+## The one guard every debug command starts with: the dive is over (surfaced
+## or dead), so none of them acts.
+func _debug_dive_over() -> bool:
+	return _surfaced or dead()
 
 
 # --- Time step ------------------------------------------------------------
@@ -776,14 +826,7 @@ func _step(dt: float) -> void:
 	var depth_before := depth()
 	# The Head moves along its arc, turning toward the Drive's settings.
 	_steer(_speed, dt)
-	var travelled := _speed * dt
-	_record_survey(_distance, _distance + travelled)
-	_record_observed_feature(dt, travelled)
-	_find_features(depth_before, depth(), travelled)
-	_distance += travelled
-	_remember_path()
-	_watch_boundaries(depth_before)
-	_update_tunnel()
+	_follow_the_head(depth_before, _speed * dt, dt)
 	_upload(link_rate() * dt)
 	# A hull that fails on the step the Head surfaces is death all the same
 	# (_check_stranded() below), not a surfacing.
@@ -798,6 +841,22 @@ func _step(dt: float) -> void:
 	if _surfaced or dead():
 		return  # Brought home through the open tunnel, or the hull failed.
 	_update_calls()
+
+
+## What follows the Head having moved `travelled` metres along the path from
+## `depth_before`, over `dt` seconds: the Column it passed recorded (and the
+## observed feature, for the time it spent), the features it cut past found,
+## the path remembered, Boundaries crossed or coming, and the tunnel behind.
+## The one movement sequence, for a step (_step()) and a debug jump
+## (debug_next_boundary(), taking no time).
+func _follow_the_head(depth_before: float, travelled: float, dt: float) -> void:
+	_record_survey(_distance, _distance + travelled)
+	_record_observed_feature(dt, travelled)
+	_find_features(depth_before, depth(), travelled)
+	_distance += travelled
+	_remember_path()
+	_watch_boundaries(depth_before)
+	_update_tunnel()
 
 
 # --- State ----------------------------------------------------------------
@@ -1250,6 +1309,21 @@ func dead() -> bool:
 ## cancelled or the hull fails.
 func self_destructing() -> bool:
 	return _self_destructing
+
+
+## Whether self-destruct would do anything if started now, so whether a hold
+## counts: not once the dive is over, nor stranded with the emergency store
+## empty, when there is nothing left to dump into the hull.
+func can_self_destruct() -> bool:
+	if _surfaced or dead():
+		return false
+	return not (stranded() and emergency_store() <= 0.0)
+
+
+## Why the crew died: &"heat" or &"self_destruct" (as the &"hull_failed"
+## event's `cause`), or &"" while they live.
+func cause_of_death() -> StringName:
+	return _death_cause
 
 
 ## How far the crew has held the self-destruct command toward starting it, 0
@@ -1757,9 +1831,14 @@ static func _offer_call(calls: Dictionary, station: StringName, reason: StringNa
 
 # --- Self-destruct --------------------------------------------------------
 
-## Self-destruct under way: the vessel mismanaging itself on purpose. The
-## Drive at full power with Quiet Ship off, so the Reactor runs flat out, and
-## Thermal sending every bit of the heat outward through the hull.
+## Self-destruct under way: the vessel mismanaging itself on purpose, the
+## Reactor at full power with all heat outward (the design record's intent).
+## The Reactor has no power setting of its own: it runs at full output while
+## the Head runs (Quiet Ship off) and the plasma holds, and the Drive at full
+## beside the other Stations' base loads draws nearly all of it, all of which
+## becomes heat. Thermal sends all that heat outward through the hull. Should the
+## plasma be lost meanwhile and the Lithocraft strand, self-destruct runs on
+## as the stranded dump (_step_stranded()).
 func _mismanage() -> void:
 	_power = 1.0
 	_quiet_ship = false
@@ -1805,7 +1884,11 @@ func _strand() -> void:
 	_speed = 0.0
 	_slip = 0.0
 	# Thermal's pumps stop with the Head; the crew restarts them on the store.
+	# A self-destruct running on as the dump would restore them on a cancel,
+	# so the pumps it keeps for the crew stop too.
 	_heat_split = 0.0
+	if _self_destructing:
+		_crew_settings.heat_split = 0.0
 	_stranding.call_rescue(Stranding.rescue_time(_tail_at - _sealed_metres, _sealed_metres))
 	_events.append({type = &"stranded", depth = depth(), distance = _distance,
 			aboard = unsold_value(), aboard_stretches = _stretches_aboard(), paid = _paid,
@@ -1876,6 +1959,7 @@ func _die() -> void:
 	var lost_stretches := _stretches_aboard()
 	var lost := _lose_unsold()
 	var cause := &"self_destruct" if _self_destructing else &"heat"
+	_death_cause = cause
 	_self_destructing = false
 	_speed = 0.0
 	_slip = 0.0

@@ -138,6 +138,16 @@ func test_death_by_self_destruct_is_its_own_cause_with_the_usual_price() -> void
 	assert_float(destructing.unsold_value()).is_equal(0.0)
 	assert_float(destructed[0].rebuy).is_equal(overheated[0].rebuy)
 	assert_bool(destructing.self_destructing()).is_false()
+	# The cause stays readable after death, for the Station screens.
+	assert_str(String(destructing.cause_of_death())).is_equal("self_destruct")
+	assert_str(String(cooked.cause_of_death())).is_equal("heat")
+
+
+func test_no_cause_of_death_while_alive() -> void:
+	var sim := _under_way()
+	_arm(sim)
+	DiveTestKit.run(sim, 5.0)
+	assert_str(String(sim.cause_of_death())).is_empty()
 
 
 ## Test values only. Hot dense rock the melt fills behind the Tail, so the
@@ -224,13 +234,18 @@ func test_cancelling_stranded_stops_the_dump_and_the_store_spent_stays_spent() -
 	sim.set_uploading(false)  # Only the dump draws on the store.
 	var store := sim.emergency_store()
 	_arm(sim)
-	DiveTestKit.run(sim, 3.0)
+	# Dump until some of the store is spent but not all, however fast it runs.
+	for i in 1000:
+		if sim.emergency_store() < store * 0.75:
+			break
+		sim.advance(STEP)
 
 	sim.cancel_self_destruct()
 	var left := sim.emergency_store()
 	DiveTestKit.run(sim, 10.0)
 
 	assert_float(left).is_less(store)
+	assert_float(left).is_greater(0.0)
 	assert_float(sim.emergency_store()).is_equal(left)
 	assert_bool(sim.stranded()).is_true()
 
@@ -253,3 +268,93 @@ func test_the_hold_counts_only_with_the_crew_at_thermal() -> void:
 	DiveTestKit.run(sim, sim.self_destruct_hold_length() * 2.0, STEP)
 
 	assert_bool(sim.self_destructing()).is_false()
+
+
+func test_cancelling_under_way_restores_the_crews_settings_from_before_it_began() -> void:
+	var sim := _under_way()
+	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
+	sim.set_attended(DiveSimulation.STATION_THERMAL, true)
+	sim.set_power(0.3)
+	sim.set_heat_split(0.5)
+	sim.set_quiet_ship(true)
+	sim.advance(1.0)
+	_arm(sim)
+	DiveTestKit.run(sim, 30.0)
+	assert_float(sim.power()).is_equal(1.0)
+	var wear := sim.vessel_wear()
+
+	sim.cancel_self_destruct()
+
+	assert_float(sim.power()).is_equal(0.3)
+	assert_float(sim.heat_split()).is_equal(0.5)
+	assert_bool(sim.quiet_ship()).is_true()
+	# Only the settings are undone: the wear done stays.
+	assert_float(sim.vessel_wear()).is_greater_equal(wear)
+
+
+func test_cancelling_stranded_restores_the_pumps_the_crew_had_running() -> void:
+	var sim := _stranded()
+	sim.set_heat_split(0.4)  # The crew cools the hull on the store.
+	sim.advance(STEP)
+	_arm(sim)
+	DiveTestKit.run(sim, 2.0, STEP)
+	assert_float(sim.heat_split()).is_equal(0.0)
+
+	sim.cancel_self_destruct()
+
+	assert_float(sim.heat_split()).is_equal(0.4)
+
+
+func test_a_self_destruct_that_loses_the_plasma_runs_on_as_the_dump_and_cancels_with_the_pumps_stopped() -> void:
+	var sim := DiveSimulation.new(MediumLayout.uniform(_hot_dense()))
+	sim.set_attended(DiveSimulation.STATION_THERMAL, true)
+	sim.set_heat_split(1.0)
+	sim.set_power(1.0)
+	DiveTestKit.run(sim, 300.0, 0.5)
+	_arm(sim)
+	var store := sim.emergency_store()
+
+	sim.debug_lose_plasma()
+	assert_bool(sim.stranded()).is_true()
+	DiveTestKit.run(sim, 2.0, STEP)
+
+	assert_bool(sim.self_destructing()).is_true()
+	assert_float(sim.emergency_store()).is_less(store)
+	sim.cancel_self_destruct()
+	# The pumps stopped with the Head; restarting them stays the crew's choice.
+	assert_float(sim.heat_split()).is_equal(0.0)
+
+
+## Test values only: dense rock the melt fills behind the Tail, as _hot_dense()
+## but no hotter than the surface, so a stranding in it lasts.
+func _cool_dense() -> Medium:
+	return Medium.new(&"cool_dense", 1.0, 3.0, 0.0, 300.0, 1.0, {&"quartz": 1.0}, 0.0)
+
+
+func test_stranded_with_the_store_empty_self_destruct_will_not_arm() -> void:
+	var sim := DiveSimulation.new(MediumLayout.uniform(_cool_dense()))
+	sim.set_attended(DiveSimulation.STATION_THERMAL, true)
+	sim.set_heat_split(1.0)
+	sim.set_power(1.0)
+	DiveTestKit.run(sim, 300.0, 0.5)
+	DiveTestKit.lose_plasma(sim)
+	assert_bool(sim.stranded()).is_true()
+	sim.set_uploading(false)
+	assert_bool(sim.can_self_destruct()).is_true()
+	# Spend the store by self-destruct, then call it off.
+	_arm(sim)
+	for i in 2000:
+		if sim.emergency_store() <= 0.0 or sim.dead():
+			break
+		sim.advance(STEP)
+	sim.cancel_self_destruct()
+	_release(sim)
+	assert_bool(sim.dead()).is_false()
+	assert_bool(sim.stranded()).is_true()
+	assert_float(sim.emergency_store()).is_equal(0.0)
+
+	_hold(sim, sim.self_destruct_hold_length() * 2.0)
+
+	assert_bool(sim.can_self_destruct()).is_false()
+	assert_bool(sim.self_destructing()).is_false()
+	assert_float(sim.self_destruct_hold()).is_equal(0.0)

@@ -138,14 +138,58 @@ func test_surface_now_ends_the_dive_at_the_surface_and_pays_for_it() -> void:
 	assert_array(DiveTestKit.types(sim.take_events())).contains([&"surfaced", &"paid"])
 
 
-func test_surface_now_while_stranded_ends_the_stranding() -> void:
+func test_surface_now_while_stranded_is_the_rescue_arriving_and_billed() -> void:
 	var sim := _under_way()
 	sim.debug_strand()
+	sim.take_events()
 
 	sim.debug_surface()
 
 	assert_bool(sim.surfaced()).is_true()
 	assert_bool(sim.stranded()).is_false()
+	var events := sim.take_events()
+	assert_array(DiveTestKit.types(events)).contains([&"rescued", &"paid"])
+	assert_array(DiveTestKit.types(events)).not_contains([&"surfaced"])
+	var paid: Dictionary = events.filter(func(e: Dictionary) -> bool: return e.type == &"paid")[0]
+	assert_float(paid.rescue).is_greater(0.0)
+
+
+func test_a_debug_command_that_acts_gives_no_reason_and_one_that_cannot_says_why() -> void:
+	var sim := _under_way()
+	var at_surface := DiveSimulation.new(MediumLayout.first_dive())
+	var level := _under_way()
+	level.set_attended(DiveSimulation.STATION_DRIVE, true)
+	level.set_power(0.3)
+	level.set_course(0.0, 0.0)
+	for i in 3000:
+		if absf(level.pitch()) < 0.5 or level.dead():
+			break
+		level.advance(1.0)
+	assert_float(absf(level.pitch())).is_less(0.5)
+
+	assert_str(String(sim.debug_wear_hull(0.1))).is_empty()
+	assert_str(String(sim.debug_next_boundary())).is_empty()
+	assert_str(String(at_surface.debug_strand())).is_not_empty()
+	assert_str(String(level.debug_next_boundary())).is_not_empty()
+	assert_str(String(sim.debug_strand())).is_empty()
+	assert_str(String(sim.debug_strand())).is_not_empty()  # Already stranded.
+	assert_str(String(sim.debug_lose_plasma())).is_not_empty()  # Already lost.
+	assert_str(String(sim.debug_shift_due())).is_not_empty()  # No plasma to Shift.
+	assert_str(String(sim.debug_self_destruct())).is_empty()
+	assert_str(String(sim.debug_self_destruct())).is_not_empty()  # Already running.
+
+
+func test_every_debug_command_says_why_once_the_dive_is_over() -> void:
+	var sim := _under_way()
+	sim.debug_surface()
+	var reasons := [sim.debug_wear_hull(0.1), sim.debug_hull_to_brink(), sim.debug_wear_head(0.1),
+			sim.debug_lose_plasma(), sim.debug_strand(), sim.debug_refill_store(), sim.debug_surface(),
+			sim.debug_skip(10.0), sim.debug_self_destruct(), sim.debug_shift_due(),
+			sim.debug_next_boundary()]
+
+	for reason in reasons:
+		assert_str(String(reason)).is_not_empty()
+		assert_str(String(reason)).is_equal(String(reasons[0]))
 
 
 func test_skipping_time_runs_the_dive_on_whatever_calls() -> void:

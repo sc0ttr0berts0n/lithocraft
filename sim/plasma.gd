@@ -127,11 +127,19 @@ func debug_set_wear(wear: float) -> void:
 	_head_wear = clampf(wear, 0.0, 1.0)
 
 
-## Debug only: the plasma goes out, as a Shift that loses it would leave it.
-func debug_lose() -> void:
-	_lost = true
+## Debug only: the plasma goes out, as a Shift that loses it would leave it,
+## by the same path (_lose()), raising &"plasma_lost" into `events`.
+func debug_lose(events: Array[Dictionary], depth: float, distance: float) -> void:
+	_lose(events, depth, distance)
 	_stability = 0.0
 	_shift_asked = NAN
+
+
+## The plasma goes out and stays out. Raises &"plasma_lost" into `events`,
+## placed at `depth` and `distance`.
+func _lose(events: Array[Dictionary], depth: float, distance: float) -> void:
+	_lost = true
+	events.append({type = &"plasma_lost", depth = depth, distance = distance})
 
 
 ## Debug only: retunes the Reactor well wide of a wobble at `target` hertz,
@@ -288,5 +296,4 @@ func _make_shift(frequency: float, by_autopilot: bool, target: float, hull_heat_
 	events.append({type = &"shift_result", grade = grade,
 			clean = roughness <= 0.0, late = late, autopilot = by_autopilot, wear = wear})
 	if roughness > 0.0 and (disrupted or worn_through):
-		_lost = true
-		events.append({type = &"plasma_lost", depth = depth, distance = distance})
+		_lose(events, depth, distance)
