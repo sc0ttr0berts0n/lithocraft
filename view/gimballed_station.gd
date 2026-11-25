@@ -42,6 +42,16 @@ const _TONE_RATE := 22050
 const _PIP_S := 0.08
 const _PIP_GAP_S := 0.06
 
+## The autopilot's disconnect warning: a falling run of notes (hertz), each
+## this long, the same at every Station so it is never taken for a call; it
+## comes from the Station that let go. After it the screen's AUTOPILOT OFF
+## flashes for a while, blinking at this rate. Real basis: an airliner's
+## autopilot disconnect is a distinct aural warning with a flashing caption.
+const DISENGAGE_NOTES: Array[float] = [1175.0, 880.0, 659.0]
+const _DISENGAGE_NOTE_S := 0.11
+const DISENGAGE_FLASH_S := 3.0
+const DISENGAGE_BLINK_S := 0.25
+
 ## The Station's call: its own tone (base frequency in hertz) and the number of
 ## pips in each beat, so each Station sounds different. Set before _ready.
 var call_tone_hz := 440.0
@@ -53,6 +63,11 @@ var _cradle := Node3D.new()
 var _screen_text: Label3D
 var _call_light: OmniLight3D
 var _call_sound: AudioStreamPlayer3D
+var _disengage_sound: AudioStreamPlayer3D
+## Whether this Station's autopilot is engaged (the Habitat sets it each
+## frame from the simulation), and seconds since it last let go.
+var autopilot := false
+var _since_disengaged := INF
 ## How urgently the Station calls, 0 (not calling) to 1.
 var _urgency := 0.0
 var _until_beat := 0.0
@@ -110,11 +125,17 @@ func _ready() -> void:
 	_call_sound.unit_size = 2.0
 	_call_sound.position = SCREEN_CENTRE
 	_cradle.add_child(_call_sound)
+	_disengage_sound = AudioStreamPlayer3D.new()
+	_disengage_sound.stream = _disengage_tone()
+	_disengage_sound.unit_size = 2.0
+	_disengage_sound.position = SCREEN_CENTRE
+	_cradle.add_child(_disengage_sound)
 
 
 func _process(delta: float) -> void:
 	if not _call_light:
 		return
+	_since_disengaged += delta
 	var dim := 1.0
 	if _supplied < 1.0:
 		dim = lerpf(0.25, 0.8, _supplied) * _flicker.randf_range(0.6, 1.0)
@@ -142,6 +163,26 @@ func set_call(urgency: float) -> void:
 
 func is_calling() -> bool:
 	return _urgency > 0.0
+
+
+## The Station's autopilot has just let go: the disconnect warning sounds
+## here, and AUTOPILOT OFF flashes on the screen.
+func autopilot_off() -> void:
+	_since_disengaged = 0.0
+	if _disengage_sound:
+		_disengage_sound.play()
+
+
+## The autopilot's word on the screen's top line: AUTOPILOT while engaged,
+## AUTOPILOT OFF while not, blinking for DISENGAGE_FLASH_S after it let go
+## (blank in the blink's off half).
+static func autopilot_caption(engaged: bool, since_disengaged: float) -> String:
+	if engaged:
+		return "AUTOPILOT"
+	if since_disengaged < DISENGAGE_FLASH_S \
+			and fmod(since_disengaged, 2.0 * DISENGAGE_BLINK_S) >= DISENGAGE_BLINK_S:
+		return ""
+	return "AUTOPILOT OFF"
 
 
 ## Seconds between beats of a call this urgent.
@@ -178,6 +219,26 @@ func _call_tone() -> AudioStreamWAV:
 	return wav
 
 
+## The disconnect warning: DISENGAGE_NOTES one after another, each faded in
+## and out to avoid clicks.
+static func _disengage_tone() -> AudioStreamWAV:
+	var note := int(_DISENGAGE_NOTE_S * _TONE_RATE)
+	var data := PackedByteArray()
+	data.resize(DISENGAGE_NOTES.size() * note * 2)
+	for n in DISENGAGE_NOTES.size():
+		for i in note:
+			var t := float(i) / _TONE_RATE
+			var envelope := minf(1.0, minf(i, note - i) / (0.01 * _TONE_RATE))
+			var value := envelope * sin(TAU * DISENGAGE_NOTES[n] * t)
+			data.encode_s16((n * note + i) * 2, int(value * 0.6 * 32767.0))
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = _TONE_RATE
+	wav.stereo = false
+	wav.data = data
+	return wav
+
+
 ## Tell the Station what share of the power it asks for it is getting, 0 to 1.
 ## Starved (below 1), its screen dims and flickers so it shows at the Station.
 func set_supplied(share: float) -> void:
@@ -188,10 +249,12 @@ func is_starved() -> bool:
 	return _supplied < 1.0
 
 
-## Text shown on the Station's screen, under its name.
+## Text shown on the Station's screen, under its name and its autopilot's
+## caption.
 func show_reading(text: String) -> void:
 	if _screen_text:
-		_screen_text.text = "%s\n%s%s" % [station_name, text,
+		_screen_text.text = "%s   %s\n%s%s" % [station_name,
+				autopilot_caption(autopilot, _since_disengaged), text,
 				"" if footer.is_empty() else "\n" + footer]
 
 

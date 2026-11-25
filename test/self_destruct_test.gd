@@ -7,7 +7,7 @@ extends GdUnitTestSuite
 const STEP := 0.1
 
 
-## A dive straight down at full power, the Drive and Thermal left alone.
+## A dive straight down at full power, every autopilot off.
 func _under_way(seconds := 30.0) -> DiveSimulation:
 	var sim := DiveSimulation.new(MediumLayout.uniform(DiveTestKit.rock()))
 	sim.set_power(1.0)
@@ -74,6 +74,7 @@ func _arm(sim: DiveSimulation) -> void:
 func test_self_destruct_under_way_fails_the_hull_much_sooner_than_the_dive_left_alone() -> void:
 	var destructing := _under_way()
 	var alone := _under_way()
+	alone.set_autopilot(DiveSimulation.STATION_THERMAL, true)
 	_arm(destructing)
 	destructing.set_attended(DiveSimulation.STATION_THERMAL, false)
 

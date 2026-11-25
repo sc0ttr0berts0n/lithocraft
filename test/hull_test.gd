@@ -15,12 +15,13 @@ func _soft_rock(temperature := 300.0) -> Medium:
 	return Medium.new(&"soft", 1.0, 3.0, 0.05, temperature, 1.0, {&"quartz": 1.0}, 0.5)
 
 
-## A crew member at Thermal holds the split, so nothing steadies the heat.
+## Thermal's autopilot is off, so the split holds and nothing steadies the
+## heat; the Reactor's makes any Shift a Boundary asks for.
 func _sim(layout: MediumLayout, power: float, to_column := 0.0) -> DiveSimulation:
 	var sim := DiveSimulation.new(layout)
 	sim.set_power(power)
 	sim.set_heat_split(to_column)
-	sim.set_attended(DiveSimulation.STATION_THERMAL, true)
+	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
 	return sim
 
 

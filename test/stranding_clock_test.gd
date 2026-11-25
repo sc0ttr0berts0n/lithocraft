@@ -48,7 +48,7 @@ func test_the_clock_is_shorter_for_a_more_worn_hull() -> void:
 	var worn := DiveSimulation.new(layout)
 	var whole := DiveSimulation.new(layout)
 	for sim in [worn, whole]:
-		sim.set_attended(DiveSimulation.STATION_THERMAL, true)
+		sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)  # It makes the Shift at the face.
 		sim.set_heat_split(1.0)
 		sim.set_power(1.0)
 		DiveTestKit.run(sim, 120.0, 0.5)

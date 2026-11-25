@@ -44,10 +44,13 @@ const _STEER_RESPONSE := 0.1
 ## Within this many degrees of the setting the steering eases off, so the
 ## vessel settles onto its heading instead of swinging past. Tuned for play.
 const _STEER_EASE_DEG := 10.0
-## The most an unattended Drive steers, as a share of full steering: it follows
-## the Course on a wide, cool arc rather than spend power and heat turning
-## hard. Tuned for play (ADR 0001).
-const _UNATTENDED_STEERING_EFFORT := 0.25
+## The most the Drive's autopilot steers, as a share of full steering: it
+## follows the Course on a wide, cool arc rather than spend power and heat
+## turning hard. Tuned for play (ADR 0001).
+const _AUTOPILOT_STEERING_EFFORT := 0.25
+## The power the Drive's autopilot sets on being engaged: slow and safe, well
+## inside what loose sand can grip. Tuned for play (ADR 0001).
+const _AUTOPILOT_DRIVE_POWER := 0.3
 ## Extra Drive power at full steering, as a share of its setting: the hot side
 ## of the Head runs hotter than the cool side is eased, and that extra goes
 ## into heat, not push. Tuned for play.
@@ -137,7 +140,8 @@ const _BOUNDARY_SEARCH_STEP_M := 1.0
 ## Reactor Station can prepare for the Shift. Tuned for play (ADR 0001).
 const _BOUNDARY_APPROACH_M := 30.0
 
-## The Stations, as named in set_attended(), call_urgency() and calls.
+## The Stations, as named in set_attended(), set_autopilot(), call_urgency()
+## and calls.
 const STATION_REACTOR := &"reactor"
 const STATION_DRIVE := &"drive"
 const STATION_THERMAL := &"thermal"
@@ -145,10 +149,14 @@ const STATION_NAVIGATION := &"navigation"
 const STATION_BORE := &"bore"
 const STATIONS: Array[StringName] = [STATION_REACTOR, STATION_DRIVE, STATION_THERMAL,
 		STATION_NAVIGATION, STATION_BORE]
-## Share of the heat split an unattended Thermal Station moves into the Column
-## per second while the hull warns: its steadying rule, slow on purpose so a
+## Share of the heat split Thermal's autopilot moves into the Column per
+## second while the hull warns: its steadying rule, slow on purpose so a
 ## sudden heat outruns it. Tuned for play (ADR 0001).
-const _UNATTENDED_SPLIT_RATE := 0.01
+const _AUTOPILOT_SPLIT_RATE := 0.01
+## Why an autopilot disengaged, as &"autopilot_off" carries it: a crew command
+## that changed that Station's setting, or the crew's own switch.
+const AUTOPILOT_OFF_BY_COMMAND := &"command"
+const AUTOPILOT_OFF_BY_SWITCH := &"switch"
 ## How urgently each kind of call is made, 0 to 1: x when it begins, y at its
 ## worst (the hull at the damage temperature, a Station given nothing, the Tail
 ## about to leave the tunnel open, a feature about to leave through the Tail,
@@ -205,7 +213,8 @@ var _direction := Vector3.DOWN
 var _course_pitch := 90.0
 var _course_heading := 0.0
 ## The Drive's override, steered toward instead of the Course while it lasts:
-## heading and pitch in degrees. Only an attended Drive can hold one.
+## heading and pitch in degrees. Only an attended Drive can begin one; it
+## holds until ended, or until the Drive's autopilot is engaged.
 var _overriding := false
 var _override_heading := 0.0
 var _override_pitch := 0.0
@@ -304,6 +313,8 @@ var _relight_asked := false
 var _relight_random := RandomNumberGenerator.new()
 ## Stations a crew member is at (StringName -> true).
 var _attended := {}
+## Stations whose autopilot is engaged (StringName -> true). All start off.
+var _autopilot := {}
 ## How many times normal the simulation runs, 1 or more.
 var _time_rate := 1.0
 ## Each calling Station's call: StringName -> [reason StringName, urgency].
@@ -349,6 +360,7 @@ func _init(layout: MediumLayout) -> void:
 func set_power(power: float) -> void:
 	if _off_the_crew():
 		return
+	_crew_command(STATION_DRIVE)
 	_power = clampf(power, 0.0, 1.0)
 
 
@@ -361,28 +373,31 @@ func set_power(power: float) -> void:
 func set_course(heading_degrees: float, pitch_degrees: float) -> void:
 	if _off_the_crew():
 		return
+	_crew_command(STATION_NAVIGATION)
 	_course_heading = fposmod(heading_degrees, 360.0)
 	_course_pitch = clampf(pitch_degrees, -90.0, 90.0)
 
 
 ## Drive: how hard to steer toward the Course, 0 (not at all) to 1 (the
 ## tightest arc). Steering harder turns sooner but spends more power, and so
-## makes more heat. An unattended Drive never steers harder than a gentle
+## makes more heat. The Drive's autopilot never steers harder than a gentle
 ## share of full, whatever this is.
 func set_steering_effort(effort: float) -> void:
 	if _off_the_crew():
 		return
+	_crew_command(STATION_DRIVE)
 	_steering_effort = clampf(effort, 0.0, 1.0)
 
 
 ## Drive: steers toward this heading and pitch (degrees, as set_course())
-## instead of the Course, until end_override() or until nobody is at the
-## Drive. Ignored while the Drive is unattended.
+## instead of the Course, until end_override() or until the Drive's autopilot
+## is engaged. Ignored while nobody is at the Drive.
 func override_course(heading_degrees: float, pitch_degrees: float) -> void:
 	if _off_the_crew():
 		return
 	if not attended(STATION_DRIVE):
 		return
+	_crew_command(STATION_DRIVE)
 	_overriding = true
 	_override_heading = fposmod(heading_degrees, 360.0)
 	_override_pitch = clampf(pitch_degrees, -90.0, 90.0)
@@ -392,12 +407,14 @@ func override_course(heading_degrees: float, pitch_degrees: float) -> void:
 func end_override() -> void:
 	if _off_the_crew():
 		return
+	_crew_command(STATION_DRIVE)
 	_overriding = false
 
 
 ## Bore Station: which feature in the Column to observe and record, by id
 ## (see features_in_column()). -1, or a feature not now in the Column, observes
-## nothing. Observing records; nothing is ever cut out of the Column.
+## nothing. Observing records; nothing is ever cut out of the Column. A
+## reading, not a setting: it leaves the Bore Station's autopilot as it is.
 func set_observed_feature(id: int) -> void:
 	if id >= 0 and id < _features.size() and _in_column(_features[id]):
 		_observed = id
@@ -410,6 +427,7 @@ func set_observed_feature(id: int) -> void:
 ## it has sent.
 func set_upload_priority(priority: StringName) -> void:
 	if priority in [UPLOAD_OLDEST_FIRST, UPLOAD_NEWEST_FIRST, UPLOAD_MOST_VALUABLE_FIRST]:
+		_crew_command(STATION_BORE)
 		_upload_priority = priority
 		_sending = null
 
@@ -418,6 +436,7 @@ func set_upload_priority(priority: StringName) -> void:
 ## On at the start of a dive. While stranded the link runs on the emergency
 ## store, so stopping it keeps the store for a relight.
 func set_uploading(on: bool) -> void:
+	_crew_command(STATION_BORE)
 	_uploading = on
 
 
@@ -429,11 +448,13 @@ func set_uploading(on: bool) -> void:
 func set_heat_split(to_column: float) -> void:
 	if _off_the_crew():
 		return
+	_crew_command(STATION_THERMAL)
 	_heat_split = clampf(to_column, 0.0, 1.0)
 
 
 ## Navigation: send one sound pulse ahead. Its echoes are added to the point
-## cloud on the next step.
+## cloud on the next step. A reading, not a setting: it leaves Navigation's
+## autopilot as it is.
 func pulse() -> void:
 	if _off_the_crew():
 		return
@@ -447,21 +468,54 @@ func pulse() -> void:
 func set_quiet_ship(on: bool) -> void:
 	if _off_the_crew():
 		return
+	_crew_command(STATION_NAVIGATION)
 	_quiet_ship = on
 
 
 ## Whether a crew member is at this Station (one of STATIONS) to work it.
-## An unattended Station holds its last setting and applies a simple
-## steadying rule: the Reactor's autopilot makes a Shift on frequency but
-## late, so poorly; Thermal slowly sends heat into the Column while the hull
-## warns; the Drive backs its power off to the grip limit while it slips.
-## Attended, a Station leaves everything to the crew. All start
-## unattended.
+## Being there matters only for commands that need the crew present (the
+## Drive's override, self-destruct's hold); whether a Station steadies itself
+## is its autopilot's switch alone (set_autopilot()). All start unattended.
 func set_attended(station: StringName, attended: bool) -> void:
 	if station in STATIONS:
 		_attended[station] = attended
-	if station == STATION_DRIVE and not attended:
-		_overriding = false  # Nobody at the Drive: it follows the Course.
+
+
+## Engages or disengages this Station's autopilot (one of STATIONS): the
+## crew's switch. Engaged, the Station applies its steadying rule: the
+## Reactor makes an overdue Shift on frequency but late, so poorly; Thermal
+## slowly sends heat into the Column while the hull warns; the Drive follows
+## the Course (ending any override) at slow, safe power, steering gently, and
+## backs its power off to the grip limit while it slips. Navigation's and the
+## Bore Station's have no rule yet. Off, a Station holds its setting and does
+## nothing more; its calls still come. Any crew command that changes a
+## Station's setting disengages its autopilot; taking a reading (a pulse,
+## observing a feature) does not. Every autopilot starts off each dive.
+## Disengaging raises &"autopilot_off".
+func set_autopilot(station: StringName, engaged: bool) -> void:
+	if not station in STATIONS or (station != STATION_BORE and _off_the_crew()):
+		return
+	if not engaged:
+		_disengage(station, AUTOPILOT_OFF_BY_SWITCH)
+		return
+	if autopilot(station):
+		return
+	_autopilot[station] = true
+	if station == STATION_DRIVE:
+		_overriding = false
+		_power = _AUTOPILOT_DRIVE_POWER
+
+
+## A crew command has changed this Station's setting: its autopilot lets go.
+func _crew_command(station: StringName) -> void:
+	_disengage(station, AUTOPILOT_OFF_BY_COMMAND)
+
+
+func _disengage(station: StringName, cause: StringName) -> void:
+	if not autopilot(station):
+		return
+	_autopilot.erase(station)
+	_events.append({type = &"autopilot_off", station = station, cause = cause})
 
 
 ## How many times normal to run the simulation: advance(dt) then runs
@@ -508,6 +562,7 @@ func _start_fresh() -> void:
 func relight() -> void:
 	if _off_the_crew():
 		return
+	_crew_command(STATION_REACTOR)
 	_relight_asked = true
 
 
@@ -518,6 +573,7 @@ func relight() -> void:
 func shift(frequency: float) -> void:
 	if _off_the_crew():
 		return
+	_crew_command(STATION_REACTOR)
 	_plasma.ask_shift(frequency)
 
 
@@ -691,7 +747,8 @@ func debug_surface() -> StringName:
 ## Debug: runs the dive on `seconds` of simulated time at once, in the steps a
 ## raised time rate takes. Unlike a raised rate, a Station call does not cut
 ## it short; it stops only if the dive ends. The Stations are as they were:
-## those no one is at steady themselves (the Reactor's autopilot Shifts).
+## those whose autopilot is engaged steady themselves (the Reactor's
+## autopilot Shifts).
 func debug_skip(seconds: float) -> StringName:
 	if _debug_dive_over():
 		return &"dive_over"
@@ -803,7 +860,7 @@ func _step(dt: float) -> void:
 		_mismanage()
 	_head_activity = move_toward(_head_activity, 0.0 if _quiet_ship else 1.0,
 			_HEAD_SPIN_RATE * dt)
-	_plasma.tend(dt, plasma_frequency(), attended(STATION_REACTOR) and not _self_destructing,
+	_plasma.tend(dt, plasma_frequency(), autopilot(STATION_REACTOR) or _self_destructing,
 			_heat.hull_heat_share(surroundings_temperature()), _events, depth(), _distance)
 	_share_power()
 	# Steering heats one side of the Head harder; that share of the Drive's
@@ -836,7 +893,7 @@ func _step(dt: float) -> void:
 	if _pulse_pending:
 		_pulse_pending = false
 		_send_pulse()
-	_steady_unattended(dt)
+	_steady_autopilots(dt)
 	_check_stranded()
 	if _surfaced or dead():
 		return  # Brought home through the open tunnel, or the hull failed.
@@ -864,6 +921,11 @@ func _follow_the_head(depth_before: float, travelled: float, dt: float) -> void:
 ## Whether a crew member is at this Station; see set_attended().
 func attended(station: StringName) -> bool:
 	return _attended.get(station, false)
+
+
+## Whether this Station's autopilot is engaged; see set_autopilot().
+func autopilot(station: StringName) -> bool:
+	return _autopilot.get(station, false)
 
 
 ## How many times normal the simulation runs now.
@@ -1265,6 +1327,9 @@ func survey_value() -> float:
 ##       for it, nothing while there is no balance to take it from. The dive
 ##       is over (dead() is true); new_dive() starts another.
 ##   &"new_dive" {paid}: new_dive() has the Lithocraft ready at the surface.
+##   &"autopilot_off" {station, cause}: that Station's autopilot disengaged;
+##       `cause` AUTOPILOT_OFF_BY_COMMAND (a crew command changed its
+##       setting) or AUTOPILOT_OFF_BY_SWITCH (the crew switched it off).
 ##   &"self_destruct_started" {stranded}, &"self_destruct_cancelled"
 ##       {stranded}: the crew held the command long enough at Thermal, or
 ##       cancelled it (see hold_self_destruct()); `stranded` whether with the
@@ -1563,7 +1628,8 @@ static func _direction_of(heading_degrees: float, pitch_degrees: float) -> Vecto
 func _steer(speed: float, dt: float) -> void:
 	var wanted := _wanted_direction()
 	var remaining := _direction.angle_to(wanted)
-	var effort := _steering_effort if attended(STATION_DRIVE) 			else minf(_steering_effort, _UNATTENDED_STEERING_EFFORT)
+	var effort := minf(_steering_effort, _AUTOPILOT_STEERING_EFFORT) \
+			if autopilot(STATION_DRIVE) else _steering_effort
 	var needed := clampf(rad_to_deg(remaining) / _STEER_EASE_DEG, 0.0, effort)
 	_steering = move_toward(_steering, needed, _STEER_RESPONSE * dt)
 	var turn := minf(remaining, _steering * speed / _MIN_TURN_RADIUS_M * dt)
@@ -1753,18 +1819,20 @@ func _on_boundary_crossed(from: Medium, to: Medium) -> void:
 		_seal_coming_at = _distance
 
 
-# --- Unattended Stations and calls ----------------------------------------
+# --- Autopilots and calls -------------------------------------------------
 
-## The steadying rules of Stations no one is at. Steady conditions leave every
-## setting as it was. The Drive backs its power off to what the wall can
-## grip once the grip waves slip: the slipped share only made heat and noise.
-func _steady_unattended(dt: float) -> void:
+## The steadying rules of Stations whose autopilot is engaged (the Reactor's
+## is in Plasma.tend(), the Drive's gentle steering in _steer()). Steady
+## conditions leave every setting as it was. The Drive backs its power off to
+## what the wall can grip once the grip waves slip: the slipped share only
+## made heat and noise.
+func _steady_autopilots(dt: float) -> void:
 	if _self_destructing:
 		return  # Self-destruct holds every setting.
-	if not attended(STATION_DRIVE) and _slip > 0.0:
+	if autopilot(STATION_DRIVE) and _slip > 0.0:
 		_power *= 1.0 - _slip
-	if not attended(STATION_THERMAL) and heat_warning():
-		_heat_split = minf(1.0, _heat_split + _UNATTENDED_SPLIT_RATE * dt)
+	if autopilot(STATION_THERMAL) and heat_warning():
+		_heat_split = minf(1.0, _heat_split + _AUTOPILOT_SPLIT_RATE * dt)
 
 
 ## Works out which Stations call, why and how urgently, from the state after

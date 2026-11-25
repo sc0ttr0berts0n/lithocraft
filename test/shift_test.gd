@@ -52,8 +52,9 @@ func _shift_after(wait: float, off_by := 1.0, sim: DiveSimulation = null) -> Dic
 	return {}
 
 
-func test_unattended_the_reactor_autopilot_shifts_late_and_poorly() -> void:
+func test_the_reactors_autopilot_shifts_late_and_poorly() -> void:
 	var sim := _one_boundary()
+	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
 	DiveTestKit.run_until(sim, &"boundary_crossed")
 
 	var result := DiveTestKit.run_until(sim, &"shift_result")
@@ -149,13 +150,15 @@ func test_a_shift_matching_the_plasma_grades_better_than_a_mismatched_one() -> v
 	assert_bool(mismatched.clean).is_false()
 
 
-## Soft and hard rock taking turns every 15 m: Boundary after Boundary.
+## Soft and hard rock taking turns every 15 m: Boundary after Boundary, each
+## Shift left to the Reactor's autopilot.
 func _many_boundaries() -> DiveSimulation:
 	var layers := []
 	for i in 40:
 		layers.append([i * 15.0, _soft() if i % 2 == 0 else _hard()])
 	var sim := DiveSimulation.new(MediumLayout.layered(layers))
 	sim.set_power(1.0)
+	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
 	return sim
 
 
@@ -181,6 +184,7 @@ func test_poor_shifts_wear_the_head_until_the_plasma_is_lost() -> void:
 
 func test_one_poor_shift_wears_the_head_without_losing_the_plasma() -> void:
 	var sim := _one_boundary()
+	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)  # Its late Shift is the poor one.
 	var result := DiveTestKit.run_until(sim, &"shift_result")
 
 	assert_bool(result.clean).is_false()
@@ -212,6 +216,7 @@ func test_a_poor_shift_with_the_hull_hot_wears_the_head_more() -> void:
 func _shift_hot_or_cool(power: float) -> DiveSimulation:
 	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, _soft()], [300.0, _hard()]]))
 	sim.set_power(power)
+	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
 	DiveTestKit.run_until(sim, &"boundary_crossed", 20000.0, [], 0.25)
 	DiveTestKit.run_until(sim, &"shift_result", 600.0, [], 0.25)
 	return sim

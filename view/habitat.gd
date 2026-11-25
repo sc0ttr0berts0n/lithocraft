@@ -379,6 +379,39 @@ func _key_relight(_index: int) -> void:
 	_sim.relight()
 
 
+## E at each Station: its autopilot's switch, on / off.
+func _key_autopilot_reactor(_index: int) -> void:
+	_switch_autopilot(DiveSimulation.STATION_REACTOR)
+
+
+func _key_autopilot_drive(_index: int) -> void:
+	_switch_autopilot(DiveSimulation.STATION_DRIVE)
+
+
+func _key_autopilot_thermal(_index: int) -> void:
+	_switch_autopilot(DiveSimulation.STATION_THERMAL)
+
+
+func _key_autopilot_navigation(_index: int) -> void:
+	_switch_autopilot(DiveSimulation.STATION_NAVIGATION)
+
+
+func _key_autopilot_bore(_index: int) -> void:
+	_switch_autopilot(DiveSimulation.STATION_BORE)
+
+
+func _switch_autopilot(station: StringName) -> void:
+	_sim.set_autopilot(station, not _sim.autopilot(station))
+
+
+## The Station in use with this simulation name.
+func _station_named(sim_name: StringName) -> GimballedStation:
+	for station in _in_use:
+		if _sim_names[station] == sim_name:
+			return station
+	return null
+
+
 ## Thermal: pressed, starts holding to arm self-destruct (released, the hold
 ## stops: see _physics_process); pressed while it runs, cancels it.
 func _key_self_destruct(_index: int) -> void:
@@ -389,8 +422,9 @@ func _key_self_destruct(_index: int) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	# The simulation knows which Stations a crew member is at; the rest hold
-	# their settings and steady themselves.
+	# The simulation knows which Stations a crew member is at (for commands
+	# that need the crew there); each autopilot's switch alone decides
+	# whether its Station steadies itself.
 	for station in _in_use:
 		_sim.set_attended(_sim_names[station], _at(station))
 	_holding_self_destruct = _holding_self_destruct and KeyMap.held(&"self_destruct")[0]
@@ -407,6 +441,7 @@ func _physics_process(delta: float) -> void:
 			&"new_dive": _on_new_dive(event)
 			&"self_destruct_started": _on_self_destruct_started(event)
 			&"self_destruct_cancelled": _on_self_destruct_cancelled(event)
+			&"autopilot_off": _station_named(event.station).autopilot_off()
 	_fade_notice(delta)
 	_show_calls()
 	var felt := _sim.felt_acceleration()
@@ -464,9 +499,9 @@ func _set_power(power: float) -> void:
 
 
 ## Each Station calls with its own tone and light as urgently as the
-## simulation says, and every screen shows the time rate. Unattended Thermal
-## may have moved the heat split, and an unattended Drive its power, so the
-## Habitat's copies follow them.
+## simulation says, and every screen shows its autopilot and the time rate.
+## Thermal's autopilot may have moved the heat split, and the Drive's its
+## power, so the Habitat's copies follow them.
 func _show_calls() -> void:
 	_heat_split = _sim.heat_split()
 	_power_setting = _sim.power()
@@ -476,6 +511,7 @@ func _show_calls() -> void:
 			else "Time x1  %s faster" % KeyMap.label(&"time_faster")
 	for station in _in_use:
 		station.set_call(_sim.call_urgency(_sim_names[station]))
+		station.autopilot = _sim.autopilot(_sim_names[station])
 		station.footer = footer
 
 

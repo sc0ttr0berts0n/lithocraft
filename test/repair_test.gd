@@ -42,9 +42,7 @@ func _boundary() -> MediumLayout:
 ## event, or an empty Dictionary if the dive never surfaced.
 func _dive_and_surface(layout: MediumLayout, linger := 0.0, crew_shifts := true) -> Dictionary:
 	var sim := DiveSimulation.new(layout)
-	sim.set_attended(DiveSimulation.STATION_THERMAL, true)
-	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
-	sim.set_attended(DiveSimulation.STATION_REACTOR, crew_shifts)
+	sim.set_autopilot(DiveSimulation.STATION_REACTOR, not crew_shifts)
 	sim.set_heat_split(0.0)
 	sim.set_power(POWER)
 	var shift := func() -> void: if crew_shifts and sim.shift_due(): sim.shift(sim.plasma_frequency())

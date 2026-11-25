@@ -163,11 +163,11 @@ func ask_shift(frequency: float) -> void:
 
 ## Once a step of dt seconds, before the power is shared, with the wobble at
 ## `target` hertz: times the mistuned plasma, takes a Shift asked for, lets
-## the autopilot make an overdue one when the Reactor is unattended, and sets
+## the autopilot make an overdue one while `autopilot_on`, and sets
 ## how steady the plasma is. `hull_heat_share` (0 cool to 1 as hot as the hull
 ## can bear) makes a poor Shift wear the Head harder. Raises &"shift_result"
 ## and &"plasma_lost" into `events`, placed at `depth` and `distance`.
-func tend(dt: float, target: float, reactor_attended: bool, hull_heat_share: float,
+func tend(dt: float, target: float, autopilot_on: bool, hull_heat_share: float,
 		events: Array[Dictionary], depth: float, distance: float) -> void:
 	_mistuned_for = _mistuned_for + dt if due(target) else 0.0
 	_lurch_age += dt
@@ -179,7 +179,7 @@ func tend(dt: float, target: float, reactor_attended: bool, hull_heat_share: flo
 	if not is_nan(_shift_asked):
 		_make_shift(_shift_asked, false, target, hull_heat_share, events, depth, distance)
 		_shift_asked = NAN
-	if due(target) and not reactor_attended \
+	if due(target) and autopilot_on \
 			and _mistuned_for >= window_length() + _AUTOPILOT_LATE_S:
 		_make_shift(target, true, target, hull_heat_share, events, depth, distance)
 	if _lost:

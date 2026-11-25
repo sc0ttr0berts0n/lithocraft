@@ -1,4 +1,4 @@
-# Unattended Stations, Station calls and the time rate, tested at the
+# Station calls and the time rate, tested at the
 # simulation's interface. Assert relationships, never tuned constants (ADR 0001).
 extends GdUnitTestSuite
 
@@ -25,135 +25,6 @@ func _one_boundary(at := 20.0, below: Medium = null) -> DiveSimulation:
 func _calls(events: Array, station: StringName) -> Array:
 	return events.filter(func(e: Dictionary) -> bool:
 		return e.type == &"station_call" and e.station == station)
-
-
-# --- Unattended Stations ----------------------------------------------------
-
-func test_every_station_starts_unattended_and_can_be_attended() -> void:
-	var sim := DiveSimulation.new(MediumLayout.uniform(DiveTestKit.rock(2.0, 2.0, 0.3)))
-	for station in DiveSimulation.STATIONS:
-		assert_bool(sim.attended(station)).is_false()
-
-	sim.set_attended(DiveSimulation.STATION_THERMAL, true)
-
-	assert_bool(sim.attended(DiveSimulation.STATION_THERMAL)).is_true()
-	assert_bool(sim.attended(DiveSimulation.STATION_REACTOR)).is_false()
-
-
-func test_unattended_stations_hold_their_settings_through_steady_conditions() -> void:
-	var sim := DiveSimulation.new(MediumLayout.uniform(DiveTestKit.rock(2.0, 2.0, 0.3)))
-	sim.set_power(0.4)
-	sim.set_heat_split(0.3)
-	sim.set_course(30.0, 45.0)
-	sim.set_upload_priority(DiveSimulation.UPLOAD_NEWEST_FIRST)
-	# Long enough for the unattended Drive's gentle turn onto the Course.
-	for i in 6000:
-		sim.advance(1.0)
-		assert_bool(sim.heat_warning()).is_false()
-	var speed_before := sim.speed()
-	for i in 600:
-		sim.advance(1.0)
-
-	assert_float(sim.power()).is_equal(0.4)
-	assert_float(sim.heat_split()).is_equal(0.3)
-	assert_float(sim.pitch()).is_equal_approx(45.0, 0.5)
-	assert_float(sim.heading_degrees()).is_equal_approx(30.0, 0.5)
-	assert_str(String(sim.upload_priority())).is_equal(String(DiveSimulation.UPLOAD_NEWEST_FIRST))
-	assert_float(sim.speed()).is_equal_approx(speed_before, speed_before * 0.01)
-	assert_float(sim.vessel_wear()).is_equal(0.0)
-	assert_float(sim.head_wear()).is_equal(0.0)
-
-
-## Full power, all heat outward: the hull heads for damage.
-func _overheating(attended: bool) -> DiveSimulation:
-	var sim := DiveSimulation.new(MediumLayout.uniform(DiveTestKit.rock(2.0, 2.0, 0.3)))
-	sim.set_power(1.0)
-	sim.set_attended(DiveSimulation.STATION_THERMAL, attended)
-	return sim
-
-
-func test_unattended_thermal_steadies_a_warning_hull_by_sending_heat_into_the_column() -> void:
-	var left := _overheating(false)
-	var held := _overheating(true)
-	for i in 1200:
-		left.advance(1.0)
-		held.advance(1.0)
-
-	assert_float(held.heat_split()).is_equal(0.0)
-	assert_float(left.heat_split()).is_greater(0.0)
-	assert_float(left.vessel_wear()).is_less(held.vessel_wear())
-
-
-func test_unattended_thermal_is_slow_to_answer_a_sudden_heat() -> void:
-	var sim := _overheating(false)
-	var warned := false
-	while not warned:
-		sim.advance(0.5)
-		warned = sim.heat_warning()
-	sim.advance(1.0)
-
-	# One second after the warning it has barely begun to move the split.
-	assert_float(sim.heat_split()).is_less(0.1)
-
-
-## Full power against a wall too weak to take it: the grip waves slip.
-func _slipping(attended: bool) -> DiveSimulation:
-	var sim := DiveSimulation.new(MediumLayout.uniform(DiveTestKit.rock(1.0, 0.2, 0.3)))
-	sim.set_power(1.0)
-	sim.set_attended(DiveSimulation.STATION_DRIVE, attended)
-	return sim
-
-
-func test_an_unattended_drive_backs_its_power_off_to_what_the_wall_can_grip() -> void:
-	var left := _slipping(false)
-	var held := _slipping(true)
-	for i in 20:
-		left.advance(0.5)
-		held.advance(0.5)
-
-	assert_float(held.slip()).is_greater(0.0)
-	assert_float(held.power()).is_equal(1.0)
-	assert_float(left.slip()).is_less(0.01)
-	assert_float(left.power()).is_less(1.0)
-	# Backing off only stops the slipping: no speed is given up for it.
-	assert_float(left.speed()).is_equal_approx(held.speed(), held.speed() * 0.02)
-	assert_float(left.heat_produced()).is_less(held.heat_produced())
-
-
-## Crosses the one Boundary with the Reactor attended or not; if attended,
-## the crew Shifts to the plasma's frequency within the window. Returns the
-## Shift result.
-func _shift_with_reactor(attended: bool) -> Dictionary:
-	var sim := _one_boundary()
-	sim.set_attended(DiveSimulation.STATION_REACTOR, attended)
-	DiveTestKit.run_until(sim, &"boundary_crossed")
-	if attended:
-		sim.advance(2.0)
-		sim.shift(sim.plasma_frequency())
-	return DiveTestKit.run_until(sim, &"shift_result")
-
-
-func test_an_unattended_reactor_grades_a_shift_worse_than_an_attended_one() -> void:
-	var unattended := _shift_with_reactor(false)
-	var attended := _shift_with_reactor(true)
-
-	assert_bool(unattended.autopilot).is_true()
-	assert_bool(attended.autopilot).is_false()
-	assert_float(unattended.grade).is_less(attended.grade)
-
-
-func test_an_attended_reactor_leaves_the_shift_to_the_crew_until_they_walk_away() -> void:
-	var sim := _one_boundary()
-	sim.set_attended(DiveSimulation.STATION_REACTOR, true)
-	DiveTestKit.run_until(sim, &"boundary_crossed")
-
-	assert_dict(DiveTestKit.run_until(sim, &"shift_result", 120.0)).is_empty()
-	assert_bool(sim.shift_due()).is_true()
-
-	sim.set_attended(DiveSimulation.STATION_REACTOR, false)
-	var result := DiveTestKit.run_until(sim, &"shift_result", 5.0)
-	assert_bool(result.autopilot).is_true()
-	assert_bool(result.clean).is_false()
 
 
 # --- The time rate ----------------------------------------------------------
@@ -289,7 +160,8 @@ func test_a_call_is_announced_once_when_it_begins() -> void:
 
 
 func test_thermal_calls_while_the_hull_warns() -> void:
-	var sim := _overheating(true)
+	var sim := DiveSimulation.new(MediumLayout.uniform(DiveTestKit.rock(2.0, 2.0, 0.3)))
+	sim.set_power(1.0)
 	var seen := []
 	while not sim.heat_warning():
 		sim.advance(0.5)
