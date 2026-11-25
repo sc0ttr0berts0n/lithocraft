@@ -30,6 +30,10 @@ const HABITAT_BEHIND_HEAD_M := 3.0
 ## Resolution of the Column's surface texture. LENGTH times this should be a
 ## whole number of pixels so the texture spans the Bore exactly.
 const COLUMN_PIXELS_PER_METRE := 125.0
+## How much one press moves the heat split at the Thermal Station.
+const HEAT_SPLIT_STEP := 0.1
+## How close the crew must be to a Station's pivot to work it, in metres.
+const STATION_REACH := 2.0
 
 var _sim := DiveSimulation.new(MediumLayout.first_dive())
 var _pitch_setting := 90.0
@@ -38,6 +42,9 @@ var _drive: GimballedStation
 var _bore_station: GimballedStation
 ## A ring on the Bore glass that rides along with the feature being observed.
 var _feature_ring: MeshInstance3D
+var _thermal: GimballedStation
+## Thermal Station setting: share of heat sent into the Column.
+var _heat_split := 0.0
 var _navigation: GimballedStation
 var _crew := CrewMember.new()
 
@@ -46,6 +53,7 @@ var _crew := CrewMember.new()
 
 func _ready() -> void:
 	_sim.set_pitch(_pitch_setting)
+	_sim.set_heat_split(_heat_split)
 	_dive_view.attach(_sim)
 	_build_room()
 	_build_stations()
@@ -71,6 +79,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_Z: _steer(_pitch_setting - PITCH_STEP)
 			KEY_X: _steer(_pitch_setting + PITCH_STEP)
 			KEY_F: _observe_next_feature()
+			KEY_C: _split_heat(_heat_split - HEAT_SPLIT_STEP)
+			KEY_V: _split_heat(_heat_split + HEAT_SPLIT_STEP)
 			KEY_P: _sim.pulse()
 			KEY_Q: _sim.set_quiet_ship(not _sim.quiet_ship())
 
@@ -86,6 +96,7 @@ func _physics_process(delta: float) -> void:
 		_sim.depth(), _sim.pitch(), _pitch_setting])
 	_bore_station.show_reading(_bore_reading())
 	_place_feature_ring()
+	_show_thermal()
 	_navigation.show_reading("%s  noise %d%%  %d points  draw %d%%\n[P] pulse  [Q] Quiet Ship" % [
 		"QUIET SHIP" if _sim.quiet_ship() else "under way",
 		roundi(_sim.noise() * 100.0), _sim.point_count(),
@@ -100,7 +111,10 @@ func _steer(pitch: float) -> void:
 
 ## Stand-in Bore Station control until it has its own: observe the next
 ## feature in the Column not yet recorded, nearest the Tail first, cycling.
+## Worked at the Bore Station: only within reach of it.
 func _observe_next_feature() -> void:
+	if _crew.position.distance_to(_bore_station.position) > STATION_REACH:
+		return
 	var candidates := _sim.features_in_column().filter(
 			func(f: ColumnFeature) -> bool: return not f.is_recorded())
 	if candidates.is_empty():
@@ -148,6 +162,34 @@ func _place_feature_ring() -> void:
 		(_feature_ring.material_override as StandardMaterial3D).albedo_color = (
 				FeatureLook.RECORDED_COLOUR if feature.is_recorded() else FeatureLook.OBSERVING_COLOUR)
 		_feature_ring.visible = true
+
+
+## The heat split is worked at the Thermal Station: only within reach of it.
+func _split_heat(to_column: float) -> void:
+	if _crew.position.distance_to(_thermal.position) > STATION_REACH:
+		return
+	_heat_split = clampf(snappedf(to_column, HEAT_SPLIT_STEP), 0.0, 1.0)
+	_sim.set_heat_split(_heat_split)
+
+
+## The Thermal Station's screen: the split, where the heat is going, the hull
+## against the Medium and the temperature it can bear, and wear. It calls with
+## its light while the simulation warns of heat damage.
+func _show_thermal() -> void:
+	var warning := _sim.heat_warning()
+	_thermal.set_calling(warning)
+	var to_column := roundi(_heat_split * 10.0)
+	var lines := [
+		"Out [%s|%s] Column" % ["#".repeat(10 - to_column), "#".repeat(to_column)],
+		"Heat %.2f > Column %.2f" % [_sim.heat_produced(), _sim.heat_to_column()],
+		"Hull %.0f K, bears %.0f K" % [
+			_sim.vessel_temperature(), _sim.hull_damage_temperature()],
+		"Medium %.0f K  Wear %.1f%%" % [
+			_sim.surroundings_temperature(), _sim.vessel_wear() * 100.0],
+	]
+	if warning:
+		lines.append("!! HEAT WARNING !!")
+	_thermal.show_reading("\n".join(lines))
 
 
 func _build_room() -> void:
@@ -242,6 +284,8 @@ func _build_stations() -> void:
 		var station := GimballedStation.new()
 		station.station_name = STATIONS[i][0]
 		station.hue = STATIONS[i][1]
+		if station.station_name == "Thermal":
+			station.screen_font_size = 28
 		station.position = outward * pivot_radius
 		add_child(station)
 		_stations.append(station)
@@ -249,6 +293,8 @@ func _build_stations() -> void:
 			_drive = station
 		elif station.station_name == "Bore Station":
 			_bore_station = station
+		elif station.station_name == "Thermal":
+			_thermal = station
 		elif station.station_name == "Navigation":
 			_navigation = station
 			_navigation.show_display(_scan_display())
