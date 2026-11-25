@@ -3,7 +3,8 @@
 ## cut; the Reactor holds it steady by driving an opposing wave at the
 ## frequency it is tuned to. A Shift retunes it; a poor one grinds (a heat
 ## spike, a lurch, wear on the Head), and a Head worn through loses the
-## plasma. Owned by DiveSimulation, which tends it once a step and answers for
+## plasma. A lost plasma can be struck again by a relight, paid for from the
+## emergency store; the odds fall with the Head's wear. Owned by DiveSimulation, which tends it once a step and answers for
 ## it through its own queries (plasma_stability(), shift_due(), head_wear()
 ## ...). Knows nothing of the layout or the Stations: the wobble's frequency
 ## now and everything else it needs are handed in.
@@ -58,6 +59,15 @@ const _WEAR_NARROWING := 0.5
 ## this. A fresh Head never loses it to one Shift; a badly worn one can lose
 ## it to any rough one. Tuned for play (ADR 0001).
 const _WEAR_THROUGH := 0.5
+## A relight: the energy of the pulse that strikes the plasma again, in the
+## units of set_power() times seconds, and the chance it takes on a fresh Head
+## and on one worn through (between, it falls with the wear). Real basis: a
+## tokamak cannot restart itself; striking a plasma takes a large pulse of
+## stored energy, and a worn wall fouls it with impurities that can stop it
+## taking. Tuned for play (ADR 0001): a healthy Head almost always relights.
+const _RELIGHT_PULSE := 40.0
+const _RELIGHT_FRESH := 0.95
+const _RELIGHT_WORN_THROUGH := 0.4
 
 ## How steady the plasma is, 0 (lost) to 1 (steady). The Reactor's output
 ## scales with it.
@@ -82,6 +92,32 @@ var _lurch_age := 0.0
 ## Starts steady, tuned to `frequency` in hertz.
 func _init(frequency: float) -> void:
 	_tuning = frequency
+
+
+## Energy the pulse that relights the plasma takes from the emergency store.
+func relight_cost() -> float:
+	return _RELIGHT_PULSE
+
+
+## The chance a relight strikes the plasma on this Head, 0 to 1: high on a
+## fresh Head, falling with its wear.
+func relight_chance() -> float:
+	return lerpf(_RELIGHT_FRESH, _RELIGHT_WORN_THROUGH, _head_wear)
+
+
+## Tries to strike the lost plasma again, its pulse already paid for. `roll`
+## (0 to 1, uniformly random) below relight_chance() lights it, tuned to the
+## wobble at `target` hertz so it holds at once. The Head keeps its wear.
+## Returns whether it lit; false, and nothing changed, if it was not lost.
+func relight(target: float, roll: float) -> bool:
+	if not _lost or roll >= relight_chance():
+		return false
+	_lost = false
+	_tuning = target
+	_mistuned_for = 0.0
+	_shift_asked = NAN
+	_stability = 1.0 - _WEAR_UNSTEADINESS * _head_wear
+	return true
 
 
 ## The frequency, in hertz, of the wobble cutting this Medium excites.
@@ -227,6 +263,8 @@ func _make_shift(frequency: float, by_autopilot: bool, target: float, hull_heat_
 	events.append({type = &"shift_result", grade = grade,
 			clean = roughness <= 0.0, late = late, autopilot = by_autopilot,
 			wear = wear if roughness > 0.0 else 0.0})
-	if _head_wear >= 1.0:
+	# A Head worn through loses the plasma to any poor Shift; relit, it holds
+	# through clean ones.
+	if roughness > 0.0 and _head_wear >= 1.0:
 		_lost = true
 		events.append({type = &"plasma_lost", depth = depth, distance = distance})

@@ -125,6 +125,147 @@ func test_a_stranding_keeps_the_survey_aboard_until_the_recovery() -> void:
 	assert_float(sim.unsold_value()).is_equal(0.0)
 
 
+## Asks for a relight and returns its &"relight_result".
+func _relight(sim: DiveSimulation) -> Dictionary:
+	sim.relight()
+	return DiveTestKit.run_until(sim, &"relight_result", 1.0, [], 0.25)
+
+
+## Relights until one comes out as `outcome` (&"lit" or &"failed"), losing the
+## plasma again after a lit one and calling a recovery and stranding again
+## when the store cannot pay for another. Returns that result, with the store
+## before it as `store_before`.
+func _relight_until(sim: DiveSimulation, outcome: StringName) -> Dictionary:
+	for attempt in 60:
+		if sim.emergency_store() < sim.relight_cost():
+			sim.recover()
+			_strand(sim, false)
+		var before := sim.emergency_store()
+		var result := _relight(sim)
+		assert_dict(result).is_not_empty()
+		if result.outcome == outcome:
+			result["store_before"] = before
+			return result
+		if result.outcome == &"lit":
+			_lose_plasma(sim)
+			sim.take_events()
+	return {}
+
+
+func test_a_relight_costs_a_big_pulse_from_the_store() -> void:
+	var sim := _stranded(false)
+	var before := sim.emergency_store()
+	assert_float(sim.relight_cost()).is_greater(0.0)
+	assert_float(sim.relight_cost()).is_less_equal(before)
+
+	var result := _relight(sim)
+
+	assert_float(result.spent).is_equal(sim.relight_cost())
+	assert_float(sim.emergency_store()).is_equal_approx(before - sim.relight_cost(), 0.0001)
+	# Big: more than the link would draw sending a whole stretch of survey.
+	var linked := _stranded()
+	var store := linked.emergency_store()
+	var paid := linked.paid()
+	for i in 10000:
+		linked.advance(1.0)
+		if linked.paid() > paid:
+			break
+	assert_float(sim.relight_cost()).is_greater(store - linked.emergency_store())
+
+
+func test_a_relight_is_refused_when_the_store_cannot_pay_it() -> void:
+	var sim := _stranded()
+	# Let the link spend the store below a relight's pulse.
+	for i in 100000:
+		if sim.emergency_store() < sim.relight_cost():
+			break
+		sim.advance(1.0)
+	var store := sim.emergency_store()
+	sim.set_uploading(false)
+
+	var result := _relight(sim)
+
+	assert_str(String(result.outcome)).is_equal("refused")
+	assert_float(result.spent).is_equal(0.0)
+	assert_float(sim.emergency_store()).is_equal(store)
+	assert_bool(sim.stranded()).is_true()
+	assert_bool(sim.plasma_lost()).is_true()
+
+
+func test_a_successful_relight_ends_the_stranding_and_the_dive_goes_on() -> void:
+	var sim := _stranded(false)
+
+	var lit := _relight_until(sim, &"lit")
+
+	assert_dict(lit).is_not_empty()
+	assert_float(sim.emergency_store()).is_less(lit.store_before)
+	assert_bool(sim.stranded()).is_false()
+	assert_bool(sim.plasma_lost()).is_false()
+	assert_bool(sim.on_emergency_store()).is_false()
+	var depth := sim.depth()
+	sim.set_power(1.0)
+	DiveTestKit.run(sim, 10.0, 0.25)
+	assert_float(sim.reactor_output()).is_greater(0.0)
+	assert_float(sim.speed()).is_greater(0.0)
+	assert_float(sim.depth()).is_greater(depth)
+	assert_str(String(sim.call_reason(DiveSimulation.STATION_REACTOR))).is_not_equal("stranded")
+
+
+func test_a_failed_relight_spends_the_energy_and_leaves_the_crew_stranded() -> void:
+	var sim := _stranded(false)
+
+	var failed := _relight_until(sim, &"failed")
+
+	assert_dict(failed).is_not_empty()
+	assert_float(failed.spent).is_equal(sim.relight_cost())
+	assert_float(sim.emergency_store()).is_equal_approx(
+			failed.store_before - sim.relight_cost(), 0.0001)
+	assert_bool(sim.stranded()).is_true()
+	assert_bool(sim.plasma_lost()).is_true()
+	assert_bool(sim.on_emergency_store()).is_true()
+
+
+func test_a_healthy_head_relights_more_reliably_than_a_worn_one() -> void:
+	var fresh := DiveSimulation.new(MediumLayout.uniform(_dense()))
+	var worn := DiveSimulation.new(MediumLayout.uniform(_dense()))
+	var on := worn.plasma_frequency()
+	worn.shift(on * 1.5)
+	worn.advance(0.1)
+	worn.shift(on)
+	worn.advance(0.1)
+	var worn_through := _stranded(false)
+	assert_float(fresh.head_wear()).is_less(worn.head_wear())
+	assert_float(worn.head_wear()).is_less(worn_through.head_wear())
+
+	assert_float(fresh.relight_chance()).is_greater(worn.relight_chance())
+	assert_float(worn.relight_chance()).is_greater(worn_through.relight_chance())
+	# Even a Head worn through can be relit, sometimes.
+	assert_float(worn_through.relight_chance()).is_greater(0.0)
+
+
+func test_a_relit_head_worn_through_holds_through_a_clean_shift() -> void:
+	var sim := _stranded(false)
+	_relight_until(sim, &"lit")
+
+	sim.shift(sim.plasma_frequency())
+	DiveTestKit.run(sim, 1.0, 0.25)
+
+	assert_bool(sim.plasma_lost()).is_false()
+
+
+func test_a_relight_is_only_for_a_lost_plasma() -> void:
+	var sim := DiveSimulation.new(MediumLayout.uniform(_dense()))
+	sim.set_power(1.0)
+	DiveTestKit.run(sim, 5.0, 0.25)
+
+	sim.relight()
+	var seen := []
+	DiveTestKit.run_until(sim, &"never", 1.0, seen, 0.25)
+
+	assert_array(DiveTestKit.types(seen)).not_contains([&"relight_result"])
+	assert_float(sim.emergency_store()).is_equal(sim.emergency_store_capacity())
+
+
 func test_while_stranded_time_may_run_fast() -> void:
 	var sim := _stranded()
 

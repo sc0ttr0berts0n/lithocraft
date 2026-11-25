@@ -172,7 +172,9 @@ const _FAST_STEP_S := 0.25
 ## The world (the layout), what was paid for, and events not yet taken.
 const _KEPT_ON_RECOVERY: Array[StringName] = [&"_layout", &"_paid", &"_uploaded", &"_events",
 		# Where the crew is: the view tells the simulation, not the dive.
-		&"_attended"]
+		&"_attended",
+		# The luck of relights runs on from dive to dive.
+		&"_relight_random"]
 
 var _layout: MediumLayout
 var _power := 0.0
@@ -271,6 +273,11 @@ var _scan_random := RandomNumberGenerator.new()
 var _announced_boundary := NAN
 ## Stranding and recovery: what losing the plasma comes to (sim/stranding.gd).
 var _stranding := Stranding.new()
+## A relight asked for since the last step.
+var _relight_asked := false
+## The luck of relights. Fixed seed, so a run is the same every time; kept
+## across recoveries, so each dive does not replay the last one's luck.
+var _relight_random := RandomNumberGenerator.new()
 ## Stations a crew member is at (StringName -> true).
 var _attended := {}
 ## How many times normal the simulation runs, 1 or more.
@@ -293,6 +300,7 @@ func _init(layout: MediumLayout) -> void:
 	_layout = layout
 	_heat = Heat.new(surroundings_temperature())
 	_scan_random.seed = 13
+	_relight_random.seed = 29
 	_plasma = Plasma.new(plasma_frequency())
 	_share_power()
 
@@ -447,6 +455,15 @@ func _start_fresh() -> void:
 	_paid_before_dive = _paid
 
 
+## Reactor Station: try to relight the Head on the next step. Only while
+## stranded: the pulse that strikes the plasma (relight_cost()) comes from the
+## emergency store, and a relight the store cannot pay for is refused. It
+## lights with relight_chance(); lit, the stranding ends and the dive goes on;
+## failed, the energy is spent. Raises &"relight_result".
+func relight() -> void:
+	_relight_asked = true
+
+
 ## Reactor Station: perform a Shift, setting the Reactor to hold the plasma
 ## at this frequency in hertz, on the next step. The closer it matches the
 ## plasma's wobble (plasma_frequency()), and the sooner after a Boundary, the
@@ -479,6 +496,7 @@ func _step(dt: float) -> void:
 	if stranded():
 		_step_stranded(dt)
 		return
+	_relight_asked = false  # Only a lost plasma can be relit.
 	_head_activity = move_toward(_head_activity, 0.0 if _quiet_ship else 1.0,
 			_HEAD_SPIN_RATE * dt)
 	_plasma.tend(dt, plasma_frequency(), attended(STATION_REACTOR),
@@ -882,11 +900,19 @@ func survey_value() -> float:
 ##   &"station_call" {station, reason, urgency}: a Station has begun calling,
 ##       or calls for a new reason (see call_reason()). The time rate returns
 ##       to normal.
-##   &"stranded" {depth, distance, lost, lost_stretches, paid}: the plasma was
-##       lost while sealed in. `lost` is the value of the unsold survey
-##       discarded (`lost_stretches` stretches of it); `paid` is kept.
-##   &"recovered" {paid}: recover() has brought the crew back to the surface
-##       with `paid` kept, ready to dive again.
+##   &"stranded" {depth, distance, aboard, aboard_stretches, paid}: the plasma
+##       was lost while sealed in; the Lithocraft is on the emergency store.
+##       `aboard` is the value of the unsold survey still aboard
+##       (`aboard_stretches` stretches of it), lost at the recovery unless the
+##       link sends it first; `paid` is kept.
+##   &"recovered" {paid, lost, lost_stretches}: recover() has brought the
+##       crew back to the surface with `paid` kept, ready to dive again. The
+##       survey still aboard is lost: worth `lost`, `lost_stretches` stretches.
+##   &"relight_result" {outcome, chance, spent, store}: a relight asked for
+##       while stranded. `outcome` &"lit" (the stranding is over), &"failed"
+##       (the pulse spent, still stranded) or &"refused" (the store held less
+##       than the pulse; nothing spent). `chance` it had, `spent` from the
+##       store, `store` left.
 ##   &"surfaced" {distance}: the Head has come back up to the surface; the
 ##       dive is over.
 ##   &"paid" {amount, by_link, carried_home, stretches, metres, mean_quality,
@@ -957,6 +983,17 @@ func emergency_store() -> float:
 ## Energy the emergency store holds when full.
 func emergency_store_capacity() -> float:
 	return _stranding.store_capacity()
+
+
+## Energy a relight's pulse takes from the emergency store.
+func relight_cost() -> float:
+	return _plasma.relight_cost()
+
+
+## The chance a relight strikes the plasma on the Head as it is now, 0 to 1:
+## a healthy Head almost always relights; the odds fall with head_wear().
+func relight_chance() -> float:
+	return _plasma.relight_chance()
 
 
 ## True once the tunnel behind has been filled somewhere, so no continuous open
@@ -1345,6 +1382,22 @@ static func _offer_call(calls: Dictionary, station: StringName, reason: StringNa
 
 # --- Stranding -----------------------------------------------------------
 
+## A relight, asked for while stranded: refused if the store cannot pay its
+## pulse; otherwise the pulse is spent and the plasma lights or not by its
+## chance. Lit, the stranding is over. Raises &"relight_result".
+func _try_relight() -> void:
+	var cost := relight_cost()
+	var chance := relight_chance()
+	var outcome := &"refused"
+	if _stranding.pay(cost):
+		outcome = &"failed"
+		if _plasma.relight(plasma_frequency(), _relight_random.randf()):
+			outcome = &"lit"
+			_stranding.relit()
+	_events.append({type = &"relight_result", outcome = outcome, chance = chance,
+			spent = 0.0 if outcome == &"refused" else cost, store = emergency_store()})
+
+
 ## Carries out what losing the plasma comes to, as the Stranding decides:
 ## stranded while sealed in (_strand()), or brought home through the open
 ## tunnel (_recover_through_tunnel()).
@@ -1371,6 +1424,12 @@ func _strand() -> void:
 ## A step while stranded: nothing moves and the Head is dark. The link sends
 ## the survey aboard on the emergency store, as far as the store pays for it.
 func _step_stranded(dt: float) -> void:
+	if _relight_asked:
+		_relight_asked = false
+		_try_relight()
+		if not stranded():
+			_update_calls()
+			return
 	if not _waiting.is_empty():
 		var metres := link_rate() * dt
 		if metres > 0.0:
