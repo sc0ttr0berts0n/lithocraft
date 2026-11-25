@@ -46,6 +46,8 @@ const STATION_REACH := 2.0
 const SHIFT_DIAL_STEP := 0.02
 ## How far a lurch shakes the crew's view, metres per m/s^2 of jolt.
 const LURCH_SHAKE_M := 0.004
+## How long the word of a recovery stays on screen, in seconds.
+const RECOVERED_NOTICE_S := 8.0
 
 var _sim := DiveSimulation.new(MediumLayout.first_dive())
 ## Drive Station settings: they hold when the crew walks away.
@@ -70,6 +72,10 @@ var _in_use: Array[GimballedStation] = []
 var _plasma_display: PlasmaDisplay
 ## True from a Boundary announced ahead until it is crossed.
 var _boundary_ahead := false
+## The notice of a stranding and what it cost, then of the recovery.
+var _notice: Label
+## Seconds left showing the recovery notice; 0 while not showing it.
+var _recovered_notice_left := 0.0
 
 @onready var _dive_view: DiveView = %DiveView
 
@@ -82,6 +88,7 @@ func _ready() -> void:
 	_dive_view.attach(_sim)
 	_build_room()
 	_build_stations()
+	_build_notice()
 	_crew.bore_radius = BORE_RADIUS
 	_crew.outer_radius = OUTER_RADIUS
 	_crew.length = LENGTH
@@ -124,6 +131,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_N: _turn_shift_dial(-1)
 			KEY_M: _turn_shift_dial(1)
 			KEY_R: _shift()
+			KEY_ENTER, KEY_KP_ENTER: _sim.recover()
 
 
 func _physics_process(delta: float) -> void:
@@ -132,6 +140,9 @@ func _physics_process(delta: float) -> void:
 		match event.type:
 			&"boundary_approaching": _boundary_ahead = true
 			&"boundary_crossed": _boundary_ahead = false
+			&"stranded": _on_stranded(event)
+			&"recovered": _on_recovered(event)
+	_fade_recovered_notice(delta)
 	var felt := _sim.felt_acceleration()
 	var up := -felt.normalized()
 	for station in _stations:
@@ -251,6 +262,73 @@ func _show_reactor() -> void:
 	_reactor.set_calling(_sim.navigation_supplied() < 1.0 or _sim.thermal_supplied() < 1.0
 			or _boundary_ahead or _sim.shift_due() or _sim.plasma_lost())
 	_reactor.show_reading("\n".join(lines))
+
+
+## The plasma is lost and the tunnel sealed: the dive is over. Tell the crew
+## where, what it cost, and how to call the recovery.
+func _on_stranded(event: Dictionary) -> void:
+	_recovered_notice_left = 0.0
+	_notice.text = "
+".join([
+		"STRANDED  at %.0f m" % event.depth,
+		"The plasma is lost and the tunnel behind is sealed.",
+		"Unsold survey lost: %d stretches, worth %.0f" % [event.lost_stretches, event.lost],
+		"Paid, and kept: %.0f" % event.paid,
+		"",
+		"[Enter] call the recovery",
+	])
+	_notice.visible = true
+
+
+## Back at the surface on a fresh dive: the Stations start from their start
+## settings, so the Habitat's settings do too.
+func _on_recovered(event: Dictionary) -> void:
+	_pitch_setting = 90.0
+	_heading_setting = 0.0
+	_power_setting = 0.0
+	_heat_split = 0.0
+	_sim.set_pitch(_pitch_setting)
+	_sim.set_heading(_heading_setting)
+	_sim.set_power(_power_setting)
+	_sim.set_heat_split(_heat_split)
+	_plasma_display.dial = _sim.plasma_tuning()
+	_boundary_ahead = false
+	_notice.text = "
+".join([
+		"RECOVERED to the surface",
+		"Paid, and kept: %.0f" % event.paid,
+		"Ready to dive again: power up at the Drive [T].",
+	])
+	_notice.visible = true
+	_recovered_notice_left = RECOVERED_NOTICE_S
+
+
+func _fade_recovered_notice(delta: float) -> void:
+	if _recovered_notice_left <= 0.0:
+		return
+	_recovered_notice_left -= delta
+	if _recovered_notice_left <= 0.0:
+		_notice.visible = false
+
+
+## A plain notice in the middle of the screen, hidden until needed.
+func _build_notice() -> void:
+	_notice = Label.new()
+	_notice.set_anchors_preset(Control.PRESET_CENTER)
+	_notice.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_notice.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_notice.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_notice.add_theme_font_size_override(&"font_size", 26)
+	_notice.add_theme_color_override(&"font_color", Color("ffd0b0"))
+	var backing := StyleBoxFlat.new()
+	backing.bg_color = Color(0.08, 0.02, 0.0, 0.85)
+	backing.border_color = STATIONS[0][1]
+	backing.set_border_width_all(2)
+	backing.set_content_margin_all(24)
+	_notice.add_theme_stylebox_override(&"normal", backing)
+	_notice.visible = false
+	$Overlay.add_child(_notice)
 
 
 ## Stand-in Reactor control until the Station has its own: turn the Shift dial
