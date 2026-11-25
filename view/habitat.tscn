@@ -24,27 +24,3 @@ offset_right = 336.0
 offset_bottom = 276.0
 grow_horizontal = 1
 grow_vertical = 1
-
-[node name="Controls" type="Label" parent="Overlay"]
-anchors_preset = 2
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = 16.0
-offset_top = -336.0
-offset_right = 720.0
-offset_bottom = -16.0
-grow_vertical = 0
-text = "Click to look around, Esc to let go of the mouse. WASD walk.
-Space call the Arm / let go, A / D while held: next Station left / right.
-At Navigation: plot the Course: J / L heading -/+ 15 deg, pitch 1 dive, 2 level, 3 climb,
-Z / X  -/+ 15 deg; P pulse, Q Quiet Ship.
-At the Drive Station: T / G power +/- 10%, Y / H steering effort +/- 10%;
-the Course keys there override the Course, O back to the Course.
-At the Bore Station: F observe the next feature in the Column (slow down to record it),
-U which survey goes up the link first, B stop / start the link.
-At the Thermal Station: C / V send heat outward / into the Column; stranded, they run the pumps on the store to cool the hull.
-At the Reactor: N / M turn the dial onto the plasma's wobble, R to Shift;
-stranded, I relights the Head from the emergency store.
-. time faster (only while no Station calls), , normal.
-Enter: rebuy after hull failure, or start another dive.
-F1 these controls, F3 developer debug overlay."

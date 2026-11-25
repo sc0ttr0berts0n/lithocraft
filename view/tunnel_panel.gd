@@ -1,8 +1,8 @@
 ## The tunnel behind and the link to the surface: whether the tunnel is open or
 ## sealed, the porosity trend the Tail is heading into, how fast data goes up,
 ## what is still aboard and what has been paid. Drawn on the Bore Station's own
-## screen (habitat.gd `_bore_display`) and in the debug overlay. [U] cycles the
-## upload priority at the Bore Station.
+## screen (habitat.gd `_bore_display`) and in the debug overlay. The upload priority
+## key cycles the priority at the Bore Station.
 ##
 ## The porosity trend is the Column from the Head back past the Tail. The Tail
 ## leaves the tunnel behind it, so the Column between the Head and the Tail is
@@ -87,7 +87,7 @@ func _draw_trend(graph: Rect2, font: Font) -> void:
 func _link_line() -> String:
 	var kind := "slow, sound through rock" if sim.tunnel_sealed() else "fast, light up the tunnel"
 	if not sim.uploading():
-		return "Link: STOPPED [B]  (%s)" % kind
+		return "Link: STOPPED %s  (%s)" % [KeyMap.label(&"link"), kind]
 	var store := "  on the store" if sim.on_emergency_store() else ""
 	return "Link: %s  %.2f m of survey/s%s" % [kind, sim.link_rate(), store]
 
@@ -99,8 +99,8 @@ func _upload_line() -> String:
 			func(s: SurveyStretch) -> bool: return not s.is_feature_record()).size()
 	var aboard := sim.unsold_survey().filter(
 			func(s: SurveyStretch) -> bool: return not s.is_feature_record()).size()
-	return "Aboard %d  up %d  paid %.0f   [U] %s" % [
-		aboard, up, sim.paid(),
+	return "Aboard %d  up %d  paid %.0f   %s %s" % [
+		aboard, up, sim.paid(), KeyMap.label(&"upload_priority"),
 		PRIORITY_NAMES.get(sim.upload_priority(), "?"),
 	]
 

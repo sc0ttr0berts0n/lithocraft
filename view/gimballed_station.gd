@@ -12,6 +12,17 @@ const SCREEN_CENTRE := Vector3(0, 0.2, 0)
 ## of the screen and at standing eye height (1.65 m) above a floor 1.1 m
 ## below the pivot.
 const POSE_EYE := Vector3(0, 0.55, -0.85)
+## The screen's size and colour; the key panel beside it matches.
+const SCREEN_SIZE := Vector2(0.8, 0.4)
+const SCREEN_COLOUR := Color(0.04, 0.07, 0.09)
+## The key panel: its gap from the screen, its width, one row's height, a key
+## prompt's size, and the size of what each key does.
+const KEYS_GAP := 0.02
+const KEYS_WIDTH := 0.64
+const KEY_ROW_M := 0.058
+const KEY_SIZE_M := 0.052
+const KEY_TEXT_PIXEL := 0.001
+const KEY_FONT_SIZE := 32
 
 var station_name := ""
 var hue := Color.WHITE
@@ -49,6 +60,9 @@ var _until_beat := 0.0
 ## screen browns out: dimmer the less it gets, and flickering.
 var _supplied := 1.0
 var _flicker := RandomNumberGenerator.new()
+## The key panel's prompts and words, each with its own colour, so they dim
+## with the screen: [node, colour].
+var _key_parts: Array = []
 
 
 func _ready() -> void:
@@ -66,9 +80,9 @@ func _ready() -> void:
 
 	var screen := MeshInstance3D.new()
 	var screen_mesh := BoxMesh.new()
-	screen_mesh.size = Vector3(0.8, 0.4, 0.02)
+	screen_mesh.size = Vector3(SCREEN_SIZE.x, SCREEN_SIZE.y, 0.02)
 	screen.mesh = screen_mesh
-	screen.material_override = _material(Color(0.04, 0.07, 0.09))
+	screen.material_override = _material(SCREEN_COLOUR)
 	screen.position = SCREEN_CENTRE
 	_cradle.add_child(screen)
 
@@ -101,10 +115,12 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not _call_light:
 		return
-	_screen_text.modulate = hue
+	var dim := 1.0
 	if _supplied < 1.0:
-		var dim := lerpf(0.25, 0.8, _supplied) * _flicker.randf_range(0.6, 1.0)
-		_screen_text.modulate = Color(hue * dim, 1.0)
+		dim = lerpf(0.25, 0.8, _supplied) * _flicker.randf_range(0.6, 1.0)
+	_screen_text.modulate = Color(hue * dim, 1.0)
+	for part in _key_parts:
+		part[0].modulate = Color(part[1] * dim, 1.0)
 	_call_light.light_energy *= exp(-delta / CALL_LIGHT_FADE_S)
 	if _urgency <= 0.0:
 		_until_beat = 0.0
@@ -226,6 +242,58 @@ func show_display(texture: Texture2D) -> void:
 	_cradle.add_child(display)
 	_screen_text.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	_screen_text.position.y = 0.42
+
+
+## Show the Station's keys on a panel beside its screen, on the crew's right
+## as they work it: each binding's key prompts, then what it does. Pass
+## KeyMap.bindings_at(<this Station>), so the panel is the key map.
+func show_keys(bindings: Array[Dictionary]) -> void:
+	if _screen_text == null:
+		return
+	# The screen text is turned to face the Head, so the crew's right is -x.
+	var right_edge := -KEYS_GAP - SCREEN_SIZE.x / 2.0
+	var board := MeshInstance3D.new()
+	var board_mesh := BoxMesh.new()
+	board_mesh.size = Vector3(KEYS_WIDTH, SCREEN_SIZE.y, 0.02)
+	board.mesh = board_mesh
+	board.material_override = _material(SCREEN_COLOUR)
+	board.position = SCREEN_CENTRE + Vector3(right_edge - KEYS_WIDTH / 2.0, 0, 0)
+	_cradle.add_child(board)
+	var left := right_edge - KEY_ROW_M / 2.0
+	var y := SCREEN_CENTRE.y + SCREEN_SIZE.y / 2.0 - KEY_ROW_M * 0.8
+	for binding in bindings:
+		var x := left
+		for code: int in KeyPrompt.distinct(binding.keys):
+			var key := Sprite3D.new()
+			key.texture = KeyPrompt.texture(code)
+			key.pixel_size = KEY_SIZE_M / key.texture.get_width()
+			key.position = Vector3(x - KEY_SIZE_M / 2.0, y, -0.012)
+			key.rotation = Vector3(0, PI, 0)
+			_cradle.add_child(key)
+			_key_parts.append([key, Color.WHITE])
+			var glyph := KeyPrompt.glyph(code)
+			if not glyph.is_empty():
+				var mark := _key_text(glyph, Color.BLACK)
+				mark.position = key.position + Vector3(0, 0, -0.001)
+				_cradle.add_child(mark)
+			x -= KEY_SIZE_M * 1.08
+		var does := _key_text(binding.does, hue)
+		does.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		does.position = Vector3(x - 0.01, y, -0.012)
+		_cradle.add_child(does)
+		_key_parts.append([does, hue])
+		y -= KEY_ROW_M
+
+
+func _key_text(text: String, colour: Color) -> Label3D:
+	var label := Label3D.new()
+	label.text = text
+	label.modulate = colour
+	label.outline_size = 0
+	label.pixel_size = KEY_TEXT_PIXEL
+	label.font_size = KEY_FONT_SIZE
+	label.rotation = Vector3(0, PI, 0)
+	return label
 
 
 ## Swing toward the given "up" (Habitat frame, unit length).

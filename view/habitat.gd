@@ -105,7 +105,8 @@ var _notice_left := 0.0
 var _hull_feel := HullFeel.new()
 
 @onready var _dive_view: DiveView = %DiveView
-@onready var _controls: Label = $Overlay/Controls
+## The F1 controls, built from the key map.
+var _controls := ControlsPanel.new()
 
 
 func _ready() -> void:
@@ -115,9 +116,9 @@ func _ready() -> void:
 	_sim.set_heat_split(_heat_split)
 	_dive_view.attach(_sim)
 	# Nothing is drawn over the crew's view (story 52): the overlay is a
-	# developer's debug view [F3], the controls a menu [F1].
+	# developer's debug view, the controls a menu.
 	_dive_view.visible = false
-	_controls.visible = false
+	_build_controls()
 	var slip_sound := SlipSound.new()
 	slip_sound.sim = _sim
 	add_child(slip_sound)
@@ -130,10 +131,10 @@ func _ready() -> void:
 	_build_notice()
 	_show_notice([
 		"At the surface of the desert, ready to dive",
-		"Power up at the Drive [T]. Down through sand, sandstone and granite;",
-		"a few kilometres down, plot a climbing Course at Navigation [3]",
+		"Power up at the Drive %s. Down through sand, sandstone and granite;" % KeyMap.label(&"power_step", 0),
+		"a few kilometres down, plot a climbing Course at Navigation %s" % KeyMap.label(&"plot_pitch", 2),
 		"to arc home and sell the survey.",
-		"[F1] controls",
+		"%s controls" % KeyMap.label(&"toggle_controls"),
 	], NOTICE_S)
 	_crew.bore_radius = BORE_RADIUS
 	_crew.outer_radius = OUTER_RADIUS
@@ -373,8 +374,9 @@ func _show_calls() -> void:
 	_heat_split = _sim.heat_split()
 	_power_setting = _sim.power()
 	var rate := _sim.time_rate()
-	var footer := "Time x%d  [.] faster [,] normal" % roundi(rate) if rate > 1.0 \
-			else "Time x1  [.] faster"
+	var footer := "Time x%d  %s faster %s normal" % [roundi(rate), KeyMap.label(&"time_faster"),
+			KeyMap.label(&"time_normal")] if rate > 1.0 \
+			else "Time x1  %s faster" % KeyMap.label(&"time_faster")
 	for station in _in_use:
 		station.set_call(_sim.call_urgency(_sim_names[station]))
 		station.footer = footer
@@ -387,17 +389,17 @@ func _show_calls() -> void:
 func _show_drive() -> void:
 	var slip := _sim.slip()
 	var lines := [
-		"SURFACED  [Enter] dive again" if _sim.surfaced() else
-			"HULL FAILED  [Enter] rebuy" if _sim.dead() else
+		"SURFACED  %s dive again" % KeyMap.label(&"new_dive") if _sim.surfaced() else
+			"HULL FAILED  %s rebuy" % KeyMap.label(&"new_dive") if _sim.dead() else
 			"Depth %.1f m  Speed %.2f m/s" % [_sim.depth(), _sim.speed()],
 		"Heading %03.0f  Course %03.0f" % [_sim.heading_degrees(), _sim.course_heading()],
 		"Pitch %+.0f  Course %+.0f deg" % [_sim.pitch(), _sim.course_pitch()],
-		"OVERRIDE %03.0f %+.0f  [O] back to Course" % [
-			_sim.steered_heading(), _sim.steered_pitch()] if _sim.overriding()
+		"OVERRIDE %03.0f %+.0f  %s back to Course" % [
+			_sim.steered_heading(), _sim.steered_pitch(), KeyMap.label(&"end_override")] if _sim.overriding()
 			else "Following the Course",
 		"Set %d%%  Effort %d%%  Steer %d%%" % [roundi(_power_setting * 100.0),
 			roundi(_effort_setting * 100.0), roundi(_sim.steering() * 100.0)],
-		"GRIP SLIPPING %d%%  ease off [G]" % roundi(slip * 100.0) if slip > 0.0
+		"GRIP SLIPPING %d%%  ease off %s" % [roundi(slip * 100.0), KeyMap.label(&"power_step", 1)] if slip > 0.0
 			else "Grip holding",
 		_power_line(_sim.drive_request(), _sim.drive_draw()),
 	]
@@ -413,7 +415,6 @@ func _show_navigation() -> void:
 		"%s  noise %d%%  %d points" % ["QUIET SHIP" if _sim.quiet_ship() else "under way",
 			roundi(_sim.noise() * 100.0), _sim.point_count()],
 		_power_line(_sim.navigation_request(), _sim.navigation_draw()),
-		"[P] pulse  [Q] Quiet Ship",
 	]))
 
 
@@ -453,7 +454,7 @@ func _show_reactor() -> void:
 		_reactor.show_reading("\n".join(lines))
 		return
 	elif _sim.shift_due():
-		shift_line += "  SHIFT DUE  [N/M] dial [R] Shift"
+		shift_line += "  SHIFT DUE  %s dial %s Shift" % [KeyMap.label(&"shift_dial"), KeyMap.label(&"shift")]
 	elif _boundary_ahead:
 		shift_line += "  BOUNDARY AHEAD"
 	lines.append(shift_line)
@@ -479,7 +480,7 @@ func _relight_line() -> String:
 		return odds
 	if _sim.emergency_store() < _sim.relight_cost():
 		return odds + "  STORE TOO LOW"
-	return odds + "  [I] relight"
+	return odds + "  %s relight" % KeyMap.label(&"relight")
 
 
 ## The plasma is lost and the tunnel sealed: stranded, on the emergency
@@ -496,12 +497,12 @@ func _on_stranded(event: Dictionary) -> void:
 		"Survey aboard: %d stretches, worth %.0f: home with the rescue, lost if the hull fails" % [
 			event.aboard_stretches, event.aboard],
 		"",
-		"[I] at the Reactor: relight the Head (chance %d%%, costs %d%% of the store)" % [
-			roundi(_sim.relight_chance() * 100.0),
+		"%s at the Reactor: relight the Head (chance %d%%, costs %d%% of the store)" % [
+			KeyMap.label(&"relight"), roundi(_sim.relight_chance() * 100.0),
 			roundi(_sim.relight_store_share() * 100.0)],
-		"[V] at Thermal: run the pumps on the store to cool the hull",
-		"[B] at the Bore Station: stop or start the link, which runs on the store",
-		"[.] wait faster",
+		"%s at Thermal: run the pumps on the store to cool the hull" % KeyMap.label(&"heat_split", 1),
+		"%s at the Bore Station: stop or start the link, which runs on the store" % KeyMap.label(&"link"),
+		"%s wait faster" % KeyMap.label(&"time_faster"),
 	], 0.0)
 
 
@@ -512,10 +513,10 @@ func _on_relight_result(event: Dictionary) -> void:
 	match event.outcome:
 		&"lit":
 			_show_notice(["RELIT  The Head's plasma holds again",
-					"Store left %d%%. Power up at the Drive [T]." % left], NOTICE_S)
+					"Store left %d%%. Power up at the Drive %s." % [left, KeyMap.label(&"power_step", 0)]], NOTICE_S)
 		&"failed":
 			_show_notice(["RELIGHT FAILED  the pulse is spent", "Store left %d%%" % left,
-					"[I] try again, or wait for the rescue"], 0.0)
+					"%s try again, or wait for the rescue" % KeyMap.label(&"relight")], 0.0)
 		&"refused":
 			_show_notice(["RELIGHT REFUSED  the store cannot pay the pulse",
 					"Store left %d%%" % left, "Wait for the rescue"], 0.0)
@@ -532,7 +533,7 @@ func _on_hull_failed(event: Dictionary) -> void:
 		"Paid for this dive: %.0f   Paid in all: %.0f" % [event.amount, event.total_paid],
 		"Rebuy: %.0f  (charged %.0f: no balance yet)" % [event.rebuy, event.rebuy_charged],
 		"",
-		"[Enter] rebuy and start another dive",
+		"%s rebuy and start another dive" % KeyMap.label(&"new_dive"),
 	], 0.0)
 
 
@@ -562,7 +563,7 @@ func _on_paid(event: Dictionary) -> void:
 	lines.append("By rock: " + "  ".join(media))
 	lines.append("Paid in all: %.0f" % event.total_paid)
 	lines.append("")
-	lines.append("[Enter] start another dive")
+	lines.append("%s start another dive" % KeyMap.label(&"new_dive"))
 	_show_notice(lines, 0.0)
 
 
@@ -584,7 +585,7 @@ func _on_new_dive(event: Dictionary) -> void:
 	_show_notice([
 		"At the surface, ready to dive",
 		"Paid so far: %.0f" % event.paid,
-		"Power up at the Drive [T].",
+		"Power up at the Drive %s." % KeyMap.label(&"power_step", 0),
 	], NOTICE_S)
 
 
@@ -614,6 +615,20 @@ func _fade_notice(delta: float) -> void:
 	_notice_left -= delta
 	if _notice_left <= 0.0:
 		_notice.visible = false
+
+
+## The F1 controls in the lower left, hidden until asked for (story 52),
+## each Station's keys headed by its own name.
+func _build_controls() -> void:
+	_controls.titles[KeyMap.ANYWHERE] = "Anywhere"
+	for station in STATIONS:
+		_controls.titles[station[2]] = station[0]
+	_controls.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_controls.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_controls.offset_left = 16.0
+	_controls.offset_bottom = -16.0
+	_controls.visible = false
+	$Overlay.add_child(_controls)
 
 
 ## A plain notice in the middle of the screen, hidden until needed.
@@ -703,7 +718,7 @@ func _bore_reading() -> String:
 	if in_column.is_empty():
 		lines.append("No features in the Column")
 	elif not found_observed:
-		lines.append("[F] observe a feature")
+		lines.append("%s observe a feature" % KeyMap.label(&"observe"))
 	return "\n".join(lines)
 
 
@@ -886,6 +901,7 @@ func _build_stations() -> void:
 		if not station.station_name.is_empty():
 			_in_use.append(station)
 			_sim_names[station] = STATIONS[i][2]
+			station.show_keys(KeyMap.bindings_at(STATIONS[i][2]))
 		if station.station_name == "Reactor":
 			_reactor = station
 			_reactor.show_display(_make_plasma_display())

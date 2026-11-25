@@ -5,7 +5,8 @@ How the code is put together and the rules for changing it. Read before changing
 ## Layout
 
 - `sim/`: the simulation. Every class is `RefCounted` with a `class_name`; nothing here touches the scene tree, `Input` or rendering. `DiveSimulation` is the one seam; `Medium`, `MediumLayout`, `SurveyStretch`, `ColumnFeature` and `ScanPoint` are data it reads or hands out. `Heat`, `Plasma` and `Stranding` are subsystems it owns (see Subsystems).
-- `view/`: scenes and view logic. `view/habitat.tscn` is the main scene. `Arm` (`view/arm.gd`) and `HullGroans` (`view/hull_groans.gd`) are view logic as plain `RefCounted`s, tested directly (plain transforms; a seeded RNG).
+- `view/`: scenes and view logic. `view/habitat.tscn` is the main scene. `Arm` (`view/arm.gd`), `HullGroans` (`view/hull_groans.gd`), `KeyMap` (`view/key_map.gd`) and `KeyPrompt` (`view/key_prompt.gd`) are view logic as plain `RefCounted`s, tested directly (plain transforms; a seeded RNG; plain data).
+- `assets/`: vendored assets, each folder with a note of its source and licence. `assets/prompts/keyboard/` holds the key prompt images (Xelu's CC0 pack, the light keyboard set).
 - `test/`: GdUnit4 suites, `*_test.gd`, `extends GdUnitTestSuite`, `func test_...`. Shared helpers in `test/support/dive_test_kit.gd`.
 - Commit the `*.gd.uid` files Godot generates beside each script.
 - Files are LF. On Windows, write files from Python with `newline=''`, or they come back CRLF.
@@ -78,9 +79,9 @@ Heat, the plasma and stranding each live in their own plain class in `sim/`, own
 ## The view
 
 - `habitat.gd` owns the `DiveSimulation`, sets each Station's attendance from `_at(station)`, calls `advance(delta)` in `_physics_process`, then takes events. Child views get the sim handed to them (`DiveView.attach(sim)`, or a public `sim` var on a `Control`).
-- `_at(station)`: the crew member is seated there by the Arm, or within `STATION_REACH` of its pivot. Every Station key is gated by `_at` of its Station.
-- Nothing is drawn over the crew's view (story 52). What the crew must know goes on a Station screen, into the Bore, or into shake and sound. The only screen-space text is the centre notice (`_show_notice(lines, seconds)`, 0 = until replaced), the F1 controls label and the F3 `DiveView` debug overlay (hidden by default; reads only, sends no commands). Keep Medium names off anything always on screen: the Medium is recognised by its look in the Bore.
-- Station screens are `GimballedStation`: `show_reading(text)` for text, `show_display(texture)` for a `SubViewport` texture (the Bore, Reactor and Navigation screens do this), `set_supplied(share)` dims a starved screen, `set_call(urgency)` beats the Station's tone and flashes its light. Set `call_tone_hz` / `call_pips` before `_ready`.
+- `_at(station)`: the crew member is seated there by the Arm, or within `STATION_REACH` of its pivot. Every Station key is gated by `_at` of its Station, once, in the key map's dispatch (see Key map); a `_key_` handler need not check it.
+- Nothing is drawn over the crew's view (story 52). What the crew must know goes on a Station screen, into the Bore, or into shake and sound. The only screen-space text is the centre notice (`_show_notice(lines, seconds)`, 0 = until replaced), the F1 controls (`ControlsPanel`, hidden by default) and the F3 `DiveView` debug overlay (hidden by default; reads only, sends no commands). Keep Medium names off anything always on screen: the Medium is recognised by its look in the Bore.
+- Station screens are `GimballedStation`: `show_keys(KeyMap.bindings_at(station))` puts the Station's key panel beside its screen (on the crew's right), `show_reading(text)` for text, `show_display(texture)` for a `SubViewport` texture (the Bore, Reactor and Navigation screens do this), `set_supplied(share)` dims a starved screen, `set_call(urgency)` beats the Station's tone and flashes its light. Set `call_tone_hz` / `call_pips` before `_ready`.
 - Anything drawn along the Column pins each piece to its path position (`distance() - behind_head`) so it scrolls at exactly `speed()`. Never integrate speed in the view. The Bore's Column uses its own tube mesh with explicit UVs, because `CylinderMesh` shares its texture with its caps.
 - Controls that sit over the Habitat set `mouse_filter = 2` so clicks reach the mouse capture. An `HSlider` sets `focus_mode = 0` so arrow keys reach `_unhandled_input`.
 - `head_wear()` (the Head, from poor Shifts) and `vessel_wear()` (the hull, from heat) are different things. The Thermal screen shows the hull as `hull_integrity()` and `hull_creep_rate()`, and once sealed in `stranding_clock()` beside `rescue_time()` ("if stranded" estimates under way, the race itself while stranded).
@@ -89,7 +90,14 @@ Heat, the plasma and stranding each live in their own plain class in `sim/`, own
 
 ### Key map
 
-Stand-in keys until the Stations get their own controls, all in `habitat.gd` except walking (`crew_member.gd`). Check here before binding a key, add yours, and update the F1 controls text in `habitat.tscn`.
+Stand-in keys until the Stations get their own widgets, levers and knobs. `KeyMap.BINDINGS` (`view/key_map.gd`) is the one source: the Habitat's input, walking (`crew_member.gd` reads `KeyMap.held(&"walk")`), each Station's key panel, every key hint in a reading or notice and the F1 controls all read it, so none can disagree with what a key does. Never write a key's name into text by hand: use `KeyMap.label(action)` ("[N/M]") or `KeyMap.label(action, index)` ("[N]").
+
+**Adding a key is one line** in `BINDINGS`: `{where = <ANYWHERE or DiveSimulation.STATION_...>, keys = [KEY_...], does = "what it does", action = &"name"}`, plus its handler in `habitat.gd`, `func _key_<action>(index: int)` (`index` is which of the keys was pressed; `_minus_plus(index)` reads a "-/+" pair). The panel, F1 and the dispatch follow with no other change. `key_map_test.gd` fails if the handler is missing, if two press bindings share a key at one place, or if a Station key would be shadowed where it is shown.
+
+- **Where**: a Station binding runs only while `_at` that Station; ANYWHERE always. A key may be bound at several places (the Course keys at Navigation and the Drive); a press runs the first binding, in list order, that applies where the crew stands. List order is also the order on the panel and in F1.
+- **Held keys** (`held = true`): not run on a press; read each frame with `KeyMap.held(action)` (one bool per key). Use it for walking and for any hold-to-act key.
+- **Prompts**: `KeyPrompt.texture(code)` finds `assets/prompts/keyboard/<Name>_Key_Light.png` by Godot's key name (exceptions in `KeyPrompt._FILE_NAMES`); a key with no picture is drawn as the blank key with `KeyPrompt.glyph(code)` on it, so a new key shows even before its picture is copied in. To give it its own, copy the light image from Xelu's pack (https://thoseawesomeguys.com/prompts/, CC0) into that folder. Keys that look the same (Enter, keypad Enter) are drawn once (`KeyPrompt.distinct`).
+- **A new place** (a debug menu): give its bindings a new `where`; F1 lists every place in `KeyMap.places()` with its title from `habitat.gd::_build_controls`, and the dispatch runs them once `_wheres()` includes it.
 
 | Where | Keys |
 |---|---|
@@ -100,6 +108,8 @@ Stand-in keys until the Stations get their own controls, all in `habitat.gd` exc
 | Bore Station | F observe the next feature in the Column; U cycle upload priority; B stop / start the link |
 | Thermal | C / V heat split outward / into the Column, 10% a press; stranded, how hard the pumps cool the hull on the store |
 | Reactor | N / M Shift dial down / up 2%; R Shift; I relight the Head from the emergency store (stranded only; its own key so a Shift pressed as the plasma goes cannot spend the store) |
+
+The table is a summary for planning; `BINDINGS` is the truth. Check both before binding a key.
 
 ## Testing
 

@@ -82,10 +82,23 @@ func test_a_key_without_its_own_picture_shows_its_glyph_on_a_blank() -> void:
 	assert_object(KeyPrompt.texture(KEY_T)).is_not_equal(KeyPrompt.texture(KEY_G))
 
 
+func test_two_keys_that_look_the_same_are_shown_once() -> void:
+	assert_int(KeyPrompt.distinct([KEY_ENTER, KEY_KP_ENTER]).size()).is_equal(1)
+	assert_int(KeyPrompt.distinct([KEY_T, KEY_G]).size()).is_equal(2)
+	assert_int(KeyPrompt.distinct([KEY_PERIOD, KEY_COMMA]).size()).is_equal(2)
+
+
 func test_a_label_names_every_key_of_its_action() -> void:
 	var label := KeyMap.label(&"shift_dial")
 	for code in KeyMap.binding(&"shift_dial").keys:
 		assert_str(label).contains(KeyMap.name_of(code))
+
+
+func test_a_label_for_one_key_names_only_that_key() -> void:
+	var keys: Array = KeyMap.binding(&"power_step").keys
+	var label := KeyMap.label(&"power_step", 0)
+	assert_str(label).contains(KeyMap.name_of(keys[0]))
+	assert_str(label).not_contains(KeyMap.name_of(keys[1]))
 
 
 func test_no_two_keys_at_one_place_clash() -> void:

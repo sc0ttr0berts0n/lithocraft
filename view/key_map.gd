@@ -136,10 +136,14 @@ static func name_of(code: int) -> String:
 	return _NAMES.get(code, OS.get_keycode_string(code))
 
 
-## An action's keys for a reading or notice: "[N/M]".
-static func label(action: StringName) -> String:
+## An action's keys for a reading or notice: "[N/M]"; with `index`, only
+## that one of them: "[N]".
+static func label(action: StringName, index := -1) -> String:
+	var keys: Array = binding(action).keys
+	if index >= 0:
+		keys = [keys[index]]
 	var names := PackedStringArray()
-	for code in binding(action).keys:
+	for code in keys:
 		if not names.has(name_of(code)):
 			names.append(name_of(code))
 	return "[%s]" % "/".join(names)

@@ -25,6 +25,19 @@ static func glyph(code: int) -> String:
 	return "" if ResourceLoader.exists(_own_path(code)) else KeyMap.name_of(code)
 
 
+## The keys to draw for a binding: one of each picture, so Enter and keypad
+## Enter show as one prompt.
+static func distinct(codes: Array) -> Array:
+	var shown := []
+	var seen := {}
+	for code: int in codes:
+		var look := "%s|%s" % [texture(code).resource_path, glyph(code)]
+		if not seen.has(look):
+			seen[look] = true
+			shown.append(code)
+	return shown
+
+
 static func _own_path(code: int) -> String:
 	var name: String = _FILE_NAMES.get(code, OS.get_keycode_string(code).replace(" ", "_"))
 	return "%s%s_Key_Light.png" % [_DIR, name]
