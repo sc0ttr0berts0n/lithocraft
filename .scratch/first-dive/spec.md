@@ -150,7 +150,7 @@ The dive is complete when the player can leave the surface, cross both Boundarie
 
 ## Further Notes
 
-- The verdict on the Habitat prototype has not been given. It ran and behaved as designed, but whether the changing "down" feels right is still to be judged by the developer. If the verdict is no, the Habitat stories in this spec need revisiting before they are built.
+- The verdict on the Habitat prototype is given: the developer played it on the PC and is optimistic, so the Habitat stories stand. The prototype now also has an arm that catches you and carries you between Stations (see the design record); it is a candidate answer to stranded Stations, not yet decided.
 - The prototype also showed that spin gravity at this size is weak and uneven (0.37 g at the feet and 0.18 g at the head at 10 rpm). That does not affect this dive but will matter when space flight is designed.
 - Three scope choices in this spec were made during synthesis and were not put to the developer directly: leaving the Fabricator out, including simple unattended-Station behaviour and a time rate control, and making Column features observe-only. Each can be changed without disturbing the rest.
 - The prototype is kept on the `prototype/habitat-down` branch as a primary source.
