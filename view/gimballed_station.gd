@@ -15,6 +15,10 @@ const POSE_EYE := Vector3(0, 0.55, -0.85)
 ## The screen's size and colour; the key panel beside it matches.
 const SCREEN_SIZE := Vector2(0.8, 0.4)
 const SCREEN_COLOUR := Color(0.04, 0.07, 0.09)
+## Share of the screen the text may fill, leaving a margin round it, and the
+## text's size in metres per font pixel.
+const SCREEN_TEXT_FILL := 0.94
+const SCREEN_TEXT_PIXEL := 0.0015
 ## The key panel: its gap from the screen, its width, one row's height, a key
 ## prompt's size, and the size of what each key does.
 const KEYS_GAP := 0.02
@@ -29,10 +33,6 @@ var hue := Color.WHITE
 ## Font size of the screen's text; smaller fits more lines on the screen. A
 ## reading too big for the screen at this size is shrunk until it fits.
 var screen_font_size := 48
-## Share of the screen the text may fill, leaving a margin round it, and the
-## text's size in metres per font pixel.
-const SCREEN_TEXT_FILL := 0.94
-const SCREEN_TEXT_PIXEL := 0.0015
 
 ## Seconds between call beats at the least and the most urgent, and the call
 ## light's brightest energy (on each beat; it fades between them).

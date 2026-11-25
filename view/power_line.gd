@@ -8,15 +8,16 @@ extends RefCounted
 ## "Power: set 8% · actual 3%: starved". requested and drawn are in the units
 ## of DiveSimulation.set_power(); full is DiveSimulation.reactor_full_output().
 static func text(requested: float, drawn: float, full: float) -> String:
-	var line := "Power: set %d%% · actual %d%%" % [_percent(requested, full), _percent(drawn, full)]
+	var line := "Power: set %d%% · actual %d%%" % [percent(requested, full), percent(drawn, full)]
 	return line + ": starved" if starved(requested, drawn, full) else line
 
 
 ## Whether the actual, as shown, is below the set point. A shortfall too small
 ## to show is not called starved, so the line never contradicts itself.
 static func starved(requested: float, drawn: float, full: float) -> bool:
-	return _percent(drawn, full) < _percent(requested, full)
+	return percent(drawn, full) < percent(requested, full)
 
 
-static func _percent(power: float, full: float) -> int:
+## power as a whole-number percentage of the Reactor's full output.
+static func percent(power: float, full: float) -> int:
 	return roundi(power / full * 100.0)

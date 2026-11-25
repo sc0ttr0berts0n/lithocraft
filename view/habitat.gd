@@ -531,14 +531,14 @@ func _show_reactor() -> void:
 	var lines := [
 		"Plasma %s %d%%  Head %s" % [plasma, roundi(_sim.plasma_stability() * 100.0),
 			"running" if _sim.head_activity() >= 1.0 else "idling %d%%" % roundi(_sim.head_activity() * 100.0)],
-		"Supply %d%%  drawn %d%%  short %d%%" % [roundi(_sim.reactor_output() / full * 100.0),
-			roundi(_sim.power_drawn() / full * 100.0),
-			roundi((_sim.power_requested() - _sim.power_drawn()) / full * 100.0)],
+		"Supply %d%%  drawn %d%%  short %d%%" % [PowerLine.percent(_sim.reactor_output(), full),
+			PowerLine.percent(_sim.power_drawn(), full),
+			PowerLine.percent(_sim.power_requested(), full) - PowerLine.percent(_sim.power_drawn(), full)],
 	]
 	for row in [["Nav", _sim.navigation_request(), _sim.navigation_draw()],
 			["Thm", _sim.thermal_request(), _sim.thermal_draw()],
 			["Drv", _sim.drive_request(), _sim.drive_draw()]]:
-		lines.append("%s %s%s" % [row[0], _bar(row[1], row[2]),
+		lines.append("%s %s%s" % [row[0], _bar(row[1] / full, row[2] / full),
 				"  starved" if PowerLine.starved(row[1], row[2], full) else ""])
 	var shift_line := "Head wear %d%%  window %.1f s" % [roundi(_sim.head_wear() * 100.0),
 			_sim.shift_window_length()]
