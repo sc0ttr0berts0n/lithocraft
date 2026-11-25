@@ -76,3 +76,42 @@ func test_data_sent_up_the_fast_link_is_paid_for_sooner_than_up_the_slow_link() 
 	assert_bool(sealed.tunnel_sealed()).is_true()
 	assert_int(open.survey().size()).is_equal(sealed.survey().size())
 	assert_float(open.paid()).is_greater(sealed.paid())
+
+
+func _total_value(stretches: Array[SurveyStretch]) -> float:
+	var total := 0.0
+	for stretch in stretches:
+		total += stretch.value()
+	return total
+
+
+func test_survey_data_that_has_not_reached_the_surface_is_not_paid_for() -> void:
+	# Dense rock that carries no sound: once sealed in, nothing goes up at all.
+	var deaf := Medium.new(&"deaf", 1.0, 0.5, 0.0, 300.0, 1.0, {&"quartz": 1.0}, 0.0)
+	var sim := DiveSimulation.new(MediumLayout.uniform(deaf))
+	sim.set_power(0.5)
+	for i in 300:
+		sim.advance(1.0)
+	sim.set_power(0.0)
+	var paid_when_stopped := sim.paid()
+
+	sim.advance(100000.0)
+
+	assert_bool(sim.tunnel_sealed()).is_true()
+	assert_float(sim.paid()).is_equal_approx(paid_when_stopped, 0.0001)
+	assert_int(sim.uploaded_survey().size()).is_less(sim.survey().size())
+	assert_float(sim.paid()).is_less(_total_value(sim.survey()))
+	assert_float(sim.paid()).is_equal_approx(_total_value(sim.uploaded_survey()), 0.0001)
+
+
+func test_once_the_link_has_sent_it_all_the_whole_survey_is_paid_for() -> void:
+	var sim := DiveSimulation.new(MediumLayout.uniform(_pumice()))
+	sim.set_power(0.5)
+	for i in 300:
+		sim.advance(1.0)
+	sim.set_power(0.0)
+	sim.advance(100000.0)
+
+	assert_int(sim.uploaded_survey().size()).is_equal(sim.survey().size())
+	assert_float(_total_value(sim.survey())).is_greater(0.0)
+	assert_float(sim.paid()).is_equal_approx(_total_value(sim.survey()), 0.0001)
