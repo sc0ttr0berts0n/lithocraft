@@ -11,15 +11,18 @@ const LENGTH := 2.4
 ## Stations pivot this far above the outer wall.
 const STATION_HANG := 1.1
 ## Six Station positions; this dive uses five. "" is the empty mount
-## where the Fabricator will go.
+## where the Fabricator will go. Each: name, hue, the simulation's name for
+## it, and its call: tone in hertz and pips per beat, so no two sound alike.
 const STATIONS := [
-	["Reactor", Color("ff7a45")],
-	["Drive", Color("ffd24a")],
-	["Thermal", Color("ff4a6a")],
-	["Navigation", Color("4ad2ff")],
-	["Bore Station", Color("b9ff6a")],
-	["", Color.GRAY],
+	["Reactor", Color("ff7a45"), DiveSimulation.STATION_REACTOR, 220.0, 1],
+	["Drive", Color("ffd24a"), DiveSimulation.STATION_DRIVE, 294.0, 2],
+	["Thermal", Color("ff4a6a"), DiveSimulation.STATION_THERMAL, 370.0, 3],
+	["Navigation", Color("4ad2ff"), DiveSimulation.STATION_NAVIGATION, 494.0, 1],
+	["Bore Station", Color("b9ff6a"), DiveSimulation.STATION_BORE, 587.0, 2],
+	["", Color.GRAY, &"", 0.0, 0],
 ]
+## Each press of the faster key multiplies the time rate by this.
+const TIME_RATE_STEP := 4.0
 ## How much one press moves each Drive Station setting.
 const PITCH_STEP := 15.0
 const HEADING_STEP := 15.0
@@ -68,6 +71,8 @@ var _crew := CrewMember.new()
 var _arm := Arm.new(BORE_RADIUS + RAIL_GAP)
 ## The Stations in use, in order round the ring; the Arm carries to these.
 var _in_use: Array[GimballedStation] = []
+## The simulation's name for each Station in use (GimballedStation -> StringName).
+var _sim_names := {}
 ## The Reactor's waveform display, which holds the Shift dial.
 var _plasma_display: PlasmaDisplay
 ## True from a Boundary announced ahead until it is crossed.
@@ -132,9 +137,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_M: _turn_shift_dial(1)
 			KEY_R: _shift()
 			KEY_ENTER, KEY_KP_ENTER: _sim.recover()
+			KEY_PERIOD: _sim.set_time_rate(_sim.time_rate() * TIME_RATE_STEP)
+			KEY_COMMA: _sim.set_time_rate(1.0)
 
 
 func _physics_process(delta: float) -> void:
+	# The simulation knows which Stations a crew member is at; the rest hold
+	# their settings and steady themselves.
+	for station in _in_use:
+		_sim.set_attended(_sim_names[station], _at(station))
 	_sim.advance(delta)
 	for event in _sim.take_events():
 		match event.type:
@@ -143,6 +154,7 @@ func _physics_process(delta: float) -> void:
 			&"stranded": _on_stranded(event)
 			&"recovered": _on_recovered(event)
 	_fade_recovered_notice(delta)
+	_show_calls()
 	var felt := _sim.felt_acceleration()
 	var up := -felt.normalized()
 	for station in _stations:
@@ -211,6 +223,19 @@ func _set_power(power: float) -> void:
 ## The Drive Station's screen: depth, heading, pitch and speed, each with the
 ## setting it is steering toward, and how hard the Head is steering (turning
 ## heats one side of it harder).
+## Each Station calls with its own tone and light as urgently as the
+## simulation says, and every screen shows the time rate. Unattended Thermal
+## may have moved the heat split, so the Habitat's copy follows it.
+func _show_calls() -> void:
+	_heat_split = _sim.heat_split()
+	var rate := _sim.time_rate()
+	var footer := "Time x%d  [.] faster [,] normal" % roundi(rate) if rate > 1.0 \
+			else "Time x1  [.] faster"
+	for station in _in_use:
+		station.set_call(_sim.call_urgency(_sim_names[station]))
+		station.footer = footer
+
+
 func _show_drive() -> void:
 	var lines := [
 		"Depth %.1f m  Speed %.2f m/s" % [_sim.depth(), _sim.speed()],
@@ -257,10 +282,6 @@ func _show_reactor() -> void:
 	elif _boundary_ahead:
 		shift_line += "  BOUNDARY AHEAD"
 	lines.append(shift_line)
-	# The Drive running short is routine; Thermal or Navigation starved is not.
-	# A Boundary ahead or a Shift due is what the Reactor most needs a hand for.
-	_reactor.set_calling(_sim.navigation_supplied() < 1.0 or _sim.thermal_supplied() < 1.0
-			or _boundary_ahead or _sim.shift_due() or _sim.plasma_lost())
 	_reactor.show_reading("\n".join(lines))
 
 
@@ -373,6 +394,8 @@ func _bore_reading() -> String:
 	var in_column := _sim.features_in_column()
 	var lines := PackedStringArray()
 	lines.append("Survey value %d" % roundi(_sim.survey_value()))
+	if _sim.call_reason(DiveSimulation.STATION_BORE) == &"tunnel_about_to_seal":
+		lines.append("TUNNEL SEALS when the Tail leaves this rock")
 	var observed := _sim.observed_feature()
 	var found_observed := false
 	for feature in in_column:
@@ -421,7 +444,6 @@ func _split_heat(to_column: float) -> void:
 ## its light while the simulation warns of heat damage.
 func _show_thermal() -> void:
 	var warning := _sim.heat_warning()
-	_thermal.set_calling(warning)
 	var to_column := roundi(_heat_split * 10.0)
 	var lines := [
 		_power_line(_sim.thermal_request(), _sim.thermal_draw()),
@@ -529,6 +551,8 @@ func _build_stations() -> void:
 		var station := GimballedStation.new()
 		station.station_name = STATIONS[i][0]
 		station.hue = STATIONS[i][1]
+		station.call_tone_hz = STATIONS[i][3]
+		station.call_pips = STATIONS[i][4]
 		if station.station_name in ["Thermal", "Reactor", "Drive"]:
 			station.screen_font_size = 28
 		station.position = outward * pivot_radius
@@ -536,6 +560,7 @@ func _build_stations() -> void:
 		_stations.append(station)
 		if not station.station_name.is_empty():
 			_in_use.append(station)
+			_sim_names[station] = STATIONS[i][2]
 		if station.station_name == "Reactor":
 			_reactor = station
 			_reactor.show_display(_make_plasma_display())
