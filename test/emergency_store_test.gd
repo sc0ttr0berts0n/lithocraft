@@ -10,34 +10,70 @@ func _dense() -> Medium:
 
 
 ## A dive in dense rock, sealed in with survey aboard, its plasma lost by poor
-## Shifts: stranded.
-func _stranded(uploading := true) -> DiveSimulation:
+## Shifts: stranded. Rough Shifts disrupt the plasma on a worn Head short of
+## wearing it through; gentle ones (`gently`) wear the Head through.
+func _stranded(uploading := true, gently := false) -> DiveSimulation:
 	var sim := DiveSimulation.new(MediumLayout.uniform(_dense()))
-	_strand(sim, uploading)
+	_strand(sim, uploading, gently)
 	return sim
 
 
 ## Dives `sim` from the surface until sealed in with survey aboard, then loses
-## the plasma.
-func _strand(sim: DiveSimulation, uploading: bool) -> void:
+## the plasma, roughly or gently (see _stranded()).
+func _strand(sim: DiveSimulation, uploading: bool, gently := false) -> void:
 	sim.set_uploading(uploading)
 	sim.set_power(1.0)
 	DiveTestKit.run_until(sim, &"tunnel_sealed", 600.0, [], 0.25)
 	DiveTestKit.run(sim, 30.0, 0.25)
-	_lose_plasma(sim)
+	if gently:
+		_wear_through(sim)
+	else:
+		_lose_plasma(sim)
 	sim.take_events()
 
 
-## Poor Shifts, each wide of the wobble and then back onto it, until the Head
-## is worn through and the plasma lost.
+## Shifts only a little wide of the wobble, each just poor enough to wear the
+## Head a little, never rough enough to disrupt the plasma, until the Head is
+## worn through and the plasma lost with it.
+func _wear_through(sim: DiveSimulation) -> void:
+	_wear_gently(sim, 1.0)
+	assert_bool(sim.stranded()).is_true()
+	assert_float(sim.head_wear()).is_equal(1.0)
+
+
+## Gentle Shifts, each a little wide of the wobble, until the Head's wear
+## reaches `wear` or the plasma is lost.
+func _wear_gently(sim: DiveSimulation, wear: float) -> void:
+	var on := sim.plasma_frequency()
+	var off := 0.01
+	for i in 2000:
+		if sim.plasma_lost() or sim.head_wear() >= wear:
+			return
+		sim.shift(on * (1.0 + off))
+		sim.advance(0.1)
+		var results := sim.take_events().filter(
+				func(e: Dictionary) -> bool: return e.type == &"shift_result")
+		# Keep each Shift's wear small: wider while clean or barely worn,
+		# closer once it wears more.
+		if results[0].wear < 0.02:
+			off *= 1.1
+		elif results[0].wear > 0.05:
+			off *= 0.9
+
+
+## Wears the Head gently to a little more than half, then makes Shifts well
+## wide of the wobble until one disrupts the plasma on the worn Head, short of
+## wearing it through. The hull is let cool first, since a hot hull makes each
+## Shift wear the Head harder.
 func _lose_plasma(sim: DiveSimulation) -> void:
+	sim.set_power(0.0)
+	DiveTestKit.run(sim, 600.0, 1.0)
+	_wear_gently(sim, 0.51)
 	var on := sim.plasma_frequency()
 	for i in 20:
-		sim.shift(on * 1.5)
-		sim.advance(0.1)
 		if sim.plasma_lost():
 			break
-		sim.shift(on)
+		sim.shift(on * 1.5)
 		sim.advance(0.1)
 	assert_bool(sim.stranded()).is_true()
 
@@ -133,14 +169,14 @@ func _relight(sim: DiveSimulation) -> Dictionary:
 
 
 ## Relights until one comes out as `outcome` (&"lit" or &"failed"), losing the
-## plasma again after a lit one and calling a recovery and stranding again
-## when the store cannot pay for another. Returns that result, with the store
-## before it as `store_before`.
-func _relight_until(sim: DiveSimulation, outcome: StringName) -> Dictionary:
+## plasma again after a lit one and calling a recovery and stranding again (as
+## `gently` says) when the store cannot pay for another. Returns that result,
+## with the store before it as `store_before`.
+func _relight_until(sim: DiveSimulation, outcome: StringName, gently := false) -> Dictionary:
 	for attempt in 60:
 		if sim.emergency_store() < sim.relight_cost():
 			sim.recover()
-			_strand(sim, false)
+			_strand(sim, false, gently)
 		var before := sim.emergency_store()
 		var result := _relight(sim)
 		assert_dict(result).is_not_empty()
@@ -234,19 +270,63 @@ func test_a_healthy_head_relights_more_reliably_than_a_worn_one() -> void:
 	worn.advance(0.1)
 	worn.shift(on)
 	worn.advance(0.1)
-	var worn_through := _stranded(false)
+	var disrupted := _stranded(false)
+	var worn_through := _stranded(false, true)
 	assert_float(fresh.head_wear()).is_less(worn.head_wear())
-	assert_float(worn.head_wear()).is_less(worn_through.head_wear())
+	assert_float(worn.head_wear()).is_less(disrupted.head_wear())
+	assert_float(disrupted.head_wear()).is_less(worn_through.head_wear())
 
 	assert_float(fresh.relight_chance()).is_greater(worn.relight_chance())
-	assert_float(worn.relight_chance()).is_greater(worn_through.relight_chance())
+	assert_float(worn.relight_chance()).is_greater(disrupted.relight_chance())
+	assert_float(disrupted.relight_chance()).is_greater(worn_through.relight_chance())
 	# Even a Head worn through can be relit, sometimes.
 	assert_float(worn_through.relight_chance()).is_greater(0.0)
 
 
-func test_a_relit_head_worn_through_holds_through_a_clean_shift() -> void:
+## How many of `trials` strandings in a row the first relight lights: each a
+## fresh dive stranded roughly or gently (see _stranded()), one relight, then
+## the recovery. Each trial rolls the relight's luck once.
+func _lit_in(trials: int, gently: bool) -> int:
+	var sim := DiveSimulation.new(MediumLayout.uniform(_dense()))
+	var lit := 0
+	for i in trials:
+		_strand(sim, false, gently)
+		if _relight(sim).outcome == &"lit":
+			lit += 1
+			_lose_plasma(sim)
+		sim.recover()
+		sim.take_events()
+	return lit
+
+
+func test_a_plasma_lost_on_a_worn_head_relights_more_often_than_one_worn_through() -> void:
+	# The same luck for both (the same rolls in the same order), so only the
+	# Head's wear can tell them apart.
+	var disrupted := _lit_in(40, false)
+	var worn_through := _lit_in(40, true)
+
+	assert_int(disrupted).is_greater(worn_through)
+	assert_int(worn_through).is_greater(0)
+
+
+func test_a_rough_shift_on_a_worn_head_loses_the_plasma_short_of_wearing_it_through() -> void:
 	var sim := _stranded(false)
-	_relight_until(sim, &"lit")
+
+	assert_bool(sim.plasma_lost()).is_true()
+	assert_float(sim.head_wear()).is_less(1.0)
+
+
+func test_wearing_the_head_through_loses_the_plasma() -> void:
+	var sim := _stranded(false, true)
+
+	assert_bool(sim.plasma_lost()).is_true()
+	assert_float(sim.head_wear()).is_equal(1.0)
+
+
+func test_a_relit_head_worn_through_holds_through_a_clean_shift() -> void:
+	var sim := _stranded(false, true)
+	_relight_until(sim, &"lit", true)
+	assert_float(sim.head_wear()).is_equal(1.0)
 
 	sim.shift(sim.plasma_frequency())
 	DiveTestKit.run(sim, 1.0, 0.25)

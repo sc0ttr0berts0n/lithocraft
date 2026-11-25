@@ -667,7 +667,8 @@ func lurch() -> float:
 
 
 ## Wear on the Head from poor Shifts, 0 (none) to 1. It only accumulates; a
-## worn Head holds the plasma less steadily, and a Head worn through loses it.
+## worn Head holds the plasma less steadily; a rough Shift on a badly worn
+## Head can lose it, and one that wears the Head through does.
 func head_wear() -> float:
 	return _plasma.head_wear()
 

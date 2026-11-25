@@ -2,8 +2,8 @@
 ## into a wobble whose frequency rises with the hardness of the Medium being
 ## cut; the Reactor holds it steady by driving an opposing wave at the
 ## frequency it is tuned to. A Shift retunes it; a poor one grinds (a heat
-## spike, a lurch, wear on the Head), and a Head worn through loses the
-## plasma. A lost plasma can be struck again by a relight, paid for from the
+## spike, a lurch, wear on the Head); on a badly worn Head a rough one can
+## disrupt the plasma, and one that wears the Head through loses it. A lost plasma can be struck again by a relight, paid for from the
 ## emergency store; the odds fall with the Head's wear. Owned by DiveSimulation, which tends it once a step and answers for
 ## it through its own queries (plasma_stability(), shift_due(), head_wear()
 ## ...). Knows nothing of the layout or the Stations: the wobble's frequency
@@ -54,11 +54,12 @@ const _WEAR_UNSTEADINESS := 0.3
 ## wobble a Shift may be, and how soon lateness tells, all shrink by this
 ## share. A worn Head is less forgiving. Tuned for play (ADR 0001).
 const _WEAR_NARROWING := 0.5
-## A poor Shift on a badly worn Head can wear it through: the plasma is lost
-## when the Shift's roughness times the wear already on the Head reaches
-## this. A fresh Head never loses it to one Shift; a badly worn one can lose
-## it to any rough one. Tuned for play (ADR 0001).
-const _WEAR_THROUGH := 0.5
+## A poor Shift on a badly worn Head can disrupt the plasma: it is lost when
+## the Shift's roughness times the wear already on the Head reaches this. The
+## Head takes only the Shift's own wear, so it may be lost well short of worn
+## through. A fresh Head never loses it to one Shift; a badly worn one can
+## lose it to any rough one. Tuned for play (ADR 0001).
+const _DISRUPTION := 0.5
 ## A relight: the energy of the pulse that strikes the plasma again, in the
 ## units of set_power() times seconds, and the chance it takes on a fresh Head
 ## and on one worn through (between, it falls with the wear). Real basis: a
@@ -250,21 +251,20 @@ func _make_shift(frequency: float, by_autopilot: bool, target: float, hull_heat_
 	# A poor Shift grinds: the rougher, the bigger the heat spike, the harder
 	# the lurch and the more wear on the Head. A clean one does nothing at all.
 	var roughness := clampf((_CLEAN_SHIFT_GRADE - grade) / _CLEAN_SHIFT_GRADE, 0.0, 1.0)
-	var wear := roughness * _SHIFT_WEAR * (1.0 + _HOT_SHIFT_WEAR * hull_heat_share)
-	# On a badly worn Head a rough enough Shift wears it through at once.
-	var worn_through := roughness > 0.0 and roughness * _head_wear >= _WEAR_THROUGH
-	if worn_through:
-		wear = 1.0 - _head_wear
+	var wear := minf(roughness * _SHIFT_WEAR * (1.0 + _HOT_SHIFT_WEAR * hull_heat_share),
+			1.0 - _head_wear)
+	# Two ways a poor Shift loses the plasma: on a badly worn Head a rough
+	# enough one disrupts it, and one that wears the Head through loses it.
+	# A clean Shift does neither, whatever the wear.
+	var disrupted := roughness * _head_wear >= _DISRUPTION
+	var worn_through := roughness > 0.0 and _head_wear + wear >= 1.0
 	if roughness > 0.0:
 		_heat_spike += roughness * _SHIFT_SPIKE_HEAT
 		_lurch_peak = roughness * _LURCH_ACCELERATION
 		_lurch_age = 0.0
-		_head_wear = 1.0 if worn_through else minf(1.0, _head_wear + wear)
+		_head_wear += wear
 	events.append({type = &"shift_result", grade = grade,
-			clean = roughness <= 0.0, late = late, autopilot = by_autopilot,
-			wear = wear if roughness > 0.0 else 0.0})
-	# A Head worn through loses the plasma to any poor Shift; relit, it holds
-	# through clean ones.
-	if roughness > 0.0 and _head_wear >= 1.0:
+			clean = roughness <= 0.0, late = late, autopilot = by_autopilot, wear = wear})
+	if roughness > 0.0 and (disrupted or worn_through):
 		_lost = true
 		events.append({type = &"plasma_lost", depth = depth, distance = distance})

@@ -171,7 +171,7 @@ func test_poor_shifts_wear_the_head_until_the_plasma_is_lost() -> void:
 	assert_int(shifts.size()).is_greater(1)
 	for shift in shifts:
 		assert_bool(shift.clean).is_false()
-	assert_float(sim.head_wear()).is_equal(1.0)
+	assert_float(sim.head_wear()).is_greater(0.0)
 	assert_bool(sim.plasma_lost()).is_true()
 	assert_float(sim.plasma_stability()).is_equal(0.0)
 	DiveTestKit.run_until(sim, &"never", 60.0)
