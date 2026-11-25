@@ -5,7 +5,7 @@
 ##   time step     - advance(dt), dt in simulated seconds
 ##   state out     - read-only query methods, e.g. depth()
 ##   events out    - take_events(): events since the last call, then cleared.
-##                   Added by the first ticket that raises an event.
+##                   Each a Dictionary with a `type` StringName plus fields.
 class_name DiveSimulation
 extends RefCounted
 
@@ -18,17 +18,11 @@ const _GRIP_PER_STRENGTH := 2.0
 ## Length of path the Bore Station records as one survey entry, in metres.
 ## Tuned for play (ADR 0001).
 const _SURVEY_STRETCH_M := 10.0
-## Value of one metre of survey recorded at pristine quality. Tuned for play
-## (ADR 0001); feature worths are on the same scale.
-const _VALUE_PER_METRE := 1.0
 
-## Length of the Column inside the vessel, from the Head to the Tail, in
-## metres. A guess for play (ADR 0001); tests read column_length().
-const _HEAD_TO_TAIL_M := 9.0
 ## Seconds of observation the Bore Station needs to record a feature in full
 ## at pristine recording quality. Tuned for play (ADR 0001) so that at full
 ## power a feature can slip out through the Tail half recorded.
-const _FEATURE_RECORD_S := 15.0
+const _FEATURE_RECORD_S := 20.0
 
 ## Habitat frame: the fixed axes of the vessel that felt_acceleration() is
 ## given in. TOWARD_HEAD runs along the Bore toward the Head. TOWARD_UNDERSIDE
@@ -41,8 +35,28 @@ const TOWARD_UNDERSIDE := Vector3.DOWN
 ## tests must not depend on its value.
 const _PITCH_RATE := 5.0
 
+## Upload priorities for set_upload_priority(): which waiting survey stretch
+## goes up the link next.
+const UPLOAD_OLDEST_FIRST := &"oldest_first"
+const UPLOAD_NEWEST_FIRST := &"newest_first"
+const UPLOAD_MOST_VALUABLE_FIRST := &"most_valuable_first"
+
 ## Earth's surface gravity, m/s^2.
 const _GRAVITY := 9.81
+
+## Length of the Lithocraft from Head to Tail, in metres: how far behind the
+## Head the tunnel is made. Tuned for play (ADR 0001).
+const _VESSEL_LENGTH_M := 12.0
+## Below this porosity the Medium has no pore space to take the melt as a
+## glass lining, so the melt is pumped aft and fills the tunnel. Sandstone is
+## above it and granite below. Tuned for play (ADR 0001).
+const _SEAL_POROSITY := 0.1
+## Survey metres per second the light link up an open, glass-lined tunnel
+## carries. Tuned for play (ADR 0001).
+const _FAST_LINK_RATE := 2.0
+## Survey metres per second sound through rock carries, in a Medium whose
+## sound_carrying is 1. Far below the fast link. Tuned for play (ADR 0001).
+const _SLOW_LINK_RATE := 0.02
 
 ## Heat made per second for each unit of power drawn. Every system that draws
 ## power makes heat. Tuned for play (ADR 0001).
@@ -142,10 +156,27 @@ var _features: Array[ColumnFeature] = []
 var _found_templates := {}
 ## The id of the feature the Bore Station is observing, or -1 for none.
 var _observed := -1
-## Running total of the completed stretches' value, so survey_value() never
-## scans the whole survey.
-var _stretches_value := 0.0
+## Running total of what the recorded survey is worth (completed stretches and
+## features recorded in full), so survey_value() never scans the whole survey.
+var _survey_value := 0.0
 var _stretch_shuttered := false
+## True once the melt has filled the tunnel somewhere behind: from then on no
+## continuous open tunnel reaches the surface.
+var _tunnel_sealed := false
+## Survey stretches whose data has reached the surface, in the order they
+## arrived, and what was paid for them all.
+var _uploaded: Array[SurveyStretch] = []
+var _paid := 0.0
+## Completed stretches still aboard, oldest first, and the one the link is
+## sending now (null when it must be chosen again).
+var _waiting: Array[SurveyStretch] = []
+var _sending: SurveyStretch = null
+## Stretch -> metres of it that have already reached the surface. A stretch
+## is paid for only once all of it is up.
+var _sent := {}
+var _upload_priority := UPLOAD_OLDEST_FIRST
+## Events raised since the last take_events(), oldest first.
+var _events: Array[Dictionary] = []
 ## Quiet Ship: set by Navigation; the Head spins down and the Bore shutters.
 var _quiet_ship := false
 ## How hard the Head is running, 0 (idle) to 1 (running). Starts running.
@@ -189,6 +220,15 @@ func set_observed_feature(id: int) -> void:
 		_observed = id
 	else:
 		_observed = -1
+
+
+## Bore Station: which waiting survey data goes up the link first, one of the
+## UPLOAD_* priorities. Anything else is ignored. Data part-way up keeps what
+## it has sent.
+func set_upload_priority(priority: StringName) -> void:
+	if priority in [UPLOAD_OLDEST_FIRST, UPLOAD_NEWEST_FIRST, UPLOAD_MOST_VALUABLE_FIRST]:
+		_upload_priority = priority
+		_sending = null
 
 
 ## Thermal Station: the share of the heat sent into the Column, 0 to 1. The
@@ -237,6 +277,8 @@ func advance(dt: float) -> void:
 	_record_observed_feature(dt, travelled)
 	_find_features(depth_before, _depth, travelled)
 	_distance += travelled
+	_update_tunnel()
+	_upload(link_rate() * dt)
 	if _pulse_pending:
 		_pulse_pending = false
 		_send_pulse()
@@ -347,12 +389,6 @@ func survey() -> Array[SurveyStretch]:
 	return _survey.duplicate()
 
 
-## Metres of Column inside the vessel, from the Head to the Tail. A feature is
-## in the Column while it is between 0 and this far behind the Head.
-func column_length() -> float:
-	return _HEAD_TO_TAIL_M
-
-
 ## Every feature of interest the Head has found so far, in the order found,
 ## including those that have left through the Tail. Copies.
 func found_features() -> Array[ColumnFeature]:
@@ -377,15 +413,66 @@ func observed_feature() -> int:
 	return _observed
 
 
-## What the survey recorded so far is worth: every completed stretch by its
-## length and quality, plus every feature recorded in full. A feature only
-## part recorded adds nothing.
+## What the survey recorded so far is worth, aboard or already up: every
+## completed stretch's SurveyStretch.value(), plus the worth of every feature
+## recorded in full. A feature only part recorded adds nothing. What is
+## actually paid is paid(), for data that has reached the surface.
 func survey_value() -> float:
-	var value := _stretches_value
-	for feature in _features:
-		if feature.is_recorded():
-			value += feature.worth
-	return value
+	return _survey_value
+
+
+## Events raised since the last call, oldest first, then forgotten. Each is a
+## Dictionary with a `type` StringName and its own fields:
+##   &"tunnel_sealed" {distance}: the melt has filled the tunnel behind the
+##       Tail; the link to the surface is now the slow one.
+func take_events() -> Array[Dictionary]:
+	var taken := _events
+	_events = []
+	return taken
+
+
+## True once the tunnel behind has been filled somewhere, so no continuous open
+## tunnel reaches the surface. It stays sealed for the rest of the dive.
+func tunnel_sealed() -> bool:
+	return _tunnel_sealed
+
+
+## Metres from the Head back to the Tail, where the tunnel behind is made.
+func vessel_length() -> float:
+	return _VESSEL_LENGTH_M
+
+
+## The porosity below which the Medium the Tail leaves fills the tunnel in.
+## For instruments that show the porosity trend against it.
+func seal_porosity() -> float:
+	return _SEAL_POROSITY
+
+
+## How fast survey data goes up to the surface now, in metres of survey per
+## second. Light up the open glass-lined tunnel is fast; once sealed, it is
+## sound through the rock: a trickle that follows how well the Medium the
+## Lithocraft is in carries sound.
+func link_rate() -> float:
+	if not _tunnel_sealed:
+		return _FAST_LINK_RATE
+	return _SLOW_LINK_RATE * medium().sound_carrying
+
+
+## What has been paid so far for survey data that has reached the surface.
+## Data still aboard earns nothing.
+func paid() -> float:
+	return _paid
+
+
+## The upload priority in force, one of the UPLOAD_* priorities.
+func upload_priority() -> StringName:
+	return _upload_priority
+
+
+## The survey stretches whose data has reached the surface and been paid for,
+## in the order they arrived. A copy.
+func uploaded_survey() -> Array[SurveyStretch]:
+	return _uploaded.duplicate()
 
 
 ## Heat made in the last step by everything that draws power, per second.
@@ -455,12 +542,25 @@ func _record_observed_feature(dt: float, travelled: float) -> void:
 	if travelled <= 0.0:
 		seconds_inside = dt if _in_column(feature) else 0.0
 	else:
-		var inside := minf(behind_after, _HEAD_TO_TAIL_M) - maxf(behind_before, 0.0)
+		var inside := minf(behind_after, _VESSEL_LENGTH_M) - maxf(behind_before, 0.0)
 		seconds_inside = maxf(inside, 0.0) / travelled * dt
+	var was_recorded := feature.is_recorded()
 	feature.recorded = minf(1.0,
 			feature.recorded + seconds_inside * _recording_quality() / _FEATURE_RECORD_S)
-	if behind_after > _HEAD_TO_TAIL_M:
+	if feature.is_recorded() and not was_recorded:
+		_queue_feature_record(feature)
+	if behind_after > _VESSEL_LENGTH_M:
 		_observed = -1
+
+
+## A feature recorded in full joins the survey data waiting for the link, as an
+## entry of its own worth feature.worth, sent and paid for like a stretch.
+func _queue_feature_record(feature: ColumnFeature) -> void:
+	var record := SurveyStretch.feature_record(feature,
+			_medium_at_distance(feature.at).name)
+	_waiting.append(record)
+	_sending = null  # It may now be the one to send first.
+	_survey_value += record.value()
 
 
 ## Adds the features the Head cut past in this step, placed along the path
@@ -480,7 +580,65 @@ func _find_features(depth_before: float, depth_after: float, travelled: float) -
 
 func _in_column(feature: ColumnFeature) -> bool:
 	var behind := _distance - feature.at
-	return behind >= 0.0 and behind <= _HEAD_TO_TAIL_M
+	return behind >= 0.0 and behind <= _VESSEL_LENGTH_M
+
+
+# --- The tunnel behind ----------------------------------------------------
+
+## The Tail leaves the tunnel behind it: lined and open in porous Medium,
+## filled with melt in dense Medium. Once filled, it stays filled.
+func _update_tunnel() -> void:
+	if _tunnel_sealed:
+		return
+	var tail := _distance - _VESSEL_LENGTH_M
+	if tail < 0.0:
+		return  # The Tail has not yet left the surface.
+	if _medium_at_distance(tail).porosity < _SEAL_POROSITY:
+		_tunnel_sealed = true
+		_events.append({type = &"tunnel_sealed", distance = tail})
+
+
+# --- The link to the surface --------------------------------------------
+
+## Sends up to `metres` of survey data up the link, a stretch at a time in
+## the chosen priority, and pays for each stretch as the last of it reaches the
+## surface.
+func _upload(metres: float) -> void:
+	while metres > 0.0:
+		if _sending == null:
+			_sending = _next_to_send()
+			if _sending == null:
+				return  # Nothing waiting aboard.
+		var stretch := _sending
+		var sent: float = _sent.get(stretch, 0.0)
+		var piece := minf(metres, stretch.length - sent)
+		metres -= piece
+		sent += piece
+		if sent >= stretch.length:
+			_sent.erase(stretch)
+			_waiting.erase(stretch)
+			_sending = null
+			_uploaded.append(stretch)
+			_paid += stretch.value()
+		else:
+			_sent[stretch] = sent
+
+
+## The waiting stretch the chosen priority sends next, or null if all of the
+## survey is up.
+func _next_to_send() -> SurveyStretch:
+	if _waiting.is_empty():
+		return null
+	match _upload_priority:
+		UPLOAD_NEWEST_FIRST:
+			return _waiting.back()
+		UPLOAD_MOST_VALUABLE_FIRST:
+			var best: SurveyStretch = _waiting[0]
+			for stretch in _waiting:
+				if stretch.value() > best.value():
+					best = stretch
+			return best
+	return _waiting[0]
 
 
 # --- Heat -----------------------------------------------------------------
@@ -527,9 +685,12 @@ func _close_stretch() -> void:
 	for medium_name in _stretch_media:
 		if main_medium == &"" or _stretch_media[medium_name] > _stretch_media[main_medium]:
 			main_medium = medium_name
-	_survey.append(SurveyStretch.new(_stretch_start, length,
-			_stretch_quality / length, composition, main_medium, _stretch_shuttered))
-	_stretches_value += _stretch_quality * _VALUE_PER_METRE
+	var stretch := SurveyStretch.new(_stretch_start, length,
+			_stretch_quality / length, composition, main_medium, _stretch_shuttered)
+	_survey.append(stretch)
+	_waiting.append(stretch)
+	_sending = null  # The new stretch may now be the one to send first.
+	_survey_value += stretch.value()
 	_stretch_start += length
 	_stretch_minerals = {}
 	_stretch_media = {}

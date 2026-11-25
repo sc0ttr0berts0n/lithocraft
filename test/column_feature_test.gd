@@ -70,7 +70,7 @@ func test_the_first_dive_meets_features_from_time_to_time_in_every_medium() -> v
 			[&"sand", &"sandstone", &"granite"])
 	# From time to time: never two at once in the Column, never a long drought.
 	for gap in gaps:
-		assert_float(gap).is_greater(sim.column_length())
+		assert_float(gap).is_greater(sim.vessel_length())
 		assert_float(gap).is_less(400.0)
 
 
@@ -85,7 +85,7 @@ func test_a_feature_appears_in_the_column_once_the_head_reaches_it() -> void:
 	var id := _advance_until_found(sim)
 	var feature := _found(sim, id)
 	assert_str(feature.kind).is_equal(&"curiosity")
-	assert_float(sim.distance() - feature.at).is_between(0.0, sim.column_length())
+	assert_float(sim.distance() - feature.at).is_between(0.0, sim.vessel_length())
 
 
 func test_a_feature_slides_toward_the_tail_at_the_vessels_speed_and_leaves() -> void:
@@ -103,7 +103,7 @@ func test_a_feature_slides_toward_the_tail_at_the_vessels_speed_and_leaves() -> 
 	assert_float(_in_column(sim)[0].at).is_equal(at)
 
 	_advance_until_gone(sim, id)
-	assert_float(sim.distance() - at).is_greater(sim.column_length())
+	assert_float(sim.distance() - at).is_greater(sim.vessel_length())
 
 
 func test_a_feature_can_be_recorded_only_while_it_is_between_the_head_and_the_tail() -> void:
@@ -210,7 +210,7 @@ func test_nothing_can_be_extracted_from_the_column() -> void:
 	var feature: ColumnFeature = sim.found_features()[0]
 	assert_bool(feature.is_recorded()).is_true()
 	# Recording it left it in the Column: it went out through the Tail.
-	assert_float(sim.distance() - feature.at).is_greater(sim.column_length())
+	assert_float(sim.distance() - feature.at).is_greater(sim.vessel_length())
 	assert_array(sim.features_in_column()).is_empty()
 	# The Column there is still the Medium it always was.
 	var behind := sim.distance() - feature.at
@@ -240,3 +240,38 @@ func test_a_shuttered_bore_records_a_feature_more_slowly() -> void:
 	assert_bool(shuttered.shuttered()).is_true()
 	assert_float(shuttered.found_features()[0].recorded).is_less(
 			open.found_features()[0].recorded)
+
+
+func test_a_recorded_feature_is_paid_for_once_its_record_reaches_the_surface() -> void:
+	var ignored := _dive_past_feature(false)
+	var recorded := _dive_past_feature(true)
+	# Stopped, so nothing new is recorded; the link sends up all that is aboard.
+	for sim in [ignored, recorded]:
+		sim.set_power(0.0)
+		sim.advance(100000.0)
+
+	var records := recorded.uploaded_survey().filter(
+			func(s: SurveyStretch) -> bool: return s.is_feature_record())
+	assert_int(records.size()).is_equal(1)
+	assert_str(records[0].feature_kind).is_equal(&"curiosity")
+	assert_float(recorded.paid()).is_greater(ignored.paid())
+	# All of it is up, so what was paid is what the survey is worth.
+	assert_float(recorded.paid()).is_equal_approx(recorded.survey_value(), 0.0001)
+
+
+func test_a_feature_record_waits_aboard_until_the_link_sends_it() -> void:
+	var sim := DiveSimulation.new(_layout_with_one_feature())
+	sim.set_power(0.5)
+	var id := _advance_until_found(sim)
+	sim.set_observed_feature(id)
+	sim.set_power(0.0)
+	var paid_before := sim.paid()
+
+	# Record it in small steps: the moment it is complete, it is worth more to
+	# the survey than has been paid for it.
+	while not _found(sim, id).is_recorded():
+		sim.advance(0.1)
+	assert_float(sim.survey_value()).is_greater(sim.paid())
+
+	sim.advance(100000.0)
+	assert_float(sim.paid()).is_greater(paid_before)
