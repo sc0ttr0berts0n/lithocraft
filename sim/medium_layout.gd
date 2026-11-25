@@ -33,11 +33,29 @@ static func layered(layers: Array) -> MediumLayout:
 ## The Earth desert of the first dive: sand, then sandstone, then granite.
 ## Layer depths are tuned for play (ADR 0001).
 static func first_dive() -> MediumLayout:
-	return MediumLayout.layered([
+	var layout := MediumLayout.layered([
 		[0.0, Medium.sand()],
 		[100.0, Medium.sandstone()],
 		[600.0, Medium.granite()],
 	])
+	# Features of interest from time to time, each a kind that forms in the
+	# Medium it lies in. Spacing is tuned for play (ADR 0001); the seed fixes
+	# them so every first dive meets the same ones.
+	var kinds := {
+		&"sand": [ColumnFeature.fulgurite],
+		&"sandstone": [ColumnFeature.petrified_wood, ColumnFeature.iron_concretions],
+		&"granite": [ColumnFeature.quartz_vein, ColumnFeature.pegmatite],
+	}
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 14
+	var features := []
+	var depth := 25.0
+	while depth < 4000.0:
+		var choices: Array = kinds[layout.medium_at(depth).name]
+		var make: Callable = choices[rng.randi() % choices.size()]
+		features.append([depth, make.call()])
+		depth += rng.randf_range(30.0, 120.0)
+	return layout.with_features(features)
 
 
 ## Adds features of interest: [[depth_m, ColumnFeature], ...]. Returns this

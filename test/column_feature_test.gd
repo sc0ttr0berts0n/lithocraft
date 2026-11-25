@@ -53,6 +53,27 @@ func _advance_until_gone(sim: DiveSimulation, id: int) -> void:
 	fail("The feature never left the Column")
 
 
+func test_the_first_dive_meets_features_from_time_to_time_in_every_medium() -> void:
+	var sim := DiveSimulation.new(MediumLayout.first_dive())
+	sim.set_power(1.0)
+	var media_with_features := {}
+	var gaps: Array[float] = []
+	var last_at := 0.0
+	while sim.depth() < 1200.0:
+		sim.advance(1.0)
+	for feature in sim.found_features():
+		media_with_features[sim.column_at(sim.distance() - feature.at).name] = true
+		gaps.append(feature.at - last_at)
+		last_at = feature.at
+
+	assert_array(media_with_features.keys()).contains_exactly_in_any_order(
+			[&"sand", &"sandstone", &"granite"])
+	# From time to time: never two at once in the Column, never a long drought.
+	for gap in gaps:
+		assert_float(gap).is_greater(sim.column_length())
+		assert_float(gap).is_less(400.0)
+
+
 func test_a_feature_appears_in_the_column_once_the_head_reaches_it() -> void:
 	var sim := DiveSimulation.new(_layout_with_one_feature())
 	sim.set_power(0.5)
