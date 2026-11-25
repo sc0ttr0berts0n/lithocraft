@@ -36,6 +36,9 @@ const _GRAVITY := 9.81
 ## Heat made per second for each unit of power drawn. Every system that draws
 ## power makes heat. Tuned for play (ADR 0001).
 const _HEAT_PER_POWER := 1.0
+## Heat per metre of Column that halves the quality the Bore Station can
+## record. Tuned for play (ADR 0001).
+const _COLUMN_COOK_HEAT_PER_M := 2.0
 
 var _layout: MediumLayout
 var _power := 0.0
@@ -48,6 +51,8 @@ var _slip := 0.0
 var _heat_split := 0.0
 ## Heat made in the last step, per second.
 var _heat_produced := 0.0
+## Heat sent into the Column in the last step, per second.
+var _heat_to_column := 0.0
 ## Metres travelled along the path since the dive began. The path is straight
 ## down until steering lands (ticket #8), so for now it equals depth.
 var _distance := 0.0
@@ -96,6 +101,7 @@ func advance(dt: float) -> void:
 	_speed = _FULL_POWER_SPEED * gripped_power / medium.hardness
 	# Every system that draws power makes heat; power lost to slip included.
 	_heat_produced = _power * _HEAT_PER_POWER
+	_heat_to_column = _heat_produced * _heat_split
 	var travelled := _speed * dt
 	_depth += travelled
 	_record_survey(_distance, _distance + travelled)
@@ -203,7 +209,19 @@ func _close_stretch() -> void:
 ## until something spoils the Column: heat sent into it (ticket #7) and Quiet
 ## Ship shuttering the Bore instruments (ticket #13) lower it here.
 func _recording_quality() -> float:
-	return 1.0
+	return _unheated_share()
+
+
+## How much of the Column's record survives the heat sent into it, 0 to 1. What
+## spoils it is the heat each metre of Column takes up: the same heat spread
+## over more Column (moving faster) cooks each metre less.
+func _unheated_share() -> float:
+	if _heat_to_column <= 0.0:
+		return 1.0
+	if _speed <= 0.0:
+		return 0.0
+	var heat_per_metre := _heat_to_column / _speed
+	return 1.0 / (1.0 + heat_per_metre / _COLUMN_COOK_HEAT_PER_M)
 
 
 ## The Medium of the Column at a distance along the path. The path is straight

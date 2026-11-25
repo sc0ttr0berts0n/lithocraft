@@ -30,3 +30,22 @@ func test_heat_produced_rises_with_power_drawn() -> void:
 	assert_float(produced[0]).is_equal_approx(0.0, 0.0001)
 	for i in range(1, produced.size()):
 		assert_float(produced[i]).is_greater(produced[i - 1])
+
+
+func _mean_quality(sim: DiveSimulation) -> float:
+	var survey := sim.survey()
+	assert_int(survey.size()).is_greater(0)
+	var total := 0.0
+	for stretch in survey:
+		total += stretch.quality
+	return total / survey.size()
+
+
+func test_more_heat_sent_into_the_column_lowers_survey_quality() -> void:
+	var quality: Array[float] = []
+	for to_column in [0.0, 0.5, 1.0]:
+		quality.append(_mean_quality(_run(_sim(0.6, to_column), 300.0)))
+
+	assert_float(quality[0]).is_equal_approx(1.0, 0.0001)
+	assert_float(quality[1]).is_less(quality[0])
+	assert_float(quality[2]).is_less(quality[1])
