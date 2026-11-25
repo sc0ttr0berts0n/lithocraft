@@ -11,6 +11,10 @@
 ## ColumnStrip on the right edge with a metre ruler, and a SurveyPanel beside
 ## it. The Column itself slides through the Habitat's Bore (habitat.gd); the
 ## survey panel stands in for the Bore Station's own screen.
+##
+## The TunnelPanel below it shows the tunnel behind (open or sealed), the
+## porosity trend the Tail is heading into, the link and payment. U cycles the
+## upload priority, a stand-in until the Bore Station takes the command.
 class_name DiveView
 extends Control
 
@@ -20,6 +24,12 @@ const SLIP_SILENT_DB := -60.0
 const SLIP_LOUDEST_DB := -6.0
 ## How far the slip readout shakes at full slip, in pixels.
 const SLIP_SHAKE_PX := 6.0
+## Upload priorities in the order U cycles through them.
+const UPLOAD_PRIORITIES: Array[StringName] = [
+	DiveSimulation.UPLOAD_OLDEST_FIRST,
+	DiveSimulation.UPLOAD_MOST_VALUABLE_FIRST,
+	DiveSimulation.UPLOAD_NEWEST_FIRST,
+]
 
 var _sim: DiveSimulation
 var _slip_player: AudioStreamPlayer
@@ -36,6 +46,7 @@ var _judder_phase := 0.0
 @onready var _slip_bar: ProgressBar = %SlipBar
 @onready var _column_strip: ColumnStrip = %ColumnStrip
 @onready var _survey_panel: SurveyPanel = %SurveyPanel
+@onready var _tunnel_panel: TunnelPanel = %TunnelPanel
 
 
 func _ready() -> void:
@@ -47,7 +58,20 @@ func attach(sim: DiveSimulation) -> void:
 	_sim = sim
 	_column_strip.sim = sim
 	_survey_panel.sim = sim
+	_tunnel_panel.sim = sim
 	_start_slip_sound()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _sim and _is_key_press(event, KEY_U):
+		var next := (UPLOAD_PRIORITIES.find(_sim.upload_priority()) + 1) % UPLOAD_PRIORITIES.size()
+		_sim.set_upload_priority(UPLOAD_PRIORITIES[next])
+
+
+func _is_key_press(event: InputEvent, key: Key) -> bool:
+	var key_event := event as InputEventKey
+	return key_event != null and key_event.pressed and not key_event.echo \
+			and key_event.physical_keycode == key
 
 
 func _physics_process(_delta: float) -> void:

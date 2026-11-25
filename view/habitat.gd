@@ -44,7 +44,11 @@ var _pitch_setting := 90.0
 var _heading_setting := 0.0
 var _power_setting := 0.0
 var _stations: Array[GimballedStation] = []
+var _reactor: GimballedStation
 var _drive: GimballedStation
+var _bore_station: GimballedStation
+## A ring on the Bore glass that rides along with the feature being observed.
+var _feature_ring: MeshInstance3D
 var _thermal: GimballedStation
 ## Thermal Station setting: share of heat sent into the Column.
 var _heat_split := 0.0
@@ -87,6 +91,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_L: _set_heading(_heading_setting + HEADING_STEP)
 			KEY_T: _set_power(_power_setting + POWER_STEP)
 			KEY_G: _set_power(_power_setting - POWER_STEP)
+			KEY_F: _observe_next_feature()
 			KEY_C: _split_heat(_heat_split - HEAT_SPLIT_STEP)
 			KEY_V: _split_heat(_heat_split + HEAT_SPLIT_STEP)
 			KEY_P: _sim.pulse()
@@ -100,12 +105,18 @@ func _physics_process(delta: float) -> void:
 	var up := -felt.normalized()
 	for station in _stations:
 		station.follow_up(up, delta)
+	_drive.set_supplied(_sim.drive_supplied())
+	_thermal.set_supplied(_sim.thermal_supplied())
+	_navigation.set_supplied(_sim.navigation_supplied())
+	_show_reactor()
 	_show_drive()
+	_bore_station.show_reading(_bore_reading())
+	_place_feature_ring()
 	_show_thermal()
-	_navigation.show_reading("%s  noise %d%%  %d points  draw %d%%\n[P] pulse  [Q] Quiet Ship" % [
+	_navigation.show_reading("%s  noise %d%%  %d points\n%s\n[P] pulse  [Q] Quiet Ship" % [
 		"QUIET SHIP" if _sim.quiet_ship() else "under way",
 		roundi(_sim.noise() * 100.0), _sim.point_count(),
-		roundi(_sim.navigation_draw() * 100.0)])
+		_power_line(_sim.navigation_request(), _sim.navigation_draw())])
 
 
 ## Whether the crew member can work this Station: within reach of it.
@@ -145,10 +156,104 @@ func _show_drive() -> void:
 		"Depth %.1f m  Speed %.2f m/s" % [_sim.depth(), _sim.speed()],
 		"Heading %03.0f (set %03.0f)" % [_sim.heading_degrees(), _heading_setting],
 		"Pitch %+.0f deg (set %+.0f)" % [_sim.pitch(), _pitch_setting],
-		"Power %d%%  Steer %d%%" % [
+		"Set %d%%  Steer %d%%" % [
 			roundi(_power_setting * 100.0), roundi(_sim.steering() * 100.0)],
+		_power_line(_sim.drive_request(), _sim.drive_draw()),
 	]
 	_drive.show_reading("\n".join(lines))
+
+
+## A Station's power: what it asks for and gets, and STARVED when short.
+static func _power_line(requested: float, drawn: float) -> String:
+	var line := "Power %d/%d%%" % [roundi(drawn * 100.0), roundi(requested * 100.0)]
+	if drawn < requested - 0.0005:
+		line += "  STARVED"
+	return line
+
+
+## The Reactor Station's screen: the Head's plasma, the power it supplies
+## against what the Stations draw, and one bar per Station, its request
+## outlined and what it gets filled, so a starved Station shows here too.
+func _show_reactor() -> void:
+	var output := _sim.reactor_output()
+	var plasma := "STEADY" if _sim.plasma_stability() >= 1.0 else "UNSTEADY"
+	var lines := [
+		"Plasma %s %d%%  Head %s" % [plasma, roundi(_sim.plasma_stability() * 100.0),
+			"running" if _sim.head_activity() >= 1.0 else "idling %d%%" % roundi(_sim.head_activity() * 100.0)],
+		"Supply %d%%  drawn %d%%  short %d%%" % [roundi(output * 100.0),
+			roundi(_sim.power_drawn() * 100.0),
+			roundi((_sim.power_requested() - _sim.power_drawn()) * 100.0)],
+	]
+	for row in [["Nav", _sim.navigation_request(), _sim.navigation_draw()],
+			["Thm", _sim.thermal_request(), _sim.thermal_draw()],
+			["Drv", _sim.drive_request(), _sim.drive_draw()]]:
+		lines.append("%s %s%s" % [row[0], _bar(row[1], row[2]),
+				"  STARVED" if row[2] < row[1] - 0.0005 else ""])
+	# The Drive running short is routine; Thermal or Navigation starved is not.
+	_reactor.set_calling(_sim.navigation_supplied() < 1.0 or _sim.thermal_supplied() < 1.0)
+	_reactor.show_reading("\n".join(lines))
+
+
+## A bar of tenths: '#' power drawn, '-' asked for but not given, '.' unused.
+static func _bar(requested: float, drawn: float) -> String:
+	var got := roundi(drawn * 10.0)
+	var asked := maxi(got, roundi(requested * 10.0))
+	return "[%s%s%s]" % ["#".repeat(got), "-".repeat(asked - got), ".".repeat(maxi(0, 10 - asked))]
+
+
+## Stand-in Bore Station control until it has its own: observe the next
+## feature in the Column not yet recorded, nearest the Tail first, cycling.
+## Worked at the Bore Station: only within reach of it.
+func _observe_next_feature() -> void:
+	if _crew.position.distance_to(_bore_station.position) > STATION_REACH:
+		return
+	var candidates := _sim.features_in_column().filter(
+			func(f: ColumnFeature) -> bool: return not f.is_recorded())
+	if candidates.is_empty():
+		_sim.set_observed_feature(-1)
+		return
+	var ids := candidates.map(func(f: ColumnFeature) -> int: return f.id)
+	var current := ids.find(_sim.observed_feature())
+	_sim.set_observed_feature(ids[(current + 1) % ids.size()])
+
+
+func _bore_reading() -> String:
+	var in_column := _sim.features_in_column()
+	var lines := PackedStringArray()
+	lines.append("Survey value %d" % roundi(_sim.survey_value()))
+	var observed := _sim.observed_feature()
+	var found_observed := false
+	for feature in in_column:
+		var where := _sim.distance() - feature.at
+		var state := "RECORDED" if feature.is_recorded() else "%d%%" % roundi(100.0 * feature.recorded)
+		var marker := ">" if feature.id == observed else " "
+		if feature.id == observed:
+			found_observed = true
+		lines.append("%s %s %.1f m  %s" % [marker, String(feature.kind).capitalize(), where, state])
+	if in_column.is_empty():
+		lines.append("No features in the Column")
+	elif not found_observed:
+		lines.append("[F] observe a feature")
+	return "\n".join(lines)
+
+
+## Keeps the ring on the observed feature while it is in the Habitat's
+## stretch of the Bore.
+func _place_feature_ring() -> void:
+	_feature_ring.visible = false
+	var observed := _sim.observed_feature()
+	if observed < 0:
+		return
+	for feature in _sim.features_in_column():
+		if feature.id != observed:
+			continue
+		var into_habitat := _sim.distance() - feature.at - HABITAT_BEHIND_HEAD_M
+		if into_habitat < 0.0 or into_habitat > LENGTH:
+			return
+		_feature_ring.position.z = -LENGTH / 2.0 + into_habitat
+		(_feature_ring.material_override as StandardMaterial3D).albedo_color = (
+				FeatureLook.RECORDED_COLOUR if feature.is_recorded() else FeatureLook.OBSERVING_COLOUR)
+		_feature_ring.visible = true
 
 
 ## The heat split is worked at the Thermal Station: only within reach of it.
@@ -167,6 +272,7 @@ func _show_thermal() -> void:
 	_thermal.set_calling(warning)
 	var to_column := roundi(_heat_split * 10.0)
 	var lines := [
+		_power_line(_sim.thermal_request(), _sim.thermal_draw()),
 		"Out [%s|%s] Column" % ["#".repeat(10 - to_column), "#".repeat(to_column)],
 		"Heat %.2f > Column %.2f" % [_sim.heat_produced(), _sim.heat_to_column()],
 		"Hull %.0f K, bears %.0f K" % [
@@ -205,6 +311,14 @@ func _build_room() -> void:
 	glass_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	glass_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_add_along_axis(glass, glass_material, 0.0)
+	var ring := TorusMesh.new()
+	ring.inner_radius = BORE_RADIUS + 0.005
+	ring.outer_radius = BORE_RADIUS + 0.035
+	var ring_material := _surface(FeatureLook.OBSERVING_COLOUR)
+	ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_add_along_axis(ring, ring_material, 0.0)
+	_feature_ring = get_child(get_child_count() - 1)
+	_feature_ring.visible = false
 
 	# Ribs round the outer wall and along it, so walking and turning show.
 	for z in [-LENGTH / 3.0, 0.0, LENGTH / 3.0]:
@@ -263,13 +377,17 @@ func _build_stations() -> void:
 		var station := GimballedStation.new()
 		station.station_name = STATIONS[i][0]
 		station.hue = STATIONS[i][1]
-		if station.station_name in ["Thermal", "Drive"]:
+		if station.station_name in ["Thermal", "Reactor", "Drive"]:
 			station.screen_font_size = 28
 		station.position = outward * pivot_radius
 		add_child(station)
 		_stations.append(station)
-		if station.station_name == "Drive":
+		if station.station_name == "Reactor":
+			_reactor = station
+		elif station.station_name == "Drive":
 			_drive = station
+		elif station.station_name == "Bore Station":
+			_bore_station = station
 		elif station.station_name == "Thermal":
 			_thermal = station
 		elif station.station_name == "Navigation":

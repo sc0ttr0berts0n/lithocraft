@@ -5,7 +5,7 @@
 ##   time step     - advance(dt), dt in simulated seconds
 ##   state out     - read-only query methods, e.g. depth()
 ##   events out    - take_events(): events since the last call, then cleared.
-##                   Added by the first ticket that raises an event.
+##                   Each a Dictionary with a `type` StringName plus fields.
 class_name DiveSimulation
 extends RefCounted
 
@@ -18,6 +18,11 @@ const _GRIP_PER_STRENGTH := 2.0
 ## Length of path the Bore Station records as one survey entry, in metres.
 ## Tuned for play (ADR 0001).
 const _SURVEY_STRETCH_M := 10.0
+
+## Seconds of observation the Bore Station needs to record a feature in full
+## at pristine recording quality. Tuned for play (ADR 0001) so that at full
+## power a feature can slip out through the Tail half recorded.
+const _FEATURE_RECORD_S := 20.0
 
 ## Habitat frame: the fixed axes of the vessel that felt_acceleration() is
 ## given in. TOWARD_HEAD runs along the Bore toward the Head. TOWARD_UNDERSIDE
@@ -36,15 +41,36 @@ const _STEER_RESPONSE := 0.1
 ## Within this many degrees of the setting the steering eases off, so the
 ## vessel settles onto its heading instead of swinging past. Tuned for play.
 const _STEER_EASE_DEG := 10.0
-## Extra heat at full steering, as a share of the Drive's own heat: the hot
-## side of the Head runs hotter than the cool side is eased. Tuned for play.
+## Extra Drive power at full steering, as a share of its setting: the hot side
+## of the Head runs hotter than the cool side is eased, and that extra goes
+## into heat, not push. Tuned for play.
 const _STEER_HEAT := 0.5
 ## The path the Column was cut along is remembered as points at least this
 ## far apart (straight runs are merged into one piece). Metres.
 const _PATH_SAMPLE_M := 0.5
 
+## Upload priorities for set_upload_priority(): which waiting survey stretch
+## goes up the link next.
+const UPLOAD_OLDEST_FIRST := &"oldest_first"
+const UPLOAD_NEWEST_FIRST := &"newest_first"
+const UPLOAD_MOST_VALUABLE_FIRST := &"most_valuable_first"
+
 ## Earth's surface gravity, m/s^2.
 const _GRAVITY := 9.81
+
+## Length of the Lithocraft from Head to Tail, in metres: how far behind the
+## Head the tunnel is made. Tuned for play (ADR 0001).
+const _VESSEL_LENGTH_M := 12.0
+## Below this porosity the Medium has no pore space to take the melt as a
+## glass lining, so the melt is pumped aft and fills the tunnel. Sandstone is
+## above it and granite below. Tuned for play (ADR 0001).
+const _SEAL_POROSITY := 0.1
+## Survey metres per second the light link up an open, glass-lined tunnel
+## carries. Tuned for play (ADR 0001).
+const _FAST_LINK_RATE := 2.0
+## Survey metres per second sound through rock carries, in a Medium whose
+## sound_carrying is 1. Far below the fast link. Tuned for play (ADR 0001).
+const _SLOW_LINK_RATE := 0.02
 
 ## Heat made per second for each unit of power drawn. Every system that draws
 ## power makes heat. Tuned for play (ADR 0001).
@@ -71,11 +97,22 @@ const _GEOTHERMAL_K_PER_M := 0.03
 ## play (ADR 0001).
 const _WEAR_PER_K_S := 1.0e-5
 
-## Navigation's power draw: the share of the Reactor's output the scanner takes
-## while it listens, in the same units as set_power(), with the cost of its
-## pulses averaged in. The power budget (ticket #10) counts this against the
-## Reactor through navigation_draw(). Tuned for play (ADR 0001).
+## Navigation's power request: the scanner's draw while it listens, in the same
+## units as set_power(), with the cost of its pulses averaged in. Tuned for
+## play (ADR 0001).
 const _NAVIGATION_DRAW := 0.05
+
+## The power budget. The Reactor's output in the units of set_power() with the
+## Head running steadily, and with it idling under Quiet Ship. Sized so the
+## Drive at full, Navigation and Thermal's base pumps just fit while the Head
+## runs, and pumping heat into the Column does not. Tuned for play (ADR 0001).
+const _REACTOR_FULL_OUTPUT := 1.1
+const _REACTOR_IDLE_OUTPUT := 0.1
+## Thermal's power request: its pumps always run, and pumping heat into the
+## Column costs more for each share of heat sent there. Tuned for play
+## (ADR 0001).
+const _THERMAL_BASE_DRAW := 0.03
+const _THERMAL_COLUMN_DRAW := 0.2
 
 ## How fast the Head spins down to idle under Quiet Ship, and back up after,
 ## as a share of full running per second. The vessel coasts while it spins
@@ -139,8 +176,7 @@ var _vessel_temperature := 0.0
 var _hull_settling_at := 0.0
 ## Damage done to the vessel by heat, 0 (none) to 1.
 var _vessel_wear := 0.0
-## Metres travelled along the path since the dive began. The path is straight
-## down until steering lands (ticket #8), so for now it equals depth.
+## Metres travelled along the path since the dive began.
 var _distance := 0.0
 ## Completed survey entries, oldest first.
 var _survey: Array[SurveyStretch] = []
@@ -150,13 +186,51 @@ var _stretch_start := 0.0
 var _stretch_minerals := {}
 var _stretch_media := {}
 var _stretch_quality := 0.0
+## Features of interest the Head has found, in the order found.
+var _features: Array[ColumnFeature] = []
+## Layout feature templates already found, so crossing one again adds nothing.
+var _found_templates := {}
+## The id of the feature the Bore Station is observing, or -1 for none.
+var _observed := -1
+## Running total of what the recorded survey is worth (completed stretches and
+## features recorded in full), so survey_value() never scans the whole survey.
+var _survey_value := 0.0
 var _stretch_shuttered := false
+## True once the melt has filled the tunnel somewhere behind: from then on no
+## continuous open tunnel reaches the surface.
+var _tunnel_sealed := false
+## Survey stretches whose data has reached the surface, in the order they
+## arrived, and what was paid for them all.
+var _uploaded: Array[SurveyStretch] = []
+var _paid := 0.0
+## Completed stretches still aboard, oldest first, and the one the link is
+## sending now (null when it must be chosen again).
+var _waiting: Array[SurveyStretch] = []
+var _sending: SurveyStretch = null
+## Stretch -> metres of it that have already reached the surface. A stretch
+## is paid for only once all of it is up.
+var _sent := {}
+var _upload_priority := UPLOAD_OLDEST_FIRST
+## Events raised since the last take_events(), oldest first.
+var _events: Array[Dictionary] = []
 ## Quiet Ship: set by Navigation; the Head spins down and the Bore shutters.
 var _quiet_ship := false
 ## How hard the Head is running, 0 (idle) to 1 (running). Starts running.
 var _head_activity := 1.0
 ## The vessel's own noise during the last step, 0 when silent.
 var _noise := 0.0
+## The power budget during the last step: the Reactor's output, and what each
+## Station asked for and was given, in the units of set_power().
+var _reactor_output := 0.0
+var _drive_request := 0.0
+var _thermal_request := 0.0
+var _navigation_request := 0.0
+var _drive_draw := 0.0
+var _thermal_draw := 0.0
+var _navigation_draw := 0.0
+## How steady the Head's plasma is, 0 (lost) to 1 (steady). The Reactor's
+## output scales with it. Always steady until the Shift (ticket #11).
+var _plasma_stability := 1.0
 ## Navigation's point cloud, oldest first, and whether a pulse is waiting to
 ## be sent on the next step.
 var _points: Array[ScanPoint] = []
@@ -171,6 +245,7 @@ func _init(layout: MediumLayout) -> void:
 	_vessel_temperature = surroundings_temperature()
 	_hull_settling_at = _vessel_temperature
 	_scan_random.seed = 13
+	_share_power()
 
 
 # --- Commands -------------------------------------------------------------
@@ -193,6 +268,25 @@ func set_pitch(degrees: float) -> void:
 ## setting is straight up or down.
 func set_heading(degrees: float) -> void:
 	_heading_setting = fposmod(degrees, 360.0)
+
+
+## Bore Station: which feature in the Column to observe and record, by id
+## (see features_in_column()). -1, or a feature not now in the Column, observes
+## nothing. Observing records; nothing is ever cut out of the Column.
+func set_observed_feature(id: int) -> void:
+	if id >= 0 and id < _features.size() and _in_column(_features[id]):
+		_observed = id
+	else:
+		_observed = -1
+
+
+## Bore Station: which waiting survey data goes up the link first, one of the
+## UPLOAD_* priorities. Anything else is ignored. Data part-way up keeps what
+## it has sent.
+func set_upload_priority(priority: StringName) -> void:
+	if priority in [UPLOAD_OLDEST_FIRST, UPLOAD_NEWEST_FIRST, UPLOAD_MOST_VALUABLE_FIRST]:
+		_upload_priority = priority
+		_sending = null
 
 
 ## Thermal Station: the share of the heat sent into the Column, 0 to 1. The
@@ -220,7 +314,10 @@ func set_quiet_ship(on: bool) -> void:
 func advance(dt: float) -> void:
 	_head_activity = move_toward(_head_activity, 0.0 if _quiet_ship else 1.0,
 			_HEAD_SPIN_RATE * dt)
-	var power := _power * _head_activity
+	_share_power()
+	# Steering heats one side of the Head harder; that share of the Drive's
+	# draw goes into heat, not into pushing.
+	var power := _drive_draw / (1.0 + _STEER_HEAT * _steering)
 	var medium := _layout.medium_at(depth())
 	# The grip waves can only push as hard as the wall holds; the rest slips.
 	var grip := medium.strength * _GRIP_PER_STRENGTH
@@ -228,19 +325,25 @@ func advance(dt: float) -> void:
 	_slip = 0.0 if power <= 0.0 else (power - gripped_power) / power
 	_speed = _FULL_POWER_SPEED * gripped_power / medium.hardness
 	# Every system that draws power makes heat: the Drive (power lost to slip
-	# included; less while the Head idles) and Navigation.
-	# Steering heats one side of the Head harder, so turning costs heat. The
-	# Head moves along its arc here too.
-	_steer(_speed, dt)
-	_heat_produced = (power * (1.0 + _STEER_HEAT * _steering) + navigation_draw()) \
-			* _HEAT_PER_POWER
-	_heat_to_column = _heat_produced * _heat_split
+	# included; less while the Head idles; more while it steers), Thermal and
+	# Navigation.
+	_heat_produced = power_drawn() * _HEAT_PER_POWER
+	# Heat reaches the Column only as far as Thermal's pumps are powered; the
+	# rest goes out through the hull.
+	_heat_to_column = _heat_produced * _heat_split * thermal_supplied()
 	_shed_heat_outward(_heat_produced - _heat_to_column, dt)
 	_noise = _head_activity * _HEAD_HUM + _DRIVE_NOISE * power * (1.0 + _slip)
+	var depth_before := depth()
+	# The Head moves along its arc, turning toward the Drive's settings.
+	_steer(_speed, dt)
 	var travelled := _speed * dt
 	_record_survey(_distance, _distance + travelled)
+	_record_observed_feature(dt, travelled)
+	_find_features(depth_before, depth(), travelled)
 	_distance += travelled
 	_remember_path()
+	_update_tunnel()
+	_upload(link_rate() * dt)
 	if _pulse_pending:
 		_pulse_pending = false
 		_send_pulse()
@@ -337,10 +440,76 @@ func noise() -> float:
 	return _noise
 
 
-## Navigation's power draw, as a share of the Reactor's output in the same
-## units as set_power(). For the power budget (ticket #10) to count.
+## The Reactor's output during the last step: the power the Stations share,
+## in the units of set_power(). Lower while the Head idles under Quiet Ship,
+## and with an unsteady plasma.
+func reactor_output() -> float:
+	return _reactor_output
+
+
+## How steady the Head's plasma is, 0 (lost) to 1 (steady).
+func plasma_stability() -> float:
+	return _plasma_stability
+
+
+## How hard the Head is running, 0 (idle, Quiet Ship) to 1 (running).
+func head_activity() -> float:
+	return _head_activity
+
+
+## Power every Station asked for in the last step. May exceed reactor_output().
+func power_requested() -> float:
+	return _drive_request + _thermal_request + _navigation_request
+
+
+## Power every Station was given in the last step. Never exceeds
+## reactor_output().
+func power_drawn() -> float:
+	return _drive_draw + _thermal_draw + _navigation_draw
+
+
+## Power each Station asked for in the last step. The Drive asks for its power
+## setting (less while the Head idles, more while it steers); Thermal for its
+## pumps, more the more heat it sends into the Column; Navigation for the
+## scanner.
+func drive_request() -> float:
+	return _drive_request
+
+
+func thermal_request() -> float:
+	return _thermal_request
+
+
+func navigation_request() -> float:
+	return _navigation_request
+
+
+## Power each Station was given in the last step: its request, unless the
+## Reactor ran short (see _share_power() for the rule).
+func drive_draw() -> float:
+	return _drive_draw
+
+
+func thermal_draw() -> float:
+	return _thermal_draw
+
+
 func navigation_draw() -> float:
-	return _NAVIGATION_DRAW
+	return _navigation_draw
+
+
+## Share of its request each Station was given in the last step, 0 to 1. Below
+## 1 the Station is starved.
+func drive_supplied() -> float:
+	return _supplied(_drive_draw, _drive_request)
+
+
+func thermal_supplied() -> float:
+	return _supplied(_thermal_draw, _thermal_request)
+
+
+func navigation_supplied() -> float:
+	return _supplied(_navigation_draw, _navigation_request)
 
 
 ## Navigation's point cloud: every point every pulse has returned this dive,
@@ -371,6 +540,92 @@ func heading() -> Vector3:
 ## the path, oldest first. A copy; changing it does not change the record.
 func survey() -> Array[SurveyStretch]:
 	return _survey.duplicate()
+
+
+## Every feature of interest the Head has found so far, in the order found,
+## including those that have left through the Tail. Copies.
+func found_features() -> Array[ColumnFeature]:
+	var result: Array[ColumnFeature] = []
+	for feature in _features:
+		result.append(feature.copy())
+	return result
+
+
+## The features now between the Head and the Tail, nearest the Tail first.
+## Copies.
+func features_in_column() -> Array[ColumnFeature]:
+	var result: Array[ColumnFeature] = []
+	for feature in _features:
+		if _in_column(feature):
+			result.append(feature.copy())
+	return result
+
+
+## The id of the feature the Bore Station is observing, or -1 for none.
+func observed_feature() -> int:
+	return _observed
+
+
+## What the survey recorded so far is worth, aboard or already up: every
+## completed stretch's SurveyStretch.value(), plus the worth of every feature
+## recorded in full. A feature only part recorded adds nothing. What is
+## actually paid is paid(), for data that has reached the surface.
+func survey_value() -> float:
+	return _survey_value
+
+
+## Events raised since the last call, oldest first, then forgotten. Each is a
+## Dictionary with a `type` StringName and its own fields:
+##   &"tunnel_sealed" {distance}: the melt has filled the tunnel behind the
+##       Tail; the link to the surface is now the slow one.
+func take_events() -> Array[Dictionary]:
+	var taken := _events
+	_events = []
+	return taken
+
+
+## True once the tunnel behind has been filled somewhere, so no continuous open
+## tunnel reaches the surface. It stays sealed for the rest of the dive.
+func tunnel_sealed() -> bool:
+	return _tunnel_sealed
+
+
+## Metres from the Head back to the Tail, where the tunnel behind is made.
+func vessel_length() -> float:
+	return _VESSEL_LENGTH_M
+
+
+## The porosity below which the Medium the Tail leaves fills the tunnel in.
+## For instruments that show the porosity trend against it.
+func seal_porosity() -> float:
+	return _SEAL_POROSITY
+
+
+## How fast survey data goes up to the surface now, in metres of survey per
+## second. Light up the open glass-lined tunnel is fast; once sealed, it is
+## sound through the rock: a trickle that follows how well the Medium the
+## Lithocraft is in carries sound.
+func link_rate() -> float:
+	if not _tunnel_sealed:
+		return _FAST_LINK_RATE
+	return _SLOW_LINK_RATE * medium().sound_carrying
+
+
+## What has been paid so far for survey data that has reached the surface.
+## Data still aboard earns nothing.
+func paid() -> float:
+	return _paid
+
+
+## The upload priority in force, one of the UPLOAD_* priorities.
+func upload_priority() -> StringName:
+	return _upload_priority
+
+
+## The survey stretches whose data has reached the surface and been paid for,
+## in the order they arrived. A copy.
+func uploaded_survey() -> Array[SurveyStretch]:
+	return _uploaded.duplicate()
 
 
 ## Heat made in the last step by everything that draws power, per second.
@@ -513,6 +768,146 @@ func _depth_at_distance(along_path: float) -> float:
 	return lerpf(_path_depths[i - 1], _path_depths[i], (along_path - d0) / (d1 - d0))
 
 
+# --- Power ----------------------------------------------------------------
+
+## Shares the Reactor's output among the Stations for this step. The shortfall
+## rule: when the Stations ask for more than the Reactor supplies, they are
+## served in a fixed order, Navigation, then Thermal, then the Drive, each
+## given all it asks for while power lasts, the next whatever is left. So
+## asking more of the Drive only throttles the Drive, while Thermal or
+## Navigation asking more takes power from the Drive, and only a Reactor short
+## of even their needs starves them.
+func _share_power() -> void:
+	_reactor_output = _plasma_stability * lerpf(_REACTOR_IDLE_OUTPUT,
+			_REACTOR_FULL_OUTPUT, _head_activity)
+	_navigation_request = _NAVIGATION_DRAW
+	_thermal_request = _THERMAL_BASE_DRAW + _THERMAL_COLUMN_DRAW * _heat_split
+	_drive_request = _power * _head_activity * (1.0 + _STEER_HEAT * _steering)
+	var left := _reactor_output
+	_navigation_draw = minf(_navigation_request, left)
+	left -= _navigation_draw
+	_thermal_draw = minf(_thermal_request, left)
+	left -= _thermal_draw
+	_drive_draw = minf(_drive_request, left)
+
+
+static func _supplied(drawn: float, requested: float) -> float:
+	return 1.0 if requested <= 0.0 else drawn / requested
+
+
+# --- Column features ------------------------------------------------------
+
+## Records the observed feature for as much of this step as it spends between
+## the Head and the Tail. The slower the vessel, the longer it stays.
+func _record_observed_feature(dt: float, travelled: float) -> void:
+	if _observed < 0:
+		return
+	var feature := _features[_observed]
+	var behind_before := _distance - feature.at
+	var behind_after := behind_before + travelled
+	var seconds_inside := 0.0
+	if travelled <= 0.0:
+		seconds_inside = dt if _in_column(feature) else 0.0
+	else:
+		var inside := minf(behind_after, _VESSEL_LENGTH_M) - maxf(behind_before, 0.0)
+		seconds_inside = maxf(inside, 0.0) / travelled * dt
+	var was_recorded := feature.is_recorded()
+	feature.recorded = minf(1.0,
+			feature.recorded + seconds_inside * _recording_quality() / _FEATURE_RECORD_S)
+	if feature.is_recorded() and not was_recorded:
+		_queue_feature_record(feature)
+	if behind_after > _VESSEL_LENGTH_M:
+		_observed = -1
+
+
+## A feature recorded in full joins the survey data waiting for the link, as an
+## entry of its own worth feature.worth, sent and paid for like a stretch.
+func _queue_feature_record(feature: ColumnFeature) -> void:
+	var record := SurveyStretch.feature_record(feature,
+			_medium_at_distance(feature.at).name)
+	_waiting.append(record)
+	_sending = null  # It may now be the one to send first.
+	_survey_value += record.value()
+
+
+## Adds the features the Head cut past in this step, placed along the path
+## where it met them.
+func _find_features(depth_before: float, depth_after: float, travelled: float) -> void:
+	for entry in _layout.features_between(depth_before, depth_after):
+		var template: ColumnFeature = entry[1]
+		if _found_templates.has(template):
+			continue
+		_found_templates[template] = true
+		var feature := template.copy()
+		feature.id = _features.size()
+		var share := inverse_lerp(depth_before, depth_after, entry[0])
+		feature.at = _distance + travelled * share
+		_features.append(feature)
+
+
+func _in_column(feature: ColumnFeature) -> bool:
+	var behind := _distance - feature.at
+	return behind >= 0.0 and behind <= _VESSEL_LENGTH_M
+
+
+# --- The tunnel behind ----------------------------------------------------
+
+## The Tail leaves the tunnel behind it: lined and open in porous Medium,
+## filled with melt in dense Medium. Once filled, it stays filled.
+func _update_tunnel() -> void:
+	if _tunnel_sealed:
+		return
+	var tail := _distance - _VESSEL_LENGTH_M
+	if tail < 0.0:
+		return  # The Tail has not yet left the surface.
+	if _medium_at_distance(tail).porosity < _SEAL_POROSITY:
+		_tunnel_sealed = true
+		_events.append({type = &"tunnel_sealed", distance = tail})
+
+
+# --- The link to the surface --------------------------------------------
+
+## Sends up to `metres` of survey data up the link, a stretch at a time in
+## the chosen priority, and pays for each stretch as the last of it reaches the
+## surface.
+func _upload(metres: float) -> void:
+	while metres > 0.0:
+		if _sending == null:
+			_sending = _next_to_send()
+			if _sending == null:
+				return  # Nothing waiting aboard.
+		var stretch := _sending
+		var sent: float = _sent.get(stretch, 0.0)
+		var piece := minf(metres, stretch.length - sent)
+		metres -= piece
+		sent += piece
+		if sent >= stretch.length:
+			_sent.erase(stretch)
+			_waiting.erase(stretch)
+			_sending = null
+			_uploaded.append(stretch)
+			_paid += stretch.value()
+		else:
+			_sent[stretch] = sent
+
+
+## The waiting stretch the chosen priority sends next, or null if all of the
+## survey is up.
+func _next_to_send() -> SurveyStretch:
+	if _waiting.is_empty():
+		return null
+	match _upload_priority:
+		UPLOAD_NEWEST_FIRST:
+			return _waiting.back()
+		UPLOAD_MOST_VALUABLE_FIRST:
+			var best: SurveyStretch = _waiting[0]
+			for stretch in _waiting:
+				if stretch.value() > best.value():
+					best = stretch
+			return best
+	return _waiting[0]
+
+
 # --- Heat -----------------------------------------------------------------
 
 ## Passes heat outward through the hull for dt seconds. The hull settles toward
@@ -557,8 +952,12 @@ func _close_stretch() -> void:
 	for medium_name in _stretch_media:
 		if main_medium == &"" or _stretch_media[medium_name] > _stretch_media[main_medium]:
 			main_medium = medium_name
-	_survey.append(SurveyStretch.new(_stretch_start, length,
-			_stretch_quality / length, composition, main_medium, _stretch_shuttered))
+	var stretch := SurveyStretch.new(_stretch_start, length,
+			_stretch_quality / length, composition, main_medium, _stretch_shuttered)
+	_survey.append(stretch)
+	_waiting.append(stretch)
+	_sending = null  # The new stretch may now be the one to send first.
+	_survey_value += stretch.value()
 	_stretch_start += length
 	_stretch_minerals = {}
 	_stretch_media = {}
@@ -614,7 +1013,8 @@ func _send_pulse() -> void:
 		var direction := ahead * c + (side * cos(turn) + other_side * sin(turn)) * s
 		for echo in _echoes_along(direction, boundaries):
 			var r: float = echo[0]
-			var strength: float = echo[1]
+			# A starved scanner listens less keenly: its echoes come back weaker.
+			var strength: float = echo[1] * navigation_supplied()
 			var confidence := strength / (strength + _noise + _SCAN_NOISE_FLOOR)
 			if _scan_random.randf() > confidence:
 				continue
