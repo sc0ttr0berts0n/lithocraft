@@ -9,9 +9,18 @@ const SWING_RATE := 3.0
 
 var station_name := ""
 var hue := Color.WHITE
+## Font size of the screen's text; smaller fits more lines on the screen.
+var screen_font_size := 48
+
+## Pulses of the call light per second, and its brightest energy.
+const CALL_PULSE_HZ := 2.0
+const CALL_LIGHT_ENERGY := 2.5
 
 var _cradle := Node3D.new()
 var _screen_text: Label3D
+var _call_light: OmniLight3D
+var _calling := false
+var _call_phase := 0.0
 
 
 func _ready() -> void:
@@ -40,10 +49,39 @@ func _ready() -> void:
 	_screen_text.text = station_name
 	_screen_text.modulate = hue
 	_screen_text.pixel_size = 0.0015
-	_screen_text.font_size = 48
+	_screen_text.font_size = screen_font_size
 	_screen_text.position = Vector3(0, 0.2, -0.015)
 	_screen_text.rotation = Vector3(0, PI, 0)
 	_cradle.add_child(_screen_text)
+
+	# The Station's own light, dark until it calls for attention.
+	_call_light = OmniLight3D.new()
+	_call_light.light_color = hue
+	_call_light.light_energy = 0.0
+	_call_light.omni_range = 2.5
+	_call_light.position = Vector3(0, 0.5, -0.3)
+	_cradle.add_child(_call_light)
+
+
+func _process(delta: float) -> void:
+	if not _call_light:
+		return
+	if _calling:
+		_call_phase = fmod(_call_phase + delta * CALL_PULSE_HZ, 1.0)
+		_call_light.light_energy = CALL_LIGHT_ENERGY * (0.5 + 0.5 * sin(_call_phase * TAU))
+	else:
+		_call_phase = 0.0
+		_call_light.light_energy = 0.0
+
+
+## Call for attention with the Station's own light, pulsing in its hue, or
+## stop calling. The screen says why.
+func set_calling(calling: bool) -> void:
+	_calling = calling
+
+
+func is_calling() -> bool:
+	return _calling
 
 
 ## Text shown on the Station's screen, under its name.

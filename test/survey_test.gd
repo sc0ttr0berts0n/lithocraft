@@ -113,8 +113,8 @@ func test_a_stretch_across_a_boundary_holds_some_of_each_medium() -> void:
 
 
 func test_every_stretch_has_a_quality_and_an_untouched_column_is_pristine() -> void:
-	# Nothing yet heats the Column or shutters the Bore (tickets #7 and #13),
-	# so every stretch of this dive is recorded at the best quality there is.
+	# By default Thermal sends all heat outward, so nothing heats the Column and
+	# every stretch of this dive is recorded at the best quality there is.
 	var survey := _dive(MediumLayout.first_dive(), 1.0, 500.0).survey()
 
 	assert_int(survey.size()).is_greater(1)
