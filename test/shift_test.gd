@@ -43,6 +43,12 @@ func _shift_after(wait: float, off_by := 1.0, sim: DiveSimulation = null) -> Dic
 	DiveTestKit.run_until(sim, &"boundary_crossed")
 	for i in int(wait / 0.1):
 		sim.advance(0.1)
+	return _shift_now(sim, off_by)
+
+
+## Shifts at once to the wobble times `off_by` and returns the &"shift_result",
+## or an empty Dictionary. Events before it are dropped.
+func _shift_now(sim: DiveSimulation, off_by: float) -> Dictionary:
 	sim.take_events()
 	sim.shift(sim.plasma_frequency() * off_by)
 	sim.advance(0.1)
@@ -362,13 +368,7 @@ func _first_boundary(wear := 0.0) -> DiveSimulation:
 ## window has closed.
 func _blind_shift(sim: DiveSimulation) -> Dictionary:
 	DiveTestKit.run(sim, sim.shift_window() + 2.0, 0.1)
-	sim.take_events()
-	sim.shift(sim.plasma_frequency() * 1.6)
-	sim.advance(0.1)
-	for event in sim.take_events():
-		if event.type == &"shift_result":
-			return event
-	return {}
+	return _shift_now(sim, 1.6)
 
 
 func test_one_poor_shift_at_the_first_boundary_grinds_a_fresh_head_but_keeps_the_plasma() -> void:
@@ -380,9 +380,14 @@ func test_one_poor_shift_at_the_first_boundary_grinds_a_fresh_head_but_keeps_the
 	assert_float(fresh.head_wear()).is_greater(0.0)
 	assert_float(fresh.lurch()).is_greater(0.0)
 	assert_bool(fresh.plasma_lost()).is_false()
+	# The grinding's heat spike fades: the same running makes less heat later.
+	var heat_at_shift := fresh.heat_produced()
+	DiveTestKit.run(fresh, 5.0, 0.1)
+	assert_float(heat_at_shift).is_greater(fresh.heat_produced() + 1e-3)
+	assert_bool(fresh.plasma_lost()).is_false()
 
 
-func test_the_same_poor_shift_at_the_first_boundary_can_lose_the_plasma_on_a_worn_head() -> void:
+func test_the_same_poor_shift_at_the_first_boundary_loses_the_plasma_on_a_badly_worn_head() -> void:
 	var worn := _first_boundary(0.6)
 	assert_bool(worn.plasma_lost()).is_false()
 
