@@ -1348,8 +1348,15 @@ func cause_of_death() -> StringName:
 func outcome() -> Dictionary:
 	if not _outcome.is_empty():
 		return _outcome.duplicate()
-	return {ending = &"under_way", cause = &"", plasma_lost_by = _plasma.lost_by(),
-			stranded_for = _stranding.stranded_for() if stranded() else 0.0, depth = depth()}
+	return _ended(&"under_way", &"", _stranding.stranded_for() if stranded() else 0.0, depth())
+
+
+## An outcome() for this `ending`, its `cause`, the seconds stranded and the
+## depth it ended at; the plasma's state is read now.
+func _ended(ending: StringName, cause: StringName, stranded_for: float,
+		at_depth: float) -> Dictionary:
+	return {ending = ending, cause = cause, plasma_lost_by = _plasma.lost_by(),
+			stranded_for = stranded_for, depth = at_depth}
 
 
 ## How far the crew has held the self-destruct command toward starting it, 0
@@ -1986,8 +1993,7 @@ func _die() -> void:
 	var lost := _lose_unsold()
 	var cause := &"self_destruct" if _self_destructing else &"heat"
 	_death_cause = cause
-	_outcome = {ending = &"dead", cause = cause, plasma_lost_by = _plasma.lost_by(),
-			stranded_for = _stranding.stranded_for(), depth = depth()}
+	_outcome = _ended(&"dead", cause, _stranding.stranded_for(), depth())
 	_self_destructing = false
 	_speed = 0.0
 	_slip = 0.0
@@ -2057,10 +2063,8 @@ func _surface() -> void:
 ## `rescue_seconds`) are paid for out of it, and &"paid" is raised with what
 ## this dive was paid and why. The dive is over; new_dive() starts another.
 func _come_home(arrival: Dictionary, rescue_seconds := 0.0) -> void:
-	var lost_by := _plasma.lost_by()
-	_outcome = {ending = arrival.type, cause = lost_by if arrival.type != &"surfaced" else &"",
-			plasma_lost_by = lost_by, stranded_for = rescue_seconds,
-			depth = arrival.get("depth", 0.0)}
+	_outcome = _ended(arrival.type, &"" if arrival.type == &"surfaced" else _plasma.lost_by(),
+			rescue_seconds, arrival.get("depth", 0.0))
 	_rest_at_surface()
 	_events.append(arrival)
 	var carried := _sell_aboard()

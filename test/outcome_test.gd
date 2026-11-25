@@ -214,6 +214,34 @@ func test_self_destruct_stranded_is_dead_by_self_destruct_after_the_time_strande
 	assert_float(outcome.stranded_for).is_greater(0.0)
 
 
+func test_a_relit_head_leaves_no_stranding_or_lost_plasma_in_the_outcome() -> void:
+	var sim := DiveSimulation.new(MediumLayout.uniform(_cool_dense()))
+	sim.set_attended(DiveSimulation.STATION_REACTOR, true)
+	var lit := false
+	# Relights are luck: strand again (rescued, then a new dive) until one lights.
+	for attempt in 20:
+		if lit:
+			break
+		sim.new_dive()
+		sim.set_power(1.0)
+		DiveTestKit.run(sim, 60.0, 0.5)
+		DiveTestKit.lose_plasma(sim)
+		DiveTestKit.run(sim, 30.0)
+		assert_float(sim.outcome().stranded_for).is_greater(0.0)
+		while not lit and sim.emergency_store() >= sim.relight_cost():
+			sim.relight()
+			lit = DiveTestKit.run_until(sim, &"relight_result", 1.0, [], 0.25).outcome == &"lit"
+		if not lit:
+			DiveTestKit.run_until(sim, &"rescued", PLENTY_S, [], 1.0)
+	assert_bool(lit).is_true()
+
+	var outcome := sim.outcome()
+
+	assert_str(String(outcome.ending)).is_equal("under_way")
+	assert_str(String(outcome.plasma_lost_by)).is_empty()
+	assert_float(outcome.stranded_for).is_equal(0.0)
+
+
 func test_a_new_dive_has_no_outcome_until_it_ends() -> void:
 	var sim := _dive(_cool_dense(), 60.0)
 	DiveTestKit.lose_plasma(sim)

@@ -7,12 +7,12 @@ class_name OutcomeScreen
 extends RefCounted
 
 ## The least the end of a dive lurches, metres, so even a quiet ending is felt.
-## Tuned for feel.
-const LEAST_LURCH_M := 0.02
+## Tuned for feel (ADR 0001).
+const _LEAST_LURCH_M := 0.02
 ## How fast the lurch dies away (its time constant) and when it is fully
-## still, in seconds. Tuned for feel.
-const LURCH_S := 0.3
-const SETTLE_S := 1.2
+## still, in seconds. Tuned for feel (ADR 0001).
+const _LURCH_S := 0.3
+const _SETTLE_S := 1.2
 
 ## The lurch's starting shake, metres, and seconds since it began; NAN before
 ## a dive has ended.
@@ -21,9 +21,9 @@ var _age := NAN
 
 
 ## The dive has ended with the view shaking `shaking_m`: the lurch starts
-## from that, or from LEAST_LURCH_M if that is less.
+## from that, or from a least lurch if that is less.
 func start(shaking_m: float) -> void:
-	_peak = maxf(shaking_m, LEAST_LURCH_M)
+	_peak = maxf(shaking_m, _LEAST_LURCH_M)
 	_age = 0.0
 
 
@@ -34,7 +34,7 @@ func reset() -> void:
 
 
 ## One frame of `delta` seconds on: the lurch's shake now, in metres. It dies
-## away and is exactly 0 from SETTLE_S on, the frame still() turns true; 0
+## away and is exactly 0 once settled, the frame still() turns true; 0
 ## before a dive has ended.
 func step(delta: float) -> float:
 	if is_nan(_age):
@@ -46,13 +46,13 @@ func step(delta: float) -> float:
 ## True once the lurch has settled: the screen is still, so the outcome and
 ## its breakdown can show.
 func still() -> bool:
-	return not is_nan(_age) and _age >= SETTLE_S
+	return not is_nan(_age) and _age >= _SETTLE_S
 
 
 ## The lurch's shake `age` seconds after the dive ended: an exponential
-## settling, faded to exactly 0 at SETTLE_S so it ends still, not on a jump.
+## settling, faded to exactly 0 at _SETTLE_S so it ends still, not on a jump.
 func _shake_at(age: float) -> float:
-	return _peak * exp(-age / LURCH_S) * maxf(0.0, 1.0 - age / SETTLE_S)
+	return _peak * exp(-age / _LURCH_S) * maxf(0.0, 1.0 - age / _SETTLE_S)
 
 
 ## How the dive ended, in a sentence, from DiveSimulation.outcome(); empty
@@ -65,10 +65,10 @@ static func sentence(outcome: Dictionary) -> String:
 			return "Surfaced under the Lithocraft's own power."
 		&"brought_home":
 			return "Brought home up the open tunnel from %s: %s." % [depth,
-					_plasma_lost(outcome.plasma_lost_by)]
+					_plasma_lost(outcome.cause)]
 		&"rescued":
 			return "Rescued from %s after %s stranded: %s." % [depth,
-					_spoken(stranded_for), _plasma_lost(outcome.plasma_lost_by)]
+					_spoken(stranded_for), _plasma_lost(outcome.cause)]
 		&"dead":
 			if outcome.cause == &"self_destruct":
 				if stranded_for > 0.0:
