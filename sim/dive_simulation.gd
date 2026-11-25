@@ -39,6 +39,18 @@ const _HEAT_PER_POWER := 1.0
 ## Heat per metre of Column that halves the quality the Bore Station can
 ## record. Tuned for play (ADR 0001).
 const _COLUMN_COOK_HEAT_PER_M := 2.0
+## How much heat per second the hull sheds into the surrounding Medium for each
+## kelvin it is hotter than the Medium. Tuned for play (ADR 0001).
+const _HULL_SHED_PER_K := 1.0 / 400.0
+## Heat it takes to warm the hull by one kelvin, so the hull warms and cools
+## over a minute or so rather than at once. Tuned for play (ADR 0001).
+const _HULL_HEAT_PER_K := 0.15
+## Hull temperature in kelvin above which heat damages the vessel. Tuned for
+## play (ADR 0001).
+const _HULL_DAMAGE_K := 600.0
+## Wear per second for each kelvin the hull is above _HULL_DAMAGE_K. Tuned for
+## play (ADR 0001).
+const _WEAR_PER_K_S := 1.0e-5
 
 var _layout: MediumLayout
 var _power := 0.0
@@ -53,6 +65,10 @@ var _heat_split := 0.0
 var _heat_produced := 0.0
 ## Heat sent into the Column in the last step, per second.
 var _heat_to_column := 0.0
+## The hull's temperature in kelvin. Heat sent outward passes through it.
+var _vessel_temperature := 0.0
+## Damage done to the vessel by heat, 0 (none) to 1.
+var _vessel_wear := 0.0
 ## Metres travelled along the path since the dive began. The path is straight
 ## down until steering lands (ticket #8), so for now it equals depth.
 var _distance := 0.0
@@ -68,6 +84,7 @@ var _stretch_quality := 0.0
 
 func _init(layout: MediumLayout) -> void:
 	_layout = layout
+	_vessel_temperature = surroundings_temperature()
 
 
 # --- Commands -------------------------------------------------------------
@@ -102,6 +119,7 @@ func advance(dt: float) -> void:
 	# Every system that draws power makes heat; power lost to slip included.
 	_heat_produced = _power * _HEAT_PER_POWER
 	_heat_to_column = _heat_produced * _heat_split
+	_shed_heat_outward(_heat_produced - _heat_to_column, dt)
 	var travelled := _speed * dt
 	_depth += travelled
 	_record_survey(_distance, _distance + travelled)
@@ -167,6 +185,48 @@ func survey() -> Array[SurveyStretch]:
 ## Heat made in the last step by everything that draws power, per second.
 func heat_produced() -> float:
 	return _heat_produced
+
+
+## Heat sent into the Column in the last step, per second.
+func heat_to_column() -> float:
+	return _heat_to_column
+
+
+## Heat sent outward through the hull in the last step, per second.
+func heat_outward() -> float:
+	return _heat_produced - _heat_to_column
+
+
+## The hull's temperature in kelvin. Heat sent outward warms it until it is hot
+## enough above the surrounding Medium to shed that heat.
+func vessel_temperature() -> float:
+	return _vessel_temperature
+
+
+## Temperature in kelvin of the Medium around the vessel now. It rises with
+## depth, so the hull has less room to shed heat the deeper it goes.
+func surroundings_temperature() -> float:
+	return _layout.medium_at(_depth).temperature
+
+
+## Damage heat has done to the vessel so far, 0 (none) to 1. It only grows
+## while the hull is hotter than it can bear.
+func vessel_wear() -> float:
+	return _vessel_wear
+
+
+# --- Heat -----------------------------------------------------------------
+
+## Passes heat outward through the hull for dt seconds. The hull settles toward
+## the temperature at which it sheds that heat into the Medium, and wears for
+## as long as it is above the temperature it can bear.
+func _shed_heat_outward(heat: float, dt: float) -> void:
+	var settled := surroundings_temperature() + heat / _HULL_SHED_PER_K
+	var toward := exp(-dt * _HULL_SHED_PER_K / _HULL_HEAT_PER_K)
+	_vessel_temperature = settled + (_vessel_temperature - settled) * toward
+	var overheat := _vessel_temperature - _HULL_DAMAGE_K
+	if overheat > 0.0:
+		_vessel_wear = minf(1.0, _vessel_wear + _WEAR_PER_K_S * overheat * dt)
 
 
 # --- Survey ---------------------------------------------------------------

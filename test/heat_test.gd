@@ -49,3 +49,18 @@ func test_more_heat_sent_into_the_column_lowers_survey_quality() -> void:
 	assert_float(quality[0]).is_equal_approx(1.0, 0.0001)
 	assert_float(quality[1]).is_less(quality[0])
 	assert_float(quality[2]).is_less(quality[1])
+
+
+func test_heat_sent_outward_wears_the_vessel_and_heat_into_the_column_does_not() -> void:
+	var outward := _run(_sim(1.0, 0.0), 1200.0)
+	var into_column := _run(_sim(1.0, 1.0), 1200.0)
+
+	assert_float(outward.vessel_temperature()).is_greater(into_column.vessel_temperature())
+	assert_float(outward.vessel_wear()).is_greater(0.0)
+	assert_float(into_column.vessel_wear()).is_equal_approx(0.0, 0.0001)
+
+
+func test_the_vessel_does_not_wear_from_heat_it_can_shed() -> void:
+	var gentle := _run(_sim(0.1, 0.0), 1200.0)
+
+	assert_float(gentle.vessel_wear()).is_equal_approx(0.0, 0.0001)
