@@ -38,6 +38,11 @@ const TOWARD_UNDERSIDE := Vector3.DOWN
 ## bends. The tightest arc it can cut, in metres of radius. Tuned for play
 ## (ADR 0001); tests read minimum_turn_radius(), never this.
 const _MIN_TURN_RADIUS_M := 250.0
+## How far one nudge at the Drive moves what it steers for, degrees: small
+## beside the quarter turn between a dive and level, so the Drive trims its
+## way off the Course and cannot swing to a new one in a press. Tuned for
+## play (ADR 0001); tests read nudge_degrees(), never this.
+const _NUDGE_DEG := 15.0
 ## How fast the uneven heating builds up or dies away, as a share of full
 ## steering per second: the vessel answers the Drive slowly. Tuned for play.
 const _STEER_RESPONSE := 0.1
@@ -245,8 +250,9 @@ var _direction := Vector3.DOWN
 var _course_pitch := 90.0
 var _course_heading := 0.0
 ## The Drive's override, steered toward instead of the Course while it lasts:
-## heading and pitch in degrees. Only an attended Drive can begin one; it
-## holds until ended, or until the Drive's autopilot is engaged.
+## heading and pitch in degrees. Only an attended Drive's nudges begin and
+## move one; it holds until ended, nudged or plotted back onto the Course, or
+## until the Drive's autopilot is engaged.
 var _overriding := false
 var _override_heading := 0.0
 var _override_pitch := 0.0
@@ -437,6 +443,7 @@ func set_course(heading_degrees: float, pitch_degrees: float) -> void:
 	_disengage_on_command(STATION_NAVIGATION)
 	_course_heading = fposmod(heading_degrees, 360.0)
 	_course_pitch = clampf(pitch_degrees, -90.0, 90.0)
+	_settle_override()
 	_events.append({type = &"course_plotted", heading = _course_heading, pitch = _course_pitch})
 
 
@@ -451,18 +458,43 @@ func set_steering_effort(effort: float) -> void:
 	_steering_effort = clampf(effort, 0.0, 1.0)
 
 
-## Drive: steers toward this heading and pitch (degrees, as set_course())
-## instead of the Course, until end_override() or until the Drive's autopilot
-## is engaged. Ignored while nobody is at the Drive.
-func override_course(heading_degrees: float, pitch_degrees: float) -> void:
+## Drive: nudges the pitch it steers for one step of nudge_degrees(), down
+## (toward diving) for a positive `direction`, up for a negative one; only the
+## sign counts. The first nudge begins the Drive's override from what it
+## steers for now (the Course), and each later one moves on from there: the
+## only way the Drive leaves the Course, which is Navigation's alone to plot.
+## The override holds until end_override(), until a nudge or a newly plotted
+## Course brings the two together again, or until the Drive's autopilot is
+## engaged. Ignored while nobody is at the Drive.
+func nudge_pitch(direction: float) -> void:
+	_nudge(0.0, signf(direction) * _NUDGE_DEG)
+
+
+## Drive: nudges the compass heading it steers for one step of
+## nudge_degrees(), right (clockwise from above) for a positive `direction`,
+## left for a negative one; otherwise as nudge_pitch(). Does nothing while
+## the Drive steers straight up or down, where heading means nothing.
+func nudge_heading(direction: float) -> void:
+	_nudge(signf(direction) * _NUDGE_DEG, 0.0)
+
+
+func _nudge(heading_degrees: float, pitch_degrees: float) -> void:
 	if _off_the_crew():
 		return
 	if not attended(STATION_DRIVE):
 		return
 	_disengage_on_command(STATION_DRIVE)
+	_override_heading = fposmod(steered_heading() + heading_degrees, 360.0)
+	_override_pitch = clampf(steered_pitch() + pitch_degrees, -90.0, 90.0)
 	_overriding = true
-	_override_heading = fposmod(heading_degrees, 360.0)
-	_override_pitch = clampf(pitch_degrees, -90.0, 90.0)
+	_settle_override()
+
+
+## An override that steers for the Course itself is no override: the Drive
+## follows the Course again.
+func _settle_override() -> void:
+	if _overriding and is_zero_approx(deviation_pitch()) and is_zero_approx(deviation_heading()):
+		_overriding = false
 
 
 ## Drive: gives up an override and steers toward the Course again.
@@ -536,7 +568,7 @@ func set_quiet_ship(on: bool) -> void:
 
 ## Whether a crew member is at this Station (one of STATIONS) to work it.
 ## Being there matters only for commands that need the crew present (the
-## Drive's override, self-destruct's hold); whether a Station steadies itself
+## Drive's nudges, self-destruct's hold); whether a Station steadies itself
 ## is its autopilot's switch alone (set_autopilot()). All start unattended.
 func set_attended(station: StringName, attended: bool) -> void:
 	if station in STATIONS:
@@ -1200,6 +1232,30 @@ func steered_heading() -> float:
 ## else the Course's. Degrees.
 func steered_pitch() -> float:
 	return _override_pitch if _overriding else _course_pitch
+
+
+## The deviation in pitch: how far what the Drive steers for is off the
+## Course, in degrees, positive steeper down (toward diving) and negative up.
+## Zero while the Drive follows the Course.
+func deviation_pitch() -> float:
+	return steered_pitch() - _course_pitch
+
+
+## The deviation in heading: how far what the Drive steers for is off the
+## Course round the compass, the short way, in degrees: positive to the right
+## (clockwise from above), negative to the left. Zero while the Drive follows
+## the Course, and while it steers straight up or down, where heading means
+## nothing.
+func deviation_heading() -> float:
+	if not _overriding or absf(_override_pitch) >= 90.0:
+		return 0.0
+	return wrapf(_override_heading - _course_heading, -180.0, 180.0)
+
+
+## How far one nudge at the Drive moves what it steers for, in degrees; see
+## nudge_pitch().
+func nudge_degrees() -> float:
+	return _NUDGE_DEG
 
 
 ## Drive power setting, 0 to 1.

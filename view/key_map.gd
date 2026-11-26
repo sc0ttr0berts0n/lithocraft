@@ -28,8 +28,8 @@ const MOUSE := -1
 ##   reads `KeyMap.held(action)` each frame. A key that acts on its press and
 ##   also while held (K, self-destruct) is a press binding whose handler
 ##   starts the hold, and reads `KeyMap.held(action)` for the release.
-## A key may be bound in several places (the Course keys at Navigation and at
-## the Drive); a press runs the first binding, in this order, that applies
+## A key may be bound in several places (Z / X and J / L plot the Course at
+## Navigation and nudge off it at the Drive); a press runs the first binding, in this order, that applies
 ## where the crew stands.
 const BINDINGS: Array[Dictionary] = [
 	{where = ANYWHERE, keys = [MOUSE], does = "capture the mouse to look", action = &"capture_mouse"},
@@ -54,9 +54,8 @@ const BINDINGS: Array[Dictionary] = [
 	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_E], does = "autopilot on / off", action = &"autopilot_drive"},
 	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_T, KEY_G], does = "throttle +/-10%", action = &"power_step"},
 	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_Y, KEY_H], does = "steering effort +/-10%", action = &"effort_step"},
-	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_1, KEY_2, KEY_3], does = "override: dive / level / climb", action = &"override_pitch"},
-	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_Z, KEY_X], does = "override pitch -/+15 deg", action = &"override_pitch_step"},
-	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_J, KEY_L], does = "override heading -/+15 deg", action = &"override_heading_step"},
+	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_Z, KEY_X], does = "nudge off the Course: up / down", action = &"nudge_pitch"},
+	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_J, KEY_L], does = "nudge off the Course: left / right", action = &"nudge_heading"},
 	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_O], does = "back to the Course", action = &"end_override"},
 	{where = DiveSimulation.STATION_BORE, keys = [KEY_E], does = "autopilot on / off", action = &"autopilot_bore"},
 	{where = DiveSimulation.STATION_BORE, keys = [KEY_F], does = "observe the next feature", action = &"observe"},

@@ -62,7 +62,7 @@ func test_commands_for_the_same_time_are_sent_in_the_order_given() -> void:
 
 
 func test_a_command_that_needs_the_crew_at_a_station_works_seated_there() -> void:
-	var override := ["--time", "2", "--do", "1 override_course 90 60"]
+	var override := ["--time", "2", "--do", "1 nudge_pitch -1"]
 	var at_the_drive := _staged(["--look", "Drive"] + override)
 	var elsewhere := _staged(["--look", "Thermal"] + override)
 

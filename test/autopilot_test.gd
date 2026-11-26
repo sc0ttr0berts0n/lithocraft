@@ -28,7 +28,8 @@ func _setting_commands() -> Array:
 	return [
 		[DiveSimulation.STATION_DRIVE, func(s: DiveSimulation) -> void: s.set_power(0.6)],
 		[DiveSimulation.STATION_DRIVE, func(s: DiveSimulation) -> void: s.set_steering_effort(0.5)],
-		[DiveSimulation.STATION_DRIVE, func(s: DiveSimulation) -> void: s.override_course(90.0, 0.0)],
+		[DiveSimulation.STATION_DRIVE, func(s: DiveSimulation) -> void: s.nudge_pitch(-1.0)],
+		[DiveSimulation.STATION_DRIVE, func(s: DiveSimulation) -> void: s.nudge_heading(1.0)],
 		[DiveSimulation.STATION_DRIVE, func(s: DiveSimulation) -> void: s.end_override()],
 		[DiveSimulation.STATION_NAVIGATION, func(s: DiveSimulation) -> void: s.set_course(90.0, 0.0)],
 		[DiveSimulation.STATION_NAVIGATION, func(s: DiveSimulation) -> void: s.set_quiet_ship(true)],
@@ -76,7 +77,7 @@ func test_switching_off_an_autopilot_that_is_off_raises_nothing() -> void:
 func test_a_setting_command_disengages_its_stations_autopilot_and_says_so() -> void:
 	for command in _setting_commands():
 		var sim := _sim()
-		sim.set_attended(command[0], true)  # The Drive's override needs the crew there.
+		sim.set_attended(command[0], true)  # The Drive's nudges need the crew there.
 		for station in DiveSimulation.STATIONS:
 			sim.set_autopilot(station, true)
 		sim.take_events()
@@ -306,7 +307,7 @@ func test_the_drives_autopilot_turns_more_gently_than_a_crew_steering_hard() -> 
 func test_engaging_the_drives_autopilot_ends_an_override() -> void:
 	var sim := _sim()
 	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
-	sim.override_course(90.0, 0.0)
+	sim.nudge_pitch(-1.0)
 	assert_bool(sim.overriding()).is_true()
 
 	sim.set_autopilot(DiveSimulation.STATION_DRIVE, true)
@@ -317,7 +318,7 @@ func test_engaging_the_drives_autopilot_ends_an_override() -> void:
 func test_an_override_holds_after_the_crew_walks_away_from_the_drive() -> void:
 	var sim := _sim()
 	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
-	sim.override_course(90.0, 0.0)
+	sim.nudge_pitch(-1.0)
 
 	sim.set_attended(DiveSimulation.STATION_DRIVE, false)
 	sim.advance(1.0)

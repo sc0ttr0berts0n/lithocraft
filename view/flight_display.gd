@@ -18,9 +18,11 @@
 ##             Reactor's full output (PowerLine), STARVED when short.
 ##   grip      how much of the Drive's power grips the wall, and the slip.
 ##   steering  the throttle, the steering effort and how hard the Head steers.
-## While the Drive overrides the Course, what it steers toward instead shows
-## hollow beside the Course's marks, in the same cyan: both are what the crew
-## has selected. The vessel's own mark and readings are white, scales and
+## While the Drive is nudged off the Course, what it steers toward instead
+## shows hollow beside the Course's marks, in the same cyan (both are what the
+## crew has selected), and the attitude indicator's foot states the deviation
+## in CourseDeviation's words, as Navigation's screen does: "OFF COURSE 30 deg
+## up". The vessel's own mark and readings are white, scales and
 ## titles the legend's grey, a starved Drive or slipping grip amber
 ## (StationTheme). A mark off its scale
 ## is pinned to the end nearer it (FlightTape.pinned()), so it always shows
@@ -158,14 +160,16 @@ class _Canvas extends Control:
 		# The Course at its heading and pitch from the vessel's; over it, what
 		# the Drive steers toward instead, hollow. Pinned marks stay clear of
 		# the indicator's edges and its plate.
-		var marks := box.grow_individual(-30.0, -(PLATE + 18.0), -30.0, -18.0)
+		var off_course := sim.overriding()
+		var marks := box.grow_individual(-30.0, -(PLATE + 18.0), -30.0,
+				-(PLATE + 18.0) if off_course else -18.0)
 		var place := func(to_heading: float, to_pitch: float) -> Vector2:
 			return (mid + Vector2(across.pinned(FlightTape.sideways(to_heading, to_pitch, heading), 0.0),
 					ladder.pinned(to_pitch, pitch))).clamp(marks.position, marks.end)
 		var course: Vector2 = place.call(sim.course_heading(), sim.course_pitch())
 		_cross(course, FlightDisplay.COURSE, true)
 		_chevrons(box, course.y, FlightDisplay.COURSE, true)
-		if sim.overriding():
+		if off_course:
 			var steered: Vector2 = place.call(sim.steered_heading(), sim.steered_pitch())
 			_cross(steered, FlightDisplay.COURSE, false)
 			_chevrons(box, steered.y, FlightDisplay.COURSE, false)
@@ -182,9 +186,17 @@ class _Canvas extends Control:
 				-1, FlightDisplay.FONT, mark)
 		draw_string(font, box.position + Vector2(box.size.x - 228, 30), "COURSE %+.0f" % sim.course_pitch(),
 				HORIZONTAL_ALIGNMENT_RIGHT, 220, FlightDisplay.FONT, FlightDisplay.COURSE)
+		if off_course:
+			# The deviation, stated beside the hollow mark it is drawn with.
+			var foot := Rect2(Vector2(box.position.x, box.end.y - PLATE), Vector2(box.size.x, PLATE))
+			draw_rect(foot, StationTheme.faded(FlightDisplay.BACKGROUND, 0.7))
+			_cross(foot.position + Vector2(26, PLATE / 2.0), FlightDisplay.COURSE, false)
+			draw_string(font, foot.position + Vector2(52, 30), "OFF COURSE  %s" % CourseDeviation.of(sim),
+					HORIZONTAL_ALIGNMENT_LEFT, box.size.x - 60, FlightDisplay.FONT, FlightDisplay.COURSE)
 		draw_rect(box, FlightDisplay.DIM, false, 2.0)
 
-	## The Course's (or the override's) cross on the attitude indicator.
+	## The Course's cross on the attitude indicator, or hollow what the Drive
+	## steers for off it.
 	func _cross(at: Vector2, colour: Color, filled: bool) -> void:
 		var r := 15.0
 		var diamond := PackedVector2Array([at + Vector2(0, -r), at + Vector2(r, 0), at + Vector2(0, r),
