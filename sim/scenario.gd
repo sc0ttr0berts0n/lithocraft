@@ -113,6 +113,11 @@ func start() -> DiveSimulation:
 
 # --- Conditions ------------------------------------------------------------
 
+## A condition that always holds: a message sent as the dive begins.
+static func always() -> Callable:
+	return func(_sim: DiveSimulation, _events: Array) -> bool: return true
+
+
 ## A condition that holds while `predicate(sim)` does.
 static func when(predicate: Callable) -> Callable:
 	return func(sim: DiveSimulation, _events: Array) -> bool: return predicate.call(sim)
@@ -266,9 +271,8 @@ static func first_dive() -> Scenario:
 
 	s.phases = [startup, sand, first_boundary, sandstone, granite, turn, surface]
 
-	var always := func(_sim: DiveSimulation, _events: Array) -> bool: return true
 	s.messages = [
-		Message.new("Orders for your first dive: survey down through the %s into the %s, then surface with the data. You are paid for survey once it is uploaded, or brought home." % [middle.name, bottom.name], always),
+		Message.new("Orders for your first dive: survey down through the %s into the %s, then surface with the data. You are paid for survey once it is uploaded, or brought home." % [middle.name, bottom.name], always()),
 		Message.new("We have you nearing the %s. Ready the dial at the Reactor and Shift as you cross." % middle.name,
 				on_event(&"boundary_approaching")),
 		Message.new("The tunnel has sealed behind you. You are on sound through the rock now: slow both ways.",
@@ -316,9 +320,8 @@ static func shift_drill() -> Scenario:
 	]
 	s.phases = [reactor]
 
-	var always := func(_sim: DiveSimulation, _events: Array) -> bool: return true
 	s.messages = [
-		Message.new("Shift drill: the Drive and Thermal are on their autopilots. Yours is the Reactor: ready the dial for the %s, and Shift as the Head crosses." % below.name, always),
+		Message.new("Shift drill: the Drive and Thermal are on their autopilots. Yours is the Reactor: ready the dial for the %s, and Shift as the Head crosses." % below.name, always()),
 		Message.new("We have you nearing the %s. Ready the dial at the Reactor and Shift as you cross." % below.name,
 				on_event(&"boundary_approaching")),
 		Message.new("Shift made. That is the drill: dive on, or turn for home.", crew_shift_in(below.name)),
@@ -404,9 +407,8 @@ static func stranded_in_the_granite() -> Scenario:
 	]
 	s.phases = [dark, still_dark, wait, relit, home]
 
-	var always := func(_sim: DiveSimulation, _events: Array) -> bool: return true
 	s.messages = [
-		Message.new("We hear you are dark, sealed in the %s. A rescue is coming down the tunnel. Try a relight; if the Head will not light, send your survey up and keep the hull cool while you wait." % bottom.name, always),
+		Message.new("We hear you are dark, sealed in the %s. A rescue is coming down the tunnel. Try a relight; if the Head will not light, send your survey up and keep the hull cool while you wait." % bottom.name, always()),
 		Message.new("You are lit. Climb home.", _relight(true)),
 		Message.new("Welcome home. The survey is paid for.", on_event(&"paid")),
 	]

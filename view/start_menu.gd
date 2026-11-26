@@ -71,6 +71,8 @@ static func choice_for(code: Key, count: int) -> int:
 
 
 ## Starts the Scenario at `index` in a fresh Habitat, in place of the menu.
+## By hand rather than change_scene_to_file(), so the Habitat has its
+## Scenario before it enters the tree and builds its simulation.
 func _start(index: int) -> void:
 	var habitat := HABITAT.instantiate()
 	habitat.scenario = _scenarios[index]

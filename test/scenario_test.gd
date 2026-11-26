@@ -7,22 +7,6 @@
 extends GdUnitTestSuite
 
 
-## Advances in steps of `step`, the time rate raised before each, until
-## `done` holds of the sim or `seconds` have passed. Returns whether it held.
-static func _fly_until(sim: DiveSimulation, done: Callable, seconds := 3000.0, step := 1.0) -> bool:
-	for i in int(seconds / step):
-		if done.call(sim):
-			return true
-		sim.set_time_rate(sim.max_time_rate())
-		sim.advance(step)
-		sim.take_events()
-	return done.call(sim)
-
-
-static func _wobble_in(medium: Medium) -> float:
-	return DiveSimulation.new(MediumLayout.uniform(medium)).plasma_frequency()
-
-
 # --- Every Scenario ------------------------------------------------------
 
 func test_the_start_menu_has_three_scenarios_the_first_dive_first() -> void:
@@ -54,7 +38,7 @@ func test_every_scenario_has_orders_and_a_checklist_of_distinct_steps() -> void:
 func test_every_scenario_opens_with_its_orders_from_surface_control() -> void:
 	for scenario in Scenario.all():
 		var sim := scenario.start()
-		assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return not s.surface_messages().is_empty(), 600.0, 0.5)).is_true()
+		assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return not s.surface_messages().is_empty(), 600.0, 0.5)).is_true()
 
 
 # --- The Scenario start commands ------------------------------------------
@@ -188,7 +172,7 @@ func test_the_shift_drills_checklist_and_orders_tick_as_the_shift_is_made() -> v
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"ready_dial")
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 600.0, [], 0.5)).is_not_empty()
 	assert_str(DiveTestKit.step_state(sim, &"ready_dial")).is_equal(DiveSimulation.STEP_PENDING)
-	sim.set_shift_dial(_wobble_in(below))
+	sim.set_shift_dial(DiveTestKit.wobble_in(below))
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"ready_dial")).is_equal(DiveSimulation.STEP_DONE)
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_crossed", 600.0, [], 0.1)).is_not_empty()
@@ -203,7 +187,7 @@ func test_a_shift_drill_shift_well_wide_of_the_wobble_is_not_clean() -> void:
 	var scenario := Scenario.shift_drill()
 	var sim := scenario.start()
 	sim.read_orders()
-	sim.set_shift_dial(_wobble_in(scenario.layout.medium_at(scenario.layout.boundary_depths()[0] + 0.01)))
+	sim.set_shift_dial(DiveTestKit.wobble_in(scenario.layout.medium_at(scenario.layout.boundary_depths()[0] + 0.01)))
 	DiveTestKit.run_until(sim, &"boundary_crossed", 600.0, [], 0.5)
 	# The dial was ready, but the Shift is made well wide of it.
 	sim.shift(sim.plasma_frequency() * 1.5)
@@ -253,7 +237,7 @@ func _end_dive(sim: DiveSimulation) -> void:
 		for i in int(sim.self_destruct_hold_length()) + 1:
 			sim.advance(1.0)
 		sim.hold_self_destruct(false)
-	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return s.surfaced() or s.dead(), 20000.0)).is_true()
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.surfaced() or s.dead(), 20000.0)).is_true()
 
 
 ## Stranded in the granite after the orders are read and a first relight
@@ -297,7 +281,7 @@ func test_a_relight_that_fails_leads_to_the_link_cooling_and_the_rescue() -> voi
 	assert_str(DiveTestKit.step_state(sim, &"cool")).is_equal(DiveSimulation.STEP_DONE)
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"rescued")
 	assert_bool(DiveTestKit.achieved(sim, &"home_alive")).is_false()
-	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return s.surfaced() or s.dead(), 20000.0, 1.0)).is_true()
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.surfaced() or s.dead(), 20000.0, 1.0)).is_true()
 	assert_bool(sim.surfaced()).is_true()
 	assert_str(DiveTestKit.step_state(sim, &"rescued")).is_equal(DiveSimulation.STEP_DONE)
 	assert_str(DiveTestKit.step_state(sim, &"paid")).is_equal(DiveSimulation.STEP_DONE)
@@ -324,7 +308,7 @@ func test_a_relight_that_lights_leads_to_the_climb_home_shifting_by_hand() -> vo
 		var above := scenario.layout.medium_at(boundaries[b] - 0.01)
 		assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 40000.0, [], 1.0,
 				func() -> void: sim.set_time_rate(sim.max_time_rate()))).is_not_empty()
-		sim.set_shift_dial(_wobble_in(above))
+		sim.set_shift_dial(DiveTestKit.wobble_in(above))
 		sim.advance(0.1)
 		assert_str(DiveTestKit.step_state(sim, StringName("ready_dial_%s" % above.name))).is_equal(DiveSimulation.STEP_DONE)
 		assert_dict(DiveTestKit.run_until(sim, &"boundary_crossed", 4000.0, [], 0.1)).is_not_empty()
@@ -332,7 +316,7 @@ func test_a_relight_that_lights_leads_to_the_climb_home_shifting_by_hand() -> vo
 		sim.advance(0.1)
 		assert_str(DiveTestKit.step_state(sim, StringName("shift_%s" % above.name))).is_equal(DiveSimulation.STEP_DONE)
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"climbed")
-	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return s.surfaced() or s.dead(), 40000.0)).is_true()
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.surfaced() or s.dead(), 40000.0)).is_true()
 	assert_bool(sim.surfaced()).is_true()
 	assert_str(DiveTestKit.step_state(sim, &"climbed")).is_equal(DiveSimulation.STEP_DONE)
 	assert_str(DiveTestKit.phase_title(sim)).is_equal("Home")
