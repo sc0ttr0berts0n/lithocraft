@@ -43,3 +43,28 @@ Agent's choices within round 3's design (spec #71), one bullet per ticket.
       It is now at least 6 cm inside at every pitch, and a test holds it there.
   Four times the Column is in view, so its grains are built once per band and kept, where they were placed afresh every frame: the picture is the same to the byte and the frame time is back where it was.
   The ribs keep their 0.8 m spacing up the whole wall, and lamps hang on the Bore's axis every 2.4 m from the ring up, so the working level is lit as it was.
+- **The point cloud's three candidate views (ticket #67): awaiting the developer's pick.**
+  Navigation's scan display draws one of three views of the same scan, flipped with the debug key F4 during a dive; the caption over the picture names the one shown.
+  The developer picks one in the next play test; until then none is the design, and the other two go when one is picked.
+  Each draws the vessel, the Course, the projected path, the points and the Inferred Boundaries; the moving map beside it is unchanged.
+    - **1. Forward scope** (shown when a dive starts, the agent's pick).
+      The vessel sits low on the screen with ahead straight up, range rings every 50 m about the Head, as a forward-looking sonar's fan.
+      What it shows is the vessel's own vertical plane; in a dive it is the moving map flipped top to bottom, so a turn bends the same way on both.
+      A return off that plane is drawn where it meets the plane square on, so a level Boundary is one line at any pitch, and its range ahead is read off the rings.
+      A plumb line with a tick on each ring shows where down is: up the screen in a dive, swinging to the left as the vessel levels.
+      Real basis: a forward-looking sonar's sector display, and a ship radar's head-up mode.
+      Its cost is the play test's complaint in a milder form: in a dive, down is still up the screen, though now labelled.
+    - **2. Plan and section pair.**
+      A top-down plan beside a side-on section, at one scale, both with ahead (the compass heading) to the right, as the moving map has it, and nothing in 3D.
+      The section has deeper lower, with a line and its depth every 50 m; the plan shows what lies left and right of the track, which the section cannot.
+      Real basis: the plan and profile sheets of a drilled well or a tunnel drive.
+      Its cost: the plan says little in a dive straight down, where the vessel is a ring seen end-on, and each view is half the width.
+      The pair is side by side, not stacked: the screen is wide and short, and a stacked section had no room to show what lies below.
+    - **3. World-up 3D.**
+      The cloud seen from above the vessel's right side and a little behind, with no perspective, deeper always lower, the eye going round only with the compass heading; ahead is to the right, as on the moving map.
+      A level ring with north marked and a plumb line with a tick every 50 m give the eye its bearings.
+      Its cost: a flat picture of 3D cannot tell further from higher without those marks.
+  Agent's choices: the candidate shown is held by the simulation (`scan_view()`), though it is nothing of the dive, so that the screenshot tool and a test can set it with the one debug command.
+  All three are flat drawings through one function each from a place in the world to a place on the screen, so none can turn on its own, and the points stream past at the simulation's speed.
+  The scope's range is fixed (rings to 250 m), so a Boundary a few tens of metres ahead sits close to the vessel's marker; a range that follows the nearest return is left for whichever view is picked.
+  Points are white as they are certain and grey as they are a guess (the colour language's "now"), larger the surer, and never fade out altogether: #62 had left them faint.

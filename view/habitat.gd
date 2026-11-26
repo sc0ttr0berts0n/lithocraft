@@ -92,7 +92,7 @@ const BORE_PANEL_ZOOM := 1.7
 ## The status lines each Station's screen usually shows under its instrument:
 ## what its pictures' viewports are sized for (StationScreen.body_size()).
 const REACTOR_LINES := 5
-const NAVIGATION_LINES := 3
+const NAVIGATION_LINES := 4
 ## The debug menu's steps: wear per press (hull or Head), and time skipped.
 const DEBUG_WEAR_STEP := 0.1
 const DEBUG_SKIP_S := 300.0
@@ -343,6 +343,13 @@ func _key_debug_menu(_index: int) -> void:
 	_debug_menu.visible = not _debug_menu.visible
 	if _debug_menu.visible:
 		_controls.visible = false
+
+
+## Debug: Navigation's scan display goes to the next of its candidate views.
+## Its own key, outside the debug menu, so the developer can flip between
+## them seated at Navigation with the menu shut.
+func _key_scan_view(_index: int) -> void:
+	_debug_menu.report(_sim.debug_next_scan_view())
 
 
 # The debug menu's keys: each a simulation debug command (DiveSimulation's
@@ -1335,8 +1342,8 @@ func _flight_display() -> Texture2D:
 	return display.get_texture()
 
 
-## Navigation's point cloud display, drawn in its own world and shown on the
-## left of the Navigation Station's screen.
+## Navigation's scan display (the point cloud, as one of its candidate
+## views), shown on the left of the Navigation Station's screen.
 func _scan_display() -> Texture2D:
 	var display := ScanDisplay.new()
 	display.size = _navigation_display_px()
