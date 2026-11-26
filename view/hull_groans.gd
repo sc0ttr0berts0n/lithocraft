@@ -34,12 +34,12 @@ var _rng := RandomNumberGenerator.new()
 var _until_next := -1.0
 
 
-## `seed_value` makes the groans repeatable (tests); 0 seeds at random.
+## `seed_value` makes the groans repeatable (tests); 0 seeds from the global
+## generator: at random in play, repeatable once that is seeded (the
+## screenshot tool), since when a groan comes decides what the sparks and the
+## shake draw next.
 func _init(seed_value := 0) -> void:
-	if seed_value == 0:
-		_rng.randomize()
-	else:
-		_rng.seed = seed_value
+	_rng.seed = randi() if seed_value == 0 else seed_value
 
 
 ## One step of dt seconds. Returns the groans that start now, each

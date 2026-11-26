@@ -99,6 +99,8 @@ var _until_beat := 0.0
 ## Share of the power it asks for the Station is getting, 0 to 1. Below 1 its
 ## screen browns out: dimmer the less it gets, and flickering.
 var _supplied := 1.0
+## The flicker's own chance, seeded by the Station's name: the same flicker
+## every run, whatever else draws on the global generator.
 var _flicker := RandomNumberGenerator.new()
 ## The key panel's prompts and words, each with its own colour, so they dim
 ## with the screen: [node, colour].
@@ -106,6 +108,7 @@ var _key_parts: Array = []
 
 
 func _ready() -> void:
+	_flicker.seed = hash(station_name)
 	add_child(_cradle)
 	_add_yoke()
 	if station_name.is_empty():
