@@ -45,11 +45,11 @@ A Boundary as Navigation's scan suggests it: surfaces fitted to the point cloud 
 _Avoid_: Terrain mesh, real Boundary (for what the scan shows)
 
 **Shift**:
-The retuning of the Head's plasma that the crew performs as the Lithocraft crosses a Boundary.
+The change of Counter-wave the crew makes as the Lithocraft crosses a Boundary and the Wobble changes.
 _Avoid_: Gear change, transition, retune
 
 **Shift dial**:
-The Reactor's two channels of tuning, like an airliner radio's: ACTIVE holds the plasma now, STANDBY is pretuned for the Medium ahead, and the Shift swaps them.
+The Reactor's two channels of tuning, like an airliner radio's: ACTIVE holds the plasma now, STANDBY holds a Counter-wave prepared for the Medium ahead, and the Shift swaps them.
 _Avoid_: Dial (alone), selector, preset
 
 **Active**:
@@ -59,6 +59,22 @@ _Avoid_: Current, live, primary
 **Standby**:
 The Shift dial's staged channel, pretuned for the Medium ahead and changing nothing until the Shift swaps it in.
 _Avoid_: Next, preset, queued
+
+**Wobble**:
+The wave the Medium puts on the Head's plasma, different in every Medium.
+_Avoid_: Noise, vibration, signal, rock wave
+
+**Counter-wave**:
+The wave the crew tunes at the Reactor to cancel the Wobble.
+_Avoid_: Tuning (for the wave itself), inverse, anti-wave, match
+
+**Residual**:
+What is left of the Wobble once the Counter-wave is summed with it; a flat line when the cancelling is perfect.
+_Avoid_: Leftover, error, resultant, match
+
+**Band**:
+How much Residual the Head can bear without wearing; it narrows as the Head wears or runs hot.
+_Avoid_: Window, tolerance, margin
 
 **Quiet Ship**:
 The state in which the Lithocraft halts and idles its Head so Navigation can take a clean scan.
@@ -85,7 +101,7 @@ The way home from a stranding: rescuers run down the open tunnel behind and cut 
 _Avoid_: Recovery, evacuation, retrieval
 
 **Arm**:
-The chain-arm that rides a rail around the Bore, catches a crew member by their harness and carries them between Stations whatever "down" is.
+The chain-arm that rides a rail around and along the Bore, catches a crew member by their harness and carries them between Stations whatever "down" is.
 _Avoid_: Crane, grabber, lift, tether
 
 **Scenario**:
@@ -111,6 +127,10 @@ _Avoid_: AI, auto mode, unattended
 **Explainer**:
 The short account of a reading opened by pointing at it: what it is, what it reads now, and what it asks of the crew.
 _Avoid_: Tooltip, help, manual
+
+**Caution lamp**:
+A labelled lamp on a Station's screen, lit while one cause is pulling its system down.
+_Avoid_: Flag, warning (for a caution), bulb, indicator
 
 ## Stations
 

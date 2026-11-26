@@ -1,0 +1,251 @@
+# Transcript: Godot 2026.11.25 - 23.00.20.16.mp4
+
+Narration, machine-transcribed (faster-whisper large-v3); timestamps are mm:ss into the video.
+
+- **00:01.1** All right, so I'm recording gameplay. Hello. Let's see how this goes. I am kind of just soaking up the environment, taking note of all the new things, the match and standby. Kind of wish I could click, but I understand that we cannot click. God, I hate the shrillness of that autopilot sound.
+- **00:42.5** I feel like I can't kind of look at everything in the same moment, as you're probably noticing here. That's annoying. Reading through all the new UI, just kind of looking it over. Kind of wondering out loud how close I have to get the stuff to make it work, but it looks like it is kind of always working, even when you're pretty far away. Okay, that makes sense.
+- **01:36.8** Thermal, all the information fits on the screen. Hooray, I can at least read it. Navigation, I've seen this before. I'm going to do a little pulse. P. All these keys kind of stink, because they're like, you know, all over the place. And you can't click on anything. You can just kind of, you know, do it.
+- **01:59.2** I can see the interface has changed a lot since I last saw it. I would expect, if we're drilling down, for the UI to be down, but it's up above.
+- **02:07.9** Kind of this yellow dot I'm seeing in the middle of the screen. Maybe that'll make more sense with time. I guess it's kind of thinking about how you're going forward, no matter what. But, meh, it doesn't jive with me. I don't love it.
+- **02:20.8** Cool, I'm glad to see a drive interface that looks a little bit like a craft. You can see we're facing down at 90 degrees. The course and pitch. The speed and depth. This'll be fun. I'm kind of excited to noodle with this.
+- **02:36.0** The grip is nice.
+- **02:37.8** Power. Cool. Throttle is TG. That's well considered, because I can reach for it. It's kind of funny you didn't use R and F. Maybe R and F do some universal shit, but that's okay.
+- **02:55.2** And then I'm all the way back to the autopilot, so I've kind of done a tour of everything. I'm curious what your debug panel looks like with F3. That column is a cute bit of interface. I like that.
+- **03:07.0** It's actually kind of good information. It's funny that this is debug, because frankly...
+- **03:11.2** I like it, maybe, all the time. I don't know, maybe in the future we can figure out something like this.
+- **03:18.4** Maybe kind of wear a helmet that has some nice HUD shit in it. But, for now, this is good.
+- **03:24.1** I'm going to hit tab now and start reading what our goal is.
+- **03:28.0** We've read the order. Unknowingly, I've done that. Engage to reactor's autopilot. Maybe that's automatic.
+- **03:37.0** We're going to engage the thermal's autopilot.
+- **03:41.2** Thermal. I'd kind of love some way to quickly tell these screens.
+- **03:45.0** They're a little bit far apart, but I understand we're early in.
+- **03:48.8** 4. Thermal.
+- **03:50.7** Boom. Thermal autopilot engaged.
+- **03:53.7** Plot a course. Dive. Navigation.
+- **03:56.8** Which is the next panel. How nice.
+- **04:01.1** How do we plot a course?
+- **04:04.9** Navigation 1, 2, 3. Course. Dive.
+- **04:07.1** Oh, we're plotting a course for dive.
+- **04:10.1** So I'm going to hit the dive button, which is probably 1.
+- **04:15.4** Where does it indicate?
+- **04:17.5** That. Dive is 1.
+- **04:22.5** Um, okay. Yeah, I'm thinking about this because it's kind of weird.
+- **04:29.3** I thought plotting a course wouldn't be so immediate.
+- **04:31.2** I thought it would be more of a planning phase where we'd look more.
+- **04:34.5** But, that's okay.
+- **04:35.7** Let's quiet the ship and do some pulses.
+- **04:37.6** Pulse. Pulse. Pulse. Pulse. Pulse.
+- **04:40.0** So I'm spamming, because I know I have a 2,000 point limit.
+- **04:43.2** So I'm just messing with that. I see it.
+- **04:45.4** And we're back to underway.
+- **04:49.9** Cool. I can kind of see some shit.
+- **04:52.5** That the pulser has made.
+- **04:54.7** You can definitely see it on the surface depth kind of indicator.
+- **04:59.9** That makes me excited because I kind of feel like I know what I'm getting into there.
+- **05:04.5** Alright.
+- **05:08.3** Climb. The drive follows the course round drive.
+- **05:15.7** Follow the course.
+- **05:21.4** For shits, I'm going to mess with the arm.
+- **05:23.5** I hit space to get engaged.
+- **05:25.7** I can look around so that makes me happy.
+- **05:28.1** I'm just going to hit D and move from thing to thing.
+- **05:32.2** Good. And that works in a ring.
+- **05:33.7** In the early, early prototype that wasn't working, but it's working here.
+- **05:36.8** So that's good.
+- **05:38.0** I might just kind of get used to being held by the arm.
+- **05:40.6** That's kind of an easy way to get around here.
+- **05:43.4** A little further from the screen than I want to be, but I'm not going to be a baby about it.
+- **05:47.0** That's not bad.
+- **05:50.2** Let's figure out how to get this thing moving.
+- **05:53.2** Maybe we'll do some throttle.
+- **05:56.4** Yeah. There we go.
+- **05:59.6** I like to set an actual on the power after we have that conversation.
+- **06:07.4** Survey down through the sandstone into the granite.
+- **06:11.1** Paid the survey. Uploaded. Brought home.
+- **06:13.6** Survey with the data.
+- **06:15.1** Or surface with the data. I'm just reading my goals.
+- **06:19.2** Okay. So it sounds like we're going to go down the sandstone.
+- **06:21.7** And then we're going to get paid.
+- **06:23.2** And then we're going to go back up with data.
+- **06:28.7** Orders for your first drive.
+- **06:30.2** Survey down through sandstone into the granite.
+- **06:32.5** Then surface with the data. You are paid.
+- **06:34.5** Alright. So we're going to climb and follow the course.
+- **06:38.1** So we've gone down five meters.
+- **06:40.3** There's the proof right there. I can see the column moving.
+- **06:46.0** I guess there's nothing keeping us from going faster.
+- **06:50.6** So I am going to...
+- **06:53.3** Oop. We got some slippage.
+- **06:55.9** And it says ease off with G.
+- **06:57.6** Oh, that's what I did. Okay.
+- **07:00.4** Well, I like that. That's fun.
+- **07:02.1** So now we're moving at the fastest speed we can.
+- **07:06.0** Oop. Something's beeping.
+- **07:10.5** This is the bore station.
+- **07:12.6** I'm going to turn on the autopilot because I don't know what it does.
+- **07:19.2** No features in this column.
+- **07:23.3** Okay.
+- **07:25.4** Okay.
+- **07:29.1** I'm going to hit F to observe the next feature.
+- **07:31.3** Oh, I wish I knew how to read this.
+- **07:32.9** Because this is probably like all the science-y stuff.
+- **07:35.0** And I don't really understand it. But that's okay.
+- **07:38.4** We're going to jump back to the depth.
+- **07:40.6** I'm checking on the drive.
+- **07:42.3** Down we go. I should probably look at this at the nav panel too.
+- **07:45.3** I'm going to do a new pulse.
+- **07:46.8** P.
+- **07:47.8** Oh, and you can see it's smaller than a quiet pulse.
+- **07:51.3** Pulse.
+- **07:52.7** What's beeping now?
+- **07:55.9** Oh, is this transition time?
+- **07:59.2** I want to control the standby.
+- **08:02.7** Oh, this really makes me nervous.
+- **08:11.4** Because I still don't quite know how to do it.
+- **08:18.7** This feels like we're getting ready to shift.
+- **08:23.2** Um, let's see how this goes.
+- **08:28.1** Shift time.
+- **08:29.1** Bam.
+- **08:35.4** I'm just going to go ahead and throttle down.
+- **08:37.3** Because I'm getting scared.
+- **08:40.9** Because this is awfully mad.
+- **08:43.0** Alright, headwear 41%.
+- **08:47.4** Plasma unsteady.
+- **08:49.4** So, um, I'm going to turn off autopilot.
+- **08:59.4** And then I'm just going to hit like M then M.
+- **09:02.5** Hoping that will make it wrong.
+- **09:03.7** Then put it back and I can learn how it works.
+- **09:07.3** Or can you only edit the standby?
+- **09:14.4** I guess you can only edit your standby.
+- **09:16.6** But it's alright.
+- **09:17.3** Let me try and just really understand what this does.
+- **09:21.2** I feel like this should be done on a scroll wheel or a mouse drag.
+- **09:24.3** I can see the sine wave is getting longer.
+- **09:27.8** And I think the gray is the resultant wave.
+- **09:30.9** I don't know.
+- **09:31.9** It's awfully confusing.
+- **09:35.5** So I'm going to spam it and get the sine wave.
+- **09:37.6** It looks like, yeah, it is a tightness of the sine wave.
+- **09:41.8** Whew, that looks pretty close.
+- **09:45.4** Oh, that's right.
+- **09:46.3** I'm doing like something where I'm supposed to cancel out the signal by making an opposite signal.
+- **09:52.4** And I feel like this should be done with like phase, frequency, and amplitude.
+- **09:56.8** But I don't know what it's done with right here.
+- **09:58.6** But it's not working for me too well.
+- **10:01.4** I'm going to go back to drive.
+- **10:03.7** Let's try and finish our mission.
+- **10:11.4** Alright, if we're in Sandstone.
+- **10:16.6** I think I uploaded.
+- **10:17.9** Maybe it's time to head home.
+- **10:20.6** So let's go ahead.
+- **10:24.1** Okay.
+- **10:27.4** Let's change it to climb.
+- **10:29.6** Or level.
+- **10:30.7** No climb.
+- **10:31.3** So I've set everything to climb.
+- **10:41.0** And I guess I'm going to turn up the throttle.
+- **10:54.9** Depth go down.
+- **10:56.3** Or depth comes deeper.
+- **10:57.8** So to make it climb, I think it's three.
+- **11:09.3** I'm confused.
+- **11:10.5** If I hit one, I go down.
+- **11:12.3** And if I hit three, I think I also go down.
+- **11:19.9** The number is definitely increasing.
+- **11:28.1** Oh, I guess I can fuck around with this too.
+- **11:29.8** I'm getting confused about the dissonance between these.
+- **11:32.2** So I'm setting this to climb.
+- **11:44.0** I have observed the feature.
+- **11:56.6** Yeah, we're going to have to tune what this is and what is going on.
+- **12:00.0** I have no earthly idea, but I'm happy to be playing.
+- **12:03.0** So we're almost done observing iron, I guess.
+- **12:05.3** I guess the core should visually look different, but it doesn't.
+- **12:08.3** But that's okay.
+- **12:10.7** No features in the column.
+- **12:12.3** Just set autopilot back on for the reactor there.
+- **12:25.0** Now we're back to the drive where I'm still descending.
+- **12:27.5** Maybe I can throttle down to negative.
+- **12:30.9** No.
+- **12:31.7** How do I get home?
+- **12:46.7** I'm just reading.
+- **12:56.1** So I've hit level just to see what that's like.
+- **12:59.4** And I'm kind of cranking the drive to see what changes.
+- **13:06.2** And I am indeed noticing a tilt.
+- **13:09.0** But I really want to climb.
+- **13:13.4** I don't want to tilt.
+- **13:20.1** So I'm instructing it to hopefully achieve a climb.
+- **13:24.4** I wonder, is it tilting but just slowly?
+- **13:44.1** I can see it.
+- **13:44.7** Nudging its way to a goal.
+- **13:49.7** Man, I do love the autopilot-inspired interface.
+- **13:53.5** Yeah, I think we're tilting.
+- **13:55.0** I'm going to go ahead and turn up time.
+- **13:58.6** Okay.
+- **14:01.8** So something happened that interrupted me.
+- **14:10.7** Thermal problem.
+- **14:14.4** Turned autopilot on and off and the thermal problem seems to have repaired itself.
+- **14:18.3** Since this is text-only, it's really hard to gauge how cool whatever's going on with thermal is.
+- **14:23.8** I don't understand what's going on.
+- **14:26.5** I guess it's hotter than the Hull Bears.
+- **14:30.8** Oh, we have some iron to look at.
+- **14:32.6** So we're observing the iron.
+- **14:34.1** I'd love to turn around and see it.
+- **14:35.8** Maybe it's in the column.
+- **14:37.1** Maybe it isn't.
+- **14:38.0** I don't know.
+- **14:39.4** Don't quite understand that yet.
+- **14:41.6** All good, though.
+- **14:42.6** I think we're turning, which is good.
+- **14:44.5** I'm going to swing around to the navigation.
+- **14:53.4** Definitely turning.
+- **14:55.3** Cool.
+- **14:55.8** So I'm going to try and go fast again.
+- **14:57.3** And just watch this.
+- **14:58.7** Actually, you know, I can hit the pulse.
+- **15:04.3** Funny.
+- **15:04.7** I'm seeing pulse up, but I expected that I would see pulse ahead of my point of travel.
+- **15:09.9** But the pulse seems to be above me.
+- **15:13.4** I'm going to go ahead and turn up the speed.
+- **15:17.7** Oh, I love that you can see the ship in fast travel.
+- **15:22.5** I love that there's situations where I'm kind of forced to be in the arm because the world is getting, like, weird around me.
+- **15:29.9** Going to investigate what's beeping.
+- **15:39.1** An observation.
+- **15:42.4** Petrified wood.
+- **15:43.6** I like that.
+- **15:45.5** Oh, I think I actually see it.
+- **15:47.5** An 8, for some reason, scrolls by on the petrified wood.
+- **15:55.1** I'm a regular scientist.
+- **16:02.4** So I guess that's on me for expecting to be able to back out the hole I went in.
+- **16:06.8** But that's okay.
+- **16:10.4** Going back to my view.
+- **16:12.5** Going to speed up time again.
+- **16:16.7** Oh, that's really cool.
+- **16:18.2** I can see the vector on the navigation.
+- **16:23.2** I kind of feel like navigation.
+- **16:30.6** I'd like to know the size of the circle and the projected path.
+- **16:34.5** Like, I'd like to see it project the circle I'm spinning.
+- **16:39.7** You know, because it kind of knows this path ahead of time.
+- **16:43.3** So I can decide if it's safe to do the turn, et cetera, based on what we know about the area and what we can kind of know through our sensors.
+- **16:51.3** I'm going to have to look into that.
+- **16:55.2** Oh, yeah, what's beeping?
+- **16:56.8** Why am I going to die this time?
+- **17:00.8** It's time to do a thing.
+- **17:02.8** So I see standby.
+- **17:05.8** I kind of think I know what I need to do.
+- **17:08.7** Yeah, the colors to me on this just aren't clear.
+- **17:16.5** So I've never really understood what's going on.
+- **17:20.5** That looks pretty close.
+- **17:22.5** Wrong in many ways.
+- **17:24.8** And also, I don't see, like, a timing for this reactor jump.
+- **17:31.2** Plasma is unsteady.
+- **17:32.5** The head is running supply.
+- **17:35.4** Um.
+- **17:37.8** Man, it says a lot, but I really don't know why it's beeping.
+- **17:52.3** I'll hit the swap button.
+- **17:54.5** Wait, swap standby.
+- **17:56.0** And then shift.
+- **17:58.9** So I hit shift and nothing happened.
+- **18:01.1** I'm just going to swap.
+- **18:03.3** Yep, killed the ship.
+- **18:05.5** All right.
+- **18:06.4** I would have liked to have surfaced, but I think this is a useful enough gameplay.
+- **18:09.9** So I'm going to stop here.
