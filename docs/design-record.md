@@ -245,6 +245,10 @@ Grilled with the developer on 25 November 2026, getting back on course after rou
 - **"Not yet designed" stays parked** until after the second play test, then is ranked by what it shows.
 - **Found in merging: the MATCH meter and "ready the dial" disagreed.** The meter (#36) compared the dial to the wobble of the Medium the Head is in, while the Boundary call and the Checklist (#34) ask the crew to set the dial for the Medium ahead, so readying the dial correctly made the meter fall.
 - **The Shift dial as a radio's active and standby channels (developer's idea).** "It might be cool for the interface to work like a flight control channel selector. You can tune the next behaviour and then when you MATCH you just [switch] from channel to channel." Real basis: an airliner's VHF radio holds an active and a standby frequency; the crew tunes the standby ahead of time and a transfer (flip-flop) key swaps them in one press. Here the dial tunes the standby while the active holds the plasma, and the Shift is the swap, so readying the dial and making the Shift are separate acts, the second a single press timed to the crossing.
+  - **Two lanes, ACTIVE and STANDBY, each with its own MATCH.** ACTIVE against the wobble of the Medium the Head is in; STANDBY against the wobble expected in the Medium ahead, shown once the Boundary-approaching call comes. N/M tune whichever channel the crew is on (developer's refinement), not only the standby.
+  - **R swaps the channels, and the swap is the Shift**, graded as a Shift is: the new active's match to the wobble at that moment, then lateness. A swap made early, still in the old Medium, is a poor Shift; a late one is punished by the window.
+  - **The old active drops to standby**, so a second press swaps back; swapping back is a Shift too, so undoing an early swap costs a second one.
+  - **Built before the second play test**, as a fix to #36, before the explainer (#33) so it describes both channels.
 
 ## Not yet designed
 
