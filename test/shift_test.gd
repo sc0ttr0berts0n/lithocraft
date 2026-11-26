@@ -43,6 +43,12 @@ func _shift_after(wait: float, off_by := 1.0, sim: DiveSimulation = null) -> Dic
 	DiveTestKit.run_until(sim, &"boundary_crossed")
 	for i in int(wait / 0.1):
 		sim.advance(0.1)
+	return _shift_now(sim, off_by)
+
+
+## Shifts at once to the wobble times `off_by` and returns the &"shift_result",
+## or an empty Dictionary. Events before it are dropped.
+func _shift_now(sim: DiveSimulation, off_by: float) -> Dictionary:
 	sim.take_events()
 	sim.shift(sim.plasma_frequency() * off_by)
 	sim.advance(0.1)
@@ -298,3 +304,99 @@ func test_a_poor_shift_loses_the_plasma_on_a_badly_worn_head_but_not_a_fresh_one
 	# Not merely the last straw: what the same Shift wore into a fresh Head
 	# would not have worn this one through.
 	assert_float(worn_before + fresh_poor.wear).is_less(1.0)
+
+
+func test_closer_tuning_reads_as_a_closer_match() -> void:
+	var sim := _one_boundary()
+	DiveTestKit.run_until(sim, &"boundary_crossed")
+	var on := sim.plasma_frequency()
+
+	var exact := sim.shift_match(on)
+	var near := sim.shift_match(on * 1.05)
+	var far := sim.shift_match(on * 1.3)
+	var below := sim.shift_match(on * 0.95)
+
+	assert_float(near).is_less(exact)
+	assert_float(far).is_less(near)
+	assert_float(below).is_less(exact)
+	assert_float(far).is_greater_equal(0.0)
+	assert_float(exact).is_less_equal(1.0)
+	# The tuning held since before the Boundary reads as no match for the new
+	# wobble: that is why a Shift is due.
+	assert_float(sim.shift_match(sim.plasma_tuning())).is_less(near)
+
+
+func test_a_closer_match_on_the_dial_grades_the_shift_better() -> void:
+	var near_sim := _one_boundary()
+	var far_sim := _one_boundary()
+	DiveTestKit.run_until(near_sim, &"boundary_crossed")
+	DiveTestKit.run_until(far_sim, &"boundary_crossed")
+	var on := near_sim.plasma_frequency()
+	assert_float(near_sim.shift_match(on * 1.08)).is_greater(far_sim.shift_match(on * 1.2))
+
+	var near := _shift_after(0.0, 1.08, near_sim)
+	var far := _shift_after(0.0, 1.2, far_sim)
+
+	assert_float(far.grade).is_less(near.grade)
+
+
+func test_the_same_dial_reads_as_a_poorer_match_on_a_worn_head() -> void:
+	var fresh := _one_boundary()
+	var worn := _worn(_one_boundary())
+	var on := fresh.plasma_frequency()
+
+	assert_float(worn.shift_match(on * 1.05)).is_less(fresh.shift_match(on * 1.05))
+
+
+## The first dive to its first Boundary, sand into sandstone, with the crew at
+## the Reactor (so the Shift is theirs) and the Head worn to `wear` first.
+## Returns the sim just past the Boundary, a Shift due.
+func _first_boundary(wear := 0.0) -> DiveSimulation:
+	var layout := MediumLayout.first_dive()
+	var sim := DiveSimulation.new(layout)
+	sim.set_attended(DiveSimulation.STATION_REACTOR, true)
+	if wear > 0.0:
+		DiveTestKit.wear_head_gently(sim, wear)
+		sim.shift(sim.plasma_frequency())
+		sim.advance(0.1)
+		sim.take_events()
+	sim.set_power(0.5)
+	var crossed := DiveTestKit.run_until(sim, &"boundary_crossed", 20000.0, [], 0.25)
+	var first := layout.boundary_depths()[0]
+	assert_str(String(crossed.to)).is_equal(String(layout.medium_at(first + 1.0).name))
+	assert_str(String(sim.medium().name)).is_equal(String(layout.medium_at(first + 1.0).name))
+	assert_bool(sim.shift_due()).is_true()
+	return sim
+
+
+## A Shift as poor as one can be: the dial far from the wobble, made after the
+## window has closed.
+func _blind_shift(sim: DiveSimulation) -> Dictionary:
+	DiveTestKit.run(sim, sim.shift_window() + 2.0, 0.1)
+	return _shift_now(sim, 1.6)
+
+
+func test_one_poor_shift_at_the_first_boundary_grinds_a_fresh_head_but_keeps_the_plasma() -> void:
+	var fresh := _first_boundary()
+	var result := _blind_shift(fresh)
+
+	assert_dict(result).is_not_empty()
+	assert_bool(result.clean).is_false()
+	assert_float(fresh.head_wear()).is_greater(0.0)
+	assert_float(fresh.lurch()).is_greater(0.0)
+	assert_bool(fresh.plasma_lost()).is_false()
+	# The grinding's heat spike fades: the same running makes less heat later.
+	var heat_at_shift := fresh.heat_produced()
+	DiveTestKit.run(fresh, 5.0, 0.1)
+	assert_float(heat_at_shift).is_greater(fresh.heat_produced() + 1e-3)
+	assert_bool(fresh.plasma_lost()).is_false()
+
+
+func test_the_same_poor_shift_at_the_first_boundary_loses_the_plasma_on_a_badly_worn_head() -> void:
+	var worn := _first_boundary(0.6)
+	assert_bool(worn.plasma_lost()).is_false()
+
+	var result := _blind_shift(worn)
+
+	assert_bool(result.clean).is_false()
+	assert_bool(worn.plasma_lost()).is_true()

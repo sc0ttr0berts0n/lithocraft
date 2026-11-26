@@ -259,6 +259,15 @@ func shudder() -> float:
 	return cos(TAU * _LURCH_HZ * _lurch_age)
 
 
+## How closely a Shift to `frequency` hertz would match a wobble at `target`
+## hertz on this Head, 1 (exactly) falling toward 0 the further off it is. It
+## is the match a Shift is graded on, before any lateness: a worn Head reads
+## the same dial as a poorer match.
+func match_to(frequency: float, target: float) -> float:
+	var error := absf(frequency - target) / target
+	return exp(-pow(error / (_SHIFT_TOLERANCE * _narrowing()), 2.0))
+
+
 ## How much of a fresh Head's forgiveness in a Shift this one keeps, 1
 ## (fresh) down to 1 - _WEAR_NARROWING (worn through).
 func _narrowing() -> float:
@@ -271,8 +280,7 @@ func _narrowing() -> float:
 func _make_shift(frequency: float, by_autopilot: bool, target: float, hull_heat_share: float,
 		events: Array[Dictionary], depth: float, distance: float) -> void:
 	var narrowing := _narrowing()
-	var error := absf(frequency - target) / target
-	var matched := exp(-pow(error / (_SHIFT_TOLERANCE * narrowing), 2.0))
+	var matched := match_to(frequency, target)
 	var late := maxf(0.0, _mistuned_for - window_length()) if due(target) else 0.0
 	var grade := matched * exp(-late / (_SHIFT_LATE_S * narrowing))
 	_tuning = frequency

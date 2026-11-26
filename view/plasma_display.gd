@@ -7,7 +7,9 @@
 ##            beating once a Boundary changes the load.
 ##   DIAL   - the wobble (Reactor hue) with the dial's opposing wave over it
 ##            (white). Turn the dial until the two lie on each other, then
-##            Shift. Under it, faint, what the plasma would do after.
+##            Shift. Under it, faint, what the plasma would do after. At its
+##            right, MATCH: how closely a Shift to the dial would match the
+##            wobble now (DiveSimulation.shift_match()), as a filling bar.
 ## Along the bottom, the window for the Shift: a bar that shrinks while it is
 ## open and turns red once it has closed. Its full width is a fresh Head's
 ## window; what a worn Head has lost of it is struck through in red at the
@@ -82,6 +84,16 @@ class _Canvas extends Control:
 		draw_string(font, Vector2(8, lane + 26), "DIAL", HORIZONTAL_ALIGNMENT_LEFT, -1, 22,
 				PlasmaDisplay.COUNTER)
 		draw_line(Vector2(0, lane), Vector2(w, lane), Color(1, 1, 1, 0.15), 1.0)
+		# How closely a Shift to the dial would match the wobble.
+		var matched := sim.shift_match(display.dial)
+		var meter := Rect2(w - 168.0, lane + 8.0, 160.0, 22.0)
+		draw_rect(meter, PlasmaDisplay.BACKGROUND)
+		draw_rect(Rect2(meter.position, Vector2(meter.size.x * matched, meter.size.y)),
+				Color(hue, 0.85))
+		draw_rect(meter, PlasmaDisplay.COUNTER, false, 2.0)
+		draw_string(font, meter.position + Vector2(4, meter.size.y - 4),
+				"MATCH %d%%" % roundi(matched * 100.0), HORIZONTAL_ALIGNMENT_LEFT, -1, 20,
+				PlasmaDisplay.COUNTER)
 		# The window for the Shift.
 		var bar := Rect2(8.0, h * 0.78, w - 16.0, h * 0.14)
 		_window_full = maxf(_window_full, sim.shift_window_length())
