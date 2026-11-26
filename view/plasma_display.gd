@@ -11,9 +11,14 @@
 ##             (bold): flat when the cancelling is perfect, a small steady
 ##             wave when the amplitude is off, slow beats when the frequency
 ##             is off.
-##   STANDBY - the Wobble expected in the Medium ahead, STANDBY's Counter-wave
-##             and the Residual it would leave, once the Boundary-approaching
-##             call comes; before it, the Counter-wave alone and "RESIDUAL —".
+##   STANDBY - the scan's guess of the Wobble in the Medium ahead (a sum of
+##             sines: the true Wobble, a little off, and spurious sines that
+##             fade as the Boundary ahead is better scanned), STANDBY's
+##             Counter-wave and the Residual it is predicted to leave. With
+##             no scan of the Boundary ahead: spurious sines, the Counter-wave
+##             alone and "RESIDUAL —". The lane also writes the guess with how
+##             sure it is, and the countdown to the Boundary with its
+##             plus-or-minus ("> 5 min" when the scan cannot say).
 ## Behind each lane's waves lies the Band, a strip about the centre line: the
 ## Residual the Head bears. A Residual that reaches outside it is drawn in
 ## amber, a caution. The lane the Reactor's controls tune is written in cyan
@@ -45,11 +50,29 @@ var _canvas := _Canvas.new()
 
 
 ## A channel's Residual against the Band as its lane reads it, or "—" for
-## NAN (STANDBY before the Boundary-approaching call).
+## NAN (STANDBY with no scan of the Boundary ahead).
 static func residual_text(residual: float, band: float) -> String:
 	if is_nan(residual):
 		return "RESIDUAL —"
 	return "RESIDUAL %.2f  BAND %.2f" % [residual, band]
+
+
+## The scan's guess of the Wobble ahead as STANDBY's lane reads it: its true
+## component's frequency and amplitude and how sure the scan is of them
+## (`confidence`, 0 to 1), or that there is no scan (NAN).
+static func guess_text(frequency: float, amplitude: float, confidence: float) -> String:
+	if is_nan(frequency):
+		return "GUESS —  NO SCAN"
+	return "GUESS %.2f Hz  x%.2f  SURE %d%%" % [frequency, amplitude, roundi(confidence * 100.0)]
+
+
+## The Boundary countdown as STANDBY's lane reads it: the best figure and its
+## plus-or-minus in seconds, or beyond `cap` seconds (INF: the scan cannot
+## say better).
+static func countdown_text(seconds: float, doubt: float, cap: float) -> String:
+	if is_inf(seconds):
+		return "BOUNDARY > %d min" % roundi(cap / 60.0)
+	return "BOUNDARY %d s ±%d" % [roundi(seconds), ceili(doubt)]
 
 
 ## A channel's name and its Counter-wave as its lane reads them, marked when
@@ -77,6 +100,9 @@ class _Canvas extends Control:
 	## the waves, its Residual against the Band below them.
 	var _channel_lines: Array[Label] = []
 	var _residual_lines: Array[Label] = []
+	## STANDBY's lane alone: the scan's guess, and the Boundary countdown.
+	var _guess := Label.new()
+	var _countdown := Label.new()
 	var _lost := Label.new()
 
 	func _ready() -> void:
@@ -91,6 +117,14 @@ class _Canvas extends Control:
 			_channel_lines[i].position = lane.position + Vector2(8.0, 2.0)
 			_residual_lines[i].position = lane.position \
 					+ Vector2(8.0, lane.size.y - StationTheme.FONT_SIZE_SMALL - 10.0)
+		var standby := _lane_rect(_LANES.size() - 1)
+		for label: Label in [_guess, _countdown]:
+			label.add_theme_font_size_override(&"font_size", StationTheme.FONT_SIZE_SMALL)
+			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			label.size = Vector2(standby.size.x * 0.5, 0.0)
+			add_child(label)
+		_guess.position = Vector2(standby.size.x * 0.5 - 8.0, _channel_lines[-1].position.y)
+		_countdown.position = Vector2(standby.size.x * 0.5 - 8.0, _residual_lines[-1].position.y)
 		_lost.text = "PLASMA LOST"
 		_lost.theme_type_variation = StationTheme.variation(StationTheme.WARNING)
 		_lost.add_theme_font_size_override(&"font_size", StationTheme.FONT_SIZE_HEADER)
@@ -113,6 +147,14 @@ class _Canvas extends Control:
 	func _write(sim: DiveSimulation) -> void:
 		var lost := sim.plasma_lost()
 		_lost.visible = lost
+		_guess.visible = not lost
+		_countdown.visible = not lost
+		_guess.text = PlasmaDisplay.guess_text(sim.wobble_ahead_frequency(),
+				sim.wobble_ahead_amplitude(), sim.wobble_ahead_confidence())
+		_guess.theme_type_variation = StationTheme.variation(StationTheme.NOW)
+		_countdown.text = PlasmaDisplay.countdown_text(sim.boundary_countdown(),
+				sim.boundary_countdown_doubt(), sim.boundary_countdown_cap())
+		_countdown.theme_type_variation = StationTheme.variation(StationTheme.NOW)
 		for i in _LANES.size():
 			var channel: StringName = _LANES[i][0]
 			var selected := sim.selected_channel() == channel
@@ -155,8 +197,9 @@ class _Canvas extends Control:
 		for edge: float in [mid - half, mid + half]:
 			draw_line(Vector2(0.0, edge), Vector2(lane.size.x, edge),
 					StationTheme.faded(StationTheme.ENGAGED_COLOUR, 0.6), 1.0)
-		if not is_nan(residual):
-			_trace(lane, channel, _WOBBLE, StationTheme.faded(PlasmaDisplay.WOBBLE, 0.55), 2.0)
+		# STANDBY's Wobble is the scan's guess: drawn even with no scan, when
+		# it is spurious sines only.
+		_trace(lane, channel, _WOBBLE, StationTheme.faded(PlasmaDisplay.WOBBLE, 0.55), 2.0)
 		_trace(lane, channel, _COUNTER_WAVE, StationTheme.faded(PlasmaDisplay.COUNTER, 0.7), 2.0)
 		if not is_nan(residual):
 			_trace(lane, channel, _RESIDUAL,

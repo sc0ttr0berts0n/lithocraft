@@ -136,14 +136,14 @@ static func on_event(type: StringName, matches := Callable()) -> Callable:
 		return false
 
 
-## Holds while STANDBY's Counter-wave would leave the Wobble in `medium` a
-## Residual inside the Band as it is now: in frequency and in amplitude.
-static func standby_pretuned_for(medium: Medium) -> Callable:
-	var wobble := Plasma.wobble_in(medium)
+## Holds while STANDBY's predicted Residual is inside the Band as it is now:
+## its Counter-wave against the scan's guess of the Wobble ahead, which is
+## what the crew can see. So it is only as true as the scan, and never holds
+## with no scan of the Boundary ahead: there is nothing to pretune against.
+static func standby_pretuned() -> Callable:
 	return when(func(sim: DiveSimulation) -> bool:
-		var standby := Vector2(sim.counter_wave_frequency(DiveSimulation.CHANNEL_STANDBY),
-				sim.counter_wave_amplitude(DiveSimulation.CHANNEL_STANDBY))
-		return Plasma.residual_reach(standby, wobble) <= sim.band())
+		# NAN (no scan) is not inside the Band.
+		return sim.residual(DiveSimulation.CHANNEL_STANDBY) <= sim.band())
 
 
 ## Holds while the Head is in a Medium of this name.
@@ -256,7 +256,7 @@ static func first_dive() -> Scenario:
 	var first_boundary := Phase.new("The first Boundary", on_event(&"boundary_approaching"))
 	first_boundary.steps = [
 		Step.new(&"pretune_standby", "Pretune standby for the %s" % middle.name, DiveSimulation.STATION_REACTOR,
-				&"tune_frequency", standby_pretuned_for(middle)),
+				&"tune_frequency", standby_pretuned()),
 		Step.new(&"shift", "Shift as the Head crosses", DiveSimulation.STATION_REACTOR,
 				&"shift", crew_shift_in(middle.name)),
 	]
@@ -269,7 +269,7 @@ static func first_dive() -> Scenario:
 				DiveSimulation.STATION_BORE, &"link", when(func(sim: DiveSimulation) -> bool:
 					return sim.uploading() and not sim.tunnel_sealed() and sim.unsold_survey().is_empty())),
 		Step.new(&"pretune_standby_granite", "Pretune standby for the %s" % bottom.name, DiveSimulation.STATION_REACTOR,
-				&"tune_frequency", standby_pretuned_for(bottom)),
+				&"tune_frequency", standby_pretuned()),
 		Step.new(&"shift_granite", "Shift into the %s" % bottom.name, DiveSimulation.STATION_REACTOR,
 				&"shift", crew_shift_in(bottom.name)),
 	]
@@ -314,9 +314,9 @@ static func first_dive() -> Scenario:
 
 
 ## The Shift drill: the Lithocraft under way in the sand a short way above
-## the sandstone, its Drive and Thermal on their autopilots, so the crew has
-## only the Reactor to work: pretune standby for the sandstone and swap it in as
-## the Head crosses.
+## the sandstone, its Drive and Thermal on their autopilots and a pulse just
+## sent, so the crew has only the Reactor to work: pretune standby against the
+## scan's guess of the sandstone's Wobble and swap it in as the Head crosses.
 static func shift_drill() -> Scenario:
 	var s := Scenario.new()
 	s.title = "Shift drill"
@@ -330,6 +330,9 @@ static func shift_drill() -> Scenario:
 		sim.start_below(boundary - _DRILL_ABOVE_BOUNDARY_M)
 		sim.set_autopilot(DiveSimulation.STATION_THERMAL, true)
 		sim.set_autopilot(DiveSimulation.STATION_DRIVE, true)
+		# Navigation's one pulse as the drill begins: without a scan of the
+		# Boundary ahead STANDBY has no guess to pretune against.
+		sim.pulse()
 
 	s.orders = [
 		Goal.new(&"clean_shift", "Shift cleanly into the %s" % below.name,
@@ -341,14 +344,14 @@ static func shift_drill() -> Scenario:
 	reactor.steps = [
 		Step.new(&"read_orders", "Read the orders", &"", &"toggle_checklist", on_event(&"orders_read")),
 		Step.new(&"pretune_standby", "Pretune standby for the %s" % below.name, DiveSimulation.STATION_REACTOR,
-				&"tune_frequency", standby_pretuned_for(below)),
+				&"tune_frequency", standby_pretuned()),
 		Step.new(&"shift", "Shift as the Head crosses", DiveSimulation.STATION_REACTOR,
 				&"shift", crew_shift_in(below.name)),
 	]
 	s.phases = [reactor]
 
 	s.messages = [
-		Message.new("Shift drill: the Drive and Thermal are on their autopilots. Yours is the Reactor: pretune standby for the %s, and swap it in as the Head crosses." % below.name, always()),
+		Message.new("Shift drill: the Drive and Thermal are on their autopilots and Navigation has pulsed. Yours is the Reactor: pretune standby against the scan's guess of the %s, and swap it in as the Head crosses." % below.name, always()),
 		Message.new("We have you nearing the %s. Pretune standby at the Reactor and swap it in as you cross." % below.name,
 				on_event(&"boundary_approaching")),
 		Message.new("Shift made. That is the drill: dive on, or turn for home.", crew_shift_in(below.name)),
@@ -406,9 +409,12 @@ static func stranded_in_the_granite() -> Scenario:
 				DiveSimulation.STATION_DRIVE, &"autopilot_drive", _autopilot_on(DiveSimulation.STATION_DRIVE)),
 	]
 	for medium in [middle, top]:
+		relit.steps.append(Step.new(StringName("pulse_%s" % medium.name),
+				"Pulse to see the Boundary above: the scan's guess of the %s shows on standby" % medium.name,
+				DiveSimulation.STATION_NAVIGATION, &"pulse", on_event(&"pulse_sent")))
 		relit.steps.append(Step.new(StringName("pretune_standby_%s" % medium.name),
 				"Pretune standby for the %s: the worn Head's Band is narrow" % medium.name,
-				DiveSimulation.STATION_REACTOR, &"tune_frequency", standby_pretuned_for(medium)))
+				DiveSimulation.STATION_REACTOR, &"tune_frequency", standby_pretuned()))
 		relit.steps.append(Step.new(StringName("shift_%s" % medium.name), "Shift into the %s" % medium.name,
 				DiveSimulation.STATION_REACTOR, &"shift", crew_shift_in(medium.name)))
 	relit.steps.append(Step.new(&"climbed", "Climb to the surface", &"", &"time_faster", on_event(&"surfaced")))
