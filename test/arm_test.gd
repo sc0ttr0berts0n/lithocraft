@@ -19,6 +19,11 @@ var SHALLOW_CLIMB := Vector3(0, cos(deg_to_rad(5.0)), -sin(deg_to_rad(5.0)))
 
 ## Long enough for any reach or carry to finish, however it is tuned.
 const PLENTY := 30.0
+## How far the ring of Stations has slid from the Head end to the Tail end
+## (Habitat.ring_z()): at either end, and part of the way.
+const BY_THE_HEAD := 0.0
+const BY_THE_TAIL := 1.0
+const MID_SLIDE := 0.4
 
 
 ## The Habitat's places with a Station on them, in order round the ring:
@@ -26,8 +31,8 @@ const PLENTY := 30.0
 var in_use := DiveTestKit.station_places()
 
 
-func _pivot(place: int) -> Vector3:
-	return Habitat.pivot(place)
+func _pivot(place: int, slid := BY_THE_HEAD) -> Vector3:
+	return Habitat.pivot(place, slid)
 
 
 ## The in-use Station of that name, as an index into in_use.
@@ -35,9 +40,9 @@ func _index_of(station_name: String) -> int:
 	return in_use.find(DiveTestKit.station_place(station_name))
 
 
-## A new Arm on the Habitat's rail.
-func _new_arm() -> Arm:
-	return Habitat.new_arm()
+## A new Arm on the Habitat's rail, the ring of Stations slid this far.
+func _new_arm(slid := BY_THE_HEAD) -> Arm:
+	return Habitat.new_arm(slid)
 
 
 ## A Station's cradle with its gimbal settled to up.
@@ -45,11 +50,12 @@ func _cradle(index: int, up: Vector3) -> Basis:
 	return GimballedStation.settled_cradle(_pivot(in_use[index]), up, Basis())
 
 
-## Where each in-use Station is worked from, with the gimbals settled to up.
-func _poses(up: Vector3) -> Array[Transform3D]:
+## Where each in-use Station is worked from, with the gimbals settled to up
+## and the ring slid this far.
+func _poses(up: Vector3, slid := BY_THE_HEAD) -> Array[Transform3D]:
 	var poses: Array[Transform3D] = []
 	for index in in_use.size():
-		poses.append(GimballedStation.pose_for(_pivot(in_use[index]), _cradle(index, up)))
+		poses.append(GimballedStation.pose_for(_pivot(in_use[index], slid), _cradle(index, up)))
 	return poses
 
 
@@ -89,10 +95,10 @@ func _anywhere() -> Array[Vector3]:
 	return points
 
 
-func _assert_caught_from_anywhere(up: Vector3) -> void:
-	var poses := _poses(up)
+func _assert_caught_from_anywhere(up: Vector3, slid := BY_THE_HEAD) -> void:
+	var poses := _poses(up, slid)
 	for point in _anywhere():
-		var arm := _new_arm()
+		var arm := _new_arm(slid)
 		arm.press()
 
 		var eye := _run(arm, _eye_at(point, up), poses)
@@ -111,6 +117,126 @@ func test_from_anywhere_diving_the_arm_seats_the_player_at_a_station() -> void:
 
 func test_from_anywhere_climbing_the_arm_seats_the_player_at_a_station() -> void:
 	_assert_caught_from_anywhere(CLIMBING)
+
+
+func test_from_anywhere_the_arm_seats_the_player_with_the_ring_by_the_tail() -> void:
+	_assert_caught_from_anywhere(CLIMBING, BY_THE_TAIL)
+	_assert_caught_from_anywhere(LEVEL, BY_THE_TAIL)
+
+
+func test_from_anywhere_the_arm_seats_the_player_with_the_ring_part_way_along() -> void:
+	_assert_caught_from_anywhere(CLIMBING, MID_SLIDE)
+
+
+## Places along the Bore's length: on each end cap and on the curved outer
+## wall part of the way along.
+func _along_the_bore() -> Array[Vector3]:
+	var beside := Vector3(cos(0.4), sin(0.4), 0)
+	return [
+		beside * 2.0 + Vector3(0, 0, -Habitat.LENGTH / 2.0 + 0.3),
+		beside * ON_THE_WALL + Vector3(0, 0, 0.9),
+		beside * 2.0 + Vector3(0, 0, Habitat.LENGTH / 2.0 - 0.3),
+	]
+
+
+## Steps a called Arm until it catches; returns where its carriage was along
+## the Bore as it caught, and after how many seconds (PLENTY if it never did).
+func _catch(arm: Arm, eye: Transform3D, poses: Array[Transform3D]) -> Dictionary:
+	var seconds := 0.0
+	while not arm.is_holding() and seconds < PLENTY:
+		arm.step(1.0 / 60.0, eye, poses)
+		seconds += 1.0 / 60.0
+	return {carriage_z = arm.carriage().z, seconds = seconds}
+
+
+func test_called_from_anywhere_along_the_bore_the_carriage_runs_to_the_player_to_catch_them() -> void:
+	for slid in [BY_THE_HEAD, BY_THE_TAIL]:
+		var poses := _poses(CLIMBING, slid)
+		for point in _along_the_bore():
+			var arm := _new_arm(slid)
+			arm.press()
+
+			var caught := _catch(arm, _eye_at(point, CLIMBING), poses)
+
+			# It catches them from level with them along the Bore...
+			assert_bool(arm.is_holding()).is_true()
+			assert_float(caught.carriage_z) \
+				.override_failure_message("caught at %s from %.2f along the Bore" % [point, caught.carriage_z]) \
+				.is_equal_approx(point.z, 0.25)
+			# ...then carries them to a Station, the carriage back at the ring.
+			var eye := _run(arm, arm.held_eye(), poses)
+			_assert_seated_at(eye, poses[arm.station()])
+			assert_float(arm.carriage().z).is_equal_approx(Habitat.ring_z(slid), 0.001)
+
+
+func test_the_further_along_the_bore_the_player_is_the_longer_the_arm_takes_to_catch_them() -> void:
+	var poses := _poses(DIVING)
+	var radial := Vector3(cos(0.4), sin(0.4), 0) * 2.0
+	var by_the_ring := _eye_at(radial + Vector3(0, 0, Habitat.ring_z()), DIVING)
+	var half_way := _eye_at(radial, DIVING)
+	var far_end := _eye_at(radial + Vector3(0, 0, Habitat.LENGTH / 2.0 - 0.3), DIVING)
+	var took := []
+
+	for eye: Transform3D in [by_the_ring, half_way, far_end]:
+		var arm := _new_arm()
+		arm.press()
+		took.append(_catch(arm, eye, poses).seconds)
+
+	assert_float(took[1]).is_greater(took[0])
+	assert_float(took[2]).is_greater(took[1])
+	assert_float(took[2]).is_less(PLENTY)
+
+
+func test_parked_the_rail_slides_with_the_ring_of_stations() -> void:
+	var arm := _new_arm()
+	var poses := _poses(CLIMBING)
+	var eye := _eye_at(_beside(0, CLIMBING), CLIMBING)
+
+	# The ring slides the Habitat's length over some seconds; the Arm is told
+	# each step where it is.
+	for i in 361:
+		arm.slide_to(Habitat.ring_z(i / 360.0))
+		arm.step(1.0 / 60.0, eye, poses)
+
+		assert_float(arm.carriage().z).is_equal_approx(Habitat.ring_z(i / 360.0), 0.001)
+	assert_int(arm.state()).is_equal(Arm.State.PARKED)
+
+
+func test_held_at_a_station_the_player_rides_the_slide_seated_there() -> void:
+	for index in in_use.size():
+		var arm := _seated_at(index, DIVING)
+		var eye := arm.held_eye()
+
+		for i in 361:
+			var slid := i / 360.0
+			var poses := _poses(CLIMBING if i > 0 else DIVING, slid)
+			arm.slide_to(Habitat.ring_z(slid))
+			arm.step(1.0 / 60.0, eye, poses)
+			eye = arm.held_eye()
+
+			# Seated the whole way: never left behind, never let go.
+			assert_bool(arm.arrived()).is_true()
+			assert_int(arm.station()).is_equal(index)
+			assert_float(eye.origin.distance_to(poses[index].origin)).is_less(0.01)
+			assert_float(arm.carriage().z).is_equal_approx(Habitat.ring_z(slid), 0.001)
+
+
+func test_called_as_the_ring_slides_the_arm_still_brings_the_player_to_a_station() -> void:
+	var arm := _new_arm()
+	var eye := _eye_at(_along_the_bore()[0], CLIMBING)
+	arm.press()
+
+	# The ring sets off for the Tail end as the Arm is called.
+	for i in int(PLENTY * 60.0):
+		var slid := minf(1.0, i / 360.0)
+		arm.slide_to(Habitat.ring_z(slid))
+		arm.step(1.0 / 60.0, eye, _poses(CLIMBING, slid))
+		if arm.is_holding():
+			eye = arm.held_eye()
+
+	assert_bool(arm.arrived()).is_true()
+	_assert_seated_at(eye, _poses(CLIMBING, BY_THE_TAIL)[arm.station()])
+	assert_float(arm.carriage().z).is_equal_approx(Habitat.ring_z(BY_THE_TAIL), 0.001)
 
 
 ## Standing on whatever is the floor at that pitch, at a Station's place

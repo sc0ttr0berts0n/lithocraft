@@ -182,7 +182,7 @@ func _frame(habitat: Node3D) -> void:
 		var camera := Camera3D.new()
 		camera.fov = 80.0
 		habitat.add_child(camera)
-		var eye := bore_eye()
+		var eye := bore_eye(habitat.simulation().station_ring())
 		camera.look_at_from_position(eye, Vector3(0.0, 0.0, eye.z), Vector3.BACK)
 		camera.make_current()
 	if tilt != 0.0 or turn != 0.0:
@@ -195,10 +195,12 @@ func _frame(habitat: Node3D) -> void:
 		moved.make_current()
 
 
-## Where the Bore is seen from (Habitat frame).
-static func bore_eye() -> Vector3:
+## Where the Bore is seen from (Habitat frame), the ring of Stations slid
+## this share of the way to the Tail end (the simulation's station_ring()).
+static func bore_eye(slid := 0.0) -> Vector3:
 	var angle := Habitat.place_angle(0) + TAU * BORE_EYE_PLACE / Habitat.STATIONS.size()
-	return Vector3(cos(angle), sin(angle), 0.0) * BORE_EYE_RADIUS + Vector3(0.0, 0.0, Habitat.ring_z())
+	return Vector3(cos(angle), sin(angle), 0.0) * BORE_EYE_RADIUS \
+			+ Vector3(0.0, 0.0, Habitat.ring_z(slid))
 
 
 ## Reads one --do value, "<seconds> <command> [arguments]", checking the

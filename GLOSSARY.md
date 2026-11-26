@@ -147,7 +147,7 @@ _Avoid_: Flag, warning (for a caution), bulb, indicator
 ## Stations
 
 **Station**:
-A fixed place in the Habitat where a crew member controls one of the Lithocraft's systems.
+A place on the ring round the Habitat's wall where a crew member controls one of the Lithocraft's systems; the ring slides to whichever end of the Habitat is the floor.
 _Avoid_: Console, panel, terminal, seat
 
 **Reactor**:
