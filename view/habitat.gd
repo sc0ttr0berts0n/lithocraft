@@ -1060,21 +1060,23 @@ func _split_heat(to_column: float) -> void:
 	_sim.set_heat_split(_heat_split)
 
 
-## The Thermal Station's status lines: the split (the crew's setting), where
-## the heat is going, the hull against the Medium and the temperature it can
-## bear, and the hull's integrity and how fast it is creeping. It calls with
-## its light while the simulation warns of heat damage.
+## The Thermal Station's instrument: the hull's temperature on a gauge
+## against what the hull bears, and the heat split drawn as a split.
+func _thermal_instrument() -> Control:
+	var gauge := ThermalGauge.new()
+	gauge.sim = _sim
+	return gauge
+
+
+## The Thermal Station's status lines, under its gauge (which shows the
+## hull's temperature and where the heat is going): its power, and the
+## hull's integrity and how fast it is creeping. It calls with its light
+## while the simulation warns of heat damage.
 func _show_thermal() -> void:
 	var warning := _sim.heat_warning()
 	var creeping := _sim.hull_creep_rate() > 0.0
-	var to_column := roundi(_heat_split * 10.0)
 	var lines := [
 		_power_line(_sim.thermal_request(), _sim.thermal_draw()),
-		["Out [%s|%s] Column" % ["#".repeat(10 - to_column), "#".repeat(to_column)], StationTheme.SELECTED],
-		"Heat %.2f > Column %.2f" % [_sim.heat_produced(), _sim.heat_to_column()],
-		["Hull %.0f K, bears %.0f K  Medium %.0f K" % [_sim.vessel_temperature(),
-			_sim.hull_damage_temperature(), _sim.surroundings_temperature()],
-			StationTheme.WARNING if creeping else StationTheme.CAUTION if warning else StationTheme.NOW],
 		["Integrity %.1f%%  creep %.2f%%/min" % [
 			_sim.hull_integrity() * 100.0, _sim.hull_creep_rate() * PERCENT_PER_MIN],
 			StationTheme.WARNING if creeping else StationTheme.NOW],
@@ -1270,6 +1272,7 @@ func _build_stations() -> void:
 			_bore_station.screen().set_instrument(_bore_instrument())
 		elif station.station_name == "Thermal":
 			_thermal = station
+			_thermal.screen().set_instrument(_thermal_instrument())
 		elif station.station_name == "Navigation":
 			_navigation = station
 			var navigation_displays: Array[Texture2D] = [_scan_display(), _moving_map()]
