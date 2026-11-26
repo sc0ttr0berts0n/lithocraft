@@ -37,7 +37,7 @@ func _index_of(station_name: String) -> int:
 
 ## A new Arm on the Habitat's rail.
 func _new_arm() -> Arm:
-	return Arm.new(Habitat.BORE_RADIUS + Habitat.RAIL_GAP)
+	return Habitat.new_arm()
 
 
 ## A Station's cradle with its gimbal settled to up.
@@ -84,8 +84,8 @@ func _anywhere() -> Array[Vector3]:
 		var a := TAU * (i + 0.5) / 12.0
 		var radial := Vector3(cos(a), sin(a), 0)
 		points.append(radial * ON_THE_WALL)
-		points.append(radial * 1.2 + Vector3(0, 0, -0.9))
-		points.append(radial * 2.0 + Vector3(0, 0, 0.9))
+		points.append(radial * 1.2 + Vector3(0, 0, -Habitat.LENGTH / 2.0 + 0.3))
+		points.append(radial * 2.0 + Vector3(0, 0, Habitat.LENGTH / 2.0 - 0.3))
 	return points
 
 
@@ -119,7 +119,7 @@ func test_from_anywhere_climbing_the_arm_seats_the_player_at_a_station() -> void
 func _beside(index: int, up: Vector3) -> Vector3:
 	var pivot := _pivot(in_use[index])
 	if up.dot(LEVEL) > 0.9:
-		return pivot.normalized() * ON_THE_WALL
+		return Vector3(pivot.x, pivot.y, 0).normalized() * ON_THE_WALL + Vector3(0, 0, pivot.z)
 	return pivot - up * 0.9
 
 
@@ -311,3 +311,18 @@ func test_seated_at_once_the_arm_follows_the_station_as_down_turns() -> void:
 
 	assert_bool(arm.arrived()).is_true()
 	_assert_seated_at(eye, _poses(LEVEL)[0])
+
+
+func test_the_rail_runs_round_the_bore_where_the_ring_of_stations_hangs() -> void:
+	var arm := _new_arm()
+	var parked := [arm.carriage(), arm.hand()]
+	arm.press()
+	_run(arm, _eye_at(_beside(_index_of("Thermal"), DIVING), DIVING), _poses(DIVING))
+
+	# Parked or holding at a Station across the ring, the carriage is level
+	# with every Station's pivot along the Bore, just outside the glass.
+	for point: Vector3 in parked + [arm.carriage()]:
+		for index in in_use.size():
+			assert_float(point.z).is_equal_approx(_pivot(in_use[index]).z, 0.001)
+	assert_float(Vector2(arm.carriage().x, arm.carriage().y).length()).is_between(
+			Habitat.BORE_RADIUS, Habitat.BORE_RADIUS + 2.0 * Habitat.RAIL_GAP)

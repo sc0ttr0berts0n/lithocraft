@@ -22,6 +22,9 @@
 #   --overlay            keep the screen-space layer the crew sees (the centre
 #                        notice); the debug overlay stays hidden either way
 #   --size <W>x<H>       the window's and the PNG's size (default 1152x648)
+#   --tilt <degrees>     tilt the look up from what it names (down if negative)
+#   --turn <degrees>     turn the look to the right (left if negative); with
+#                        --tilt, for a look along the Habitat's height
 #
 # Prints the PNG's path and exits 0; on any failure prints why, leaves no PNG
 # at that path and exits 1. The window opens centred on the developer's second
@@ -47,7 +50,7 @@ pass=()
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
-    --out|--size|--scenario|--look|--time|--do)
+    --out|--size|--scenario|--look|--time|--do|--tilt|--turn)
       [ $# -ge 2 ] || fail "$1 needs a value (see --help)"
       case "$1" in
         --out) out="$2" ;;
@@ -55,7 +58,7 @@ while [ $# -gt 0 ]; do
         --scenario) scenario="$2"; pass+=("$1" "$2") ;;
         --look) look="$2"; pass+=("$1" "$2") ;;
         --time) time="$2"; pass+=("$1" "$2") ;;
-        --do) pass+=("$1" "$2") ;;
+        --do|--tilt|--turn) pass+=("$1" "$2") ;;
       esac
       shift 2 ;;
     *) pass+=("$1"); shift ;;
