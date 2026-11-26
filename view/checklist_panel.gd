@@ -81,9 +81,9 @@ static func _step_line(step: Dictionary, is_next: bool, station_names: Dictionar
 		where = "  [color=#%s]%s[/color]" % [named[1].to_html(false), named[0]]
 	var key := "  %s" % _escaped(KeyMap.label(step.action)) if step.action != &"" else ""
 	match step.state:
-		Checklist.DONE:
+		DiveSimulation.STEP_DONE:
 			return _coloured("[x] %s" % step.text, _DONE_COLOUR)
-		Checklist.MISSED:
+		DiveSimulation.STEP_MISSED:
 			return _coloured("[-] %s (missed)" % step.text, _MISSED_COLOUR)
 	if is_next:
 		return "[b]%s[/b]%s%s" % [_coloured("> %s" % step.text, _NEXT_COLOUR), where, key]

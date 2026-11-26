@@ -122,9 +122,9 @@ func test_a_step_ticks_when_its_condition_is_met_and_not_before() -> void:
 			func(s: DiveSimulation) -> bool: return s.depth() > 5.0)]]))
 	sim.set_power(0.3)
 	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return s.depth() > 4.0, 600.0, 0.1, false)).is_true()
-	assert_str(_state(sim, &"deep")).is_equal(Checklist.PENDING)
+	assert_str(_state(sim, &"deep")).is_equal(DiveSimulation.STEP_PENDING)
 	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return s.depth() > 5.5, 600.0, 0.1, false)).is_true()
-	assert_str(_state(sim, &"deep")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"deep")).is_equal(DiveSimulation.STEP_DONE)
 
 
 func test_steps_tick_in_order() -> void:
@@ -135,12 +135,12 @@ func test_steps_tick_in_order() -> void:
 	]))
 	DiveTestKit.run(sim, 3.0)
 	# The second is already true, but waits for the first.
-	assert_str(_state(sim, &"second")).is_equal(Checklist.PENDING)
+	assert_str(_state(sim, &"second")).is_equal(DiveSimulation.STEP_PENDING)
 	assert_str(_next(sim)).is_equal(&"first")
 	sim.read_orders()
 	sim.advance(1.0)
-	assert_str(_state(sim, &"first")).is_equal(Checklist.DONE)
-	assert_str(_state(sim, &"second")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"first")).is_equal(DiveSimulation.STEP_DONE)
+	assert_str(_state(sim, &"second")).is_equal(DiveSimulation.STEP_DONE)
 	assert_dict(sim.next_step()).is_empty()
 
 
@@ -152,11 +152,11 @@ func test_one_event_ticks_one_step() -> void:
 	]))
 	sim.read_orders()
 	sim.advance(1.0)
-	assert_str(_state(sim, &"once")).is_equal(Checklist.DONE)
-	assert_str(_state(sim, &"twice")).is_equal(Checklist.PENDING)
+	assert_str(_state(sim, &"once")).is_equal(DiveSimulation.STEP_DONE)
+	assert_str(_state(sim, &"twice")).is_equal(DiveSimulation.STEP_PENDING)
 	sim.read_orders()
 	sim.advance(1.0)
-	assert_str(_state(sim, &"twice")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"twice")).is_equal(DiveSimulation.STEP_DONE)
 
 
 func test_a_later_phase_beginning_leaves_unfinished_steps_missed() -> void:
@@ -171,7 +171,7 @@ func test_a_later_phase_beginning_leaves_unfinished_steps_missed() -> void:
 	sim.read_orders()
 	sim.advance(1.0)
 	assert_int(sim.checklist_phase()).is_equal(1)
-	assert_str(_state(sim, &"never")).is_equal(Checklist.MISSED)
+	assert_str(_state(sim, &"never")).is_equal(DiveSimulation.STEP_MISSED)
 	assert_str(_next(sim)).is_equal(&"after")
 
 
@@ -179,12 +179,12 @@ func test_a_new_dive_starts_the_checklist_afresh() -> void:
 	var sim := _first_dive_on(MediumLayout.uniform(Medium.sand()))
 	sim.read_orders()
 	sim.advance(1.0)
-	assert_str(_state(sim, &"read_orders")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"read_orders")).is_equal(DiveSimulation.STEP_DONE)
 	assert_bool(_home_from_the_sand(sim)).is_true()
 	assert_bool(_achieved(sim, &"surfaced")).is_true()
 	sim.new_dive()
 	sim.advance(1.0)
-	assert_str(_state(sim, &"read_orders")).is_equal(Checklist.PENDING)
+	assert_str(_state(sim, &"read_orders")).is_equal(DiveSimulation.STEP_PENDING)
 	assert_bool(_achieved(sim, &"surfaced")).is_false()
 
 
@@ -207,31 +207,42 @@ func test_the_startup_steps_tick_as_each_is_done() -> void:
 	assert_str(_next(sim)).is_equal(&"read_orders")
 	sim.read_orders()
 	sim.advance(1.0)
-	assert_str(_state(sim, &"read_orders")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"read_orders")).is_equal(DiveSimulation.STEP_DONE)
 
 	for pair in [[&"reactor_autopilot", DiveSimulation.STATION_REACTOR],
 			[&"thermal_autopilot", DiveSimulation.STATION_THERMAL]]:
 		assert_str(_next(sim)).is_equal(pair[0])
 		sim.advance(1.0)
-		assert_str(_state(sim, pair[0])).is_equal(Checklist.PENDING)
+		assert_str(_state(sim, pair[0])).is_equal(DiveSimulation.STEP_PENDING)
 		sim.set_autopilot(pair[1], true)
 		sim.advance(1.0)
-		assert_str(_state(sim, pair[0])).is_equal(Checklist.DONE)
+		assert_str(_state(sim, pair[0])).is_equal(DiveSimulation.STEP_DONE)
 
 	# A level Course is not the dive the orders want.
 	assert_str(_next(sim)).is_equal(&"plot_course")
 	sim.set_course(0.0, 0.0)
 	sim.advance(1.0)
-	assert_str(_state(sim, &"plot_course")).is_equal(Checklist.PENDING)
+	assert_str(_state(sim, &"plot_course")).is_equal(DiveSimulation.STEP_PENDING)
 	sim.set_course(0.0, 90.0)
 	sim.advance(1.0)
-	assert_str(_state(sim, &"plot_course")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"plot_course")).is_equal(DiveSimulation.STEP_DONE)
 
 	assert_str(_next(sim)).is_equal(&"drive_autopilot")
 	sim.set_autopilot(DiveSimulation.STATION_DRIVE, true)
 	sim.advance(1.0)
-	assert_str(_state(sim, &"drive_autopilot")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"drive_autopilot")).is_equal(DiveSimulation.STEP_DONE)
 	assert_int(sim.checklist_phase()).is_equal(1)
+
+
+func test_the_checklist_moves_on_once_under_way_even_with_the_orders_unread() -> void:
+	var sim := _first_dive_on(_short_first_dive())
+	sim.set_autopilot(DiveSimulation.STATION_DRIVE, true)
+	sim.advance(0.1)
+	assert_int(sim.checklist_phase()).is_equal(0)
+	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return s.checklist_phase() == 1, 600.0, 0.5)).is_true()
+	assert_float(sim.depth()).is_greater(sim.vessel_length())
+	assert_str(_state(sim, &"read_orders")).is_equal(DiveSimulation.STEP_MISSED)
+	assert_str(_next(sim)).is_equal(&"pulse")
 
 
 ## A first dive on the short layout with its startup done: the Reactor's and
@@ -256,32 +267,32 @@ func test_the_sand_steps_tick_as_each_is_done() -> void:
 	assert_str(_next(sim)).is_equal(&"pulse")
 	sim.pulse()
 	sim.advance(0.1)
-	assert_str(_state(sim, &"pulse")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"pulse")).is_equal(DiveSimulation.STEP_DONE)
 
 	# A pulse with the vessel running is not a Quiet Ship scan.
 	assert_str(_next(sim)).is_equal(&"quiet_scan")
 	sim.pulse()
 	sim.advance(0.1)
-	assert_str(_state(sim, &"quiet_scan")).is_equal(Checklist.PENDING)
+	assert_str(_state(sim, &"quiet_scan")).is_equal(DiveSimulation.STEP_PENDING)
 	sim.set_quiet_ship(true)
 	sim.advance(0.1)
 	sim.pulse()
 	sim.advance(0.1)
-	assert_str(_state(sim, &"quiet_scan")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"quiet_scan")).is_equal(DiveSimulation.STEP_DONE)
 
 	assert_str(_next(sim)).is_equal(&"quiet_off")
 	sim.advance(1.0)
-	assert_str(_state(sim, &"quiet_off")).is_equal(Checklist.PENDING)
+	assert_str(_state(sim, &"quiet_off")).is_equal(DiveSimulation.STEP_PENDING)
 	sim.set_quiet_ship(false)
 	sim.advance(0.1)
-	assert_str(_state(sim, &"quiet_off")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"quiet_off")).is_equal(DiveSimulation.STEP_DONE)
 
 	assert_str(_next(sim)).is_equal(&"observe")
 	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return not s.features_in_column().is_empty(), 600.0, 0.5)).is_true()
-	assert_str(_state(sim, &"observe")).is_equal(Checklist.PENDING)
+	assert_str(_state(sim, &"observe")).is_equal(DiveSimulation.STEP_PENDING)
 	sim.set_observed_feature(sim.features_in_column()[0].id)
 	sim.advance(0.1)
-	assert_str(_state(sim, &"observe")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"observe")).is_equal(DiveSimulation.STEP_DONE)
 
 
 ## The sand steps done too, on a dive from _started().
@@ -309,17 +320,17 @@ func test_the_first_boundary_begins_as_it_approaches_and_wants_the_dial_ready_th
 	assert_str(sim.checklist()[sim.checklist_phase()].title).is_equal(Scenario.first_dive().phases[2].title)
 	# The dial still holds the sand's wobble: not ready for the sandstone.
 	assert_str(_next(sim)).is_equal(&"ready_dial")
-	assert_str(_state(sim, &"ready_dial")).is_equal(Checklist.PENDING)
+	assert_str(_state(sim, &"ready_dial")).is_equal(DiveSimulation.STEP_PENDING)
 	sim.set_shift_dial(_wobble_in(Medium.sandstone()))
 	sim.advance(0.1)
-	assert_str(_state(sim, &"ready_dial")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"ready_dial")).is_equal(DiveSimulation.STEP_DONE)
 
 	assert_str(_next(sim)).is_equal(&"shift")
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_crossed", 600.0, [], 0.1)).is_not_empty()
-	assert_str(_state(sim, &"shift")).is_equal(Checklist.PENDING)
+	assert_str(_state(sim, &"shift")).is_equal(DiveSimulation.STEP_PENDING)
 	sim.shift(sim.shift_dial())
 	sim.advance(0.1)
-	assert_str(_state(sim, &"shift")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"shift")).is_equal(DiveSimulation.STEP_DONE)
 	assert_str(sim.checklist()[sim.checklist_phase()].title).is_equal(Scenario.first_dive().phases[3].title)
 
 
@@ -329,7 +340,7 @@ func test_a_shift_the_autopilot_makes_is_not_the_crews() -> void:
 	# The Reactor's autopilot Shifts late; the crew never did.
 	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return not s.shift_due(), 2000.0, 0.5)).is_true()
 	sim.advance(0.1)
-	assert_str(_state(sim, &"shift")).is_equal(Checklist.MISSED)
+	assert_str(_state(sim, &"shift")).is_equal(DiveSimulation.STEP_MISSED)
 	assert_str(sim.checklist()[sim.checklist_phase()].title).is_equal(Scenario.first_dive().phases[3].title)
 
 
@@ -354,45 +365,45 @@ func test_the_sandstone_and_granite_steps_tick_as_each_is_done() -> void:
 	sim.set_observed_feature(-1)
 	sim.set_uploading(false)
 	sim.advance(0.1)
-	assert_str(_state(sim, &"observe_sandstone")).is_equal(Checklist.PENDING)
+	assert_str(_state(sim, &"observe_sandstone")).is_equal(DiveSimulation.STEP_PENDING)
 	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return not s.features_in_column().is_empty(), 2000.0, 0.5)).is_true()
 	sim.set_observed_feature(sim.features_in_column()[0].id)
 	sim.advance(0.1)
-	assert_str(_state(sim, &"observe_sandstone")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"observe_sandstone")).is_equal(DiveSimulation.STEP_DONE)
 
 	# The link sends what is aboard while the tunnel is open; stopped, it
 	# cannot.
 	assert_str(_next(sim)).is_equal(&"upload")
 	DiveTestKit.run(sim, 20.0)
-	assert_str(_state(sim, &"upload")).is_equal(Checklist.PENDING)
+	assert_str(_state(sim, &"upload")).is_equal(DiveSimulation.STEP_PENDING)
 	sim.set_uploading(true)
 	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return s.unsold_survey().is_empty(), 600.0, 0.5)).is_true()
 	sim.advance(0.1)
-	assert_str(_state(sim, &"upload")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"upload")).is_equal(DiveSimulation.STEP_DONE)
 
 	assert_str(_next(sim)).is_equal(&"ready_dial_granite")
 	sim.set_shift_dial(_wobble_in(Medium.sand()))
 	sim.advance(0.1)
-	assert_str(_state(sim, &"ready_dial_granite")).is_equal(Checklist.PENDING)
+	assert_str(_state(sim, &"ready_dial_granite")).is_equal(DiveSimulation.STEP_PENDING)
 	sim.set_shift_dial(_wobble_in(Medium.granite()))
 	sim.advance(0.1)
-	assert_str(_state(sim, &"ready_dial_granite")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"ready_dial_granite")).is_equal(DiveSimulation.STEP_DONE)
 
 	assert_str(_next(sim)).is_equal(&"shift_granite")
 	assert_bool(_achieved(sim, &"into_the_granite")).is_false()
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_crossed", 3000.0, [], 0.1)).is_not_empty()
 	sim.advance(0.1)
 	assert_bool(_achieved(sim, &"into_the_granite")).is_true()
-	assert_str(_state(sim, &"shift_granite")).is_equal(Checklist.PENDING)
+	assert_str(_state(sim, &"shift_granite")).is_equal(DiveSimulation.STEP_PENDING)
 	sim.shift(sim.shift_dial())
 	sim.advance(0.1)
-	assert_str(_state(sim, &"shift_granite")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"shift_granite")).is_equal(DiveSimulation.STEP_DONE)
 
 	assert_str(_next(sim)).is_equal(&"observe_granite")
 	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return not s.features_in_column().is_empty(), 3000.0, 0.5)).is_true()
 	sim.set_observed_feature(sim.features_in_column()[0].id)
 	sim.advance(0.1)
-	assert_str(_state(sim, &"observe_granite")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"observe_granite")).is_equal(DiveSimulation.STEP_DONE)
 	assert_str(_next(sim)).is_equal(&"plot_climb")
 
 
@@ -404,22 +415,22 @@ func test_turning_for_home_ticks_on_the_climb_and_surfacing_on_the_pay() -> void
 	sim.set_power(0.5)
 	sim.set_steering_effort(1.0)
 	DiveTestKit.run(sim, 20.0)
-	assert_str(_state(sim, &"plot_climb")).is_equal(Checklist.PENDING)
+	assert_str(_state(sim, &"plot_climb")).is_equal(DiveSimulation.STEP_PENDING)
 	sim.set_course(0.0, -90.0)
 	sim.advance(0.1)
-	assert_str(_state(sim, &"plot_climb")).is_equal(Checklist.DONE)
-	assert_str(_state(sim, &"read_orders")).is_equal(Checklist.MISSED)
+	assert_str(_state(sim, &"plot_climb")).is_equal(DiveSimulation.STEP_DONE)
+	assert_str(_state(sim, &"read_orders")).is_equal(DiveSimulation.STEP_MISSED)
 
 	assert_str(_next(sim)).is_equal(&"climbing")
 	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return s.pitch() < 45.0, 3000.0)).is_true()
-	assert_str(_state(sim, &"climbing")).is_equal(Checklist.PENDING)
-	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return _state(s, &"climbing") == Checklist.DONE, 3000.0)).is_true()
+	assert_str(_state(sim, &"climbing")).is_equal(DiveSimulation.STEP_PENDING)
+	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return _state(s, &"climbing") == DiveSimulation.STEP_DONE, 3000.0)).is_true()
 	assert_float(sim.pitch()).is_less(0.0)
 
 	assert_str(_next(sim)).is_equal(&"paid")
 	assert_bool(_achieved(sim, &"surfaced")).is_false()
 	assert_bool(_fly_until(sim, func(s: DiveSimulation) -> bool: return s.surfaced(), 6000.0)).is_true()
-	assert_str(_state(sim, &"paid")).is_equal(Checklist.DONE)
+	assert_str(_state(sim, &"paid")).is_equal(DiveSimulation.STEP_DONE)
 	assert_bool(_achieved(sim, &"surfaced")).is_true()
 
 
@@ -507,3 +518,11 @@ func test_the_first_dive_opens_with_its_orders_from_surface_control() -> void:
 	DiveTestKit.run(sim, 10.0)
 	assert_array(sim.surface_messages()).is_not_empty()
 	assert_int(sim.messages_on_the_way()).is_equal(0)
+
+
+func test_an_event_taken_before_the_checklist_saw_it_still_counts() -> void:
+	var sim := _first_dive_on(_short_first_dive())
+	sim.read_orders()
+	sim.take_events()
+	sim.advance(0.1)
+	assert_str(_state(sim, &"read_orders")).is_equal(DiveSimulation.STEP_DONE)

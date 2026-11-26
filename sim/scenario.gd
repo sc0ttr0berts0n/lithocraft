@@ -182,7 +182,10 @@ static func first_dive() -> Scenario:
 				DiveSimulation.STATION_DRIVE, &"autopilot_drive", _autopilot_on(DiveSimulation.STATION_DRIVE)),
 	]
 
-	var sand := Phase.new(String(top.name).capitalize())
+	# Under way once the whole vessel is below the surface, startup done or
+	# not: the checklist moves on with the dive rather than wait for Tab.
+	var sand := Phase.new(String(top.name).capitalize(),
+			when(func(sim: DiveSimulation) -> bool: return sim.depth() > sim.vessel_length()))
 	sand.steps = [
 		Step.new(&"pulse", "Pulse to see what lies ahead", DiveSimulation.STATION_NAVIGATION,
 				&"pulse", on_event(&"pulse_sent")),

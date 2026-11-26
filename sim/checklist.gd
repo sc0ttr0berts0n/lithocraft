@@ -141,6 +141,17 @@ func next_step_index() -> int:
 	return _states[_phase].find(PENDING)
 
 
+## The next step to do as a step of phases() plus its {phase, step} indices,
+## or {} when none is left.
+func next_step() -> Dictionary:
+	var index := next_step_index()
+	if index < 0:
+		return {}
+	var step: Scenario.Step = _scenario.phases[_phase].steps[index]
+	return {id = step.id, text = step.text, station = step.station, action = step.action,
+			state = PENDING, phase = _phase, step = index}
+
+
 func orders() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for goal in _scenario.orders:

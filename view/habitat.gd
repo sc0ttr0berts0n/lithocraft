@@ -373,13 +373,13 @@ func _key_heat_split(index: int) -> void:
 
 ## Reactor: turn the Shift dial one step down / up.
 func _key_shift_dial(index: int) -> void:
-	_plasma_display.dial *= 1.0 + SHIFT_DIAL_STEP * _minus_plus(index)
-	_sim.set_shift_dial(_plasma_display.dial)
+	_sim.set_shift_dial(_sim.shift_dial() * (1.0 + SHIFT_DIAL_STEP * _minus_plus(index)))
+	_plasma_display.dial = _sim.shift_dial()
 
 
 ## Reactor: Shift to the frequency on the dial.
 func _key_shift(_index: int) -> void:
-	_sim.shift(_plasma_display.dial)
+	_sim.shift(_sim.shift_dial())
 
 
 ## Reactor: try to relight the Head from the emergency store; the simulation
@@ -790,8 +790,7 @@ func _reset_settings() -> void:
 	_sim.set_steering_effort(_effort_setting)
 	_sim.set_power(_power_setting)
 	_sim.set_heat_split(_heat_split)
-	_plasma_display.dial = _sim.plasma_tuning()
-	_sim.set_shift_dial(_plasma_display.dial)
+	_plasma_display.dial = _sim.shift_dial()
 	_boundary_ahead = false
 
 
@@ -1164,7 +1163,7 @@ func _make_plasma_display() -> Texture2D:
 	_plasma_display.size = Vector2i(512, 242)
 	_plasma_display.sim = _sim
 	_plasma_display.hue = STATIONS[0][1]
-	_plasma_display.dial = _sim.plasma_tuning()
+	_plasma_display.dial = _sim.shift_dial()
 	add_child(_plasma_display)
 	return _plasma_display.get_texture()
 
