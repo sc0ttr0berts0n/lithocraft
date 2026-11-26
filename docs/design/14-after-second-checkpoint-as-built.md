@@ -33,3 +33,13 @@ Agent's choices within round 3's design (spec #71), one bullet per ticket.
     - Fulgurite: a dark glass tube with a branch or two inside a pale sleeve of sintered sand, as lightning leaves in dune sand.
     - Quartz vein and pegmatite keep the looks they had: a white sheet right round the Column (a slanted plane unwrapped is a sine wave), and a pale pocket of giant crystals with tourmaline and garnet.
   A feature is still in the Habitat's stretch of the Bore for only a few seconds at speed, and the Bore Station's list gives it in metres behind the Head, which the crew cannot turn into "look now"; the taller Habitat (#68) lengthens the pass, and the screen's wording is left to the screens' rebuild (#62).
+- **The Habitat as a can of beans (ticket #68, agent's choices within the design).**
+  The Habitat is 9.6 m along the Bore against 6.6 m across (1.45 to 1): 9.6 rather than 9.5 so the Column's texture is a whole number of pixels long.
+  The ring of Stations and the Arm's rail are one piece of layout (a single height above the Head end floor), which is what the slide to the other floor (#69) will move.
+  Until #69 the ring stays by the Head end: in a climb the floor is the Tail end cap, 8 m from the Stations, and only the Arm reaches them.
+  Two clearances were opened a little, because the larger screens (#62) put a corner through a wall at some pitches between level and a climb.
+    - The ring is 1.3 m above the Head end floor, where it was 1.2 m: a key panel's corner went 3 cm through the floor in a shallow climb.
+    - Each Station pivots 0.85 m in from the outer wall, where it was 0.75 m: an upper Station's top corner went 3 cm through the wall near 25 degrees of climb.
+      It is now at least 6 cm inside at every pitch, and a test holds it there.
+  Four times the Column is in view, so its grains are built once per band and kept, where they were placed afresh every frame: the picture is the same to the byte and the frame time is back where it was.
+  The ribs keep their 0.8 m spacing up the whole wall, and lamps hang on the Bore's axis every 2.4 m from the ring up, so the working level is lit as it was.

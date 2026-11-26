@@ -21,12 +21,14 @@ For a look at the game, `tools/screenshot/shot.sh` takes one PNG of a Scenario r
 `tools/screenshot/shot.sh --scenario "First dive" --look Reactor --time 120 --out /c/tmp/reactor-120.png`.
 It prints the PNG's path and exits 0; on any failure it prints why, leaves no PNG at that path and exits 1.
 
-- `--look` is a Station by the name on its screen (seen seated at it by the Arm, so that Station is attended), `bore` (into the Bore from the outer wall, Head end down), `column` (the Column as the crew see it turning round from the Bore Station, seated there) or `crew` (the crew's own view where the dive starts them).
+- `--look` is a Station by the name on its screen (seen seated at it by the Arm, so that Station is attended), `bore` (into the Bore from the outer wall, level with the ring of Stations, Head end down), `column` (the Column as the crew see it turning round from the Bore Station, seated there) or `crew` (the crew's own view where the dive starts them).
 - `--do "<seconds> <command> [arguments]"`, repeated, sends a `DiveSimulation` command at that dive time, in time order, then in the order given: `--do "0 set_power 1" --do "40 set_course 30 60"`.
   Any public method works, Scenario start and debug commands included (`"0 start_below 500"`, `"1 debug_skip 600"`); a debug command the simulation refuses fails the shot, but a crew command it ignores (a nudge with nobody at the Drive) does not.
   To work one Station while looking at another, attend it in the same moment, before its command: `--look Navigation --do "40 set_attended drive true" --do "40 nudge_pitch -1"` (the Habitat sets attendance back at its next step, after the command has acted).
 - Times are `dive_time()`, so a skip or a raised time rate counts for what it ran; ten minutes at the normal rate take about half a minute to stage.
 - `--out` defaults to `tools/screenshot/out/<scenario>-<look>-<time>.png`, which Godot (`.gdignore`) and git both ignore; `--overlay` keeps the centre notice; `--size 1920x1080` for a larger picture; `--help` lists the rest.
+- `--tilt <degrees>` and `--turn <degrees>` turn any look from what it names, the eyes staying put: up (down if negative) and to the right (left if negative).
+  `--look crew --tilt 55` looks up the Habitat's height from the floor; `--look Drive --turn 180 --tilt 30` looks back across the room from the Arm's hold.
 - The same arguments give the same PNG, byte for byte: the Habitat is stepped by hand in the game's own 1/60 s steps (`ShotPlan.stage()`, `tools/screenshot/shot_plan.gd`), then drawn for a fixed 8 frames at a fixed frame time.
   So a view that animates off its own clock (`_process(delta)`: a display's sweep, sparks, a call light's fade) is always 8 frames old in a shot; drive it from `dive_time()` if a shot must show it moving.
 - It is safe to run several at once, in one checkout or in several worktrees; each opens a silent window centred on the developer's second monitor (`SHOT_MONITOR` names another).

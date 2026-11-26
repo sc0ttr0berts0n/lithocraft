@@ -63,6 +63,15 @@ func test_a_feature_passes_the_bore_station_when_the_simulation_reports_it_there
 	assert_int(passed_on_screen).is_equal(passed_in_simulation)
 
 
+func test_the_column_runs_the_whole_length_of_the_bore_at_the_rooms_own_scale() -> void:
+	var habitat := _habitat_nearing_a_feature()
+	var strip: ColumnStrip = habitat.column_strip()
+
+	# The strip wrapped round the Column shows as many metres as the Habitat is
+	# long, so a metre of Column is a metre of room from cap to cap.
+	assert_float(strip.size.y / strip.pixels_per_metre).is_equal_approx(Habitat.LENGTH, 0.01)
+
+
 func test_a_feature_slides_toward_the_tail_as_far_as_the_vessel_went() -> void:
 	var habitat := _habitat_nearing_a_feature()
 	var sim: DiveSimulation = habitat.simulation()

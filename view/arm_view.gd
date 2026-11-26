@@ -8,6 +8,8 @@ const RAIL_COLOUR := Color(0.78, 0.82, 0.85)
 
 var arm: Arm
 var rail_radius := 0.95
+## Where along the Bore the rail is (Habitat frame, z).
+var rail_z := 0.0
 
 var _carriage := MeshInstance3D.new()
 var _links: Array[MeshInstance3D] = []
@@ -23,6 +25,7 @@ func _ready() -> void:
 	rail.mesh = torus
 	rail.material_override = _material(RAIL_COLOUR)
 	rail.basis = Basis(Vector3.RIGHT, PI / 2.0)  # tori stand on Y; the Bore is Z
+	rail.position.z = rail_z
 	add_child(rail)
 
 	var box := BoxMesh.new()

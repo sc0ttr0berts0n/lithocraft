@@ -127,8 +127,12 @@ func test_a_station_is_seen_through_the_crews_eyes_and_the_bore_from_outside_it(
 	for place in DiveTestKit.station_places():
 		assert_float(bore_camera.global_position.distance_to(
 				DiveTestKit.station_pivot(DiveTestKit.station_name(place)))).is_greater(1.0)
-	var to_axis := -bore_camera.global_position.normalized()
+	var eye := bore_camera.global_position
+	var to_axis := Vector3(-eye.x, -eye.y, 0.0).normalized()
 	assert_float((-bore_camera.global_basis.z).dot(to_axis)).is_greater(0.999)
+	# Level with the ring of Stations, where the crew work and the Column's
+	# features pass the Bore Station.
+	assert_float(eye.z).is_equal_approx(DiveTestKit.station_pivot("Bore Station").z, 0.001)
 
 
 ## The Bore Station's name in the simulation is &"bore", which is also what
@@ -189,6 +193,37 @@ func test_the_column_is_seen_from_the_bore_station_turned_round_to_it() -> void:
 	assert_float(camera.global_position.distance_to(seat)).is_less(0.01)
 	var to_axis := Vector3(-seat.x, -seat.y, 0.0).normalized()
 	assert_float((-camera.global_basis.z).dot(to_axis)).is_greater(0.999)
+
+
+func test_a_look_can_be_tilted_up_and_turned_from_where_the_eyes_are() -> void:
+	var plain := _staged(["--look", "crew", "--time", "1"])
+	var plain_camera := plain.get_viewport().get_camera_3d()
+	var eye := plain_camera.global_position
+	var ahead := -plain_camera.global_basis.z
+	var up := plain_camera.global_basis.y
+	var right := plain_camera.global_basis.x
+	plain.free()
+	var tilted := _staged(["--look", "crew", "--time", "1", "--tilt", "60"])
+	var tilted_camera := tilted.get_viewport().get_camera_3d()
+	var tilted_eye := tilted_camera.global_position
+	var tilted_ahead := -tilted_camera.global_basis.z
+	tilted.free()
+	var turned := _staged(["--look", "crew", "--time", "1", "--turn", "90"])
+	var turned_camera := turned.get_viewport().get_camera_3d()
+
+	# The same eyes, looking up the room's height...
+	assert_float(tilted_eye.distance_to(eye)).is_less(0.01)
+	assert_float(tilted_ahead.dot(up)).is_greater(0.8)
+	assert_float(tilted_ahead.dot(ahead)).is_greater(0.4)
+	# ...or round to the crew's right, still level.
+	assert_float(turned_camera.global_position.distance_to(eye)).is_less(0.01)
+	assert_float((-turned_camera.global_basis.z).dot(right)).is_greater(0.999)
+	assert_float(turned_camera.global_basis.y.dot(up)).is_greater(0.999)
+
+
+func test_a_tilt_or_turn_that_is_not_a_number_of_degrees_makes_no_shot() -> void:
+	assert_str(_plan(["--look", "crew", "--time", "1", "--tilt", "up"]).error).is_not_empty()
+	assert_str(_plan(["--look", "crew", "--time", "1", "--turn", "left"]).error).is_not_empty()
 
 
 ## Looking at one Station while another is worked: attended in the same

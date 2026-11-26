@@ -71,3 +71,64 @@ func test_a_station_with_nothing_felt_holds_where_it_was() -> void:
 	station.follow_up(Vector3.ZERO, 1.0)
 
 	assert_bool(station.pose().is_equal_approx(before)).is_true()
+
+
+## A crew member in a room of the Habitat's shape, dropped onto whatever is
+## the floor under this felt acceleration at a Station's place round the ring,
+## and left to settle there.
+func _standing_under(place: int, felt: Vector3) -> CrewMember:
+	var crew: CrewMember = auto_free(CrewMember.new())
+	crew.bore_radius = Habitat.BORE_RADIUS
+	crew.outer_radius = Habitat.OUTER_RADIUS
+	crew.length = Habitat.LENGTH
+	var pivot := Habitat.pivot(place)
+	crew.position = Vector3(pivot.x, pivot.y, 0.0)
+	for step in 1200:
+		crew.step(felt, 1.0 / 60.0)
+	return crew
+
+
+func test_the_habitat_has_the_proportions_of_a_can_of_beans() -> void:
+	# The developer's words: taller than wide, about 1.45 to 1 (issue #68).
+	var tall_to_wide: float = Habitat.LENGTH / (2.0 * Habitat.OUTER_RADIUS)
+
+	assert_float(tall_to_wide).is_between(1.4, 1.5)
+
+
+func test_standing_on_the_head_end_floor_in_a_dive_every_station_is_within_reach() -> void:
+	var diving := Vector3.FORWARD * 9.8  # felt toward the Head: its cap is the floor
+	for place in DiveTestKit.station_places():
+		var crew := _standing_under(place, diving)
+		var station_name := DiveTestKit.station_name(place)
+
+		assert_float(crew.position.z) 			.override_failure_message("the crew did not land on the Head end floor") 			.is_less(-Habitat.LENGTH / 2.0 + 2.0 * CrewMember.BODY)
+		assert_float(crew.position.distance_to(Habitat.pivot(place))) 			.override_failure_message("%s is out of reach from the Head end floor" % station_name) 			.is_less_equal(Habitat.STATION_REACH)
+
+
+func test_standing_on_the_head_end_floor_in_a_dive_every_screen_is_at_eye_level() -> void:
+	var diving := Vector3.FORWARD * 9.8
+	for place in DiveTestKit.station_places():
+		var eye := _standing_under(place, diving).eye().origin
+		var pivot := Habitat.pivot(place)
+		var screen := GimballedStation.screen_centre_for(pivot,
+				GimballedStation.settled_cradle(pivot, Vector3.BACK, Basis()))
+
+		# The eyes are no higher than the screen's top nor lower than its foot.
+		assert_float(absf(eye.z - screen.z)) 			.override_failure_message("%s's screen is not at eye level" % DiveTestKit.station_name(place)) 			.is_less(GimballedStation.SCREEN_SIZE.y / 2.0)
+
+
+func test_every_screen_and_key_panel_stays_inside_the_room_in_every_down() -> void:
+	var half_screen := GimballedStation.SCREEN_SIZE / 2.0 + Vector2.ONE * GimballedStation.CASING
+	# The key panel hangs off the cradle's -x side of the screen.
+	var keys_edge := -(GimballedStation.SCREEN_SIZE.x / 2.0 + GimballedStation.KEYS_GAP 			+ GimballedStation.KEYS_WIDTH + GimballedStation.CASING)
+	for up in _ups():
+		for place in DiveTestKit.station_places():
+			var pivot := Habitat.pivot(place)
+			var cradle := GimballedStation.settled_cradle(pivot, up, Basis())
+			for x in [keys_edge, half_screen.x]:
+				for y in [-half_screen.y, half_screen.y]:
+					var corner := pivot + cradle * (GimballedStation.SCREEN_CENTRE + Vector3(x, y, 0.0))
+					var where := "%s's corner %s, up %s" % [DiveTestKit.station_name(place), corner, up]
+					assert_float(Vector2(corner.x, corner.y).length()) 						.override_failure_message("through the outer wall: " + where) 						.is_less(Habitat.OUTER_RADIUS)
+					assert_float(Vector2(corner.x, corner.y).length()) 						.override_failure_message("through the Bore glass: " + where) 						.is_greater(Habitat.BORE_RADIUS)
+					assert_float(absf(corner.z)) 						.override_failure_message("through an end cap: " + where) 						.is_less(Habitat.LENGTH / 2.0)
