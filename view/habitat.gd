@@ -14,8 +14,9 @@ const STATION_HANG := 0.75
 ## Six Station positions in order round the ring (see place_angle()); this
 ## dive uses five. "" is the empty mount where the Fabricator will go. The
 ## Drive sits beside Navigation, since steering and the Course go together.
-## Each: name, hue, the simulation's name for it, and its call: tone in hertz
-## and pips per beat, so no two sound alike.
+## Each: name, hue (its call light's and its name's on the checklist; never
+## its screen's, whose colours are StationTheme's), the simulation's name for
+## it, and its call: tone in hertz and pips per beat, so no two sound alike.
 const STATIONS := [
 	["Reactor", Color("ff7a45"), DiveSimulation.STATION_REACTOR, 220.0, 1],
 	["Drive", Color("ffd24a"), DiveSimulation.STATION_DRIVE, 294.0, 2],
@@ -73,13 +74,13 @@ const UPLOAD_PRIORITIES: Array[StringName] = [
 	DiveSimulation.UPLOAD_MOST_VALUABLE_FIRST,
 	DiveSimulation.UPLOAD_NEWEST_FIRST,
 ]
-## The Bore Station's display: the survey and the tunnel side by side, in the
-## proportions of a Station screen.
-const BORE_DISPLAY_SIZE := Vector2i(768, 363)
-## Pixels per metre of a Station screen's display: Navigation's two
-## displays, the point cloud and the moving map, are sized from their share
-## of the screen (GimballedStation.display_rect()).
-const DISPLAY_PX_PER_M := 1010.0
+## How much larger than in the debug overlay the Bore Station's survey and
+## tunnel panels are drawn on its screen, to be read from the Arm's hold.
+const BORE_PANEL_ZOOM := 1.7
+## The status lines each Station's screen usually shows under its instrument:
+## what its pictures' viewports are sized for (StationScreen.body_size()).
+const REACTOR_LINES := 5
+const NAVIGATION_LINES := 3
 ## The debug menu's steps: wear per press (hull or Head), and time skipped.
 const DEBUG_WEAR_STEP := 0.1
 const DEBUG_SKIP_S := 300.0
@@ -555,7 +556,7 @@ func _physics_process(delta: float) -> void:
 	_navigation.set_supplied(_sim.navigation_supplied())
 	_show_reactor()
 	_show_drive()
-	_bore_station.show_reading(_bore_reading())
+	_bore_station.show_lines(_bore_reading())
 	_place_feature_ring()
 	_show_thermal()
 	_show_navigation()
@@ -612,7 +613,8 @@ func _set_power(power: float) -> void:
 
 
 ## Each Station calls with its own tone and light as urgently as the
-## simulation says, and every screen shows its autopilot and the time rate.
+## simulation says, and every screen's header strip shows its autopilot and
+## its Caution lamps (CautionLamps), its footer the time rate.
 ## Thermal's autopilot may have moved the heat split, and the Drive's its
 ## power, so the Habitat's copies follow them.
 func _show_calls() -> void:
@@ -626,82 +628,97 @@ func _show_calls() -> void:
 		station.set_call(_sim.call_urgency(_sim_names[station]))
 		station.autopilot = _sim.autopilot(_sim_names[station])
 		station.footer = footer
+		station.show_lamps(CautionLamps.of(_sim, _sim_names[station]))
 
 
-## The Drive Station's screen, over its primary flight display (FlightDisplay,
-## which reads depth, speed, attitude, heading, the Course, power, grip and
-## steering itself): whether it follows the Course or its own override, or how
-## the dive ended.
+## The Drive Station's status line, under its primary flight display
+## (FlightDisplay, which reads depth, speed, attitude, heading, the Course,
+## power, grip and steering itself): whether it follows the Course or its own
+## override, or how the dive ended.
 func _show_drive() -> void:
-	_drive.show_reading(
-		"SURFACED  %s start menu" % KeyMap.label(&"new_dive") if _sim.surfaced() else
-			"%s  %s start menu" % [_death_headline(), KeyMap.label(&"new_dive")] if _sim.dead() else
-			"OVERRIDE %03.0f %+.0f  %s back to Course" % [
-			_sim.steered_heading(), _sim.steered_pitch(), KeyMap.label(&"end_override")] if _sim.overriding()
-			else "Following the Course")
+	var line: Variant = ["Following the Course", StationTheme.ENGAGED]
+	if _sim.surfaced():
+		line = "SURFACED  %s start menu" % KeyMap.label(&"new_dive")
+	elif _sim.dead():
+		line = ["%s  %s start menu" % [_death_headline(), KeyMap.label(&"new_dive")], StationTheme.WARNING]
+	elif _sim.overriding():
+		line = ["OVERRIDE %03.0f %+.0f  %s back to Course" % [_sim.steered_heading(),
+				_sim.steered_pitch(), KeyMap.label(&"end_override")], StationTheme.SELECTED]
+	_drive.show_lines([line])
 
 
-## Navigation's screen, over its point cloud (which shows the Course): the
-## Course plotted, how quiet the vessel is, the points heard and its power.
+## Navigation's status lines, under its point cloud and moving map (which
+## show the Course): the Course plotted, how quiet the vessel is, the points
+## heard and its power.
 func _show_navigation() -> void:
-	_navigation.show_reading("\n".join([
-		"Course %03.0f  %+.0f deg%s" % [_sim.course_heading(), _sim.course_pitch(),
-			"  (Drive overriding)" if _sim.overriding() else ""],
+	_navigation.show_lines([
+		["Course %03.0f  %+.0f deg%s" % [_sim.course_heading(), _sim.course_pitch(),
+			"  (Drive overriding)" if _sim.overriding() else ""], StationTheme.SELECTED],
 		"%s  noise %d%%  %d points" % ["QUIET SHIP" if _sim.quiet_ship() else "under way",
 			roundi(_sim.noise() * 100.0), _sim.point_count()],
 		_power_line(_sim.navigation_request(), _sim.navigation_draw()),
-	]))
+	])
 
 
-## A Station's power: set against actual, as shares of the Reactor's full
-## output (PowerLine).
-func _power_line(requested: float, drawn: float) -> String:
-	return PowerLine.text(requested, drawn, _sim.reactor_full_output())
+## A Station's power as a status line: set against actual, as shares of the
+## Reactor's full output (PowerLine); a caution while starved.
+func _power_line(requested: float, drawn: float) -> Array:
+	var full := _sim.reactor_full_output()
+	return [PowerLine.text(requested, drawn, full),
+			StationTheme.CAUTION if PowerLine.starved(requested, drawn, full) else StationTheme.NOW]
 
 
-## The Reactor Station's screen: the Head's plasma, the power it supplies
-## against what the Stations draw (shares of its full output, as each Station
-## reads its own), and one bar per Station, its request outlined and what it
-## gets filled, so a starved Station shows here too.
+## The Reactor Station's status lines: the Head's plasma, the power it
+## supplies against what the Stations draw (shares of its full output, as each
+## Station reads its own), and one bar per Station on one line, its request
+## outlined and what it gets filled, so a starved Station shows here too.
 func _show_reactor() -> void:
 	var full := _sim.reactor_full_output()
-	var plasma := "STEADY" if _sim.plasma_stability() >= 1.0 else "UNSTEADY"
+	var steady := _sim.plasma_stability() >= 1.0
+	var short := PowerLine.percent(_sim.power_requested(), full) - PowerLine.percent(_sim.power_drawn(), full)
 	var lines := [
-		"Plasma %s %d%%  Head %s" % [plasma, roundi(_sim.plasma_stability() * 100.0),
+		["Plasma %s %d%%  Head %s" % ["STEADY" if steady else "UNSTEADY", roundi(_sim.plasma_stability() * 100.0),
 			"running" if _sim.head_activity() >= 1.0 else "idling %d%%" % roundi(_sim.head_activity() * 100.0)],
-		"Supply %d%%  drawn %d%%  short %d%%" % [PowerLine.percent(_sim.reactor_output(), full),
-			PowerLine.percent(_sim.power_drawn(), full),
-			PowerLine.percent(_sim.power_requested(), full) - PowerLine.percent(_sim.power_drawn(), full)],
+			StationTheme.NOW if steady else StationTheme.CAUTION],
+		["Supply %d%%  drawn %d%%  short %d%%" % [PowerLine.percent(_sim.reactor_output(), full),
+			PowerLine.percent(_sim.power_drawn(), full), short],
+			StationTheme.CAUTION if short > 0 else StationTheme.NOW],
 	]
+	var bars := PackedStringArray()
+	var starved := PackedStringArray()
 	for row in [["Nav", _sim.navigation_request(), _sim.navigation_draw()],
 			["Thm", _sim.thermal_request(), _sim.thermal_draw()],
 			["Drv", _sim.drive_request(), _sim.drive_draw()]]:
-		lines.append("%s %s%s" % [row[0], _bar(row[1] / full, row[2] / full),
-				"  starved" if PowerLine.starved(row[1], row[2], full) else ""])
+		bars.append("%s %s" % [row[0], _bar(row[1] / full, row[2] / full)])
+		if PowerLine.starved(row[1], row[2], full):
+			starved.append(row[0])
+	lines.append(["  ".join(bars) + ("" if starved.is_empty() else "  STARVED " + " ".join(starved)),
+			StationTheme.NOW if starved.is_empty() else StationTheme.CAUTION])
 	var shift_line := "Head wear %d%%  window %.1f s" % [roundi(_sim.head_wear() * 100.0),
 			_sim.shift_window_length()]
 	if _sim.plasma_lost():
-		shift_line += "  PLASMA LOST"
-		lines.append(shift_line)
+		lines.append([shift_line + "  PLASMA LOST", StationTheme.WARNING])
 		lines.append(_store_line())
 		lines.append(_relight_line())
-		_reactor.show_reading("\n".join(lines))
-		return
-	elif _sim.shift_due():
-		shift_line += "  SHIFT DUE  %s swap" % KeyMap.label(&"shift")
-	elif _boundary_ahead:
-		shift_line += "  BOUNDARY AHEAD  pretune standby %s" % KeyMap.label(&"tune_standby")
-	lines.append(shift_line)
-	lines.append(_store_line())
-	_reactor.show_reading("\n".join(lines))
+	else:
+		if _sim.shift_due():
+			lines.append([shift_line + "  SHIFT DUE  %s swap" % KeyMap.label(&"shift"), StationTheme.CAUTION])
+		elif _boundary_ahead:
+			lines.append([shift_line + "  BOUNDARY AHEAD  pretune standby %s" % KeyMap.label(&"tune_standby"),
+					StationTheme.CAUTION])
+		else:
+			lines.append(shift_line)
+		lines.append(_store_line())
+	_reactor.show_lines(lines)
 
 
 ## The emergency store on the Reactor screen: how full, and whether the
-## Lithocraft is running on it.
-func _store_line() -> String:
+## Lithocraft is running on it (a caution: it is all there is).
+func _store_line() -> Array:
 	var share := _sim.emergency_store() / _sim.emergency_store_capacity()
-	return "Emergency store %s %d%%%s" % [_bar(1.0, share), roundi(share * 100.0),
-			"  ON STORE" if _sim.on_emergency_store() else ""]
+	var on_store := _sim.on_emergency_store()
+	return ["Emergency store %s %d%%%s" % [_bar(1.0, share), roundi(share * 100.0),
+			"  ON STORE" if on_store else ""], StationTheme.CAUTION if on_store else StationTheme.NOW]
 
 
 ## The relight the Reactor can try while stranded: its pulse against the
@@ -972,34 +989,32 @@ func _cycle_upload_priority() -> void:
 	_sim.set_upload_priority(UPLOAD_PRIORITIES[next])
 
 
-## The Bore Station's display: the survey as it is recorded (quality per
+## The Bore Station's instrument: the survey as it is recorded (quality per
 ## stretch, story 14) beside the tunnel and the porosity trend the Tail is
-## heading into (story 26), with the link and the upload priority.
-func _bore_display() -> Texture2D:
-	var viewport := SubViewport.new()
-	viewport.size = BORE_DISPLAY_SIZE
-	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	viewport.disable_3d = true
-	var half := Vector2(BORE_DISPLAY_SIZE.x / 2.0, BORE_DISPLAY_SIZE.y)
+## heading into (story 26), with the link and the upload priority. Two
+## Controls side by side in the body of its screen's frame.
+func _bore_instrument() -> Control:
+	var row := HBoxContainer.new()
 	var survey := SurveyPanel.new()
-	survey.sim = _sim
-	survey.size = half
-	viewport.add_child(survey)
 	var tunnel := TunnelPanel.new()
-	tunnel.sim = _sim
-	tunnel.position = Vector2(half.x, 0.0)
-	tunnel.size = half
-	viewport.add_child(tunnel)
-	add_child(viewport)
-	return viewport.get_texture()
+	for panel: Control in [survey, tunnel]:
+		panel.set(&"sim", _sim)
+		panel.set(&"zoom", BORE_PANEL_ZOOM)
+		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		row.add_child(panel)
+	return row
 
 
-func _bore_reading() -> String:
+## The Bore Station's status lines: what the survey is worth, the tunnel about
+## to seal, and each feature in the Column, the observed one marked as the
+## crew's choice and a recorded one as done.
+func _bore_reading() -> Array:
 	var in_column := _sim.features_in_column()
-	var lines := PackedStringArray()
+	var lines := []
 	lines.append("Survey value %d" % roundi(_sim.survey_value()))
 	if _sim.call_reason(DiveSimulation.STATION_BORE) == &"tunnel_about_to_seal":
-		lines.append("TUNNEL SEALS when the Tail leaves this rock")
+		lines.append(["TUNNEL SEALS when the Tail leaves this rock", StationTheme.CAUTION])
 	var observed := _sim.observed_feature()
 	var found_observed := false
 	for feature in in_column:
@@ -1008,12 +1023,14 @@ func _bore_reading() -> String:
 		var marker := ">" if feature.id == observed else " "
 		if feature.id == observed:
 			found_observed = true
-		lines.append("%s %s %.1f m  %s" % [marker, String(feature.kind).capitalize(), where, state])
+		lines.append(["%s %s %.1f m  %s" % [marker, String(feature.kind).capitalize(), where, state],
+				StationTheme.ENGAGED if feature.is_recorded() else
+				StationTheme.SELECTED if feature.id == observed else StationTheme.NOW])
 	if in_column.is_empty():
-		lines.append("No features in the Column")
+		lines.append(["No features in the Column", StationTheme.LEGEND])
 	elif not found_observed:
-		lines.append("%s observe a feature" % KeyMap.label(&"observe"))
-	return "\n".join(lines)
+		lines.append(["%s observe a feature" % KeyMap.label(&"observe"), StationTheme.LEGEND])
+	return lines
 
 
 ## Keeps the ring on the observed feature while it is in the Habitat's
@@ -1043,37 +1060,40 @@ func _split_heat(to_column: float) -> void:
 	_sim.set_heat_split(_heat_split)
 
 
-## The Thermal Station's screen: the split, where the heat is going, the hull
-## against the Medium and the temperature it can bear, and the hull's
-## integrity and how fast it is creeping. It calls with its light while the
-## simulation warns of heat damage.
+## The Thermal Station's status lines: the split (the crew's setting), where
+## the heat is going, the hull against the Medium and the temperature it can
+## bear, and the hull's integrity and how fast it is creeping. It calls with
+## its light while the simulation warns of heat damage.
 func _show_thermal() -> void:
 	var warning := _sim.heat_warning()
+	var creeping := _sim.hull_creep_rate() > 0.0
 	var to_column := roundi(_heat_split * 10.0)
 	var lines := [
 		_power_line(_sim.thermal_request(), _sim.thermal_draw()),
-		"Out [%s|%s] Column" % ["#".repeat(10 - to_column), "#".repeat(to_column)],
+		["Out [%s|%s] Column" % ["#".repeat(10 - to_column), "#".repeat(to_column)], StationTheme.SELECTED],
 		"Heat %.2f > Column %.2f" % [_sim.heat_produced(), _sim.heat_to_column()],
-		"Hull %.0f K, bears %.0f K  Medium %.0f K" % [_sim.vessel_temperature(),
+		["Hull %.0f K, bears %.0f K  Medium %.0f K" % [_sim.vessel_temperature(),
 			_sim.hull_damage_temperature(), _sim.surroundings_temperature()],
-		"Integrity %.1f%%  creep %.2f%%/min" % [
+			StationTheme.WARNING if creeping else StationTheme.CAUTION if warning else StationTheme.NOW],
+		["Integrity %.1f%%  creep %.2f%%/min" % [
 			_sim.hull_integrity() * 100.0, _sim.hull_creep_rate() * PERCENT_PER_MIN],
+			StationTheme.WARNING if creeping else StationTheme.NOW],
 	]
 	if _sim.stranded():
-		lines.append("Pumps on store %d%%" % roundi(_heat_split * 100.0))
+		lines.append(["Pumps on store %d%%" % roundi(_heat_split * 100.0), StationTheme.SELECTED])
 	if _sim.stranded() or _sim.tunnel_sealed():
 		lines.append(_race_line())
 	var self_destruct := _self_destruct_line()
 	if not self_destruct.is_empty():
 		lines.append(self_destruct)
 	if _sim.dead():
-		lines.append("!! %s !!" % _death_headline())
-	elif _sim.hull_creep_rate() > 0.0:
-		lines.append("!! HULL CREEPING !!  over %.0f K" % (
-			_sim.vessel_temperature() - _sim.hull_damage_temperature()))
+		lines.append(["%s" % _death_headline(), StationTheme.WARNING])
+	elif creeping:
+		lines.append(["HULL CREEPING  over %.0f K" % (
+			_sim.vessel_temperature() - _sim.hull_damage_temperature()), StationTheme.WARNING])
 	elif warning:
-		lines.append("!! HEAT WARNING !!")
-	_thermal.show_reading("\n".join(lines))
+		lines.append(["HEAT WARNING", StationTheme.CAUTION])
+	_thermal.show_lines(lines)
 
 
 ## How the crew died, as the notice heads it: by self-destruct or the heat.
@@ -1085,30 +1105,33 @@ func _death_headline() -> String:
 ## self-destruct and how to cancel it, how to arm it, or why it cannot be
 ## (stranded with the store empty: nothing to dump). Empty once the dive is
 ## over.
-func _self_destruct_line() -> String:
+func _self_destruct_line() -> Array:
 	if _sim.self_destructing():
-		return "!! SELF-DESTRUCT !!  %s cancel" % KeyMap.label(&"self_destruct")
+		return ["SELF-DESTRUCT  %s cancel" % KeyMap.label(&"self_destruct"), StationTheme.WARNING]
 	if _sim.surfaced() or _sim.dead():
-		return ""
+		return []
 	if not _sim.can_self_destruct():
-		return "Self-destruct: store empty, nothing to dump into the hull"
+		return ["Self-destruct: store empty, nothing to dump into the hull", StationTheme.LEGEND]
 	var held := _sim.self_destruct_hold()
 	if held > 0.0:
-		return "ARMING SELF-DESTRUCT %s  keep holding %s" % [_bar(1.0, held),
-				KeyMap.label(&"self_destruct")]
-	return "Self-destruct: hold %s %.0f s" % [KeyMap.label(&"self_destruct"),
-			_sim.self_destruct_hold_length()]
+		return ["ARMING SELF-DESTRUCT %s  keep holding %s" % [_bar(1.0, held),
+				KeyMap.label(&"self_destruct")], StationTheme.WARNING]
+	return ["Self-destruct: hold %s %.0f s" % [KeyMap.label(&"self_destruct"),
+			_sim.self_destruct_hold_length()], StationTheme.LEGEND]
 
 
 ## The stranding clock beside the rescue time, live: while stranded the race
-## itself; sealed in but under way, what it would be if the plasma went now.
-func _race_line() -> String:
+## itself (a warning when the hull would fail first); sealed in but under
+## way, what it would be if the plasma went now.
+func _race_line() -> Array:
 	var clock := _sim.stranding_clock()
 	var rescue := _sim.rescue_time()
 	var line := "Hull lasts %s | Rescue %s" % [_duration(clock), _duration(rescue)]
 	if not _sim.stranded():
-		return "If stranded: " + line
-	return line + ("  RESCUE FIRST" if rescue < clock else "  !! CLOCK FIRST !!")
+		return ["If stranded: " + line, StationTheme.NOW]
+	if rescue < clock:
+		return [line + "  RESCUE FIRST", StationTheme.NOW]
+	return [line + "  CLOCK FIRST", StationTheme.WARNING]
 
 
 ## Seconds as h:mm:ss or m:ss; for ever as "holds".
@@ -1229,8 +1252,6 @@ func _build_stations() -> void:
 		station.hue = STATIONS[i][1]
 		station.call_tone_hz = STATIONS[i][3]
 		station.call_pips = STATIONS[i][4]
-		if station.station_name in ["Thermal", "Reactor", "Drive"]:
-			station.screen_font_size = 28
 		station.position = pivot(i)
 		add_child(station)
 		_stations.append(station)
@@ -1243,10 +1264,10 @@ func _build_stations() -> void:
 			_reactor.show_display(_make_plasma_display())
 		elif station.station_name == "Drive":
 			_drive = station
-			_drive.show_display(_flight_display(station.hue), FlightDisplay.instrument_shares())
+			_drive.show_display(_flight_display(), FlightDisplay.instrument_shares())
 		elif station.station_name == "Bore Station":
 			_bore_station = station
-			_bore_station.show_display(_bore_display())
+			_bore_station.screen().set_instrument(_bore_instrument())
 		elif station.station_name == "Thermal":
 			_thermal = station
 		elif station.station_name == "Navigation":
@@ -1259,18 +1280,16 @@ func _build_stations() -> void:
 ## STANDBY channels.
 func _make_plasma_display() -> Texture2D:
 	var display := PlasmaDisplay.new()
-	display.size = Vector2i(512, 242)
+	display.size = Vector2i(StationScreen.body_size(REACTOR_LINES))
 	display.sim = _sim
-	display.hue = STATIONS[0][1]
 	add_child(display)
 	return display.get_texture()
 
 
 ## The Drive's primary flight display, shown on the Drive Station's screen.
-func _flight_display(hue: Color) -> Texture2D:
+func _flight_display() -> Texture2D:
 	var display := FlightDisplay.new()
 	display.sim = _sim
-	display.hue = hue
 	add_child(display)
 	return display.get_texture()
 
@@ -1287,7 +1306,8 @@ func _scan_display() -> Texture2D:
 
 ## The size in pixels of each of Navigation's two displays side by side.
 static func _navigation_display_px() -> Vector2i:
-	return Vector2i((GimballedStation.display_rect(0, 2).size * DISPLAY_PX_PER_M).round())
+	var body := StationScreen.body_size(NAVIGATION_LINES)
+	return Vector2i(int((body.x - StationScreen.GAP_PX) / 2.0), int(body.y))
 
 
 ## Navigation's moving map, a cross-section of the whole dive, shown on the

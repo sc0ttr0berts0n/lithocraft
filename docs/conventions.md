@@ -29,7 +29,7 @@ The old "Extension points" and "Subsystems" sections are spread by topic; their 
 ## The view
 
 - [conventions/view.md](conventions/view.md): The view. Read before changing anything in `view/`: who owns the simulation, `_at`, what may be drawn over the crew's view, mouse look, pointing, Station places, the start menu, the end of a dive, hull feel and sound.
-- [conventions/station-screens.md](conventions/station-screens.md): The view's Station screens. Read when changing what a Station screen shows or how: `GimballedStation`, the Thermal, Reactor and Drive screens, Navigation's point cloud and moving map.
+- [conventions/station-screens.md](conventions/station-screens.md): The view's Station screens. Read when changing what a Station screen shows or how: the frame every screen shares (`StationScreen`), the Theme and the colour language (`StationTheme`), Caution lamps, the key list, `GimballedStation`, the Thermal, Reactor and Drive screens, Navigation's point cloud and moving map.
 - [conventions/key-map.md](conventions/key-map.md): Key map. Read before binding, moving or naming a key, adding a key prompt, or adding a debug menu key.
 
 ## Writing these files
