@@ -229,6 +229,17 @@ Grilled with the developer on 25 November 2026, after the first play test (`docs
 - **Small fixes taken as stated:** the cut-off Thermal text, and the end-of-dive shake becomes a lurch that settles into the still outcome screen. Clicking widgets, levers and knobs stays for later.
 - **Every dive ends on a still screen that names the outcome** (surfaced, rescued, or dead and why) in a sentence before the payment breakdown. The play test's "we're dead" was the developer's "dead in the water", said in fun, not a misreading; the plain outcome line is still wanted.
 
+## The second checkpoint
+
+Grilled with the developer on 25 November 2026, getting back on course after round 2's tickets (#31 to #43) piled up as unmerged PRs.
+
+- **A checkpoint has the shape of the first.** Every ticket of the round merged to `dev`, the whole suite passing headless, one playable build with no tweaks in between, then a cold, narrated, recorded play test (First dive, then the drills) written up in `docs/playtests/`. No new tickets join a round once it is cut; new ideas wait for its play test.
+- **`main` stays one stable build behind.** Checkpoint 1 (the build played on 25 November) was promoted to `main` (#18); each later checkpoint gets its own promotion.
+- **Agents merge into `dev`** once a PR is up to date with `dev` and the suite is green, and stop to ask only when a conflict forces a design choice. Overlapping PRs merge one at a time in one session. Tickets are built one session each, in parallel where their files do not overlap; the explainer (#33) goes last because it covers every reading on every screen.
+- **Choices from round 2's PRs, accepted:** the Shift dial is a selector and does not disengage the Reactor's autopilot (only R does); the Drive's override holds after the crew walks away, ending on O or on engaging the Drive's autopilot; the Shift match is shown against the window narrowed by Head wear, so what is seen is what is graded; the Checklist ticks strictly in order (a step done early is redone, steps left behind show as missed), to be judged in play; the point cloud's camera angle, 90 s fade and 2,000-point cap are judged in the play test, not tuned before it. Enter is ignored during the end-of-dive lurch so it cannot skip the outcome screen.
+- **The play test's bar:** the First dive is finished cold, from the Checklist and explainers alone, surfacing and paid without asking what to do. Held loosely: the developer designed the game and is not a true cold player, so being stuck for other reasons is a finding, not a failure.
+- **"Not yet designed" stays parked** until after the second play test, then is ranked by what it shows.
+
 ## Not yet designed
 
 - Flight in air, space and gas giants beyond the three-step ascent.
