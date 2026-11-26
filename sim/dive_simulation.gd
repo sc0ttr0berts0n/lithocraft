@@ -208,6 +208,9 @@ const _DEBUG_BRINK_WEAR := 0.98
 const _DEBUG_PAST_BOUNDARY_M := 0.5
 const _DEBUG_LEAST_DESCENT := 0.05
 const _DEBUG_TRAVEL_PIECE_M := 1.0
+## The pieces start_below() moves the Head in, metres: short enough that no
+## piece crosses two Boundaries. Not tuned for play.
+const _START_PIECE_M := 1.0
 ## What a new dive keeps; every other variable starts over as a fresh dive.
 ## The world (the layout), what was paid for, and events not yet taken.
 const _KEPT_BETWEEN_DIVES: Array[StringName] = [&"_layout", &"_paid", &"_uploaded", &"_events",
@@ -625,6 +628,64 @@ func _begin_scenario() -> void:
 	_events_checked = _events.size()  # Events from before are not this dive's.
 	_events_unseen = []
 	_scenario.prepare.call(self)
+
+
+# --- Scenario start ---------------------------------------------------------
+# The commands a Scenario's start state (Scenario.prepare) calls to begin its
+# dive where the crew's commands cannot take it from the surface. Not crew
+# controls and not debug commands: each acts only as a dive begins, before
+# any time has run (ignored after), and goes through the simulation's own
+# paths. See docs/conventions.md, "Scenarios".
+
+## Scenario start: the dive begins with the Head `metres` down, the
+## Lithocraft having cut straight down from the surface with a clean Shift at
+## every Boundary. The Column it passed is recorded and aboard (none of it yet
+## up the link), its features found, the tunnel behind lined or sealed as the
+## rock it crossed makes it; the Head is fresh and tuned to the Medium it is
+## in, the hull at that rock's temperature. That descent is history: its
+## events are not raised. Ignored unless the dive has not begun and the Head is
+## at the surface.
+func start_below(metres: float) -> void:
+	if not _at_dive_start() or _distance > 0.0 or metres <= 0.0:
+		return
+	var raised := _events.size()
+	_direction = Vector3.DOWN
+	var left := metres
+	# In short pieces, each moved as a step moves the Head but taking no time,
+	# so every Boundary and feature on the way is passed in turn.
+	while left > 0.0:
+		var piece := minf(left, _START_PIECE_M)
+		left -= piece
+		var depth_before := depth()
+		_position += _direction * piece
+		_follow_the_head(depth_before, piece, 0.0)
+	_events.resize(raised)
+	_announced_boundary = NAN  # A Boundary just ahead is announced on the first step.
+	_plasma = Plasma.new(plasma_frequency())
+	_shift_dial = _plasma.tuning()
+	_heat = Heat.new(surroundings_temperature())
+	_share_power()
+
+
+## Scenario start: the dive begins with the Head's plasma just lost, the Head
+## worn `head_wear` (0 fresh, 1 worn through) as the poor Shifts that lost it
+## left it, and what that comes to follows at once: stranded where it stands
+## when sealed in (the rescue called, the stranding clock running), brought
+## home through the tunnel when it is open. Raises &"plasma_lost" (its cause
+## &"scenario"), then what follows. Ignored unless the dive has not begun.
+func start_dark(head_wear: float) -> void:
+	if not _at_dive_start() or plasma_lost():
+		return
+	_plasma.start_dark(head_wear, _events, depth(), _distance)
+	_share_power()
+	_check_stranded()
+	if stranded():
+		_update_calls()
+
+
+## True while a dive has not begun: no time has run and it has not ended.
+func _at_dive_start() -> bool:
+	return _dive_time == 0.0 and not (_surfaced or dead() or stranded())
 
 
 ## The crew has read the Orders (the view sends it when the Checklist is first

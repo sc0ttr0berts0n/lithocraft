@@ -109,3 +109,51 @@ static func lose_plasma(sim: DiveSimulation) -> void:
 			return
 		sim.shift(on * 1.5)
 		sim.advance(0.1)
+
+
+## The state of the Checklist step with this id: DONE, PENDING or MISSED, or
+## &"" if the Checklist has no such step.
+static func step_state(sim: DiveSimulation, id: StringName) -> StringName:
+	for phase in sim.checklist():
+		for step in phase.steps:
+			if step.id == id:
+				return step.state
+	return &""
+
+
+## Whether the goal of the Orders with this id is achieved.
+static func achieved(sim: DiveSimulation, id: StringName) -> bool:
+	for goal in sim.orders():
+		if goal.id == id:
+			return goal.achieved
+	return false
+
+
+## The id of the Checklist's next step, or &"" when none is left.
+static func next_step_id(sim: DiveSimulation) -> StringName:
+	return sim.next_step().get("id", &"")
+
+
+## The title of the Checklist phase now running.
+static func phase_title(sim: DiveSimulation) -> String:
+	return sim.checklist()[sim.checklist_phase()].title
+
+
+## Advances in steps of `step` (the time rate raised before each, if `fast`)
+## until `done` holds of the sim or `seconds` have passed, taking the events.
+## Returns whether it held.
+static func fly_until(sim: DiveSimulation, done: Callable, seconds := 3000.0,
+		step := 1.0, fast := true) -> bool:
+	for i in int(seconds / step):
+		if done.call(sim):
+			return true
+		if fast:
+			sim.set_time_rate(sim.max_time_rate())
+		sim.advance(step)
+		sim.take_events()
+	return done.call(sim)
+
+
+## The frequency the plasma wobbles at in this Medium, read from a dive in it.
+static func wobble_in(medium: Medium) -> float:
+	return DiveSimulation.new(MediumLayout.uniform(medium)).plasma_frequency()

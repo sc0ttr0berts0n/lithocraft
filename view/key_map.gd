@@ -39,7 +39,7 @@ const BINDINGS: Array[Dictionary] = [
 	{where = ANYWHERE, keys = [KEY_A, KEY_D], does = "carried: next Station left / right", action = &"next_station"},
 	{where = ANYWHERE, keys = [KEY_PERIOD], does = "time x4 (a Station's call holds it at x1, except stranded or self-destructing)", action = &"time_faster"},
 	{where = ANYWHERE, keys = [KEY_COMMA], does = "time normal", action = &"time_normal"},
-	{where = ANYWHERE, keys = [KEY_ENTER, KEY_KP_ENTER], does = "surfaced or dead: dive again", action = &"new_dive"},
+	{where = ANYWHERE, keys = [KEY_ENTER, KEY_KP_ENTER], does = "dive over: back to the start menu", action = &"new_dive"},
 	{where = ANYWHERE, keys = [KEY_F1], does = "these controls", action = &"toggle_controls"},
 	{where = ANYWHERE, keys = [KEY_TAB], does = "the checklist: orders, next step, surface control", action = &"toggle_checklist"},
 	{where = ANYWHERE, keys = [KEY_F3], does = "debug overlay", action = &"toggle_debug"},
