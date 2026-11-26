@@ -249,6 +249,7 @@ Grilled with the developer on 25 November 2026, getting back on course after rou
   - **Two lanes, ACTIVE and STANDBY, each with its own MATCH.** ACTIVE against the wobble of the Medium the Head is in; STANDBY against the wobble expected in the Medium ahead, shown once the Boundary-approaching call comes. N/M tune whichever channel the crew is on (developer's refinement), not only the standby.
   - **R swaps the channels, and the swap is the Shift**, graded as a Shift is: the new active's match to the wobble at that moment, then lateness. A swap made early, still in the old Medium, is a poor Shift; a late one is punished by the window.
   - **The old active drops to standby**, so a second press swaps back; swapping back is a Shift too, so undoing an early swap costs a second one.
+  - **Homework buys a preview (developer's idea).** "If you do your homework you can know a bit about the next rock (good scans, etc.) and maybe you can get a sine wave that is noisy, and the better you do you get a preview on the sine wave to come on the standby channel." The STANDBY lane shows the projected wobble of the rock ahead, noisy in proportion to how little the scans know, so pretuning is a reward for scanning well. Real basis: seismic and sonar surveys estimate the properties of rock ahead from echoes, and the estimate sharpens with more and cleaner returns, which is why Quiet Ship exists.
   - **Built before the second play test**, as a fix to #36, before the explainer (#33) so it describes both channels.
 
 ## Not yet designed
