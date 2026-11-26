@@ -13,14 +13,14 @@ unique_name_in_owner = true
 mouse_filter = 2
 
 [node name="Panel" parent="Overlay/DiveView" index="0"]
-anchors_preset = 0
-anchor_left = 0.0
+anchors_preset = 1
+anchor_left = 1.0
 anchor_top = 0.0
-anchor_right = 0.0
+anchor_right = 1.0
 anchor_bottom = 0.0
-offset_left = 16.0
+offset_left = -884.0
 offset_top = 16.0
-offset_right = 336.0
+offset_right = -564.0
 offset_bottom = 276.0
-grow_horizontal = 1
+grow_horizontal = 0
 grow_vertical = 1
