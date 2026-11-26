@@ -367,30 +367,89 @@ func test_the_sandstone_and_granite_steps_tick_as_each_is_done() -> void:
 
 
 func test_turning_for_home_ticks_on_the_climb_and_surfacing_on_the_pay() -> void:
-	# In sand all the way, so the arc home is quick; plotting the climb
-	# begins the turn whatever came before.
-	var sim := _first_dive_on(MediumLayout.uniform(Medium.sand()))
-	sim.set_autopilot(DiveSimulation.STATION_THERMAL, true)
-	sim.set_power(0.5)
-	sim.set_steering_effort(1.0)
-	DiveTestKit.run(sim, 20.0)
-	assert_str(DiveTestKit.step_state(sim, &"plot_climb")).is_equal(DiveSimulation.STEP_PENDING)
+	# In sand all the way, so the arc home is quick; the turn begins once the
+	# Lithocraft is climbing, whatever came before.
+	var sim := _diving_in_sand()
 	sim.set_course(0.0, -90.0)
-	sim.advance(0.1)
-	assert_str(DiveTestKit.step_state(sim, &"plot_climb")).is_equal(DiveSimulation.STEP_DONE)
-	assert_str(DiveTestKit.step_state(sim, &"read_orders")).is_equal(DiveSimulation.STEP_MISSED)
-
-	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"climbing")
 	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.pitch() < 45.0, 3000.0)).is_true()
 	assert_str(DiveTestKit.step_state(sim, &"climbing")).is_equal(DiveSimulation.STEP_PENDING)
 	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return DiveTestKit.step_state(s, &"climbing") == DiveSimulation.STEP_DONE, 3000.0)).is_true()
 	assert_float(sim.pitch()).is_less(0.0)
+	assert_str(DiveTestKit.step_state(sim, &"plot_climb")).is_equal(DiveSimulation.STEP_DONE)
+	assert_str(DiveTestKit.step_state(sim, &"read_orders")).is_equal(DiveSimulation.STEP_MISSED)
 
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"paid")
 	assert_bool(DiveTestKit.achieved(sim, &"surfaced")).is_false()
 	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.surfaced(), 6000.0)).is_true()
 	assert_str(DiveTestKit.step_state(sim, &"paid")).is_equal(DiveSimulation.STEP_DONE)
 	assert_bool(DiveTestKit.achieved(sim, &"surfaced")).is_true()
+
+
+# --- Phases begin on what the Lithocraft does (ticket #59) ---------------
+
+## A first dive in sand all the way, a little way down and still diving:
+## Thermal's autopilot on, the Drive at a power the sand grips, steering hard.
+func _diving_in_sand() -> DiveSimulation:
+	var sim := _first_dive_on(MediumLayout.uniform(Medium.sand()))
+	sim.set_autopilot(DiveSimulation.STATION_THERMAL, true)
+	sim.set_power(0.5)
+	sim.set_steering_effort(1.0)
+	DiveTestKit.run(sim, 20.0)
+	return sim
+
+
+func test_a_climb_plotted_at_the_surface_then_a_dive_leaves_the_checklist_in_startup() -> void:
+	var sim := _first_dive_on(_short_first_dive())
+	sim.read_orders()
+	sim.advance(0.1)
+	var next := DiveTestKit.next_step_id(sim)
+	sim.set_course(0.0, -90.0)
+	sim.advance(0.1)
+	sim.set_course(0.0, 90.0)
+	sim.advance(0.1)
+	assert_str(DiveTestKit.phase_title(sim)).is_equal("Startup")
+	assert_str(DiveTestKit.next_step_id(sim)).is_equal(next)
+	assert_str(DiveTestKit.step_state(sim, &"read_orders")).is_equal(DiveSimulation.STEP_DONE)
+
+
+func test_a_climb_plotted_mid_dive_begins_the_turn_only_once_the_lithocraft_climbs() -> void:
+	var sim := _diving_in_sand()
+	var before := sim.checklist_phase()
+	var plotted_at := sim.depth()
+	sim.set_course(0.0, -90.0)
+	sim.advance(0.1)
+	assert_int(sim.checklist_phase()).is_equal(before)
+	# Still diving as it comes round: the turn has not begun.
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.pitch() < 45.0, 3000.0)).is_true()
+	assert_int(sim.checklist_phase()).is_equal(before)
+	assert_str(DiveTestKit.step_state(sim, &"plot_climb")).is_equal(DiveSimulation.STEP_PENDING)
+	# The climb already plotted, both of the turn's steps tick as it begins.
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.checklist_phase() != before, 3000.0)).is_true()
+	assert_str(DiveTestKit.step_state(sim, &"climbing")).is_equal(DiveSimulation.STEP_DONE)
+	assert_float(sim.pitch()).is_less(0.0)
+	# It deepened through the turn before it rose.
+	assert_float(sim.depth()).is_greater(plotted_at)
+
+
+func test_a_lithocraft_climbing_off_its_course_is_still_asked_to_plot_the_climb() -> void:
+	var sim := _diving_in_sand()
+	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
+	sim.override_course(0.0, -90.0)
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return DiveTestKit.phase_title(s) == "Turn and climb", 3000.0)).is_true()
+	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"plot_climb")
+	sim.set_course(0.0, -90.0)
+	sim.advance(0.1)
+	assert_str(DiveTestKit.step_state(sim, &"plot_climb")).is_equal(DiveSimulation.STEP_DONE)
+
+
+func test_the_turns_text_says_the_lithocraft_turns_for_home_and_deepens_through_the_turn() -> void:
+	var text := ""
+	for phase in _first_dive_on(_short_first_dive()).checklist():
+		if phase.title == "Turn and climb":
+			for step in phase.steps:
+				text += step.text.to_lower() + " "
+	for said in ["turn", "home", "forward only", "deepens"]:
+		assert_str(text).contains(said)
 
 
 # --- Goals ---------------------------------------------------------------

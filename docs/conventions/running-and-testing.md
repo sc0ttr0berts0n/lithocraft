@@ -16,12 +16,20 @@ Success prints only `WARNING: 1 ObjectDB instance was leaked at exit` (a playing
 Any script error is a real failure.
 The same without the scene path runs the main scene, the start menu, which should print nothing.
 
-Ad-hoc checks: a `SceneTree` script outside the repo, run with `-s <script>`, can load `res://` scenes.
-Such runs go in real time (60 physics frames per simulated second).
-A non-headless one can save `get_viewport().get_texture().get_image()` to PNG for a visual check.
-To look into the Bore, add your own `Camera3D` and call `make_current()` a frame after adding it (the crew's camera claims current in its `_ready`); (2.6, 0, 0) looking at the origin sees between two Stations.
-Hide `Overlay` for a clean shot.
-Prefer headless checks when a window isn't needed.
+Ad-hoc checks: prefer a headless check when a window isn't needed.
+For a look at the game, `tools/screenshot/shot.sh` takes one PNG of a Scenario run to a dive time; from Git Bash at the repo root, with `GODOT_BIN` set as for the tests:
+`tools/screenshot/shot.sh --scenario "First dive" --look Reactor --time 120 --out /c/tmp/reactor-120.png`.
+It prints the PNG's path and exits 0; on any failure it prints why, leaves no PNG at that path and exits 1.
+
+- `--look` is a Station by the name on its screen (seen seated at it by the Arm, so that Station is attended), `bore` (into the Bore from the outer wall, Head end down) or `crew` (the crew's own view where the dive starts them).
+- `--do "<seconds> <command> [arguments]"`, repeated, sends a `DiveSimulation` command at that dive time, in time order, then in the order given: `--do "0 set_power 1" --do "40 set_course 30 60"`.
+  Any public method works, Scenario start and debug commands included (`"0 start_below 500"`, `"1 debug_skip 600"`); a debug command the simulation refuses fails the shot, but a crew command it ignores (an override with nobody at the Drive) does not.
+- Times are `dive_time()`, so a skip or a raised time rate counts for what it ran; ten minutes at the normal rate take about half a minute to stage.
+- `--out` defaults to `tools/screenshot/out/<scenario>-<look>-<time>.png`, which Godot (`.gdignore`) and git both ignore; `--overlay` keeps the centre notice; `--size 1920x1080` for a larger picture; `--help` lists the rest.
+- The same arguments give the same PNG, byte for byte: the Habitat is stepped by hand in the game's own 1/60 s steps (`ShotPlan.stage()`, `tools/screenshot/shot_plan.gd`), then drawn for a fixed 8 frames at a fixed frame time.
+  So a view that animates off its own clock (`_process(delta)`: a display's sweep, sparks, a call light's fade) is always 8 frames old in a shot; drive it from `dive_time()` if a shot must show it moving.
+- It is safe to run several at once, in one checkout or in several worktrees; each opens a silent window centred on the developer's second monitor (`SHOT_MONITOR` names another).
+- A staged Habitat is tested headless through `ShotPlan` (`test/screenshot_test.gd`); the picture itself needs the window.
 
 ## Testing
 

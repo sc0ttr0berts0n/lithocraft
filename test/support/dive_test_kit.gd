@@ -30,6 +30,11 @@ static func station_place(name: String) -> int:
 	return -1
 
 
+## Where the gimbal of the Station with this name pivots (Habitat frame).
+static func station_pivot(name: String) -> Vector3:
+	return _Habitat.pivot(station_place(name))
+
+
 ## Test values only: plain quartz rock. Defaults are strong enough that the
 ## grip waves never slip at full power.
 static func rock(hardness := 2.0, strength := 2.0, porosity := 0.05) -> Medium:

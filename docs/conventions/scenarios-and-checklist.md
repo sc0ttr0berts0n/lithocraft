@@ -15,6 +15,11 @@ Debug commands that call `_step()` directly (`debug_skip()`, `debug_next_boundar
 It breaks the subsystem rule on one point: it is handed the simulation on each `tend()` so the conditions can read it; it holds no reference between calls.
 The rules it keeps: goals are achieved once and stay so; steps tick in order, only the next step of the running phase can tick, and an event counts toward one step (the steps after one that ticks see only state that tend); a phase begins once the one before is finished, or early when its `begins_when` holds, and steps left undone before it are `MISSED`;
 a message is sent once its condition holds and arrives after its length at `link_capacity()` (fast up the open tunnel, a trickle through sealed rock), one at a time, oldest first.
+**Phase triggers.**
+A phase's `begins_when` holds only on something the simulation reports the dive doing: a state the vessel is in (below the surface, `Scenario.climbing()`, surfaced) or an event of the dive (`&"boundary_approaching"`, `&"shift_result"`, `&"relight_result"`, `&"surfaced"`).
+It never holds on what the crew intends: a plotted Course (`&"course_plotted"`, `course_pitch()`), an engaged autopilot, a setting, `&"orders_read"`, a pulse.
+Intentions tick steps, so a phase that needs one asks for it in a step: "Turn and climb" begins early when the Lithocraft is climbing (pitch above level and moving), and its first step reads `course_pitch()`, ticking at once if the climb is already plotted.
+`test_no_phase_begins_early_on_what_the_crew_only_intends` (`test/scenario_test.gd`) lists every Scenario's early triggers and tries each against every intention command on a dive that has not run; a new trigger is added to its list, and a new intention command to `_state_every_intention()`.
 A new dive starts the Checklist afresh (`_scenario` is kept between dives).
 Step texts name no keys: a step's `action` names the key-map action that does it, and the panel writes `KeyMap.label(action)`.
 Events a Scenario's conditions need that the simulation did not raise are added to it as ordinary events (`&"course_plotted"`, `&"pulse_sent"`, `&"orders_read"`).

@@ -189,6 +189,24 @@ func _ready() -> void:
 	add_child(arm_view)
 
 
+## The dive's simulation, for a tool that drives the dive as the view does,
+## by commands (tools/screenshot).
+func simulation() -> DiveSimulation:
+	return _sim
+
+
+## Seats the crew member at a Station (the simulation's name for it) at once,
+## as the Arm holds them once it has carried them there, looking at its
+## screen. For a tool that starts at a Station (tools/screenshot); the crew's
+## own way there is the Arm.
+func seat_at(station: StringName) -> void:
+	for index in _in_use.size():
+		if _sim_names[_in_use[index]] == station:
+			var pose := _in_use[index].pose()
+			_arm.seat(index, pose)
+			_crew.hold(pose, GimballedStation.pose_look(), 1.0)
+
+
 ## Every key goes through the key map: a press runs `_key_<action>(index)` of
 ## the first binding that applies where the crew stands, so what each screen
 ## shows is what the key does.
