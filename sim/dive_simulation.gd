@@ -2100,12 +2100,14 @@ static func _turned(position: Vector3, direction: Vector3, bearing: float, steer
 		wanted: Vector3, effort: float, speed: float, dt: float) -> Array:
 	var remaining := direction.angle_to(wanted)
 	var needed := clampf(rad_to_deg(remaining) / _STEER_EASE_DEG, 0.0, effort)
-	var steering_before := steering
-	steering = move_toward(steering, needed, _STEER_RESPONSE * dt)
-	# The bend over the step is that of the steering's mean across it, so a
-	# long step and many short ones cut the same arc while the steering builds.
-	var turn := minf(remaining,
-			(steering_before + steering) / 2.0 * speed / _MIN_TURN_RADIUS_M * dt)
+	# The path bends by the steering's mean over the step (it builds at its
+	# limited rate, then holds), so a long step and many short ones cut the
+	# same arc.
+	var building := minf(absf(needed - steering) / _STEER_RESPONSE, dt)
+	var built := move_toward(steering, needed, _STEER_RESPONSE * dt)
+	var mean := built if dt <= 0.0 else built - (built - steering) * building / (2.0 * dt)
+	steering = built
+	var turn := minf(remaining, mean * speed / _MIN_TURN_RADIUS_M * dt)
 	var before := direction
 	if turn > 0.0:
 		if turn >= remaining:

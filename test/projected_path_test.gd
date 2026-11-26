@@ -56,24 +56,26 @@ func test_the_projected_path_starts_at_the_head() -> void:
 	assert_float(path[0].distance_to(sim.head_position())).is_less(0.001)
 
 
+## Whether the test steps a second at a time or the game a sixtieth.
 func test_flown_unchanged_the_vessel_stays_on_its_projected_path() -> void:
-	var sim := _diving()
-	sim.set_course(90.0, 20.0)
-	sim.advance(1.0)
-	var path := sim.projected_path()
-	var start := sim.distance()
-	var turned_from := sim.heading()
+	for step in [1.0, 1.0 / 60.0]:
+		var sim := _diving()
+		sim.set_course(90.0, 20.0)
+		sim.advance(step)
+		var path := sim.projected_path()
+		var start := sim.distance()
+		var turned_from := sim.heading()
 
-	var furthest_off := 0.0
-	# Up to the last step that ends short of the projection's end.
-	while sim.distance() - start < _length(path) - 2.0 * sim.speed():
-		sim.advance(1.0)
-		furthest_off = maxf(furthest_off, _off_path(sim.head_position(), path))
+		var furthest_off := 0.0
+		# Up to the last step that ends short of the projection's end.
+		while sim.distance() - start < _length(path) - 2.0 * sim.speed():
+			sim.advance(step)
+			furthest_off = maxf(furthest_off, _off_path(sim.head_position(), path))
 
-	# It flew the whole turn and the straight beyond, never off the line.
-	assert_float(rad_to_deg(turned_from.angle_to(sim.heading()))).is_greater(60.0)
-	assert_float(sim.heading().angle_to(sim.course_direction())).is_less(0.001)
-	assert_float(furthest_off).is_less(0.5)
+		# It flew the whole turn and on down the straight, never off the line.
+		assert_float(rad_to_deg(turned_from.angle_to(sim.heading()))).is_greater(60.0)
+		assert_float(sim.heading().angle_to(sim.course_direction())).is_less(0.001)
+		assert_float(furthest_off).is_less(0.5)
 
 
 func test_the_projection_runs_through_the_turn_then_straight_along_what_the_drive_steers_for() -> void:
