@@ -30,8 +30,8 @@ class Face:
 ## faces, with the Column filling the Bore out to bore_radius: {} for no
 ## screen, else {face = its index in faces, reading = the index of the
 ## reading on it (the last of those under the look), or -1 for the screen
-## between readings}. Only a screen's
-## front is pointed at, and the nearest screen along the look wins.
+## between readings}. Only a screen's front is pointed at, and the nearest
+## screen along the look wins.
 static func under(eyes: Vector3, direction: Vector3, faces: Array[Face], bore_radius: float) -> Dictionary:
 	var best := {}
 	var nearest := INF

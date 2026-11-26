@@ -78,9 +78,11 @@ var _cradle := Node3D.new()
 var _settled := false
 var _screen_text: Label3D
 ## The live picture on the screen, if show_display() put one there, and its
-## instruments: [name, place on the face], in the order show_display() had them.
+## instruments' names and places on the face, in the order show_display()
+## had them.
 var _display: MeshInstance3D
-var _instruments: Array = []
+var _instrument_names: Array[StringName] = []
+var _instrument_places: Array[Rect2] = []
 var _call_light: OmniLight3D
 var _call_sound: AudioStreamPlayer3D
 var _disengage_sound: AudioStreamPlayer3D
@@ -359,8 +361,7 @@ func face() -> Pointing.Face:
 		screen.readings.append(Rect2(-SCREEN_SIZE.x / 2.0, top - line_m * (i + 1), SCREEN_SIZE.x, line_m))
 	if _display:
 		screen.readings.append(Rect2(-DISPLAY_SIZE / 2.0, DISPLAY_SIZE))
-		for instrument: Array in _instruments:
-			screen.readings.append(instrument[1])
+		screen.readings.append_array(_instrument_places)
 	return screen
 
 
@@ -381,7 +382,7 @@ func is_display(index: int) -> bool:
 ## (as show_display() was given it), or &"" for anything else.
 func instrument(index: int) -> StringName:
 	var i := index - _lines().size() - 1
-	return _instruments[i][0] if _display != null and i >= 0 and i < _instruments.size() else &""
+	return _instrument_names[i] if _display != null and i >= 0 and i < _instrument_names.size() else &""
 
 
 ## The screen text's lines, the name first; none on an empty mount.
@@ -407,13 +408,15 @@ static func face_for(pivot: Vector3, cradle: Basis) -> Pointing.Face:
 func show_display(texture: Texture2D, instruments: Dictionary = {}) -> void:
 	if _screen_text == null:
 		return
-	_instruments = []
+	_instrument_names = []
+	_instrument_places = []
 	for name: StringName in instruments:
 		var share: Rect2 = instruments[name]
 		# Face coordinates: x the crew's right, y up, origin at the middle.
 		var place := Rect2(Vector2(share.position.x - 0.5, 0.5 - share.end.y) * DISPLAY_SIZE,
 				share.size * DISPLAY_SIZE)
-		_instruments.append([name, place])
+		_instrument_names.append(name)
+		_instrument_places.append(place)
 	var display := MeshInstance3D.new()
 	_display = display
 	var quad := QuadMesh.new()

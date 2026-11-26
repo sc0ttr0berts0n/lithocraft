@@ -55,6 +55,16 @@ func pinned(value: float, reading: float) -> float:
 	return clampf(place(value, reading), -length / 2.0, length / 2.0)
 
 
+## How far a direction at heading and pitch (degrees, the simulation's: +
+## diving) lies to the side of the vertical plane through a vessel heading
+## vessel_heading, degrees, positive to its right. The heading difference
+## counts for less the steeper the direction: straight down or up it is
+## beside no side at all, whatever its heading.
+static func sideways(heading: float, pitch: float, vessel_heading: float) -> float:
+	var across := cos(deg_to_rad(pitch)) * sin(deg_to_rad(heading - vessel_heading))
+	return rad_to_deg(asin(clampf(across, -1.0, 1.0)))
+
+
 ## The values of the ticks every step that show on the tape with reading at
 ## its middle, lowest first; a wrapping scale's are given in [0, wrap).
 ## Values outside [lowest, highest] are left off (a speed below 0, a pitch

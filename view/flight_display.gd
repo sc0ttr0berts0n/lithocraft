@@ -5,8 +5,10 @@
 ##   attitude  the pitch ladder, the vessel's mark fixed at its middle and the
 ##             ladder sliding with pitch(): toward the surface above the
 ##             horizon, the rock below, diving pitches (+) below it. The
-##             Course's cross sits at the Course's heading and pitch from the
-##             vessel's, and chevrons mark its pitch at the ladder's sides.
+##             Course's cross sits at the Course's pitch, and aside by how far
+##             its heading takes it off the vessel's (FlightTape.sideways(),
+##             less the steeper it is); chevrons mark its pitch at the
+##             ladder's sides.
 ##   speed     a tape of speed() in m/s, faster up.
 ##   depth     where altitude goes: a tape of depth() in metres, deeper down,
 ##             and under it how fast the depth changes (speed along the pitch).
@@ -119,7 +121,7 @@ class _Canvas extends Control:
 	func _attitude(sim: DiveSimulation, box: Rect2) -> void:
 		var font := ThemeDB.fallback_font
 		var ladder := FlightTape.new(FlightDisplay.PITCH_SPAN, box.size.y)
-		var across := FlightTape.new(FlightDisplay.PITCH_SPAN * box.size.x / box.size.y, box.size.x, 360.0)
+		var across := FlightTape.new(FlightDisplay.PITCH_SPAN * box.size.x / box.size.y, box.size.x)
 		var mid := box.get_center()
 		var pitch := sim.pitch()
 		var heading := sim.heading_degrees()
@@ -150,13 +152,14 @@ class _Canvas extends Control:
 		# the Drive steers toward instead, hollow. Pinned marks stay clear of
 		# the indicator's edges and its plate.
 		var marks := box.grow_individual(-30.0, -(PLATE + 18.0), -30.0, -18.0)
-		var course := (mid + Vector2(across.pinned(sim.course_heading(), heading),
-				ladder.pinned(sim.course_pitch(), pitch))).clamp(marks.position, marks.end)
+		var place := func(to_heading: float, to_pitch: float) -> Vector2:
+			return (mid + Vector2(across.pinned(FlightTape.sideways(to_heading, to_pitch, heading), 0.0),
+					ladder.pinned(to_pitch, pitch))).clamp(marks.position, marks.end)
+		var course: Vector2 = place.call(sim.course_heading(), sim.course_pitch())
 		_cross(course, FlightDisplay.COURSE, true)
 		_chevrons(box, course.y, FlightDisplay.COURSE, true)
 		if sim.overriding():
-			var steered := (mid + Vector2(across.pinned(sim.steered_heading(), heading),
-					ladder.pinned(sim.steered_pitch(), pitch))).clamp(marks.position, marks.end)
+			var steered: Vector2 = place.call(sim.steered_heading(), sim.steered_pitch())
 			_cross(steered, display.hue, false)
 			_chevrons(box, steered.y, display.hue, false)
 		# The vessel's mark, fixed at the middle.

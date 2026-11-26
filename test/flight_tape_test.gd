@@ -64,6 +64,20 @@ func test_ticks_outside_the_scale_s_range_are_left_off() -> void:
 	assert_array(ticks).is_equal([0.0, 0.5, 1.0])
 
 
+func test_a_course_level_with_the_vessel_lies_aside_by_its_heading_difference() -> void:
+	assert_float(FlightTape.sideways(30.0, 0.0, 10.0)).is_equal_approx(20.0, 0.0001)
+	assert_float(FlightTape.sideways(350.0, 0.0, 10.0)).is_equal_approx(-20.0, 0.0001)
+
+
+func test_a_steeper_course_lies_less_aside_and_straight_down_lies_on_no_side() -> void:
+	var level := FlightTape.sideways(60.0, 0.0, 0.0)
+	var steep := FlightTape.sideways(60.0, 70.0, 0.0)
+
+	assert_float(steep).is_greater(0.0)
+	assert_float(steep).is_less(level)
+	assert_float(FlightTape.sideways(250.0, 90.0, 0.0)).is_equal_approx(0.0, 0.0001)
+
+
 func test_the_ladder_shows_the_vessel_s_pitch_and_the_course_at_its_own() -> void:
 	# The pitch ladder is a tape in degrees, the vessel's pitch at its middle
 	# (where the vessel's mark is fixed): diving 30 (+30), the horizon lies
