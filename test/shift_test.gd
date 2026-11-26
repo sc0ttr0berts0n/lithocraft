@@ -649,3 +649,44 @@ func test_the_first_boundary_left_alone_loses_the_plasma_on_a_badly_worn_head() 
 	DiveTestKit.run(worn, 10.0, 0.1)
 
 	assert_bool(worn.plasma_lost()).is_true()
+
+
+# --- What the Reactor screen reads beside the lanes -------------------------
+
+func test_the_band_is_at_its_widest_on_a_fresh_head_with_the_hull_cool_and_narrower_once_worn() -> void:
+	var sim := DiveSimulation.new(MediumLayout.uniform(DiveTestKit.rock()))
+	sim.advance(0.1)
+	assert_float(sim.band()).is_equal_approx(sim.band_widest(), 0.0001)
+	var widest := sim.band_widest()
+
+	sim.debug_wear_head(0.5)
+	sim.advance(0.1)
+
+	assert_float(sim.band()).is_less(widest)
+	assert_float(sim.band_widest()).is_equal(widest)
+
+
+func test_the_head_is_settling_in_from_a_crossing_until_the_residual_is_back_inside_the_band() -> void:
+	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, DiveTestKit.basalt()], [20.0, DiveTestKit.rock(4.0)]]))
+	sim.set_power(0.5)
+	sim.advance(0.1)
+	assert_bool(sim.settling_in()).is_false()
+
+	DiveTestKit.run_until(sim, &"boundary_crossed", 600.0, [], 0.1)
+	assert_bool(sim.settling_in()).is_true()
+
+	DiveTestKit.cancel_wobble(sim)
+	sim.advance(0.1)
+	assert_bool(sim.settling_in()).is_false()
+
+
+func test_a_mistuned_active_in_one_medium_is_out_of_the_band_but_not_settling_in() -> void:
+	var sim := DiveSimulation.new(MediumLayout.uniform(DiveTestKit.rock()))
+	sim.set_power(0.5)
+	sim.advance(0.1)
+
+	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_ACTIVE, DiveTestKit.wobble(sim) + Vector2(0.0, 2.0 * sim.band()))
+	sim.advance(0.1)
+
+	assert_bool(sim.out_of_band()).is_true()
+	assert_bool(sim.settling_in()).is_false()

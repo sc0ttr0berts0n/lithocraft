@@ -101,7 +101,6 @@ const UPLOAD_PRIORITIES: Array[StringName] = [
 const BORE_PANEL_ZOOM := 1.7
 ## The status lines each Station's screen usually shows under its instrument:
 ## what its pictures' viewports are sized for (StationScreen.body_size()).
-const REACTOR_LINES := 5
 const NAVIGATION_LINES := 4
 ## The debug menu's steps: wear per press (hull or Head), and time skipped.
 const DEBUG_WEAR_STEP := 0.1
@@ -138,8 +137,6 @@ var _crew := CrewMember.new()
 var _arm := new_arm()
 ## The Stations in use, in order round the ring; the Arm carries to these.
 var _in_use: Array[GimballedStation] = []
-## True from a Boundary announced ahead until it is crossed.
-var _boundary_ahead := false
 ## The simulation's name for each Station in use (GimballedStation -> StringName).
 var _sim_names := {}
 ## The centre notice: where the dive stands (a stranding, a death, the
@@ -578,8 +575,6 @@ func _physics_process(delta: float) -> void:
 	_sim.advance(delta)
 	for event in _sim.take_events():
 		match event.type:
-			&"boundary_approaching": _boundary_ahead = true
-			&"boundary_crossed": _boundary_ahead = false
 			&"stranded": _on_stranded(event)
 			&"hull_failed": _on_hull_failed(event)
 			&"relight_result": _on_relight_result(event)
@@ -754,22 +749,30 @@ func _power_line(requested: float, drawn: float) -> Array:
 			StationTheme.CAUTION if PowerLine.starved(requested, drawn, full) else StationTheme.NOW]
 
 
-## The Reactor Station's status lines: the Head's plasma, the power it
-## supplies against what the Stations draw (shares of its full output, as each
-## Station reads its own), and one bar per Station on one line, its request
-## outlined and what it gets filled, so a starved Station shows here too.
+## The Reactor Station's status lines, under its instrument (which shows the
+## Residual, the Band, the Boundary and the Head's wear): how steady the
+## plasma is, the power it supplies against what the Stations draw (shares of
+## its full output, as each Station reads its own), one bar per Station on one
+## line, its request outlined and what it gets filled, so a starved Station
+## shows here too. The emergency store reads beside the supply (a caution
+## while the Lithocraft runs on it: it is all there is), and the relight
+## under them once the plasma is lost (the instrument says that it is).
 func _show_reactor() -> void:
 	var full := _sim.reactor_full_output()
 	var steady := _sim.plasma_stability() >= 1.0
 	var short := PowerLine.percent(_sim.power_requested(), full) - PowerLine.percent(_sim.power_drawn(), full)
-	var lines := [
-		["Plasma %s %d%%  Head %s" % ["STEADY" if steady else "UNSTEADY", roundi(_sim.plasma_stability() * 100.0),
+	var lines := []
+	# Lost, the instrument says so and these lines give what is left to work.
+	if not _sim.plasma_lost():
+		lines.append(["Plasma %s %d%%  Head %s" % ["STEADY" if steady else "UNSTEADY",
+			roundi(_sim.plasma_stability() * 100.0),
 			"running" if _sim.head_activity() >= 1.0 else "idling %d%%" % roundi(_sim.head_activity() * 100.0)],
-			StationTheme.NOW if steady else StationTheme.CAUTION],
-		["Supply %d%%  drawn %d%%  short %d%%" % [PowerLine.percent(_sim.reactor_output(), full),
-			PowerLine.percent(_sim.power_drawn(), full), short],
-			StationTheme.CAUTION if short > 0 else StationTheme.NOW],
-	]
+			StationTheme.NOW if steady else StationTheme.CAUTION])
+	var on_store := _sim.on_emergency_store()
+	lines.append(["Supply %d%%  drawn %d%%  short %d%%  %s %d%%" % [PowerLine.percent(_sim.reactor_output(), full),
+			PowerLine.percent(_sim.power_drawn(), full), short, "ON STORE" if on_store else "store",
+			roundi(_sim.emergency_store() / _sim.emergency_store_capacity() * 100.0)],
+			StationTheme.CAUTION if short > 0 or on_store else StationTheme.NOW])
 	var bars := PackedStringArray()
 	var starved := PackedStringArray()
 	for row in [["Nav", _sim.navigation_request(), _sim.navigation_draw()],
@@ -780,31 +783,9 @@ func _show_reactor() -> void:
 			starved.append(row[0])
 	lines.append(["  ".join(bars) + ("" if starved.is_empty() else "  STARVED " + " ".join(starved)),
 			StationTheme.NOW if starved.is_empty() else StationTheme.CAUTION])
-	var shift_line := "Head wear %d%%" % roundi(_sim.head_wear() * 100.0)
 	if _sim.plasma_lost():
-		lines.append([shift_line + "  PLASMA LOST", StationTheme.WARNING])
-		lines.append(_store_line())
 		lines.append(_relight_line())
-	else:
-		if _sim.out_of_band():
-			lines.append([shift_line + "  OUT OF BAND  %s swap or %s tune ACTIVE" % [KeyMap.label(&"shift"),
-					KeyMap.label(&"select_channel")], StationTheme.CAUTION])
-		elif _boundary_ahead:
-			lines.append([shift_line + "  BOUNDARY AHEAD  prepare STANDBY %s %s" % [
-					KeyMap.label(&"tune_frequency"), KeyMap.label(&"tune_amplitude")], StationTheme.CAUTION])
-		else:
-			lines.append(shift_line)
-		lines.append(_store_line())
 	_reactor.show_lines(lines)
-
-
-## The emergency store on the Reactor screen: how full, and whether the
-## Lithocraft is running on it (a caution: it is all there is).
-func _store_line() -> Array:
-	var share := _sim.emergency_store() / _sim.emergency_store_capacity()
-	var on_store := _sim.on_emergency_store()
-	return ["Emergency store %s %d%%%s" % [_bar(1.0, share), roundi(share * 100.0),
-			"  ON STORE" if on_store else ""], StationTheme.CAUTION if on_store else StationTheme.NOW]
 
 
 ## The relight the Reactor can try while stranded: its pulse against the
@@ -1367,7 +1348,7 @@ func _build_stations() -> void:
 			station.show_keys(KeyMap.bindings_at(STATIONS[i][2]))
 		if station.station_name == "Reactor":
 			_reactor = station
-			_reactor.show_display(_make_plasma_display())
+			_reactor.screen().set_instrument(_plasma_display())
 		elif station.station_name == "Drive":
 			_drive = station
 			_drive.show_display(_flight_display(), FlightDisplay.instrument_shares())
@@ -1383,14 +1364,13 @@ func _build_stations() -> void:
 			_navigation.show_displays(navigation_displays)
 
 
-## The Reactor's waveform display for the Shift: the dial's ACTIVE and
-## STANDBY channels.
-func _make_plasma_display() -> Texture2D:
+## The Reactor Station's instrument, in the body of its screen: the Shift
+## dial's two lanes, each Residual against the Band, the Boundary countdown
+## and the Head's wear.
+func _plasma_display() -> Control:
 	var display := PlasmaDisplay.new()
-	display.size = Vector2i(StationScreen.body_size(REACTOR_LINES))
 	display.sim = _sim
-	add_child(display)
-	return display.get_texture()
+	return display
 
 
 ## The Drive's primary flight display, shown on the Drive Station's screen.
