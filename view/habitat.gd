@@ -110,6 +110,8 @@ var _crew := CrewMember.new()
 var _arm := Arm.new(BORE_RADIUS + RAIL_GAP)
 ## The Stations in use, in order round the ring; the Arm carries to these.
 var _in_use: Array[GimballedStation] = []
+## True from a Boundary announced ahead until it is crossed.
+var _boundary_ahead := false
 ## The simulation's name for each Station in use (GimballedStation -> StringName).
 var _sim_names := {}
 ## The centre notice: where the dive stands (a stranding, a death, the
@@ -470,6 +472,8 @@ func _physics_process(delta: float) -> void:
 	_sim.advance(delta)
 	for event in _sim.take_events():
 		match event.type:
+			&"boundary_approaching": _boundary_ahead = true
+			&"boundary_crossed": _boundary_ahead = false
 			&"stranded": _on_stranded(event)
 			&"hull_failed": _on_hull_failed(event)
 			&"relight_result": _on_relight_result(event)
@@ -641,7 +645,7 @@ func _show_reactor() -> void:
 		return
 	elif _sim.shift_due():
 		shift_line += "  SHIFT DUE  %s swap" % KeyMap.label(&"shift")
-	elif not is_nan(_sim.wobble_ahead()):
+	elif _boundary_ahead:
 		shift_line += "  BOUNDARY AHEAD  pretune standby %s" % KeyMap.label(&"tune_standby")
 	lines.append(shift_line)
 	lines.append(_store_line())

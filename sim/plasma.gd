@@ -216,10 +216,10 @@ func tend(dt: float, target: float, autopilot_on: bool, hull_heat_share: float,
 		return
 	if _shift_asked:
 		_shift_asked = false
-		_swap_to(_standby, false, target, hull_heat_share, events, depth, distance)
+		_shift_to(_standby, false, target, hull_heat_share, events, depth, distance)
 	if due(target) and autopilot_on \
 			and _mistuned_for >= window_length() + _AUTOPILOT_LATE_S:
-		_swap_to(target, true, target, hull_heat_share, events, depth, distance)
+		_shift_to(target, true, target, hull_heat_share, events, depth, distance)
 	if _lost:
 		_stability = 0.0
 		return
@@ -314,9 +314,9 @@ func match_to(frequency: float, target: float) -> float:
 	return exp(-pow(error / (_SHIFT_TOLERANCE * _narrowing()), 2.0))
 
 
-## A Shift: the active tuning becomes `frequency` (the standby, or the
-## autopilot's own pick, the wobble) and the old active drops to standby.
-func _swap_to(frequency: float, by_autopilot: bool, target: float, hull_heat_share: float,
+## A Shift to `frequency`: the crew's swap (STANDBY's tuning) or the
+## autopilot's own (the wobble). Either way the old active drops to standby.
+func _shift_to(frequency: float, by_autopilot: bool, target: float, hull_heat_share: float,
 		events: Array[Dictionary], depth: float, distance: float) -> void:
 	var old := _tuning
 	_make_shift(frequency, by_autopilot, target, hull_heat_share, events, depth, distance)

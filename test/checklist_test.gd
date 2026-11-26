@@ -271,13 +271,13 @@ func _through_the_sand() -> DiveSimulation:
 	return sim
 
 
-func test_the_first_boundary_begins_as_it_approaches_and_wants_the_dial_ready_then_a_shift() -> void:
+func test_the_first_boundary_begins_as_it_approaches_and_wants_standby_pretuned_then_a_shift() -> void:
 	var sim := _through_the_sand()
 	var seen := []
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 600.0, seen, 0.5)).is_not_empty()
 	sim.advance(0.1)
 	assert_str(sim.checklist()[sim.checklist_phase()].title).is_equal(Scenario.first_dive().phases[2].title)
-	# The dial still holds the sand's wobble: not ready for the sandstone.
+	# STANDBY still holds the sand's wobble: not pretuned for the sandstone.
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"pretune_standby")
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_PENDING)
 	sim.set_standby_tuning(DiveTestKit.wobble_in(Medium.sandstone()))
@@ -303,8 +303,8 @@ func test_a_shift_the_autopilot_makes_is_not_the_crews() -> void:
 	assert_str(sim.checklist()[sim.checklist_phase()].title).is_equal(Scenario.first_dive().phases[3].title)
 
 
-## A dive from _through_the_sand() made through the first Boundary: the dial
-## readied and a Shift on it as the Head crosses.
+## A dive from _through_the_sand() made through the first Boundary: STANDBY
+## pretuned and a Shift on it as the Head crosses.
 func _into_the_sandstone() -> DiveSimulation:
 	var sim := _through_the_sand()
 	DiveTestKit.run_until(sim, &"boundary_approaching", 600.0, [], 0.5)

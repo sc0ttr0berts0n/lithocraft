@@ -110,13 +110,28 @@ func test_standby_reads_no_match_until_the_boundary_approaching_call() -> void:
 func test_standby_matches_the_medium_ahead_while_active_matches_the_one_the_head_is_in() -> void:
 	var sim := _one_boundary()
 	DiveTestKit.run_until(sim, &"boundary_approaching")
-	var before := sim.standby_match()  # Standby starts as the active: the soft rock's.
+	var standby_before := sim.standby_match()  # Standby starts as the active: the soft rock's.
+	var active_before := sim.shift_match(sim.plasma_tuning())
 
 	sim.set_standby_tuning(DiveTestKit.wobble_in(_hard()))
 
-	assert_float(sim.standby_match()).is_greater(before)
+	assert_float(sim.standby_match()).is_greater(standby_before)
 	# Pretuning standby does not make the active channel's match fall.
-	assert_float(sim.shift_match(sim.plasma_tuning())).is_greater(sim.shift_match(sim.standby_tuning()))
+	assert_float(sim.shift_match(sim.plasma_tuning())).is_equal(active_before)
+
+
+func test_standby_keeps_its_preview_through_the_crossing_for_the_swap() -> void:
+	var sim := _one_boundary()
+	DiveTestKit.run_until(sim, &"boundary_approaching")
+	sim.set_standby_tuning(DiveTestKit.wobble_in(_hard()))
+	var pretuned := sim.standby_match()
+
+	DiveTestKit.run_until(sim, &"boundary_crossed")
+
+	assert_float(sim.standby_match()).is_equal_approx(pretuned, 1e-6)
+	_swap(sim)
+	# The old active, now standby, reads as a poor match for the rock entered.
+	assert_float(sim.standby_match()).is_less(pretuned)
 
 
 func test_tuning_standby_leaves_the_reactors_autopilot_engaged() -> void:

@@ -326,7 +326,7 @@ func test_closer_tuning_reads_as_a_closer_match() -> void:
 	assert_float(sim.shift_match(sim.plasma_tuning())).is_less(near)
 
 
-func test_a_closer_match_on_the_dial_grades_the_shift_better() -> void:
+func test_a_closer_match_grades_the_shift_better() -> void:
 	var near_sim := _one_boundary()
 	var far_sim := _one_boundary()
 	DiveTestKit.run_until(near_sim, &"boundary_crossed")
@@ -340,7 +340,7 @@ func test_a_closer_match_on_the_dial_grades_the_shift_better() -> void:
 	assert_float(far.grade).is_less(near.grade)
 
 
-func test_the_same_dial_reads_as_a_poorer_match_on_a_worn_head() -> void:
+func test_the_same_frequency_reads_as_a_poorer_match_on_a_worn_head() -> void:
 	var fresh := _one_boundary()
 	var worn := _worn(_one_boundary())
 	var on := fresh.plasma_frequency()
@@ -369,7 +369,7 @@ func _first_boundary(wear := 0.0) -> DiveSimulation:
 	return sim
 
 
-## A Shift as poor as one can be: the dial far from the wobble, made after the
+## A Shift as poor as one can be: its frequency far from the wobble, made after the
 ## window has closed.
 func _blind_shift(sim: DiveSimulation) -> Dictionary:
 	DiveTestKit.run(sim, sim.shift_window() + 2.0, 0.1)

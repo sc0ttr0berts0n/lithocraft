@@ -331,8 +331,9 @@ var _inferred: Array[BoundaryPatch] = []
 var _inferred_at_pulse := -1
 ## Fixed seed, so a dive's scan is the same every run.
 var _scan_random := RandomNumberGenerator.new()
-## Depth of the Boundary last announced as approaching, or NAN for none, and
-## the Medium beyond it (null for none): what STANDBY previews.
+## Depth of the Boundary last announced as approaching, or NAN for none (from
+## its crossing). The Medium beyond the last one announced, null before the
+## first: what STANDBY previews, kept through the crossing.
 var _announced_boundary := NAN
 var _medium_ahead: Medium = null
 ## Stranding, rescue and death: what losing the plasma or the hull comes to
@@ -1776,9 +1777,10 @@ func standby_tuning() -> float:
 
 
 ## The frequency, in hertz, the plasma is expected to wobble at in the Medium
-## beyond the Boundary announced as approaching (&"boundary_approaching"), or
-## NAN before that call comes and once the Boundary is crossed. Exact for now:
-## STANDBY's preview.
+## beyond the Boundary last announced as approaching (&"boundary_approaching"),
+## or NAN before the first such call. It holds through the crossing (the
+## window in which STANDBY is swapped in, and swapped back) until the next
+## Boundary is announced. Exact for now: STANDBY's preview.
 func wobble_ahead() -> float:
 	return NAN if _medium_ahead == null else Plasma.frequency_in(_medium_ahead)
 
@@ -2142,7 +2144,6 @@ func _watch_boundaries(depth_before: float) -> void:
 	var after := _layout.medium_at(depth())
 	if after != before:
 		_announced_boundary = NAN
-		_medium_ahead = null
 		_events.append({type = &"boundary_crossed", from = before.name, to = after.name,
 				depth = depth(), distance = _distance})
 		_on_boundary_crossed(before, after)

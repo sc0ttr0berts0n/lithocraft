@@ -189,7 +189,7 @@ func test_a_shift_drill_shift_well_wide_of_the_wobble_is_not_clean() -> void:
 	sim.read_orders()
 	sim.set_standby_tuning(DiveTestKit.wobble_in(scenario.layout.medium_at(scenario.layout.boundary_depths()[0] + 0.01)))
 	DiveTestKit.run_until(sim, &"boundary_crossed", 600.0, [], 0.5)
-	# The dial was ready, but the Shift is made well wide of it.
+	# STANDBY was pretuned, but the Shift is made well wide of it.
 	DiveTestKit.shift_to(sim, sim.plasma_frequency() * 1.5)
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"shift")).is_equal(DiveSimulation.STEP_DONE)
@@ -301,7 +301,7 @@ func test_a_relight_that_lights_leads_to_the_climb_home_shifting_by_hand() -> vo
 	sim.advance(0.1)
 	for id in [&"thermal_autopilot", &"plot_climb", &"drive_autopilot"]:
 		assert_str(DiveTestKit.step_state(sim, id)).override_failure_message(id).is_equal(DiveSimulation.STEP_DONE)
-	# The Reactor is the crew's: each Boundary up, ready the dial for the
+	# The Reactor is the crew's: each Boundary up, pretune standby for the
 	# Medium above and Shift as the Head crosses.
 	var boundaries := scenario.layout.boundary_depths()
 	for b in range(boundaries.size() - 1, -1, -1):
