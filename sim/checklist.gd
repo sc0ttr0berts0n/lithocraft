@@ -1,7 +1,7 @@
 ## A Scenario's progress through one dive: which goals of its Orders are
 ## achieved, which Checklist steps are done, missed or still to do, and surface
 ## control's messages on their way down the link. Owned by DiveSimulation,
-## which tends it after every step; see docs/conventions.md, "Scenarios".
+## which tends it after every step; see docs/conventions/scenarios-and-checklist.md.
 ##
 ## Unlike the other subsystems it is handed the simulation itself on each
 ## tend(), because a Scenario's conditions read the simulation's public

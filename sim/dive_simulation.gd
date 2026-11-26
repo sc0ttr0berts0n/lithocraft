@@ -8,7 +8,7 @@
 ##                   Each a Dictionary with a `type` StringName plus fields.
 ## Heat (Heat), the plasma and the Shift (Plasma), and stranding (Stranding)
 ## are its own subsystems, reached only through this interface; see
-## docs/conventions.md, "Subsystems".
+## docs/conventions/simulation-interface.md, "Subsystems".
 class_name DiveSimulation
 extends RefCounted
 
@@ -635,7 +635,7 @@ func _begin_scenario() -> void:
 # dive where the crew's commands cannot take it from the surface. Not crew
 # controls and not debug commands: each acts only as a dive begins, before
 # any time has run (ignored after), and goes through the simulation's own
-# paths. See docs/conventions.md, "Scenarios".
+# paths. See docs/conventions/scenarios-and-checklist.md.
 
 ## Scenario start: the dive begins with the Head `metres` down, the
 ## Lithocraft having cut straight down from the surface with a clean Shift at
@@ -798,7 +798,7 @@ func _off_the_crew() -> bool:
 # can say so: &"dive_over" once the dive is over (surfaced() or dead(), for
 # every one of them), &"plasma_lost", &"stranded", &"tail_at_surface",
 # &"self_destructing", &"store_empty", &"level", &"no_boundary_ahead". See
-# docs/conventions.md, "Debug commands".
+# docs/conventions/debug-commands.md.
 
 ## Debug: wears the hull by `amount` (negative mends it), clamped to whole and
 ## worn through. Worn through, it fails on the next step.
