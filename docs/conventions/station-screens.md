@@ -22,3 +22,4 @@
 - Navigation's moving map (`MovingMap`, `view/moving_map.gd`) is a 2D cross-section of the whole dive, redrawn a few times a second: across is ground distance along the unrolled track (`MovingMap.profile()` of `remembered_path()`, the simulation's perfect record of the path), down is depth, at one scale both ways.
   Its Boundaries are the Inferred Boundaries (`inferred_boundaries()`), never the layout: each patch drawn side-on between its corners, placed across by how far ahead of the Head along the heading they lie (`MovingMap.across()`), as sure as its `confidence`.
   The target depth is `target_depth()`, from the Orders (`Scenario.Goal.target_depth`, NAN for a goal with none).
+- The projected path (`projected_path()`) is a solid cyan line on both of Navigation's displays, beside the Course's dashes: among the points as world places about the Head, on the map unrolled onward from the Head (`MovingMap.ahead()`), and the map's scale makes room for it.
