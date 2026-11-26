@@ -6,13 +6,15 @@
 ## header strip shows (StationScreen.show_lamps()). A lamp keeps its place
 ## whether lit or not, so the crew learn where each one is.
 ##
-## A new lamp is one line in of(): its label and the query that lights it. A
-## cause with no query of its own gets a small function here, as head_worn().
+## A new lamp is one line in of(): its label and the query that lights it.
+## The Reactor's are the causes the simulation names for an unsteady plasma
+## (DiveSimulation.steadiness_causes()), one lamp each.
 class_name CautionLamps
 extends RefCounted
 
 const HEAD_WORN := "HEAD WORN"
-const SHIFT_DUE := "SHIFT DUE"
+const HOT := "HOT"
+const OUT_OF_BAND := "OUT OF BAND"
 const SLIPPING := "SLIPPING"
 const HULL_HOT := "HULL HOT"
 const LOW_POWER := "LOW POWER"
@@ -24,7 +26,10 @@ const TUNNEL_SEALING := "TUNNEL SEALING"
 static func of(sim: DiveSimulation, station: StringName) -> Array[Dictionary]:
 	match station:
 		DiveSimulation.STATION_REACTOR:
-			return [_lamp(HEAD_WORN, head_worn(sim)), _lamp(SHIFT_DUE, sim.shift_due())]
+			var causes := sim.steadiness_causes()
+			return [_lamp(HEAD_WORN, DiveSimulation.CAUSE_WORN in causes),
+					_lamp(HOT, DiveSimulation.CAUSE_HOT in causes),
+					_lamp(OUT_OF_BAND, DiveSimulation.CAUSE_OUT_OF_BAND in causes)]
 		DiveSimulation.STATION_DRIVE:
 			return [_lamp(SLIPPING, sim.slip() > 0.0), _lamp(LOW_POWER, sim.drive_supplied() < 1.0)]
 		DiveSimulation.STATION_THERMAL:
@@ -35,15 +40,6 @@ static func of(sim: DiveSimulation, station: StringName) -> Array[Dictionary]:
 			return [_lamp(TUNNEL_SEALING,
 					sim.call_reason(DiveSimulation.STATION_BORE) == &"tunnel_about_to_seal")]
 	return []
-
-
-## Whether the Head is worn enough to tell on the plasma: from the first
-## whole percent its wear reads on the Reactor's screen, so the lamp and the
-## reading agree. The one place the Reactor's worn-Head lamp reads the
-## simulation: repoint it here when the plasma gains a query of its own for
-## "the Head's wear is narrowing what it tolerates".
-static func head_worn(sim: DiveSimulation) -> bool:
-	return roundi(sim.head_wear() * 100.0) >= 1
 
 
 static func _lamp(label: String, lit: bool) -> Dictionary:

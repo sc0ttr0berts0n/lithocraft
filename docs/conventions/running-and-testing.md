@@ -42,10 +42,10 @@ It prints the PNG's path and exits 0; on any failure it prints why, leaves no PN
   Add shared helpers there rather than copying them into suites.
 - Read expected sequences from the layout (`MediumLayout.first_dive().boundary_depths()` and `medium_at()`), never a hand-written list of depths.
 - Every autopilot starts off, so a setting holds with no help.
-  Engage the autopilot of a Station the test wants to steady itself: the Reactor's for a Shift nobody makes (`shift_test`, `stranding_test`, `repair_test`), Thermal's to keep the hull whole at full power (`steering_test`, `habitat_down_test`).
+  Engage the autopilot of a Station the test wants to steady itself: the Reactor's for any dive that crosses a Boundary with nobody at the Reactor (`survey_test`, `stranding_test`, `repair_test`; left alone, the Residual outside the Band loses the plasma within minutes), Thermal's to keep the hull whole at full power (`steering_test`, `habitat_down_test`).
   Attend a Station only for a command that needs the crew there (the Drive's nudges, self-destruct's hold).
   `DiveTestKit.nudge(sim, heading_degrees, pitch_degrees)` nudges an attended Drive that far off where it steers.
-- The full-dive pattern is `full_trip_test.gd::_full_trip`: no autopilot engaged, the Drive set to steer gently and eased off whenever it slips, raise the time rate before each `advance(1.0)`, Shift on `plasma_frequency()` when `shift_due()`, plot pitch -90 past `TURN_AT_M`, and (by default) ease the Drive off while `heat_warning()`.
+- The full-dive pattern is `full_trip_test.gd::_full_trip`: no autopilot engaged, the Drive set to steer gently and eased off whenever it slips, raise the time rate before each `advance(1.0)`, Shift onto the Wobble (`DiveTestKit.shift_to(sim, DiveTestKit.wobble(sim))`) when `out_of_band()`, plot pitch -90 past `TURN_AT_M`, and (by default) ease the Drive off while `heat_warning()`.
   Full power with all heat outward wears the hull through before the turn, so a trip that must surface either heeds the warning or cooks the Column.
   The careful and cooked trips are flown once per suite (`_careful_trip()`, `_cooked_trip()`); a test that goes on with the sim flies its own.
   Each trip takes a few seconds.

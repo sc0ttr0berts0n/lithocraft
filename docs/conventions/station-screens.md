@@ -19,7 +19,7 @@
   `show_reading(text)` is the same with every line white.
 - **Caution lamps** (`GLOSSARY.md`) are declared in `CautionLamps.of(sim, station)` (`view/caution_lamps.gd`): one line per lamp, its label and the simulation query that lights it.
   The Habitat hands each Station's to its header strip every frame (`show_lamps()`), so a lamp lights and clears from the simulation's state alone; a lamp keeps its place lit or not.
-  A cause with no query of its own gets one small function there: the Reactor's HEAD WORN reads `CautionLamps.head_worn()`, today `head_wear()` at a whole percent or more, the one place to repoint it.
+  The Reactor's three (HEAD WORN, HOT, OUT OF BAND) are the causes `steadiness_causes()` names, one lamp each.
   Tested in `caution_lamps_test.gd`, through the simulation.
 - **One colour language on every screen, an airliner's** (`StationTheme`, `view/station_theme.gd`): white is what is happening now, cyan what the crew has selected or aims for (the Course, a setting, a target), green engaged and working, amber a caution, red a warning (what is about to kill the crew).
   Beside the five are only the screen's neutrals, which say nothing: its background, the grey of a legend (a title, a unit, a scale), the darker grey of a rule or an unlit lamp, and two backdrops for a picture of the world.
@@ -38,17 +38,18 @@
 
 ## Each Station's screen
 
-- `head_wear()` (the Head, from poor Shifts) and `vessel_wear()` (the hull, from heat) are different things.
+- `head_wear()` (the Head, from its Residual outside the Band) and `vessel_wear()` (the hull, from heat) are different things.
   The Thermal screen's status lines show the hull as `hull_integrity()` and `hull_creep_rate()`, and once sealed in `stranding_clock()` beside `rescue_time()` ("if stranded" estimates under way, the race itself while stranded).
 - Thermal's instrument (`ThermalGauge`, `view/thermal_gauge.gd`, a Control in the body) is a gauge of the hull against what it bears, over the heat split drawn as one divided bar.
   The gauge is a bar along a kelvin scale filled to `vessel_temperature()`; its amber range starts at `hull_warning_temperature()` and its red at `hull_damage_temperature()`, read from the simulation, never written in the view, and the bar and the number take the colour of the range the hull is in (`range_of()`).
   The trend mark is an airliner's speed trend arrow: from the hull's place to where it will be `TREND_AHEAD_S` on at `hull_warming_rate()`, in the colour of the range its tip reaches, with a triangle up or down and RISING or FALLING beside the number (a bar and STEADY under `STEADY_K_PER_S`).
   The split bar divides at the heat's own division (`heat_to_column()` over `heat_produced()`), out through the hull on the left; the crew's setting (`heat_split()`) is the cyan mark under it, so starved pumps show as the division standing short of the mark.
   It keeps no state and no clock: what it shows is in its queries (`needle()`, `trend()`, `trend_place()`, `column_share()`, `parts()`), tested in `thermal_gauge_test.gd`, so the hull's numbers are no longer repeated as status lines.
-- The Reactor's screen (`PlasmaDisplay`, `view/plasma_display.gd`, on a `SubViewport`) shows the Shift dial as two lanes, ACTIVE over STANDBY, each its wobble (white) against its tuning's opposing wave (cyan) with its MATCH at the right:
-  ACTIVE against `plasma_frequency()` by `shift_match(plasma_tuning())`, STANDBY against `wobble_ahead()` by `standby_match()`, the tuning's wave alone and "MATCH —" while those are NAN (`PlasmaDisplay.match_text()`, tested directly).
+- The Reactor's screen (`PlasmaDisplay`, `view/plasma_display.gd`, on a `SubViewport`) shows the Shift dial as two lanes, ACTIVE over STANDBY, each three lines over its Band (a strip about the centre line): its Wobble (white, what is happening), its Counter-wave (cyan, what the crew has selected) and its Residual (bold: white inside the Band, amber while it reaches outside).
+  Each line is drawn from the simulation's own wave (`wobble_wave()`, `counter_wave()`, `residual_wave()`, by channel), and each lane writes its Counter-wave's frequency and amplitude, marks the channel the controls tune, and reads its Residual against the Band (`PlasmaDisplay.residual_text()`, tested directly; "RESIDUAL —" and the Counter-wave alone for STANDBY while its Wobble is NAN).
   It reads only the simulation; the view keeps no copy of either channel.
-  The window bar runs along the bottom.
+  Its writing is `Label`s under the Theme, not drawn strings, and its waves run on the dive's clock, so a screenshot is the dive at that moment.
+  Plain for now: the Reactor screen's composition is its own ticket.
 - The Drive's screen is a primary flight display (`FlightDisplay`, `view/flight_display.gd`), drawn on a `SubViewport` like the Reactor's: attitude (pitch ladder), speed and depth tapes, heading tape, power, grip and steering, each read from the simulation's queries every frame;
   its status lines are the Course, written as Navigation's screen writes it (`habitat.gd::_course_line()`), then whether the Drive follows it or how far off it steers (or how the dive ended).
   A tape's scale is a `FlightTape`: the reading stays at its middle, a value's place is `place(value, reading)` (the short way round on the compass), and a bug off the tape is `pinned()` to its nearer end.

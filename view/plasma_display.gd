@@ -1,51 +1,61 @@
-## The Reactor Station's display: the plasma as waveforms, for the Shift.
+## The Reactor Station's display: the Shift dial's two channels as waves.
 ## Rendered in this SubViewport so a Station screen can show it as a texture.
+## Plain for now (three lines and the Band per lane); the Reactor screen's
+## composition is its own ticket.
 ##
-## The Shift dial's two channels, like an airliner radio's active and standby
-## frequencies, each a lane of a few seconds of wave scrolling right to left:
-##   ACTIVE  - the wobble the load excites now (white: what is happening) with
-##             the opposing wave the Reactor is tuned to drive (cyan: what the
-##             crew has selected), and faint, what the
-##             plasma does: flat when tuned, beating once a Boundary changes
-##             the load. MATCH: the active tuning against the wobble now
-##             (DiveSimulation.shift_match()).
-##   STANDBY - the staged tuning (cyan) against the wobble expected in the
-##             Medium ahead (DiveSimulation.wobble_ahead()), and its MATCH
-##             (DiveSimulation.standby_match()), once the Boundary-approaching
-##             call comes; before it, the standby wave alone and MATCH "—".
-##             Pretune it until the two lie on each other, then swap it in
-##             (the Shift) as the Head crosses.
-## Along the bottom, the window for the Shift: green and "steady" while none
-## is due, an amber bar that shrinks while it is open, SHIFT LATE once it has
-## closed. Its full width is a fresh Head's window; what a worn Head has lost
-## of it is struck through in amber at the right end, so the narrower window
-## shows before a Shift is ever due. Colours are StationTheme's.
+## Two lanes, like an airliner radio's active and standby frequencies, each a
+## few seconds of wave scrolling right to left:
+##   ACTIVE  - the Wobble the Medium puts on the plasma now (white: what is
+##             happening), the Counter-wave ACTIVE drives against it (cyan:
+##             what the crew has selected), and the Residual, the two summed
+##             (bold): flat when the cancelling is perfect, a small steady
+##             wave when the amplitude is off, slow beats when the frequency
+##             is off.
+##   STANDBY - the Wobble expected in the Medium ahead, STANDBY's Counter-wave
+##             and the Residual it would leave, once the Boundary-approaching
+##             call comes; before it, the Counter-wave alone and "RESIDUAL —".
+## Behind each lane's waves lies the Band, a strip about the centre line: the
+## Residual the Head bears. A Residual that reaches outside it is drawn in
+## amber, a caution. The lane the Reactor's controls tune is written in cyan
+## and marked. The Caution lamps are in the Station's header strip
+## (CautionLamps). Colours are StationTheme's.
 ##
-## Reads only the simulation.
+## The waves are the simulation's own (DiveSimulation.wobble_wave(),
+## counter_wave(), residual_wave()), on the dive's clock, so the picture is
+## what wears the Head and a still of it is the dive at that moment. Reads
+## only the simulation.
 class_name PlasmaDisplay
 extends SubViewport
 
 ## Seconds of wave across the display.
 const SPAN_S := 3.0
+## The wave value drawn at a lane's edge: a little more than the biggest
+## Wobble, so a Residual of two waves adding still mostly fits.
+const FULL_SCALE := 1.6
 const BACKGROUND := StationTheme.SCREEN_COLOUR
-## The wobble: what is happening now. The tuning's opposing wave: what the
-## crew has selected. A late Shift and a worn Head's lost window: cautions.
+## The Wobble: what is happening now. The Counter-wave: what the crew has
+## selected. A Residual outside the Band: a caution.
 const WOBBLE := StationTheme.NOW_COLOUR
 const COUNTER := StationTheme.SELECTED_COLOUR
-const LATE := StationTheme.CAUTION_COLOUR
-const LEGEND := StationTheme.LEGEND_COLOUR
+const OUTSIDE := StationTheme.CAUTION_COLOUR
 
 var sim: DiveSimulation
 
 var _canvas := _Canvas.new()
 
 
-## A channel's MATCH as its meter reads it: a percentage, or "—" for NAN
-## (STANDBY before the Boundary-approaching call).
-static func match_text(matched: float) -> String:
-	if is_nan(matched):
-		return "MATCH —"
-	return "MATCH %d%%" % roundi(matched * 100.0)
+## A channel's Residual against the Band as its lane reads it, or "—" for
+## NAN (STANDBY before the Boundary-approaching call).
+static func residual_text(residual: float, band: float) -> String:
+	if is_nan(residual):
+		return "RESIDUAL —"
+	return "RESIDUAL %.2f  BAND %.2f" % [residual, band]
+
+
+## A channel's name and its Counter-wave as its lane reads them, marked when
+## it is the one the Reactor's controls tune.
+static func channel_text(title: String, selected: bool, frequency: float, amplitude: float) -> String:
+	return "%s%s  %.2f Hz  x%.2f" % ["> " if selected else "", title, frequency, amplitude]
 
 
 func _ready() -> void:
@@ -57,98 +67,119 @@ func _ready() -> void:
 
 
 class _Canvas extends Control:
-	var display: PlasmaDisplay
-	var _time := 0.0
-	## The longest window seen (a fresh Head's: every dive starts with one),
-	## so the bar shows the share of it left and what wear has taken.
-	var _window_full := 0.0
+	## The three lines of a lane.
+	enum { _WOBBLE, _COUNTER_WAVE, _RESIDUAL }
+	## The lanes, top to bottom: the channel and the name written on it.
+	const _LANES := [[DiveSimulation.CHANNEL_ACTIVE, "ACTIVE"], [DiveSimulation.CHANNEL_STANDBY, "STANDBY"]]
 
-	func _process(delta: float) -> void:
-		_time += delta
+	var display: PlasmaDisplay
+	## Each lane's two lines of writing: its channel and Counter-wave above
+	## the waves, its Residual against the Band below them.
+	var _channel_lines: Array[Label] = []
+	var _residual_lines: Array[Label] = []
+	var _lost := Label.new()
+
+	func _ready() -> void:
+		theme = StationTheme.theme()
+		for i in _LANES.size():
+			var lane := _lane_rect(i)
+			for lines: Array[Label] in [_channel_lines, _residual_lines]:
+				var label := Label.new()
+				label.add_theme_font_size_override(&"font_size", StationTheme.FONT_SIZE_SMALL)
+				add_child(label)
+				lines.append(label)
+			_channel_lines[i].position = lane.position + Vector2(8.0, 2.0)
+			_residual_lines[i].position = lane.position \
+					+ Vector2(8.0, lane.size.y - StationTheme.FONT_SIZE_SMALL - 10.0)
+		_lost.text = "PLASMA LOST"
+		_lost.theme_type_variation = StationTheme.variation(StationTheme.WARNING)
+		_lost.add_theme_font_size_override(&"font_size", StationTheme.FONT_SIZE_HEADER)
+		_lost.position = Vector2(16.0, size.y * 0.4)
+		_lost.visible = false
+		add_child(_lost)
+
+	func _process(_delta: float) -> void:
+		var sim := display.sim
+		if sim != null:
+			_write(sim)
 		queue_redraw()
+
+	## Where lane `index` lies: the lanes share the display's height.
+	func _lane_rect(index: int) -> Rect2:
+		var height := size.y / _LANES.size()
+		return Rect2(0.0, height * index, size.x, height)
+
+	## The lanes' writing, from the simulation.
+	func _write(sim: DiveSimulation) -> void:
+		var lost := sim.plasma_lost()
+		_lost.visible = lost
+		for i in _LANES.size():
+			var channel: StringName = _LANES[i][0]
+			var selected := sim.selected_channel() == channel
+			var residual := sim.residual(channel)
+			_channel_lines[i].visible = not lost
+			_residual_lines[i].visible = not lost
+			_channel_lines[i].text = PlasmaDisplay.channel_text(_LANES[i][1], selected,
+					sim.counter_wave_frequency(channel), sim.counter_wave_amplitude(channel))
+			_channel_lines[i].theme_type_variation = StationTheme.variation(
+					StationTheme.SELECTED if selected else StationTheme.LEGEND)
+			_residual_lines[i].text = PlasmaDisplay.residual_text(residual, sim.band())
+			_residual_lines[i].theme_type_variation = StationTheme.variation(
+					StationTheme.CAUTION if _outside(residual, sim.band()) else StationTheme.NOW)
+
+	## Whether a Residual reaches outside the Band (never, while unknown).
+	func _outside(residual: float, band: float) -> bool:
+		return not is_nan(residual) and residual > band
 
 	func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), PlasmaDisplay.BACKGROUND)
 		var sim := display.sim
-		if sim == null:
+		if sim == null or sim.plasma_lost():
 			return
-		var font := ThemeDB.fallback_font
-		var h := size.y
-		var w := size.x
-		var lane := h * 0.36
-		var top := Rect2(0.0, 0.0, w, lane)
-		var bottom := Rect2(0.0, lane, w, lane)
-		var load_hz := sim.plasma_frequency()
-		if sim.plasma_lost():
-			draw_string(font, Vector2(16, h * 0.5), "PLASMA LOST", HORIZONTAL_ALIGNMENT_LEFT,
-					-1, 48, StationTheme.WARNING_COLOUR)
-			return
-		_lane(top, "ACTIVE", load_hz, sim.plasma_tuning(), sim.shift_match(sim.plasma_tuning()))
-		_lane(bottom, "STANDBY", sim.wobble_ahead(), sim.standby_tuning(), sim.standby_match())
-		draw_line(Vector2(0, lane), Vector2(w, lane), StationTheme.RULE_COLOUR, 1.0)
-		# The window for the Shift.
-		var bar := Rect2(8.0, h * 0.78, w - 16.0, h * 0.14)
-		_window_full = maxf(_window_full, sim.shift_window_length())
-		var kept := sim.shift_window_length() / _window_full if _window_full > 0.0 else 1.0
-		if kept < 0.999:
-			var worn := Rect2(bar.position + Vector2(bar.size.x * kept, 0.0),
-					Vector2(bar.size.x * (1.0 - kept), bar.size.y))
-			draw_rect(worn, StationTheme.faded(PlasmaDisplay.LATE, 0.25))
-			draw_line(worn.position, worn.end, PlasmaDisplay.LATE, 2.0)
-			draw_line(worn.position + Vector2(0, worn.size.y), worn.position + Vector2(worn.size.x, 0),
-					PlasmaDisplay.LATE, 2.0)
-			draw_string(font, worn.position + Vector2(4, -6), "WORN",
-					HORIZONTAL_ALIGNMENT_LEFT, -1, 20, PlasmaDisplay.LATE)
-		bar.size.x *= kept
-		if sim.shift_due():
-			var left := sim.shift_window()
-			if left > 0.0:
-				draw_rect(Rect2(bar.position, Vector2(bar.size.x * left / sim.shift_window_length(),
-						bar.size.y)), PlasmaDisplay.LATE)
-				draw_string(font, bar.position + Vector2(4, bar.size.y - 6), "SHIFT  %.1f s" % left,
-						HORIZONTAL_ALIGNMENT_LEFT, -1, 24, PlasmaDisplay.BACKGROUND)
-			else:
-				draw_rect(bar, PlasmaDisplay.LATE)
-				draw_string(font, bar.position + Vector2(4, bar.size.y - 6), "SHIFT LATE",
-						HORIZONTAL_ALIGNMENT_LEFT, -1, 24, PlasmaDisplay.BACKGROUND)
-		else:
-			draw_rect(bar, StationTheme.faded(StationTheme.ENGAGED_COLOUR, 0.5), false, 2.0)
-			draw_string(font, bar.position + Vector2(4, bar.size.y - 6), "steady",
-					HORIZONTAL_ALIGNMENT_LEFT, -1, 24, StationTheme.ENGAGED_COLOUR)
+		for i in _LANES.size():
+			_lane(_lane_rect(i), _LANES[i][0])
+		for i in range(1, _LANES.size()):
+			var top := _lane_rect(i).position.y
+			draw_line(Vector2(0.0, top), Vector2(size.x, top), StationTheme.RULE_COLOUR, 1.0)
 
-	## One channel's lane: the wobble at `wobble_hz` (NAN for none known: the
-	## tuning's wave alone) with the opposing wave at `tuning_hz` over it,
-	## faint under them what the plasma would do, and the channel's `matched`
-	## at the right ("—" for NAN).
-	func _lane(lane: Rect2, title: String, wobble_hz: float, tuning_hz: float, matched: float) -> void:
-		if not is_nan(wobble_hz):
-			_trace(lane, func(t: float) -> float:
-				return 0.5 * (sin(TAU * wobble_hz * t) - sin(TAU * tuning_hz * t)),
-					StationTheme.faded(PlasmaDisplay.WOBBLE, 0.25), 2.0)
-			_trace(lane, func(t: float) -> float: return sin(TAU * wobble_hz * t) * 0.8, PlasmaDisplay.WOBBLE, 3.0)
-		_trace(lane, func(t: float) -> float: return sin(TAU * tuning_hz * t) * 0.8,
-				PlasmaDisplay.COUNTER, 2.0)
-		var font := ThemeDB.fallback_font
-		draw_string(font, lane.position + Vector2(8, 26), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 22,
-				PlasmaDisplay.LEGEND)
-		var meter := Rect2(lane.position + Vector2(lane.size.x - 168.0, 8.0), Vector2(160.0, 22.0))
-		draw_rect(meter, PlasmaDisplay.BACKGROUND)
-		if not is_nan(matched):
-			draw_rect(Rect2(meter.position, Vector2(meter.size.x * matched, meter.size.y)),
-					StationTheme.faded(PlasmaDisplay.WOBBLE, 0.3))
-		draw_rect(meter, PlasmaDisplay.LEGEND, false, 2.0)
-		draw_string(font, meter.position + Vector2(4, meter.size.y - 4),
-				PlasmaDisplay.match_text(matched), HORIZONTAL_ALIGNMENT_LEFT, -1, 20,
-				PlasmaDisplay.WOBBLE)
+	## One channel's lane: the Band, then its Wobble, its Counter-wave and its
+	## Residual.
+	func _lane(lane: Rect2, channel: StringName) -> void:
+		var sim := display.sim
+		var residual := sim.residual(channel)
+		var band := sim.band()
+		var half := lane.size.y * 0.5 * band / PlasmaDisplay.FULL_SCALE
+		var mid := lane.position.y + lane.size.y * 0.5
+		draw_rect(Rect2(0.0, mid - half, lane.size.x, 2.0 * half),
+				StationTheme.faded(StationTheme.ENGAGED_COLOUR, 0.15))
+		for edge: float in [mid - half, mid + half]:
+			draw_line(Vector2(0.0, edge), Vector2(lane.size.x, edge),
+					StationTheme.faded(StationTheme.ENGAGED_COLOUR, 0.6), 1.0)
+		if not is_nan(residual):
+			_trace(lane, channel, _WOBBLE, StationTheme.faded(PlasmaDisplay.WOBBLE, 0.55), 2.0)
+		_trace(lane, channel, _COUNTER_WAVE, StationTheme.faded(PlasmaDisplay.COUNTER, 0.7), 2.0)
+		if not is_nan(residual):
+			_trace(lane, channel, _RESIDUAL,
+					PlasmaDisplay.OUTSIDE if _outside(residual, band) else PlasmaDisplay.WOBBLE, 4.0)
 
-	## Draws wave(t) for t over the last SPAN_S seconds, newest at the right,
-	## scaled from -1..1 to the lane.
-	func _trace(lane: Rect2, wave: Callable, colour: Color, width: float) -> void:
+	## Draws one of a channel's three waves (_WOBBLE, _COUNTER_WAVE or
+	## _RESIDUAL) from SPAN_S seconds ago to now, newest at the right, scaled
+	## so FULL_SCALE reaches the lane's edge. A wave the simulation cannot
+	## give (NAN) is not drawn.
+	func _trace(lane: Rect2, channel: StringName, wave: int, colour: Color, width: float) -> void:
+		var sim := display.sim
 		var points := PackedVector2Array()
 		var steps := 160
 		for i in steps + 1:
 			var x := lane.size.x * i / steps
-			var t := _time - PlasmaDisplay.SPAN_S * (1.0 - float(i) / steps)
-			var y: float = clampf(wave.call(t), -1.0, 1.0)
-			points.append(Vector2(x, lane.position.y + lane.size.y * (0.5 - 0.42 * y)))
+			var t := -PlasmaDisplay.SPAN_S * (1.0 - float(i) / steps)
+			var value := 0.0
+			match wave:
+				_WOBBLE: value = sim.wobble_wave(channel, t)
+				_COUNTER_WAVE: value = sim.counter_wave(channel, t)
+				_RESIDUAL: value = sim.residual_wave(channel, t)
+			if is_nan(value):
+				return
+			var y := clampf(value / PlasmaDisplay.FULL_SCALE, -1.0, 1.0)
+			points.append(Vector2(x, lane.position.y + lane.size.y * (0.5 - 0.5 * y)))
 		draw_polyline(points, colour, width, true)

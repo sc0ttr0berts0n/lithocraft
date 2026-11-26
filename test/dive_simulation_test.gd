@@ -94,9 +94,12 @@ func test_stronger_medium_grips_better_at_the_same_power() -> void:
 
 
 ## Dives at full power and records each Medium met, in order, until max_steps.
+## Nobody is at the Reactor or Thermal: their autopilots see the dive through.
 func _media_met_on_the_way_down(sim: DiveSimulation, max_steps: int) -> Array[StringName]:
 	var met: Array[StringName] = [sim.medium().name]
 	sim.set_power(1.0)
+	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
+	sim.set_autopilot(DiveSimulation.STATION_THERMAL, true)
 	for i in max_steps:
 		sim.advance(1.0)
 		if sim.medium().name != met.back():

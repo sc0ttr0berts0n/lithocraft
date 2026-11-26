@@ -12,7 +12,7 @@ Any Station command other than a reading (one that changes a setting, or acts as
 a reading (`pulse()`, `set_observed_feature()`) does not call it.
 A new command calls it unless it only takes a reading.
 Off, a Station holds its setting and does nothing more; its calls still come.
-Engaged, its steadying rule runs in `_steady_autopilots()` (Drive backs power off to the grip limit while slipping; Thermal raises the heat split while the hull warns), or in its own place: the Reactor's late Shift in `Plasma.tend()` (passed `autopilot(STATION_REACTOR) or _self_destructing`), the Drive's gentle steering cap in `_steer()`.
+Engaged, its steadying rule runs in `_steady_autopilots()` (Drive backs power off to the grip limit while slipping; Thermal raises the heat split while the hull warns), or in its own place: the Reactor's slow tuning of ACTIVE toward the Wobble in `Plasma.tend()` (passed `autopilot(STATION_REACTOR) or _self_destructing`), the Drive's gentle steering cap in `_steer()`.
 Engaging the Drive's sets its slow, safe power (`_AUTOPILOT_DRIVE_POWER`) and ends any override, so a plotted Course plus the Drive's autopilot gets the vessel moving.
 
 **The Course and the Drive's nudges.**

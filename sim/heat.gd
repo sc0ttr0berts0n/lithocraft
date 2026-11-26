@@ -87,7 +87,7 @@ static func surroundings(medium: Medium, depth: float) -> float:
 
 
 ## One step of dt seconds. Every system that draws power makes heat
-## (`power_drawn`), plus `spike`, extra heat per second such as a poor Shift's
+## (`power_drawn`), plus `spike`, extra heat per second such as the Head's
 ## grinding. Heat reaches the Column only as far as Thermal's pumps are
 ## powered (`split` times `thermal_supplied`); the rest goes out through the
 ## hull into surroundings at `surroundings_k`. The overheated hull creeps
