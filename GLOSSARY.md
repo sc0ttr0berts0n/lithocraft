@@ -40,6 +40,10 @@ _Avoid_: Ore, resource, ink, cargo
 The place where one Medium gives way to another along the Lithocraft's path.
 _Avoid_: Transition, interface, layer change
 
+**Inferred Boundary**:
+A Boundary as Navigation's scan suggests it: surfaces fitted to the point cloud alone, each patch as sure as the points that support it.
+_Avoid_: Terrain mesh, real Boundary (for what the scan shows)
+
 **Shift**:
 The retuning of the Head's plasma that the crew performs as the Lithocraft crosses a Boundary.
 _Avoid_: Gear change, transition, retune
