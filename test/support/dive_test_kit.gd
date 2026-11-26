@@ -73,6 +73,13 @@ static func types(events: Array) -> Array:
 	return events.map(func(e: Dictionary) -> StringName: return e.type)
 
 
+## A Shift straight to `frequency` hertz: STANDBY pretuned to it, then the
+## swap, made on the next step.
+static func shift_to(sim: DiveSimulation, frequency: float) -> void:
+	sim.set_standby_tuning(frequency)
+	sim.shift()
+
+
 ## Gentle Shifts, each a little wide of the wobble, until the Head's wear
 ## reaches `wear` or the plasma is lost: each Shift wears the Head a little,
 ## never roughly enough to disrupt the plasma.
@@ -82,7 +89,7 @@ static func wear_head_gently(sim: DiveSimulation, wear: float) -> void:
 	for i in 2000:
 		if sim.plasma_lost() or sim.head_wear() >= wear:
 			return
-		sim.shift(on * (1.0 + off))
+		shift_to(sim, on * (1.0 + off))
 		sim.advance(0.1)
 		var results := sim.take_events().filter(
 				func(e: Dictionary) -> bool: return e.type == &"shift_result")
@@ -107,7 +114,7 @@ static func lose_plasma(sim: DiveSimulation) -> void:
 	for i in 20:
 		if sim.plasma_lost():
 			return
-		sim.shift(on * 1.5)
+		shift_to(sim, on * 1.5)
 		sim.advance(0.1)
 
 

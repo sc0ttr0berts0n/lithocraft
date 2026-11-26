@@ -54,9 +54,9 @@ const COLUMN_PIXELS_PER_METRE := 125.0
 const HEAT_SPLIT_STEP := 0.1
 ## How close the crew must be to a Station's pivot to work it, in metres.
 const STATION_REACH := 2.0
-## How much one press turns the Reactor's Shift dial, as a share of its
-## frequency.
-const SHIFT_DIAL_STEP := 0.02
+## How much one press tunes the Shift dial's STANDBY channel, as a share of
+## its frequency.
+const STANDBY_STEP := 0.02
 ## How far a lurch shakes the crew's view, metres per m/s^2 of jolt.
 const LURCH_SHAKE_M := 0.004
 ## How far slipping grip waves shake the crew's view at full slip, metres.
@@ -110,12 +110,10 @@ var _crew := CrewMember.new()
 var _arm := Arm.new(BORE_RADIUS + RAIL_GAP)
 ## The Stations in use, in order round the ring; the Arm carries to these.
 var _in_use: Array[GimballedStation] = []
-## The simulation's name for each Station in use (GimballedStation -> StringName).
-var _sim_names := {}
-## The Reactor's waveform display, which holds the Shift dial.
-var _plasma_display: PlasmaDisplay
 ## True from a Boundary announced ahead until it is crossed.
 var _boundary_ahead := false
+## The simulation's name for each Station in use (GimballedStation -> StringName).
+var _sim_names := {}
 ## The centre notice: where the dive stands (a stranding, a death, the
 ## breakdown of what a dive was paid) or a passing word.
 var _notice: Label
@@ -406,15 +404,14 @@ func _key_heat_split(index: int) -> void:
 	_split_heat(_heat_split + _minus_plus(index) * HEAT_SPLIT_STEP)
 
 
-## Reactor: turn the Shift dial one step down / up.
-func _key_shift_dial(index: int) -> void:
-	_sim.set_shift_dial(_sim.shift_dial() * (1.0 + SHIFT_DIAL_STEP * _minus_plus(index)))
-	_plasma_display.dial = _sim.shift_dial()
+## Reactor: tune the Shift dial's STANDBY channel one step down / up.
+func _key_tune_standby(index: int) -> void:
+	_sim.set_standby_tuning(_sim.standby_tuning() * (1.0 + STANDBY_STEP * _minus_plus(index)))
 
 
-## Reactor: Shift to the frequency on the dial.
+## Reactor: the Shift, swapping STANDBY and ACTIVE.
 func _key_shift(_index: int) -> void:
-	_sim.shift(_sim.shift_dial())
+	_sim.shift()
 
 
 ## Reactor: try to relight the Head from the emergency store; the simulation
@@ -647,9 +644,9 @@ func _show_reactor() -> void:
 		_reactor.show_reading("\n".join(lines))
 		return
 	elif _sim.shift_due():
-		shift_line += "  SHIFT DUE  %s dial %s Shift" % [KeyMap.label(&"shift_dial"), KeyMap.label(&"shift")]
+		shift_line += "  SHIFT DUE  %s swap" % KeyMap.label(&"shift")
 	elif _boundary_ahead:
-		shift_line += "  BOUNDARY AHEAD  ready the dial %s" % KeyMap.label(&"shift_dial")
+		shift_line += "  BOUNDARY AHEAD  pretune standby %s" % KeyMap.label(&"tune_standby")
 	lines.append(shift_line)
 	lines.append(_store_line())
 	_reactor.show_reading("\n".join(lines))
@@ -1213,16 +1210,15 @@ func _build_stations() -> void:
 			_navigation.show_displays(navigation_displays)
 
 
-## The Reactor's waveform display for the Shift, its dial starting where the
-## Reactor is tuned.
+## The Reactor's waveform display for the Shift: the dial's ACTIVE and
+## STANDBY channels.
 func _make_plasma_display() -> Texture2D:
-	_plasma_display = PlasmaDisplay.new()
-	_plasma_display.size = Vector2i(512, 242)
-	_plasma_display.sim = _sim
-	_plasma_display.hue = STATIONS[0][1]
-	_plasma_display.dial = _sim.shift_dial()
-	add_child(_plasma_display)
-	return _plasma_display.get_texture()
+	var display := PlasmaDisplay.new()
+	display.size = Vector2i(512, 242)
+	display.sim = _sim
+	display.hue = STATIONS[0][1]
+	add_child(display)
+	return display.get_texture()
 
 
 ## The Drive's primary flight display, shown on the Drive Station's screen.

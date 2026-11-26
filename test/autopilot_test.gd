@@ -33,7 +33,7 @@ func _setting_commands() -> Array:
 		[DiveSimulation.STATION_NAVIGATION, func(s: DiveSimulation) -> void: s.set_course(90.0, 0.0)],
 		[DiveSimulation.STATION_NAVIGATION, func(s: DiveSimulation) -> void: s.set_quiet_ship(true)],
 		[DiveSimulation.STATION_THERMAL, func(s: DiveSimulation) -> void: s.set_heat_split(0.5)],
-		[DiveSimulation.STATION_REACTOR, func(s: DiveSimulation) -> void: s.shift(s.plasma_frequency())],
+		[DiveSimulation.STATION_REACTOR, func(s: DiveSimulation) -> void: DiveTestKit.shift_to(s, s.plasma_frequency())],
 		[DiveSimulation.STATION_BORE, func(s: DiveSimulation) -> void: s.set_upload_priority(DiveSimulation.UPLOAD_NEWEST_FIRST)],
 		[DiveSimulation.STATION_BORE, func(s: DiveSimulation) -> void: s.set_uploading(false)],
 	]
@@ -231,7 +231,7 @@ func test_the_reactors_autopilot_shifts_late_and_poorly_even_with_the_crew_watch
 	var sim := _boundary_crossed(true)
 	var crewed := _boundary_crossed(false)
 	crewed.advance(2.0)
-	crewed.shift(crewed.plasma_frequency())
+	DiveTestKit.shift_to(crewed, crewed.plasma_frequency())
 
 	var by_autopilot := DiveTestKit.run_until(sim, &"shift_result")
 	var by_crew := DiveTestKit.run_until(crewed, &"shift_result")

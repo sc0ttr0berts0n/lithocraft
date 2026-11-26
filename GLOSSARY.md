@@ -48,6 +48,18 @@ _Avoid_: Terrain mesh, real Boundary (for what the scan shows)
 The retuning of the Head's plasma that the crew performs as the Lithocraft crosses a Boundary.
 _Avoid_: Gear change, transition, retune
 
+**Shift dial**:
+The Reactor's two channels of tuning, like an airliner radio's: ACTIVE holds the plasma now, STANDBY is pretuned for the Medium ahead, and the Shift swaps them.
+_Avoid_: Dial (alone), selector, preset
+
+**Active**:
+The Shift dial's channel whose tuning holds the plasma now.
+_Avoid_: Current, live, primary
+
+**Standby**:
+The Shift dial's staged channel, pretuned for the Medium ahead and changing nothing until the Shift swaps it in.
+_Avoid_: Next, preset, queued
+
 **Quiet Ship**:
 The state in which the Lithocraft halts and idles its Head so Navigation can take a clean scan.
 _Avoid_: Silent running, scan mode

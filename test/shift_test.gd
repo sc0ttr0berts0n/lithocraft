@@ -50,7 +50,7 @@ func _shift_after(wait: float, off_by := 1.0, sim: DiveSimulation = null) -> Dic
 ## or an empty Dictionary. Events before it are dropped.
 func _shift_now(sim: DiveSimulation, off_by: float) -> Dictionary:
 	sim.take_events()
-	sim.shift(sim.plasma_frequency() * off_by)
+	DiveTestKit.shift_to(sim, sim.plasma_frequency() * off_by)
 	sim.advance(0.1)
 	for event in sim.take_events():
 		if event.type == &"shift_result":
@@ -116,7 +116,7 @@ func test_a_new_load_unsettles_the_plasma_until_the_shift_matches_it() -> void:
 	sim.advance(0.1)
 	assert_float(sim.plasma_stability()).is_less(1.0)
 
-	sim.shift(sim.plasma_frequency())
+	DiveTestKit.shift_to(sim, sim.plasma_frequency())
 	sim.advance(0.1)
 
 	assert_bool(sim.shift_due()).is_false()
@@ -202,7 +202,7 @@ func test_clean_shifts_never_wear_the_head() -> void:
 	var sim := _many_boundaries()
 	for i in 10:
 		DiveTestKit.run_until(sim, &"boundary_crossed", 20000.0, [], 0.25)
-		sim.shift(sim.plasma_frequency())
+		DiveTestKit.shift_to(sim, sim.plasma_frequency())
 
 	sim.advance(0.25)
 	assert_float(sim.head_wear()).is_equal(0.0)
@@ -244,9 +244,9 @@ func test_the_boundary_is_crossed_when_the_head_enters_the_new_medium() -> void:
 func _worn(sim: DiveSimulation) -> DiveSimulation:
 	var on := sim.plasma_frequency()
 	while sim.head_wear() <= 0.5:
-		sim.shift(on * 1.5)
+		DiveTestKit.shift_to(sim, on * 1.5)
 		sim.advance(0.1)
-		sim.shift(on)
+		DiveTestKit.shift_to(sim, on)
 		sim.advance(0.1)
 	sim.take_events()
 	assert_bool(sim.plasma_lost()).is_false()
@@ -326,7 +326,7 @@ func test_closer_tuning_reads_as_a_closer_match() -> void:
 	assert_float(sim.shift_match(sim.plasma_tuning())).is_less(near)
 
 
-func test_a_closer_match_on_the_dial_grades_the_shift_better() -> void:
+func test_a_closer_match_grades_the_shift_better() -> void:
 	var near_sim := _one_boundary()
 	var far_sim := _one_boundary()
 	DiveTestKit.run_until(near_sim, &"boundary_crossed")
@@ -340,7 +340,7 @@ func test_a_closer_match_on_the_dial_grades_the_shift_better() -> void:
 	assert_float(far.grade).is_less(near.grade)
 
 
-func test_the_same_dial_reads_as_a_poorer_match_on_a_worn_head() -> void:
+func test_the_same_frequency_reads_as_a_poorer_match_on_a_worn_head() -> void:
 	var fresh := _one_boundary()
 	var worn := _worn(_one_boundary())
 	var on := fresh.plasma_frequency()
@@ -357,7 +357,7 @@ func _first_boundary(wear := 0.0) -> DiveSimulation:
 	sim.set_attended(DiveSimulation.STATION_REACTOR, true)
 	if wear > 0.0:
 		DiveTestKit.wear_head_gently(sim, wear)
-		sim.shift(sim.plasma_frequency())
+		DiveTestKit.shift_to(sim, sim.plasma_frequency())
 		sim.advance(0.1)
 		sim.take_events()
 	sim.set_power(0.5)
@@ -369,7 +369,7 @@ func _first_boundary(wear := 0.0) -> DiveSimulation:
 	return sim
 
 
-## A Shift as poor as one can be: the dial far from the wobble, made after the
+## A Shift as poor as one can be: its frequency far from the wobble, made after the
 ## window has closed.
 func _blind_shift(sim: DiveSimulation) -> Dictionary:
 	DiveTestKit.run(sim, sim.shift_window() + 2.0, 0.1)

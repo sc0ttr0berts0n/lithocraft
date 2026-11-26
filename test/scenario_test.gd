@@ -169,15 +169,15 @@ func test_the_shift_drills_checklist_and_orders_tick_as_the_shift_is_made() -> v
 	sim.read_orders()
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"read_orders")).is_equal(DiveSimulation.STEP_DONE)
-	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"ready_dial")
+	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"pretune_standby")
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 600.0, [], 0.5)).is_not_empty()
-	assert_str(DiveTestKit.step_state(sim, &"ready_dial")).is_equal(DiveSimulation.STEP_PENDING)
-	sim.set_shift_dial(DiveTestKit.wobble_in(below))
+	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_PENDING)
+	sim.set_standby_tuning(DiveTestKit.wobble_in(below))
 	sim.advance(0.1)
-	assert_str(DiveTestKit.step_state(sim, &"ready_dial")).is_equal(DiveSimulation.STEP_DONE)
+	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_DONE)
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_crossed", 600.0, [], 0.1)).is_not_empty()
 	assert_bool(DiveTestKit.achieved(sim, &"clean_shift")).is_false()
-	sim.shift(sim.shift_dial())
+	sim.shift()
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"shift")).is_equal(DiveSimulation.STEP_DONE)
 	assert_bool(DiveTestKit.achieved(sim, &"clean_shift")).is_true()
@@ -187,10 +187,10 @@ func test_a_shift_drill_shift_well_wide_of_the_wobble_is_not_clean() -> void:
 	var scenario := Scenario.shift_drill()
 	var sim := scenario.start()
 	sim.read_orders()
-	sim.set_shift_dial(DiveTestKit.wobble_in(scenario.layout.medium_at(scenario.layout.boundary_depths()[0] + 0.01)))
+	sim.set_standby_tuning(DiveTestKit.wobble_in(scenario.layout.medium_at(scenario.layout.boundary_depths()[0] + 0.01)))
 	DiveTestKit.run_until(sim, &"boundary_crossed", 600.0, [], 0.5)
-	# The dial was ready, but the Shift is made well wide of it.
-	sim.shift(sim.plasma_frequency() * 1.5)
+	# STANDBY was pretuned, but the Shift is made well wide of it.
+	DiveTestKit.shift_to(sim, sim.plasma_frequency() * 1.5)
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"shift")).is_equal(DiveSimulation.STEP_DONE)
 	assert_bool(DiveTestKit.achieved(sim, &"clean_shift")).is_false()
@@ -301,18 +301,18 @@ func test_a_relight_that_lights_leads_to_the_climb_home_shifting_by_hand() -> vo
 	sim.advance(0.1)
 	for id in [&"thermal_autopilot", &"plot_climb", &"drive_autopilot"]:
 		assert_str(DiveTestKit.step_state(sim, id)).override_failure_message(id).is_equal(DiveSimulation.STEP_DONE)
-	# The Reactor is the crew's: each Boundary up, ready the dial for the
+	# The Reactor is the crew's: each Boundary up, pretune standby for the
 	# Medium above and Shift as the Head crosses.
 	var boundaries := scenario.layout.boundary_depths()
 	for b in range(boundaries.size() - 1, -1, -1):
 		var above := scenario.layout.medium_at(boundaries[b] - 0.01)
 		assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 40000.0, [], 1.0,
 				func() -> void: sim.set_time_rate(sim.max_time_rate()))).is_not_empty()
-		sim.set_shift_dial(DiveTestKit.wobble_in(above))
+		sim.set_standby_tuning(DiveTestKit.wobble_in(above))
 		sim.advance(0.1)
-		assert_str(DiveTestKit.step_state(sim, StringName("ready_dial_%s" % above.name))).is_equal(DiveSimulation.STEP_DONE)
+		assert_str(DiveTestKit.step_state(sim, StringName("pretune_standby_%s" % above.name))).is_equal(DiveSimulation.STEP_DONE)
 		assert_dict(DiveTestKit.run_until(sim, &"boundary_crossed", 4000.0, [], 0.1)).is_not_empty()
-		sim.shift(sim.shift_dial())
+		sim.shift()
 		sim.advance(0.1)
 		assert_str(DiveTestKit.step_state(sim, StringName("shift_%s" % above.name))).is_equal(DiveSimulation.STEP_DONE)
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"climbed")
