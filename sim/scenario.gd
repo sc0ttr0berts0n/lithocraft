@@ -67,7 +67,10 @@ class Step:
 
 
 ## A phase of the Checklist: its steps in order, and what begins it early
-## (an invalid Callable: only finishing the phase before does).
+## (an invalid Callable: only finishing the phase before does). What begins a
+## phase early is something the Lithocraft has done (a Boundary nearing or
+## crossed, the vessel climbing, surfacing), never what the crew intends (a
+## plotted Course, an engaged autopilot): intentions tick steps.
 class Phase:
 	extends RefCounted
 	var title: String
@@ -176,6 +179,18 @@ static func course_plotted(down: bool) -> Callable:
 		return event.pitch > 0.0 if down else event.pitch < 0.0)
 
 
+## Holds while the Lithocraft is climbing: the Head cutting above level and
+## the vessel moving, so its depth is falling. A Course plotted upward is not
+## a climb until the Lithocraft has come round to it.
+static func climbing() -> Callable:
+	return when(func(sim: DiveSimulation) -> bool: return sim.pitch() < 0.0 and sim.speed() > 0.0)
+
+
+## Holds while the Course plotted is a climb.
+static func course_is_a_climb() -> Callable:
+	return when(func(sim: DiveSimulation) -> bool: return sim.course_pitch() < 0.0)
+
+
 # --- The Scenarios -----------------------------------------------------------
 
 ## Every Scenario, in the order the start menu lists them.
@@ -265,12 +280,15 @@ static func first_dive() -> Scenario:
 				DiveSimulation.STATION_BORE, &"observe", observing_in(bottom.name)),
 	]
 
-	var turn := Phase.new("Turn and climb", course_plotted(false))
+	# The turn begins early once the Lithocraft is climbing, never on a climb
+	# plotted: a Course is an intention. Its first step reads the Course as it
+	# stands, so a climb already plotted when the phase begins ticks it.
+	var turn := Phase.new("Turn and climb", climbing())
 	turn.steps = [
-		Step.new(&"plot_climb", "Plot the Course: climb", DiveSimulation.STATION_NAVIGATION,
-				&"plot_pitch", course_plotted(false)),
-		Step.new(&"climbing", "Climb: the Drive follows the Course round", DiveSimulation.STATION_DRIVE,
-				&"", when(func(sim: DiveSimulation) -> bool: return sim.pitch() < 0.0)),
+		Step.new(&"plot_climb", "Plot the Course: climb. The Lithocraft goes forward only, so the way home is a turn",
+				DiveSimulation.STATION_NAVIGATION, &"plot_pitch", course_is_a_climb()),
+		Step.new(&"climbing", "Turn for home: the Drive follows the Course round, and deepens through the turn before it rises",
+				DiveSimulation.STATION_DRIVE, &"", climbing()),
 	]
 
 	var surface := Phase.new("Surface", on_event(&"surfaced"))
