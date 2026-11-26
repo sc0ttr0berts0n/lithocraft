@@ -31,7 +31,7 @@ The files are numbered in the order their sections were decided; each line gives
 - [design/11-teaching-the-dive-as-built.md](design/11-teaching-the-dive-as-built.md): Teaching the dive, its five bullets of agent's choices (tickets #34, #35, #40, #41, #42). Read for how the Boundary fit, the Checklist, the drills and start menu, the flight display or the moving map were built, and why.
 - [design/12-second-checkpoint.md](design/12-second-checkpoint.md): The second checkpoint. Read for what a checkpoint is, how agents merge, and the Shift dial as ACTIVE and STANDBY with its preview.
 - [design/13-after-second-checkpoint.md](design/13-after-second-checkpoint.md): After the second checkpoint. Read for round 3 (spec #71): Checklist triggers, the Wobble, Counter-wave, Residual and Band, the colour language, Navigation plans and the Drive deviates, the point cloud redesign, the taller Habitat and sliding Stations.
-- [design/14-after-second-checkpoint-as-built.md](design/14-after-second-checkpoint-as-built.md): After the second checkpoint, as built. Read for the agent's choices in round 3's tickets: how features of interest look in the Column and which way they face (#70), the point cloud's three candidate views awaiting the developer's pick (#67).
+- [design/14-after-second-checkpoint-as-built.md](design/14-after-second-checkpoint-as-built.md): After the second checkpoint, as built. Read for the agent's choices in round 3's tickets: how features of interest look in the Column and which way they face (#70); how the Drive's nudges, the override and the deviation behave (#65); the Thermal gauge's scale, trend arrow and split bar (#64); the point cloud's three candidate views awaiting the developer's pick (#67).
 
 ## Open
 

@@ -418,18 +418,12 @@ func _key_effort_step(index: int) -> void:
 
 ## Drive: the Course keys override the Course, starting from what the Drive
 ## steers toward now.
-func _key_override_pitch(index: int) -> void:
-	_sim.override_course(_sim.steered_heading(), PITCHES[index])
+func _key_nudge_pitch(index: int) -> void:
+	_sim.nudge_pitch(_minus_plus(index))
 
 
-func _key_override_pitch_step(index: int) -> void:
-	_sim.override_course(_sim.steered_heading(),
-			_sim.steered_pitch() + _minus_plus(index) * PITCH_STEP)
-
-
-func _key_override_heading_step(index: int) -> void:
-	_sim.override_course(_sim.steered_heading() + _minus_plus(index) * HEADING_STEP,
-			_sim.steered_pitch())
+func _key_nudge_heading(index: int) -> void:
+	_sim.nudge_heading(_minus_plus(index))
 
 
 ## Drive: give up the override and steer toward the Course again.
@@ -638,10 +632,12 @@ func _show_calls() -> void:
 		station.show_lamps(CautionLamps.of(_sim, _sim_names[station]))
 
 
-## The Drive Station's status line, under its primary flight display
+## The Drive Station's status lines, under its primary flight display
 ## (FlightDisplay, which reads depth, speed, attitude, heading, the Course,
-## power, grip and steering itself): whether it follows the Course or its own
-## override, or how the dive ended.
+## power, grip and steering itself): the Course as Navigation's screen writes
+## it (_course_line()), then whether the Drive follows it or how far its
+## nudges have taken it off (CourseDeviation, the words Navigation's screen
+## uses too), or how the dive ended.
 func _show_drive() -> void:
 	var line: Variant = ["Following the Course", StationTheme.ENGAGED]
 	if _sim.surfaced():
@@ -649,18 +645,27 @@ func _show_drive() -> void:
 	elif _sim.dead():
 		line = ["%s  %s start menu" % [_death_headline(), KeyMap.label(&"new_dive")], StationTheme.WARNING]
 	elif _sim.overriding():
-		line = ["OVERRIDE %03.0f %+.0f  %s back to Course" % [_sim.steered_heading(),
-				_sim.steered_pitch(), KeyMap.label(&"end_override")], StationTheme.SELECTED]
-	_drive.show_lines([line])
+		line = ["off Course: %s  %s back to the Course" % [CourseDeviation.of(_sim),
+				KeyMap.label(&"end_override")], StationTheme.SELECTED]
+	_drive.show_lines([_course_line(), line])
+
+
+## The Course as every screen that writes it does: what the crew has
+## selected, in cyan.
+func _course_line() -> Array:
+	return ["Course %03.0f  %+.0f deg" % [_sim.course_heading(), _sim.course_pitch()],
+			StationTheme.SELECTED]
 
 
 ## Navigation's status lines, under its point cloud and moving map (which
-## show the Course): the Course plotted, how quiet the vessel is, the points
-## heard and its power.
+## show the Course): the Course plotted, whether the Drive follows it or how
+## far off it steers (the Drive's own words, CourseDeviation), how quiet the
+## vessel is, the points heard and its power.
 func _show_navigation() -> void:
 	_navigation.show_lines([
-		["Course %03.0f  %+.0f deg%s" % [_sim.course_heading(), _sim.course_pitch(),
-			"  (Drive overriding)" if _sim.overriding() else ""], StationTheme.SELECTED],
+		_course_line(),
+		["Drive is off the Course by %s" % CourseDeviation.of(_sim), StationTheme.SELECTED]
+				if _sim.overriding() else ["Drive follows the Course", StationTheme.ENGAGED],
 		"%s  noise %d%%  %d points" % ["QUIET SHIP" if _sim.quiet_ship() else "under way",
 			roundi(_sim.noise() * 100.0), _sim.point_count()],
 		_power_line(_sim.navigation_request(), _sim.navigation_draw()),
@@ -1067,21 +1072,23 @@ func _split_heat(to_column: float) -> void:
 	_sim.set_heat_split(_heat_split)
 
 
-## The Thermal Station's status lines: the split (the crew's setting), where
-## the heat is going, the hull against the Medium and the temperature it can
-## bear, and the hull's integrity and how fast it is creeping. It calls with
-## its light while the simulation warns of heat damage.
+## The Thermal Station's instrument: the hull's temperature on a gauge
+## against what the hull bears, and the heat split drawn as a split.
+func _thermal_instrument() -> Control:
+	var gauge := ThermalGauge.new()
+	gauge.sim = _sim
+	return gauge
+
+
+## The Thermal Station's status lines, under its gauge (which shows the
+## hull's temperature and where the heat is going): its power, and the
+## hull's integrity and how fast it is creeping. It calls with its light
+## while the simulation warns of heat damage.
 func _show_thermal() -> void:
 	var warning := _sim.heat_warning()
 	var creeping := _sim.hull_creep_rate() > 0.0
-	var to_column := roundi(_heat_split * 10.0)
 	var lines := [
 		_power_line(_sim.thermal_request(), _sim.thermal_draw()),
-		["Out [%s|%s] Column" % ["#".repeat(10 - to_column), "#".repeat(to_column)], StationTheme.SELECTED],
-		"Heat %.2f > Column %.2f" % [_sim.heat_produced(), _sim.heat_to_column()],
-		["Hull %.0f K, bears %.0f K  Medium %.0f K" % [_sim.vessel_temperature(),
-			_sim.hull_damage_temperature(), _sim.surroundings_temperature()],
-			StationTheme.WARNING if creeping else StationTheme.CAUTION if warning else StationTheme.NOW],
 		["Integrity %.1f%%  creep %.2f%%/min" % [
 			_sim.hull_integrity() * 100.0, _sim.hull_creep_rate() * PERCENT_PER_MIN],
 			StationTheme.WARNING if creeping else StationTheme.NOW],
@@ -1277,6 +1284,7 @@ func _build_stations() -> void:
 			_bore_station.screen().set_instrument(_bore_instrument())
 		elif station.station_name == "Thermal":
 			_thermal = station
+			_thermal.screen().set_instrument(_thermal_instrument())
 		elif station.station_name == "Navigation":
 			_navigation = station
 			var navigation_displays: Array[Texture2D] = [_scan_display(), _moving_map()]

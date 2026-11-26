@@ -13,7 +13,7 @@ Grilled with the developer on 25 November 2026, getting back on course after rou
 - **Choices from round 2's PRs, accepted:** the Shift dial is a selector and does not disengage the Reactor's autopilot (only R does); the Drive's override holds after the crew walks away, ending on O or on engaging the Drive's autopilot; the Shift match is shown against the window narrowed by Head wear, so what is seen is what is graded;
   the Checklist ticks strictly in order (a step done early is redone, steps left behind show as missed), to be judged in play; the point cloud's camera angle, 90 s fade and 2,000-point cap are judged in the play test, not tuned before it.
   Enter is ignored during the end-of-dive lurch so it cannot skip the outcome screen.
-  *Superseded in part (After the second checkpoint): the Drive's override is replaced by nudges, and the Shift match and window by the Residual and the Band.*
+  *Superseded in part (After the second checkpoint): the Drive's override is reached only by nudges and also ends once back on the Course (14-after-second-checkpoint-as-built.md), and the Shift match and window by the Residual and the Band.*
 - **The play test's bar:** the First dive is finished cold, from the Checklist and explainers alone, surfacing and paid without asking what to do.
   Held loosely: the developer designed the game and is not a true cold player, so being stuck for other reasons is a finding, not a failure.
 - **"Not yet designed" stays parked** until after the second play test, then is ranked by what it shows.
