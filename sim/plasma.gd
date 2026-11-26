@@ -383,6 +383,16 @@ func wobble_wave(wobble: Vector2, seconds: float) -> float:
 	return wobble.y * sin(TAU * wobble.x * (_time + seconds))
 
 
+## Plain sines summed, as a wave on the plasma's clock `seconds` from now:
+## each Vector3(frequency in hertz, amplitude, phase in radians). The
+## spurious sines of the scan's guess of the Wobble ahead (WobbleGuess).
+func sines_wave(sines: Array[Vector3], seconds: float) -> float:
+	var total := 0.0
+	for sine in sines:
+		total += sine.y * sin(TAU * sine.x * (_time + seconds) + sine.z)
+	return total
+
+
 ## A channel's Counter-wave as a wave, `seconds` from now, against `wobble`:
 ## its inverse, with the phase swinging about the Wobble's when the frequency
 ## is off. Summed with wobble_wave() it is the Residual.
