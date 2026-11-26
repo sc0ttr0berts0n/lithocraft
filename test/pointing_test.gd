@@ -164,10 +164,14 @@ func test_a_screens_readings_are_its_lines_top_to_bottom_then_its_display() -> v
 
 		var readings := station.face().readings
 
+		# The first line is the name, with the autopilot's caption beside it.
 		var lines := ["Test", "first", "second"]
 		assert_int(readings.size()).is_equal(lines.size() + (1 if display else 0))
 		for i in lines.size():
-			assert_str(station.reading(i)).is_equal(lines[i])
+			if i == 0:
+				assert_str(station.reading(i)).starts_with(lines[i])
+			else:
+				assert_str(station.reading(i)).is_equal(lines[i])
 			assert_bool(station.is_display(i)).is_false()
 			if i > 0:
 				assert_float(readings[i].end.y).is_less_equal(readings[i - 1].position.y + 0.0001)
