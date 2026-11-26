@@ -58,6 +58,20 @@ const _STEER_HEAT := 0.5
 ## The path the Column was cut along is remembered as points at least this
 ## far apart (straight runs are merged into one piece). Metres.
 const _PATH_SAMPLE_M := 0.5
+## The projected path (projected_path()): its points lie no more than this far
+## apart along a turn, metres, and no more than this long apart in time,
+## seconds, so a crawling vessel's slow build of steering is still followed;
+## how far the straight stretch beyond the turn reaches, metres; and the most
+## path a turn is followed for, metres, so a Drive barely steering does not
+## project for ever. Tuned for play (ADR 0001).
+const _PROJECTION_SAMPLE_M := 5.0
+const _PROJECTION_STEP_S := 1.0
+const _PROJECTION_STRAIGHT_M := 250.0
+const _PROJECTION_TURN_M := 4000.0
+## The turn is over, for the projection, once the Head points within this
+## many degrees of what the Drive steers for: the steering eases off as it
+## nears, so the last of a turn is all but straight.
+const _PROJECTION_SETTLED_DEG := 0.05
 
 ## Upload priorities for set_upload_priority(): which waiting survey stretch
 ## goes up the link next.
@@ -308,6 +322,9 @@ var _drive_request := 0.0
 var _thermal_request := 0.0
 var _navigation_request := 0.0
 var _drive_draw := 0.0
+## What the Reactor had left for the Drive in the last step, once Navigation
+## and Thermal were served: the most the Drive could have drawn.
+var _drive_supply := 0.0
 var _thermal_draw := 0.0
 var _navigation_draw := 0.0
 ## The Head's plasma and the Shift, and the Head's wear (sim/plasma.gd).
@@ -1026,10 +1043,9 @@ func _step(dt: float) -> void:
 	var power := _drive_draw / (1.0 + _STEER_HEAT * _steering)
 	var medium := _layout.medium_at(depth())
 	# The grip waves can only push as hard as the wall holds; the rest slips.
-	var grip := medium.strength * _GRIP_PER_STRENGTH
-	var gripped_power := minf(power, grip)
+	var gripped_power := _gripped(power, medium)
 	_slip = 0.0 if power <= 0.0 else (power - gripped_power) / power
-	_speed = _FULL_POWER_SPEED * gripped_power / medium.hardness
+	_speed = _speed_on(gripped_power, medium)
 	# Every system that draws power makes heat: the Drive (power lost to slip
 	# included; less while the Head idles; more while it steers), Thermal and
 	# Navigation. A poor Shift's grinding adds a spike.
@@ -1056,6 +1072,28 @@ func _step(dt: float) -> void:
 	if _surfaced or dead():
 		return  # Brought home through the open tunnel, or the hull failed.
 	_update_calls()
+
+
+## The share of this much pushing power the grip waves can put into this
+## Medium's wall: no more than the wall holds.
+static func _gripped(power: float, medium: Medium) -> float:
+	return minf(power, medium.strength * _GRIP_PER_STRENGTH)
+
+
+## Metres per second through this Medium on this much gripped power.
+static func _speed_on(gripped_power: float, medium: Medium) -> float:
+	return _FULL_POWER_SPEED * gripped_power / medium.hardness
+
+
+## The speed the vessel would make in the Medium it is in, steering this hard,
+## with the Drive's power setting and the Reactor's supply as they were in the
+## last step: steering harder takes a larger share of a short supply for
+## heat, leaving less to push with. What the projected path is run at.
+func _speed_while_steering(steering: float) -> float:
+	var asked := _power * _head_activity
+	var power := minf(asked, _drive_supply / (1.0 + _STEER_HEAT * steering))
+	var medium := _layout.medium_at(depth())
+	return _speed_on(_gripped(power, medium), medium)
 
 
 ## What follows the Head having moved `travelled` metres along the path from
@@ -1463,6 +1501,65 @@ func remembered_path() -> PackedVector2Array:
 ## diving, along -Z travelling level at heading 0.
 func heading() -> Vector3:
 	return _direction
+
+
+## Navigation: the path the Lithocraft will follow from here if nothing
+## changes, as points in the world frame (as head_position(): metres from
+## where the dive began, +Y up), joined by straight pieces. The first is the
+## Head's place now; the rest run through the turn toward what the Drive
+## steers for (the Course, or its override), each no more than a few metres
+## of path from the last, and end with one straight stretch beyond the turn.
+## It is the turning rule itself run forward at the vessel's present speed
+## (in the Medium it is in, on the power the Drive has now), with the Drive's
+## steering effort and what it steers for held as they are: it knows nothing
+## of the rock ahead, so a change of Medium, power or setting bends the real
+## path away from it. A climb is projected no further than the surface, and a
+## turn too wide to finish is cut short without its straight stretch. Only
+## the Head's place while the vessel is not moving, or the dive is over.
+func projected_path() -> PackedVector3Array:
+	var path := PackedVector3Array([_position])
+	if _speed <= 0.0 or stranded() or _surfaced or dead():
+		return path
+	var wanted := _wanted_direction()
+	var effort := _effective_steering_effort()
+	var settled := deg_to_rad(_PROJECTION_SETTLED_DEG)
+	var helm: Array = [_position, _direction, _bearing, _steering]
+	var since_point := 0.0
+	var length := 0.0
+	while (helm[1] as Vector3).angle_to(wanted) > settled and length < _PROJECTION_TURN_M:
+		var speed := _speed_while_steering(helm[3])
+		if speed <= 0.0:
+			break
+		var dt := minf(_PROJECTION_SAMPLE_M / speed, _PROJECTION_STEP_S)
+		var before: Vector3 = helm[0]
+		helm = _turned(helm[0], helm[1], helm[2], helm[3], wanted, effort, speed, dt)
+		length += speed * dt
+		since_point += speed * dt
+		if _surfaces_between(before, helm[0]):
+			path.append(_at_the_surface(before, helm[0]))
+			return path
+		if since_point >= _PROJECTION_SAMPLE_M:
+			since_point = 0.0
+			path.append(helm[0])
+	var from: Vector3 = helm[0]
+	if since_point > 0.0:
+		path.append(from)
+	if (helm[1] as Vector3).angle_to(wanted) > settled:
+		return path
+	var end := from + wanted * _PROJECTION_STRAIGHT_M
+	path.append(_at_the_surface(from, end) if _surfaces_between(from, end) else end)
+	return path
+
+
+## True when the straight piece from one place to another comes up through
+## the surface.
+static func _surfaces_between(from: Vector3, to: Vector3) -> bool:
+	return from.y < 0.0 and to.y >= 0.0
+
+
+## Where the straight piece from one place to another meets the surface.
+static func _at_the_surface(from: Vector3, to: Vector3) -> Vector3:
+	return from.lerp(to, -from.y / (to.y - from.y))
 
 
 ## The Bore Station's survey so far: one SurveyStretch per completed stretch of
@@ -1973,48 +2070,75 @@ static func _direction_of(heading_degrees: float, pitch_degrees: float) -> Vecto
 
 
 ## Turns the Head toward the Course (or the Drive's override) for dt seconds at
-## this speed, and moves it along the arc. The steering builds toward what the
-## remaining turn needs, no harder than the Drive's effort, at a limited rate,
-## and the path bends by at most speed / minimum radius radians per second, so
-## a stopped vessel cannot turn and none turns tighter than its minimum arc. The Head only ever moves the way it points.
+## this speed, and moves it along the arc: one step of the turning rule
+## (_turned()), from where the Head is now.
 func _steer(speed: float, dt: float) -> void:
-	var wanted := _wanted_direction()
-	var remaining := _direction.angle_to(wanted)
-	var effort := minf(_steering_effort, _AUTOPILOT_STEERING_EFFORT) \
-			if autopilot(STATION_DRIVE) else _steering_effort
+	var helm := _turned(_position, _direction, _bearing, _steering, _wanted_direction(),
+			_effective_steering_effort(), speed, dt)
+	_position = helm[0]
+	_direction = helm[1]
+	_bearing = helm[2]
+	_steering = helm[3]
+
+
+## The hardest the Head steers now: the Drive's effort, or the gentle share of
+## it the Drive's autopilot keeps to.
+func _effective_steering_effort() -> float:
+	return minf(_steering_effort, _AUTOPILOT_STEERING_EFFORT) 			if autopilot(STATION_DRIVE) else _steering_effort
+
+
+## The turning rule, the one both a step (_steer()) and the projected path
+## (projected_path()) run: a Head at `position` pointing along `direction`
+## (last compass `bearing`, degrees), steering this hard, turns toward `wanted`
+## for dt seconds at this speed and moves along the arc. Returns [position,
+## direction, bearing, steering] afterwards. The steering builds toward what
+## the remaining turn needs, no harder than `effort`, at a limited rate, and
+## the path bends by at most speed / minimum radius radians per second, so a
+## stopped vessel cannot turn and none turns tighter than its minimum arc. The
+## Head only ever moves the way it points.
+static func _turned(position: Vector3, direction: Vector3, bearing: float, steering: float,
+		wanted: Vector3, effort: float, speed: float, dt: float) -> Array:
+	var remaining := direction.angle_to(wanted)
 	var needed := clampf(rad_to_deg(remaining) / _STEER_EASE_DEG, 0.0, effort)
-	_steering = move_toward(_steering, needed, _STEER_RESPONSE * dt)
-	var turn := minf(remaining, _steering * speed / _MIN_TURN_RADIUS_M * dt)
-	var before := _direction
+	# The path bends by the steering's mean over the step (it builds at its
+	# limited rate, then holds), so a long step and many short ones cut the
+	# same arc.
+	var building := minf(absf(needed - steering) / _STEER_RESPONSE, dt)
+	var built := move_toward(steering, needed, _STEER_RESPONSE * dt)
+	var mean := built if dt <= 0.0 else built - (built - steering) * building / (2.0 * dt)
+	steering = built
+	var turn := minf(remaining, mean * speed / _MIN_TURN_RADIUS_M * dt)
+	var before := direction
 	if turn > 0.0:
 		if turn >= remaining:
-			_direction = wanted
+			direction = wanted
 		else:
-			_direction = _direction.rotated(_turn_axis(wanted), turn).normalized()
+			direction = direction.rotated(_turn_axis(direction, wanted, bearing), turn).normalized()
 	# Along the arc: the chord points halfway between the two directions and
 	# is a little shorter than the arc.
 	var travelled := speed * dt
 	if turn > 1e-9:
 		var chord := 2.0 * sin(turn / 2.0) / turn
-		_position += (before + _direction).normalized() * travelled * chord
+		position += (before + direction).normalized() * travelled * chord
 	else:
-		_position += _direction * travelled
-	if Vector2(_direction.x, _direction.z).length() > 1e-4:
-		_bearing = fposmod(rad_to_deg(atan2(_direction.x, -_direction.z)), 360.0)
+		position += direction * travelled
+	if Vector2(direction.x, direction.z).length() > 1e-4:
+		bearing = fposmod(rad_to_deg(atan2(direction.x, -direction.z)), 360.0)
+	return [position, direction, bearing, steering]
 
 
-## The axis to turn about to bring the Head round toward wanted. A straight
-## about-turn goes round sideways when the Head is not vertical, and over the
-## bearing when it points straight up or down.
-func _turn_axis(wanted: Vector3) -> Vector3:
-	var axis := _direction.cross(wanted)
+## The axis to turn about to bring a Head pointing along `direction` round
+## toward wanted. A straight about-turn goes round sideways when the Head is
+## not vertical, and over the bearing when it points straight up or down.
+static func _turn_axis(direction: Vector3, wanted: Vector3, bearing: float) -> Vector3:
+	var axis := direction.cross(wanted)
 	if axis.length() > 1e-6:
 		return axis.normalized()
-	var sideways := Vector3.UP - _direction * _direction.dot(Vector3.UP)
+	var sideways := Vector3.UP - direction * direction.dot(Vector3.UP)
 	if sideways.length() > 1e-4:
 		return sideways.normalized()
-	var h := deg_to_rad(_bearing)
-	return Vector3(cos(h), 0.0, sin(h)) * signf(-_direction.y)
+	var h := deg_to_rad(bearing)
+	return Vector3(cos(h), 0.0, sin(h)) * signf(-direction.y)
 
 
 ## Adds the Head's place to the remembered path, merging short or straight
@@ -2072,6 +2196,7 @@ func _share_power() -> void:
 	left -= _navigation_draw
 	_thermal_draw = minf(_thermal_request, left)
 	left -= _thermal_draw
+	_drive_supply = left
 	_drive_draw = minf(_drive_request, left)
 
 
