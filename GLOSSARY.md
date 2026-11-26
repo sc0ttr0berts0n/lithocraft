@@ -84,6 +84,10 @@ _Avoid_: Silent running, scan mode
 The heading and pitch Navigation plots for the Lithocraft to follow; the Drive steers toward it.
 _Avoid_: Route, waypoint, path, heading (for the plotted target)
 
+**Projected path**:
+Where the Lithocraft goes from here if nothing changes: through its turn toward what the Drive steers for, then straight on; Navigation draws it.
+_Avoid_: Trend, trajectory, prediction, flight plan (a dive plan of legs is a later idea)
+
 **Emergency store**:
 The one store of energy the Lithocraft falls back on once the Head's plasma is lost; the link, a relight and cooling all draw on it.
 _Avoid_: Battery, backup, reserve

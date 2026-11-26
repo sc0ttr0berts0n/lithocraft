@@ -10,7 +10,8 @@
 ## sure, moving with the cloud and fading as their points do; head_position(),
 ## heading() and heading_degrees() for the vessel;
 ## course_direction() for the Course Navigation has plotted, drawn as a dashed
-## line out ahead among the points. The cloud is drawn in world metres and
+## line out ahead among the points; projected_path() for where this turn takes
+## the vessel, a solid line through the points in the same cyan. The cloud is drawn in world metres and
 ## shifted by the Head's position each frame, so the points stream toward the
 ## marker at exactly the simulation's speed. Points fade with age; their
 ## places are rebuilt only when a pulse changes the cloud.
@@ -46,6 +47,12 @@ const COURSE_M := 300.0
 const COURSE_DASH_M := 12.0
 const COURSE_COLOUR := Color(0.3, 0.85, 1.0)
 const VESSEL_COLOUR := Color(1.0, 0.8, 0.3)
+## The projected path, here and on the moving map: cyan, as what the crew has
+## selected is. The one place it is named, for the shared Theme to take over.
+const PROJECTED_PATH_COLOUR := COURSE_COLOUR
+## The projected path is worked out afresh every this many frames: it changes
+## slowly, and running the turn forward is not free.
+const PROJECTED_PATH_FRAMES := 6
 
 var sim: DiveSimulation
 
@@ -60,6 +67,8 @@ var _patches: Array[BoundaryPatch] = []
 var _vessel := Node3D.new()
 var _heading := MeshInstance3D.new()
 var _course := MeshInstance3D.new()
+var _projected := MeshInstance3D.new()
+var _frames_to_projection := 0
 var _camera := Camera3D.new()
 
 
@@ -116,6 +125,8 @@ func _ready() -> void:
 	_vessel.add_child(_heading)
 	_course.material_override = _line_material(COURSE_COLOUR)
 	_vessel.add_child(_course)
+	_projected.material_override = _line_material(PROJECTED_PATH_COLOUR)
+	_vessel.add_child(_projected)
 	var plumb := MeshInstance3D.new()
 	plumb.mesh = _plumb_line()
 	plumb.material_override = _line_material(Color(0.4, 0.5, 0.6, 0.6))
@@ -130,6 +141,10 @@ func _process(_delta: float) -> void:
 	_cloud.position = -sim.head_position()
 	_heading.mesh = _line_to(sim.heading() * 60.0)
 	_course.mesh = _dashes_to(sim.course_direction() * COURSE_M)
+	_frames_to_projection -= 1
+	if _frames_to_projection <= 0:
+		_frames_to_projection = PROJECTED_PATH_FRAMES
+		_projected.mesh = _line_through(sim.projected_path(), sim.head_position())
 	if sim.pulses_sent() != _pulses_shown:
 		_pulses_shown = sim.pulses_sent()
 		_place_points(sim.points())
@@ -198,6 +213,19 @@ static func _line_to(end: Vector3) -> ImmediateMesh:
 	mesh.surface_begin(Mesh.PRIMITIVE_LINES)
 	mesh.surface_add_vertex(Vector3.ZERO)
 	mesh.surface_add_vertex(end)
+	mesh.surface_end()
+	return mesh
+
+
+## A line through these world places, drawn about `origin` (the Head, which
+## the display keeps at its centre). Nothing for fewer than two.
+static func _line_through(places: PackedVector3Array, origin: Vector3) -> ImmediateMesh:
+	var mesh := ImmediateMesh.new()
+	if places.size() < 2:
+		return mesh
+	mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
+	for place in places:
+		mesh.surface_add_vertex(place - origin)
 	mesh.surface_end()
 	return mesh
 

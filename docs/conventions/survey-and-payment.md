@@ -20,3 +20,6 @@ Heat and shuttering's cost is `pristine_value() - value()`.
 
 **New minerals.**
 Add the mineral to `ColumnLook.MINERAL_COLOURS` (its look in the Bore) and to `SurveyStretch._MINERAL_WORTH` (its worth; defaults to 1).
+
+**New features of interest.**
+Add the kind's maker to `ColumnFeature` (kind, size, worth), place it in a layout with `with_features()`, and give it a look in `FeatureLook.LOOKS` (see `view.md`).

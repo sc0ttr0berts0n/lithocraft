@@ -16,9 +16,14 @@ const HABITAT_SCENE := "res://view/habitat.tscn"
 ## The Habitat's step while staging: the game's own physics step.
 const STEP := 1.0 / 60.0
 ## Looks that are not a Station: the crew's own view from where the dive
-## starts them, and into the Bore from outside the glass.
-const LOOK_CREW := &"crew"
-const LOOK_BORE := &"bore"
+## starts them, into the Bore from outside the glass, and the Column as the
+## crew see it turning round from the Bore Station's screen. Never one of the
+## simulation's names for a Station (the Bore Station's is &"bore").
+const LOOK_CREW := &"view:crew"
+const LOOK_BORE := &"view:bore"
+const LOOK_COLUMN := &"view:column"
+## Those looks by the name --look takes.
+const VIEWS := {"bore": LOOK_BORE, "column": LOOK_COLUMN, "crew": LOOK_CREW}
 ## Where the Bore is seen from (Habitat frame): by the outer wall at mid
 ## length, at this angle round the ring from the first Station place, which
 ## is midway between two places. It looks straight across at the Column with
@@ -32,7 +37,8 @@ var error := ""
 var scenario: Scenario = null
 ## The dive time the shot is taken at, seconds.
 var time := 0.0
-## LOOK_CREW, LOOK_BORE, or the simulation's name of the Station looked at.
+## LOOK_CREW, LOOK_BORE, LOOK_COLUMN, or the simulation's name of the Station
+## looked at.
 var look := &""
 ## The commands to send, in the order they are sent: each {at = dive time,
 ## method = a DiveSimulation method, arguments = its arguments}.
@@ -113,7 +119,9 @@ func make_habitat() -> Node3D:
 func stage(habitat: Node3D) -> String:
 	habitat.set_physics_process(false)
 	var sim: DiveSimulation = habitat.simulation()
-	if look != LOOK_CREW and look != LOOK_BORE:
+	if look == LOOK_COLUMN:
+		habitat.seat_at(DiveSimulation.STATION_BORE)
+	elif not look in VIEWS.values():
 		habitat.seat_at(look)
 	var after_the_end := 0.0
 	var sent := 0
@@ -144,9 +152,19 @@ func _send(sim: DiveSimulation, command: Dictionary) -> String:
 
 
 ## Sets the view on what the plan looks at. Seated, the crew's own eyes
-## already do; the Bore gets a camera of its own.
+## already do; the Bore gets a camera of its own, and the Column one where
+## the crew's eyes are at the Bore Station, turned from the screen to look
+## square at the Bore's axis, up still the crew's up.
 func _frame(habitat: Node3D) -> void:
 	habitat.get_node("Overlay").visible = overlay
+	if look == LOOK_COLUMN:
+		var eyes := habitat.get_viewport().get_camera_3d()
+		var eye := eyes.global_position
+		var turned := Camera3D.new()
+		turned.fov = eyes.fov
+		habitat.add_child(turned)
+		turned.look_at_from_position(eye, Vector3(0.0, 0.0, eye.z), eyes.global_basis.y)
+		turned.make_current()
 	if look == LOOK_BORE:
 		var camera := Camera3D.new()
 		camera.fov = 80.0
@@ -233,17 +251,17 @@ static func _look_names() -> PackedStringArray:
 	for station in Habitat.STATIONS:
 		if station[2] != &"":
 			names.append(station[0])
-	names.append_array([String(LOOK_BORE), String(LOOK_CREW)])
+	names.append_array(VIEWS.keys())
 	return names
 
 
-## The look of this name: a Station by the name on its screen, LOOK_BORE or
-## LOOK_CREW; &"" for none.
+## The look of this name: a Station by the name on its screen, or one of
+## VIEWS; &"" for none.
 static func _look_named(name: String) -> StringName:
 	for station in Habitat.STATIONS:
 		if station[2] != &"" and _plain(station[0]) == _plain(name):
 			return station[2]
-	for other in [LOOK_BORE, LOOK_CREW]:
-		if _plain(other) == _plain(name):
-			return other
+	for view in VIEWS:
+		if _plain(view) == _plain(name):
+			return VIEWS[view]
 	return &""

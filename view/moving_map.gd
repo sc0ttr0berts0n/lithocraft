@@ -1,7 +1,8 @@
 ## Navigation's moving map, beside the point cloud: a side-on cross-section
 ## of the whole dive, depth down the screen against distance across it, at
 ## one scale both ways so the path's shape is true. It shows the surface, the
-## path behind (the remembered path, a perfect record), the Course ahead, the
+## path behind (the remembered path, a perfect record), the projected path
+## ahead (where this turn takes the vessel, solid), the Course (dashed), the
 ## Inferred Boundaries (fitted to the point cloud alone; never the layout)
 ## and the Orders' target depth. Drawn in 2D inside this SubViewport
 ## so a Station screen can show it as a texture.
@@ -12,7 +13,7 @@
 ## Head its corners lie along the heading now.
 ##
 ## Reads only the simulation: remembered_path(), head_position(), heading(),
-## heading_degrees(), course_direction(), target_depth() and
+## heading_degrees(), projected_path(), course_direction(), target_depth() and
 ## inferred_boundaries().
 class_name MovingMap
 extends SubViewport
@@ -84,6 +85,22 @@ static func profile(path: PackedVector2Array) -> PackedVector2Array:
 	return out
 
 
+## The projected path (world places, the Head's first) as the map draws it:
+## each as (metres across, depth), unrolled onward from the Head's place
+## across (head_across) by each piece's run over the ground, as profile()
+## unrolls the path behind.
+static func ahead(projected: PackedVector3Array, head_across: float) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	out.resize(projected.size())
+	var across := head_across
+	for i in projected.size():
+		if i > 0:
+			var piece := projected[i] - projected[i - 1]
+			across += Vector2(piece.x, piece.z).length()
+		out[i] = Vector2(across, -projected[i].y)
+	return out
+
+
 ## Where a world position lies across the map: the Head's place across
 ## (head_across) plus how far ahead of the Head it lies along the compass
 ## heading (degrees, 0 along -Z, 90 along +X).
@@ -137,13 +154,17 @@ func _draw_map() -> void:
 	for patch in patches:
 		sides.append(side_on(patch, sim.head_position(), head_across, sim.heading_degrees()))
 	var target := sim.target_depth()
+	var projected := ahead(sim.projected_path(), head_across)
 
-	# Fit the whole dive: the path, the Boundaries heard (some lie behind
-	# where it began), the target.
+	# Fit the whole dive: the path, where this turn takes it, the Boundaries
+	# heard (some lie behind where it began), the target.
 	var deepest := 0.0
 	var leftmost := 0.0
 	var widest := 0.0
 	for p in path:
+		deepest = maxf(deepest, p.y)
+		widest = maxf(widest, p.x)
+	for p in projected:
 		deepest = maxf(deepest, p.y)
 		widest = maxf(widest, p.x)
 	for side in sides:
@@ -187,6 +208,12 @@ func _draw_map() -> void:
 		_canvas.draw_polyline(drawn, ScanDisplay.VESSEL_COLOUR, 2.0)
 
 	var vessel: Vector2 = drawn[drawn.size() - 1]
+	# Where this turn takes it: solid, beside the Course's dashes.
+	var coming := PackedVector2Array()
+	for p in projected:
+		coming.append(at.call(p.x, p.y))
+	if coming.size() > 1:
+		_canvas.draw_polyline(coming, ScanDisplay.PROJECTED_PATH_COLOUR, 2.0)
 	_dashes(vessel, _to_edge(vessel, _side_on(sim.course_direction()), area), ScanDisplay.COURSE_COLOUR)
 	var facing := _side_on(sim.heading())
 	var side := Vector2(-facing.y, facing.x)

@@ -66,6 +66,12 @@ func with_features(features: Array) -> MediumLayout:
 	return self
 
 
+## Every feature template in the layout, each as [depth_m, ColumnFeature],
+## shallowest first.
+func features() -> Array:
+	return _features.duplicate()
+
+
 ## The feature templates lying between two depths (either order), each as
 ## [depth_m, ColumnFeature]. A feature exactly at a depth counts once: it lies
 ## between a and b when it is past a and up to b.
