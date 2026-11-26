@@ -30,6 +30,15 @@ func _at_rest() -> DiveSimulation:
 	return DiveSimulation.new(MediumLayout.uniform(DiveTestKit.rock()))
 
 
+## A dive long at rest, its Head worn to `wear` first (0: fresh), the hull
+## settled at the temperature it idles at: two of them differ only in wear.
+func _long_at_rest(wear := 0.0) -> DiveSimulation:
+	var sim := _at_rest()
+	if wear > 0.0:
+		DiveTestKit.wear_head_gently(sim, wear)
+	return DiveTestKit.run(sim, 5000.0, 10.0)
+
+
 ## ACTIVE's Counter-wave set to the Wobble's with its frequency times
 ## `frequency` and its amplitude times `amplitude`.
 func _detune(sim: DiveSimulation, frequency: float, amplitude := 1.0) -> void:
@@ -278,14 +287,14 @@ func _gently_under_way() -> DiveSimulation:
 
 
 func test_the_band_is_narrower_on_a_worn_head_than_a_fresh_one() -> void:
-	var fresh := _at_rest()
-	var worn := _at_rest()
-	DiveTestKit.wear_head_gently(worn, 0.5)
-	fresh.advance(0.1)
-	worn.advance(0.1)
+	var fresh := _long_at_rest()
+	var worn := _long_at_rest(0.5)
 
+	assert_float(worn.vessel_temperature()).is_equal_approx(fresh.vessel_temperature(), 0.01)
 	assert_float(worn.band()).is_greater(0.0)
-	assert_float(worn.band()).is_less(fresh.band())
+	# Clearly narrower: by far more than a trace of warmth left over from the
+	# wearing could explain.
+	assert_float(worn.band()).is_less(fresh.band() * 0.99)
 
 
 func test_the_band_is_narrower_hot_than_cool_and_widens_again_as_the_hull_cools() -> void:
@@ -326,10 +335,8 @@ func test_the_same_residual_wears_a_hot_head_when_it_spares_a_cool_one() -> void
 
 
 func test_the_same_residual_wears_a_worn_head_when_it_spares_a_fresh_one() -> void:
-	var fresh := _at_rest()
-	var worn := _at_rest()
-	DiveTestKit.wear_head_gently(worn, 0.5)
-	fresh.advance(0.1)
+	var fresh := _long_at_rest()
+	var worn := _long_at_rest(0.5)
 	var between := (fresh.band() + worn.band()) / 2.0
 	var worn_before := worn.head_wear()
 	for sim in [fresh, worn]:
@@ -364,9 +371,7 @@ func test_a_steady_plasma_reports_no_cause() -> void:
 
 
 func test_a_worn_head_alone_is_reported_as_worn() -> void:
-	var sim := _at_rest()
-	DiveTestKit.wear_head_gently(sim, 0.5)
-	DiveTestKit.run(sim, 600.0)  # At rest, the hull as cool as the rock.
+	var sim := _long_at_rest(0.5)
 
 	assert_float(sim.plasma_stability()).is_less(1.0)
 	assert_array(sim.steadiness_causes()).is_equal([DiveSimulation.CAUSE_WORN])
@@ -395,8 +400,9 @@ func test_a_hot_hull_is_reported_once_its_narrowed_band_tells() -> void:
 
 
 func test_every_cause_at_once_is_reported_one_by_one() -> void:
-	var sim := _hot_or_cool(1.0)
-	sim.debug_wear_head(0.5)
+	var sim := _hot_or_cool(0.0)
+	DiveTestKit.wear_head_gently(sim, 0.5)
+	sim.set_power(1.0)
 	DiveTestKit.run(sim, 400.0)
 	_detune(sim, 1.2)
 	DiveTestKit.run(sim, 1.0, 0.1)
@@ -489,11 +495,13 @@ func test_the_reactors_autopilot_wears_the_head_less_than_leaving_it_and_more_th
 
 func test_engaging_the_reactors_autopilot_never_changes_head_wear_in_that_step() -> void:
 	# Engaged late, the Residual long outside the Band, on a fresh Head and
-	# a badly worn one: the step it is engaged in wears no more than the
+	# a worn one: the step it is engaged in wears no more than the
 	# steps before it did.
 	for wear in [0.0, 0.3]:
 		var sim := _one_boundary()
-		sim.debug_wear_head(wear)
+		sim.set_power(0.0)
+		DiveTestKit.wear_head_gently(sim, wear)
+		sim.set_power(0.5)
 		DiveTestKit.run_until(sim, &"boundary_crossed")
 		DiveTestKit.run(sim, 10.0, 0.1)
 		var most := 0.0
