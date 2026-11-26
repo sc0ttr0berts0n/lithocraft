@@ -131,6 +131,20 @@ func test_a_station_is_seen_through_the_crews_eyes_and_the_bore_from_outside_it(
 	assert_float((-bore_camera.global_basis.z).dot(to_axis)).is_greater(0.999)
 
 
+## The Bore Station's name in the simulation is &"bore", which is also what
+## --look calls the Bore: the two are different looks.
+func test_the_bore_station_is_seen_seated_at_it_not_as_the_bore() -> void:
+	var seated := _staged(["--look", "Bore Station", "--time", "1"])
+	var camera := seated.get_viewport().get_camera_3d()
+
+	assert_bool(seated.simulation().attended(DiveSimulation.STATION_BORE)).is_true()
+	assert_float(camera.global_position.distance_to(DiveTestKit.station_pivot("Bore Station"))).is_less(1.5)
+	seated.free()
+	var bore := _staged(["--look", "bore", "--time", "1"])
+	assert_bool(bore.simulation().attended(DiveSimulation.STATION_BORE)).is_false()
+	assert_array(Array(ShotPlan._look_names())).contains(["bore", "crew"])
+
+
 func test_arguments_that_make_no_shot_say_why() -> void:
 	var shot := ["--look", "Drive", "--time", "5"]
 	for wrong in [

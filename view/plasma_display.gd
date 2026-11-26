@@ -3,21 +3,23 @@
 ##
 ## The Shift dial's two channels, like an airliner radio's active and standby
 ## frequencies, each a lane of a few seconds of wave scrolling right to left:
-##   ACTIVE  - the wobble the load excites now (Reactor hue) with the opposing
-##             wave the Reactor is tuned to drive (white), and faint, what the
+##   ACTIVE  - the wobble the load excites now (white: what is happening) with
+##             the opposing wave the Reactor is tuned to drive (cyan: what the
+##             crew has selected), and faint, what the
 ##             plasma does: flat when tuned, beating once a Boundary changes
 ##             the load. MATCH: the active tuning against the wobble now
 ##             (DiveSimulation.shift_match()).
-##   STANDBY - the staged tuning (white) against the wobble expected in the
+##   STANDBY - the staged tuning (cyan) against the wobble expected in the
 ##             Medium ahead (DiveSimulation.wobble_ahead()), and its MATCH
 ##             (DiveSimulation.standby_match()), once the Boundary-approaching
 ##             call comes; before it, the standby wave alone and MATCH "—".
 ##             Pretune it until the two lie on each other, then swap it in
 ##             (the Shift) as the Head crosses.
-## Along the bottom, the window for the Shift: a bar that shrinks while it is
-## open and turns red once it has closed. Its full width is a fresh Head's
-## window; what a worn Head has lost of it is struck through in red at the
-## right end, so the narrower window shows before a Shift is ever due.
+## Along the bottom, the window for the Shift: green and "steady" while none
+## is due, an amber bar that shrinks while it is open, SHIFT LATE once it has
+## closed. Its full width is a fresh Head's window; what a worn Head has lost
+## of it is struck through in amber at the right end, so the narrower window
+## shows before a Shift is ever due. Colours are StationTheme's.
 ##
 ## Reads only the simulation.
 class_name PlasmaDisplay
@@ -25,12 +27,15 @@ extends SubViewport
 
 ## Seconds of wave across the display.
 const SPAN_S := 3.0
-const BACKGROUND := Color(0.03, 0.02, 0.02)
-const COUNTER := Color(0.95, 0.95, 0.95)
-const LATE := Color(1.0, 0.2, 0.15)
+const BACKGROUND := StationTheme.SCREEN_COLOUR
+## The wobble: what is happening now. The tuning's opposing wave: what the
+## crew has selected. A late Shift and a worn Head's lost window: cautions.
+const WOBBLE := StationTheme.NOW_COLOUR
+const COUNTER := StationTheme.SELECTED_COLOUR
+const LATE := StationTheme.CAUTION_COLOUR
+const LEGEND := StationTheme.LEGEND_COLOUR
 
 var sim: DiveSimulation
-var hue := Color("ff7a45")
 
 var _canvas := _Canvas.new()
 
@@ -74,14 +79,13 @@ class _Canvas extends Control:
 		var top := Rect2(0.0, 0.0, w, lane)
 		var bottom := Rect2(0.0, lane, w, lane)
 		var load_hz := sim.plasma_frequency()
-		var hue := display.hue
 		if sim.plasma_lost():
 			draw_string(font, Vector2(16, h * 0.5), "PLASMA LOST", HORIZONTAL_ALIGNMENT_LEFT,
-					-1, 48, PlasmaDisplay.LATE)
+					-1, 48, StationTheme.WARNING_COLOUR)
 			return
 		_lane(top, "ACTIVE", load_hz, sim.plasma_tuning(), sim.shift_match(sim.plasma_tuning()))
 		_lane(bottom, "STANDBY", sim.wobble_ahead(), sim.standby_tuning(), sim.standby_match())
-		draw_line(Vector2(0, lane), Vector2(w, lane), Color(1, 1, 1, 0.15), 1.0)
+		draw_line(Vector2(0, lane), Vector2(w, lane), StationTheme.RULE_COLOUR, 1.0)
 		# The window for the Shift.
 		var bar := Rect2(8.0, h * 0.78, w - 16.0, h * 0.14)
 		_window_full = maxf(_window_full, sim.shift_window_length())
@@ -89,7 +93,7 @@ class _Canvas extends Control:
 		if kept < 0.999:
 			var worn := Rect2(bar.position + Vector2(bar.size.x * kept, 0.0),
 					Vector2(bar.size.x * (1.0 - kept), bar.size.y))
-			draw_rect(worn, Color(PlasmaDisplay.LATE, 0.25))
+			draw_rect(worn, StationTheme.faded(PlasmaDisplay.LATE, 0.25))
 			draw_line(worn.position, worn.end, PlasmaDisplay.LATE, 2.0)
 			draw_line(worn.position + Vector2(0, worn.size.y), worn.position + Vector2(worn.size.x, 0),
 					PlasmaDisplay.LATE, 2.0)
@@ -100,7 +104,7 @@ class _Canvas extends Control:
 			var left := sim.shift_window()
 			if left > 0.0:
 				draw_rect(Rect2(bar.position, Vector2(bar.size.x * left / sim.shift_window_length(),
-						bar.size.y)), hue)
+						bar.size.y)), PlasmaDisplay.LATE)
 				draw_string(font, bar.position + Vector2(4, bar.size.y - 6), "SHIFT  %.1f s" % left,
 						HORIZONTAL_ALIGNMENT_LEFT, -1, 24, PlasmaDisplay.BACKGROUND)
 			else:
@@ -108,35 +112,34 @@ class _Canvas extends Control:
 				draw_string(font, bar.position + Vector2(4, bar.size.y - 6), "SHIFT LATE",
 						HORIZONTAL_ALIGNMENT_LEFT, -1, 24, PlasmaDisplay.BACKGROUND)
 		else:
-			draw_rect(bar, Color(hue, 0.35), false, 2.0)
+			draw_rect(bar, StationTheme.faded(StationTheme.ENGAGED_COLOUR, 0.5), false, 2.0)
 			draw_string(font, bar.position + Vector2(4, bar.size.y - 6), "steady",
-					HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(hue, 0.6))
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 24, StationTheme.ENGAGED_COLOUR)
 
 	## One channel's lane: the wobble at `wobble_hz` (NAN for none known: the
 	## tuning's wave alone) with the opposing wave at `tuning_hz` over it,
 	## faint under them what the plasma would do, and the channel's `matched`
 	## at the right ("—" for NAN).
 	func _lane(lane: Rect2, title: String, wobble_hz: float, tuning_hz: float, matched: float) -> void:
-		var hue := display.hue
 		if not is_nan(wobble_hz):
 			_trace(lane, func(t: float) -> float:
 				return 0.5 * (sin(TAU * wobble_hz * t) - sin(TAU * tuning_hz * t)),
-					Color(PlasmaDisplay.COUNTER, 0.25), 2.0)
-			_trace(lane, func(t: float) -> float: return sin(TAU * wobble_hz * t) * 0.8, hue, 3.0)
+					StationTheme.faded(PlasmaDisplay.WOBBLE, 0.25), 2.0)
+			_trace(lane, func(t: float) -> float: return sin(TAU * wobble_hz * t) * 0.8, PlasmaDisplay.WOBBLE, 3.0)
 		_trace(lane, func(t: float) -> float: return sin(TAU * tuning_hz * t) * 0.8,
 				PlasmaDisplay.COUNTER, 2.0)
 		var font := ThemeDB.fallback_font
 		draw_string(font, lane.position + Vector2(8, 26), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 22,
-				PlasmaDisplay.COUNTER)
+				PlasmaDisplay.LEGEND)
 		var meter := Rect2(lane.position + Vector2(lane.size.x - 168.0, 8.0), Vector2(160.0, 22.0))
 		draw_rect(meter, PlasmaDisplay.BACKGROUND)
 		if not is_nan(matched):
 			draw_rect(Rect2(meter.position, Vector2(meter.size.x * matched, meter.size.y)),
-					Color(hue, 0.85))
-		draw_rect(meter, PlasmaDisplay.COUNTER, false, 2.0)
+					StationTheme.faded(PlasmaDisplay.WOBBLE, 0.3))
+		draw_rect(meter, PlasmaDisplay.LEGEND, false, 2.0)
 		draw_string(font, meter.position + Vector2(4, meter.size.y - 4),
 				PlasmaDisplay.match_text(matched), HORIZONTAL_ALIGNMENT_LEFT, -1, 20,
-				PlasmaDisplay.COUNTER)
+				PlasmaDisplay.WOBBLE)
 
 	## Draws wave(t) for t over the last SPAN_S seconds, newest at the right,
 	## scaled from -1..1 to the lane.

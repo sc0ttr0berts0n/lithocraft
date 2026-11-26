@@ -66,7 +66,8 @@ static func _into_bore(eyes: Vector3, direction: Vector3, radius: float) -> floa
 	var o := Vector2(eyes.x, eyes.y)
 	var d := Vector2(direction.x, direction.y)
 	var a := d.length_squared()
-	if a <= 0.0:
+	# A Bore of no width hides nothing, even from a look through its axis.
+	if a <= 0.0 or radius <= 0.0:
 		return INF
 	var b := o.dot(d)
 	var c := o.length_squared() - radius * radius

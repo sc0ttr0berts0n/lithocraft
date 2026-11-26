@@ -26,26 +26,27 @@ const CAMERA_SIDE_DEG := 40.0
 const CAMERA_LEAN_DEG := 20.0
 ## Point size on the screen in pixels.
 const POINT_PX := 4.0
-## Confidence colours: a guess is dim violet, certain is bright cyan-white.
-const DOUBTFUL := Color(0.5, 0.35, 1.0)
-const CERTAIN := Color(0.75, 1.0, 1.0)
+## Confidence colours: what is heard is what is happening now, white; a
+## guess is the legend's grey, on its way to it. StationTheme's colours.
+const DOUBTFUL := StationTheme.LEGEND_COLOUR
+const CERTAIN := StationTheme.NOW_COLOUR
 ## Seconds for a point to fade to about a third of its brightness: an old echo
 ## describes rock the vessel has since moved relative to.
 const FADE_S := 90.0
 ## Inferred Boundary patches: their colour, and how opaque a certain, fresh
 ## one is (never solid, so points behind still show).
-const SURFACE_COLOUR := Color(0.3, 1.0, 0.45)
-const SURFACE_MOST_ALPHA := 0.75
+const SURFACE_COLOUR := StationTheme.NOW_COLOUR
+const SURFACE_MOST_ALPHA := 0.45
 ## A plumb line under the vessel with a tick every this many metres, to read
 ## range by and to show which way is down.
 const TICK_M := 50.0
 const PLUMB_M := 400.0
 ## The Course line: how far out it reaches, metres, its dashes, and its colour
-## (Navigation's own hue, apart from the vessel's amber heading).
+## (cyan: what the crew has selected, apart from the vessel's white heading).
 const COURSE_M := 300.0
 const COURSE_DASH_M := 12.0
-const COURSE_COLOUR := Color(0.3, 0.85, 1.0)
-const VESSEL_COLOUR := Color(1.0, 0.8, 0.3)
+const COURSE_COLOUR := StationTheme.SELECTED_COLOUR
+const VESSEL_COLOUR := StationTheme.NOW_COLOUR
 
 var sim: DiveSimulation
 
@@ -69,7 +70,7 @@ func _ready() -> void:
 
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.01, 0.015, 0.025)
+	environment.background_color = StationTheme.SCREEN_COLOUR
 	_camera.environment = environment
 	_camera.far = 2000.0
 	add_child(_camera)
@@ -112,13 +113,13 @@ func _ready() -> void:
 	hull.mesh = box
 	hull.material_override = _line_material(VESSEL_COLOUR)
 	_vessel.add_child(hull)
-	_heading.material_override = _line_material(Color(VESSEL_COLOUR, 0.8))
+	_heading.material_override = _line_material(StationTheme.faded(VESSEL_COLOUR, 0.8))
 	_vessel.add_child(_heading)
 	_course.material_override = _line_material(COURSE_COLOUR)
 	_vessel.add_child(_course)
 	var plumb := MeshInstance3D.new()
 	plumb.mesh = _plumb_line()
-	plumb.material_override = _line_material(Color(0.4, 0.5, 0.6, 0.6))
+	plumb.material_override = _line_material(StationTheme.RULE_COLOUR)
 	_vessel.add_child(plumb)
 
 

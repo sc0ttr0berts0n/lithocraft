@@ -16,9 +16,12 @@ const HABITAT_SCENE := "res://view/habitat.tscn"
 ## The Habitat's step while staging: the game's own physics step.
 const STEP := 1.0 / 60.0
 ## Looks that are not a Station: the crew's own view from where the dive
-## starts them, and into the Bore from outside the glass.
-const LOOK_CREW := &"crew"
-const LOOK_BORE := &"bore"
+## starts them, and into the Bore from outside the glass. Marked so that
+## neither is ever a Station's name in the simulation (the Bore Station's is
+## &"bore"); --look takes them without the mark.
+const LOOK_MARK := "@"
+const LOOK_CREW := &"@crew"
+const LOOK_BORE := &"@bore"
 ## Where the Bore is seen from (Habitat frame): by the outer wall at mid
 ## length, at this angle round the ring from the first Station place, which
 ## is midway between two places. It looks straight across at the Column with
@@ -233,7 +236,7 @@ static func _look_names() -> PackedStringArray:
 	for station in Habitat.STATIONS:
 		if station[2] != &"":
 			names.append(station[0])
-	names.append_array([String(LOOK_BORE), String(LOOK_CREW)])
+	names.append_array([String(LOOK_BORE).trim_prefix(LOOK_MARK), String(LOOK_CREW).trim_prefix(LOOK_MARK)])
 	return names
 
 
