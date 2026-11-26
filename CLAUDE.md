@@ -6,13 +6,13 @@ A hard-science-fiction 3D Godot game about operating the Lithocraft, a ring-shap
 
 Read `GLOSSARY.md` and use its terms exactly. Read `docs/adr/0001-science-ground-rules.md`: relationships are physically true, constants are tuned for play, and only three impossible things are permitted.
 
-For design questions, or anything the spec leaves out, read `docs/design-record.md`: every decision with its reason, the developer's own ideas, the real science behind each, and the "Not yet designed" list.
+For design questions, or anything the spec leaves out, read the index `docs/design-record.md`, then the files under `docs/design/` it names for the question: every decision with its reason, the developer's own ideas, the real science behind each, and the "Not yet designed" list.
 
 ## Implementing a ticket
 
 One ticket per session. Take the frontier: an open sub-issue of #1 with no open blockers and no assignee.
 
-Before changing code, read `docs/conventions.md`: the simulation's interface, where each subsystem extends, the view's rules, the key map, test patterns and gotchas. Record new conventions there by topic.
+Before changing code, read the index `docs/conventions.md`, then the files under `docs/conventions/` for the area the ticket touches: the simulation's interface, where each subsystem extends, the view's rules, the key map, test patterns and gotchas. Record new conventions in the topic file they belong to.
 
 - Work lands on `dev`: branch from it and merge or PR back into it. `main` holds only stable builds, promoted from `dev` by the developer.
 
@@ -29,7 +29,7 @@ Before changing code, read `docs/conventions.md`: the simulation's interface, wh
 - Given a play-test video, follow `docs/playtests/README.md`.
 - The developer's side ideas are the best material in the design. Ground each in real science, fold it into the next round, and record it in the design record as it happens.
 - When an idea needs something impossible, say so plainly and tie it to ADR 0001.
-- Write resolved terms to `GLOSSARY.md` and decisions to `docs/design-record.md` as they happen.
+- Write resolved terms to `GLOSSARY.md` and decisions to the design record (`docs/design/`, through its index `docs/design-record.md`) as they happen.
 
 ## Agent skills
 

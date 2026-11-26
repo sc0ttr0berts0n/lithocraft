@@ -1,0 +1,20 @@
+# Scenarios and the Checklist
+
+**Scenarios.**
+A Scenario (`sim/scenario.gd`, `Scenario`) is plain data: a title, a layout, a start state (`prepare`, a Callable given the simulation at the start of each of its dives), the Orders (`Scenario.Goal`), the Checklist (`Scenario.Phase`s of `Scenario.Step`s) and surface control's messages (`Scenario.Message`).
+Every condition is a `Callable(sim, events) -> bool` that reads `DiveSimulation`'s public interface only; build one with `Scenario.when()` (a state) or `Scenario.on_event()` (an event, optionally matching), or the helpers beside them.
+`Scenario.start()` makes its dive; `set_scenario()` puts a Scenario on any simulation, which is how tests try the First dive's Checklist on a short layout (its conditions read Media by name, never depth).
+A new Scenario is a static constructor beside `first_dive()`, listed in `Scenario.all()` (the start menu's order) with a `summary` line; one that needs a start state the commands cannot reach adds a command for it on `DiveSimulation` that `prepare` calls, never a debug command.
+Those are the Scenario start commands (their own section, "Scenario start", after the Station commands): `start_below(metres)` (the Head that deep, having cut straight down with clean Shifts: the Column recorded and aboard, the tunnel lined or sealed, the Head fresh and tuned, the hull at the rock's temperature;
+it moves the Head through `_follow_the_head()` in pieces taking no time, then drops the events the descent raised, since it is history) and `start_dark(head_wear)` (the plasma lost now, by `Plasma._lose()` with cause `&"scenario"`, the Head that worn; what follows, stranded or brought home, happens at once and its events are raised).
+Each acts only while `_at_dive_start()` (no time run, the dive not ended) and is ignored after.
+`prepare` may also send crew commands (the Shift drill engages the Drive's and Thermal's autopilots).
+A Scenario with two ways through (Stranded in the granite: relit, or still dark) lays them out as phases in one line, each branch beginning early on its own event; a phase reached only by coming next after a finished one is left behind in the same tend when a later phase's `begins_when` already holds, so the crew never sees it.
+Progress is `Checklist` (`sim/checklist.gd`), owned by `DiveSimulation` and tended after every step (`_tend_checklist()`, from `advance()`, and while surfaced, so messages still arrive) with the events raised since it last looked (`_events_checked`; events taken by `take_events()` before it saw them wait in `_events_unseen`).
+Debug commands that call `_step()` directly (`debug_skip()`, `debug_next_boundary()`) do not tend it: their events reach it on the next `advance()`, but a state passed through mid-jump is not seen.
+It breaks the subsystem rule on one point: it is handed the simulation on each `tend()` so the conditions can read it; it holds no reference between calls.
+The rules it keeps: goals are achieved once and stay so; steps tick in order, only the next step of the running phase can tick, and an event counts toward one step (the steps after one that ticks see only state that tend); a phase begins once the one before is finished, or early when its `begins_when` holds, and steps left undone before it are `MISSED`;
+a message is sent once its condition holds and arrives after its length at `link_capacity()` (fast up the open tunnel, a trickle through sealed rock), one at a time, oldest first.
+A new dive starts the Checklist afresh (`_scenario` is kept between dives).
+Step texts name no keys: a step's `action` names the key-map action that does it, and the panel writes `KeyMap.label(action)`.
+Events a Scenario's conditions need that the simulation did not raise are added to it as ordinary events (`&"course_plotted"`, `&"pulse_sent"`, `&"orders_read"`).

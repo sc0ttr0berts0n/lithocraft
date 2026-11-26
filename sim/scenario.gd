@@ -2,7 +2,7 @@
 ## Orders and Checklist. Plain data: the conditions are Callables that read
 ## the simulation through its public interface only, so a Scenario can be
 ## written without touching DiveSimulation. DiveSimulation keeps the progress
-## (Checklist); see set_scenario() and docs/conventions.md, "Scenarios".
+## (Checklist); see set_scenario() and docs/conventions/scenarios-and-checklist.md.
 ##
 ## Every condition is a Callable(sim: DiveSimulation, events: Array) -> bool:
 ## `events` are those raised since it was last asked. Build them with when()
