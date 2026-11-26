@@ -159,6 +159,15 @@ func orders() -> Array[Dictionary]:
 	return result
 
 
+## The deepest target depth a goal of the Orders sets, NAN if none does.
+func target_depth() -> float:
+	var deepest := NAN
+	for goal in _scenario.orders:
+		if not is_nan(goal.target_depth) and (is_nan(deepest) or goal.target_depth > deepest):
+			deepest = goal.target_depth
+	return deepest
+
+
 func phases() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for p in _scenario.phases.size():
