@@ -66,6 +66,9 @@ func _ready() -> void:
 
 
 class _Canvas extends Control:
+	## The three lines of a lane.
+	enum { _WOBBLE, _COUNTER_WAVE, _RESIDUAL }
+
 	var display: PlasmaDisplay
 
 	func _process(_delta: float) -> void:
@@ -114,12 +117,11 @@ class _Canvas extends Control:
 		for edge in [mid - half, mid + half]:
 			draw_line(Vector2(0.0, edge), Vector2(lane.size.x, edge), Color(hue, 0.5), 1.0)
 		if not is_nan(residual):
-			_trace(lane, func(t: float) -> float: return sim.wobble_wave(channel, t), Color(hue, 0.8), 2.0)
-		_trace(lane, func(t: float) -> float: return sim.counter_wave(channel, t),
-				Color(PlasmaDisplay.COUNTER, 0.45), 1.5)
+			_trace(lane, channel, _WOBBLE, Color(hue, 0.8), 2.0)
+		_trace(lane, channel, _COUNTER_WAVE, Color(PlasmaDisplay.COUNTER, 0.45), 1.5)
 		var outside := not is_nan(residual) and residual > band
 		if not is_nan(residual):
-			_trace(lane, func(t: float) -> float: return sim.residual_wave(channel, t),
+			_trace(lane, channel, _RESIDUAL,
 					PlasmaDisplay.LATE if outside else PlasmaDisplay.COUNTER, 4.0)
 		var font := ThemeDB.fallback_font
 		var selected := sim.selected_channel() == channel
@@ -132,14 +134,24 @@ class _Canvas extends Control:
 				PlasmaDisplay.residual_text(residual, band), HORIZONTAL_ALIGNMENT_LEFT, -1, 20,
 				PlasmaDisplay.LATE if outside else PlasmaDisplay.COUNTER)
 
-	## Draws wave(t) for t from SPAN_S seconds ago to now, newest at the
-	## right, scaled so FULL_SCALE reaches the lane's edge.
-	func _trace(lane: Rect2, wave: Callable, colour: Color, width: float) -> void:
+	## Draws one of a channel's three waves (_WOBBLE, _COUNTER_WAVE or
+	## _RESIDUAL) from SPAN_S seconds ago to now, newest at the right, scaled
+	## so FULL_SCALE reaches the lane's edge. A wave the simulation cannot
+	## give (NAN) is not drawn.
+	func _trace(lane: Rect2, channel: StringName, wave: int, colour: Color, width: float) -> void:
+		var sim := display.sim
 		var points := PackedVector2Array()
 		var steps := 160
 		for i in steps + 1:
 			var x := lane.size.x * i / steps
 			var t := -PlasmaDisplay.SPAN_S * (1.0 - float(i) / steps)
-			var y: float = clampf(wave.call(t) / PlasmaDisplay.FULL_SCALE, -1.0, 1.0)
+			var value := 0.0
+			match wave:
+				_WOBBLE: value = sim.wobble_wave(channel, t)
+				_COUNTER_WAVE: value = sim.counter_wave(channel, t)
+				_RESIDUAL: value = sim.residual_wave(channel, t)
+			if is_nan(value):
+				return
+			var y := clampf(value / PlasmaDisplay.FULL_SCALE, -1.0, 1.0)
 			points.append(Vector2(x, lane.position.y + lane.size.y * (0.5 - 0.5 * y)))
 		draw_polyline(points, colour, width, true)
