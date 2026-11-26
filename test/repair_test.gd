@@ -36,16 +36,16 @@ func _boundary() -> MediumLayout:
 
 ## Down to TURN_AT_M, a stop of `linger` seconds with the Drive at rest, then
 ## straight back up to the surface, with every bit of heat sent outward the
-## whole way so the Column is recorded alike. A crew at the Reactor makes
-## every Shift on the plasma's frequency as it comes due; without one
-## (`crew_shifts` false) the autopilot Shifts late. Returns the &"paid"
+## whole way so the Column is recorded alike. A crew at the Reactor Shifts
+## onto each new Wobble as the Residual leaves the Band; without one
+## (`crew_shifts` false) the autopilot tunes ACTIVE slowly. Returns the &"paid"
 ## event, or an empty Dictionary if the dive never surfaced.
 func _dive_and_surface(layout: MediumLayout, linger := 0.0, crew_shifts := true) -> Dictionary:
 	var sim := DiveSimulation.new(layout)
 	sim.set_autopilot(DiveSimulation.STATION_REACTOR, not crew_shifts)
 	sim.set_heat_split(0.0)
 	sim.set_power(POWER)
-	var shift := func() -> void: if crew_shifts and sim.shift_due(): DiveTestKit.shift_to(sim, sim.plasma_frequency())
+	var shift := func() -> void: if crew_shifts and sim.out_of_band(): DiveTestKit.shift_to(sim, DiveTestKit.wobble(sim))
 	while sim.depth() < TURN_AT_M:
 		shift.call()
 		sim.advance(STEP_S)

@@ -12,7 +12,7 @@ Any Station command other than a reading (one that changes a setting, or acts as
 a reading (`pulse()`, `set_observed_feature()`) does not call it.
 A new command calls it unless it only takes a reading.
 Off, a Station holds its setting and does nothing more; its calls still come.
-Engaged, its steadying rule runs in `_steady_autopilots()` (Drive backs power off to the grip limit while slipping; Thermal raises the heat split while the hull warns), or in its own place: the Reactor's late Shift in `Plasma.tend()` (passed `autopilot(STATION_REACTOR) or _self_destructing`), the Drive's gentle steering cap in `_steer()`.
+Engaged, its steadying rule runs in `_steady_autopilots()` (Drive backs power off to the grip limit while slipping; Thermal raises the heat split while the hull warns), or in its own place: the Reactor's slow tuning of ACTIVE toward the Wobble in `Plasma.tend()` (passed `autopilot(STATION_REACTOR) or _self_destructing`), the Drive's gentle steering cap in `_steer()`.
 Engaging the Drive's sets its slow, safe power (`_AUTOPILOT_DRIVE_POWER`) and ends any override, so a plotted Course plus the Drive's autopilot gets the vessel moving.
 
 **The Course and the Drive's nudges.**
@@ -28,6 +28,6 @@ A test that wants a Station to steady itself engages its autopilot (see Testing)
 **The ring's slide.**
 `station_ring()` is where the ring of Stations and the Arm's rail are along the Habitat, 0 by the Head end floor to 1 by the Tail end floor, and `ring_sliding()` whether it is on its way.
 `_slide_ring()` runs every step, stranded steps included: the ring sets off once an end is the floor (the felt gravity points more toward it than toward the outer wall, `_END_IS_FLOOR`) and takes `_RING_SLIDE_S`; near level it stays at, or finishes going to, the end it last set off for.
-It reads `pitch()`, not `felt_acceleration()`, so a poor Shift's lurch cannot start a slide.
+It reads `pitch()`, not `felt_acceleration()`, so the Head's shudder cannot start a slide.
 Nothing else in the simulation knows of the slide: Stations stay live through it, and a held command stops only because the view reports the Station unattended.
 The slide is free; what it should cost and how it fails is in `docs/design/not-yet-designed.md`.

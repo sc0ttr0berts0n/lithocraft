@@ -23,7 +23,7 @@ It prints the PNG's path and exits 0; on any failure it prints why, leaves no PN
 
 - `--look` is a Station by the name on its screen (seen seated at it by the Arm, so that Station is attended), `bore` (into the Bore from the outer wall, level with the ring of Stations, Head end down), `column` (the Column as the crew see it turning round from the Bore Station, seated there) or `crew` (the crew's own view where the dive starts them).
 - `--do "<seconds> <command> [arguments]"`, repeated, sends a `DiveSimulation` command at that dive time, in time order, then in the order given: `--do "0 set_power 1" --do "40 set_course 30 60"`.
-  Any public method works, Scenario start and debug commands included (`"0 start_below 500"`, `"1 debug_skip 600"`); a debug command the simulation refuses fails the shot, but a crew command it ignores (a nudge with nobody at the Drive) does not.
+  Any public method works, Scenario start and debug commands included (`"0 start_below 500"`, `"1 debug_skip 600"`, and `"0 debug_next_scan_view"`, once or twice, for Navigation's second or third candidate scan view); a debug command the simulation refuses fails the shot, but a crew command it ignores (a nudge with nobody at the Drive) does not.
   To work one Station while looking at another, attend it in the same moment, before its command: `--look Navigation --do "40 set_attended drive true" --do "40 nudge_pitch -1"` (the Habitat sets attendance back at its next step, after the command has acted).
 - Times are `dive_time()`, so a skip or a raised time rate counts for what it ran; ten minutes at the normal rate take about half a minute to stage.
 - `--out` defaults to `tools/screenshot/out/<scenario>-<look>-<time>.png`, which Godot (`.gdignore`) and git both ignore; `--overlay` keeps the centre notice; `--size 1920x1080` for a larger picture; `--help` lists the rest.
@@ -43,10 +43,10 @@ It prints the PNG's path and exits 0; on any failure it prints why, leaves no PN
   Add shared helpers there rather than copying them into suites.
 - Read expected sequences from the layout (`MediumLayout.first_dive().boundary_depths()` and `medium_at()`), never a hand-written list of depths.
 - Every autopilot starts off, so a setting holds with no help.
-  Engage the autopilot of a Station the test wants to steady itself: the Reactor's for a Shift nobody makes (`shift_test`, `stranding_test`, `repair_test`), Thermal's to keep the hull whole at full power (`steering_test`, `habitat_down_test`).
+  Engage the autopilot of a Station the test wants to steady itself: the Reactor's for any dive that crosses a Boundary with nobody at the Reactor (`survey_test`, `stranding_test`, `repair_test`; left alone, the Residual outside the Band loses the plasma within minutes), Thermal's to keep the hull whole at full power (`steering_test`, `habitat_down_test`).
   Attend a Station only for a command that needs the crew there (the Drive's nudges, self-destruct's hold).
   `DiveTestKit.nudge(sim, heading_degrees, pitch_degrees)` nudges an attended Drive that far off where it steers.
-- The full-dive pattern is `full_trip_test.gd::_full_trip`: no autopilot engaged, the Drive set to steer gently and eased off whenever it slips, raise the time rate before each `advance(1.0)`, Shift on `plasma_frequency()` when `shift_due()`, plot pitch -90 past `TURN_AT_M`, and (by default) ease the Drive off while `heat_warning()`.
+- The full-dive pattern is `full_trip_test.gd::_full_trip`: no autopilot engaged, the Drive set to steer gently and eased off whenever it slips, raise the time rate before each `advance(1.0)`, Shift onto the Wobble (`DiveTestKit.shift_to(sim, DiveTestKit.wobble(sim))`) when `out_of_band()`, plot pitch -90 past `TURN_AT_M`, and (by default) ease the Drive off while `heat_warning()`.
   Full power with all heat outward wears the hull through before the turn, so a trip that must surface either heeds the warning or cooks the Column.
   The careful and cooked trips are flown once per suite (`_careful_trip()`, `_cooked_trip()`); a test that goes on with the sim flies its own.
   Each trip takes a few seconds.

@@ -104,7 +104,7 @@ func test_a_rescue_says_why_the_plasma_was_lost_and_how_long_the_crew_was_strand
 	var longer := OutcomeScreen.sentence(_outcome(&"rescued", &"disrupted", 5400.0, &"disrupted"))
 
 	assert_str(disrupted).is_not_equal(worn)
-	assert_str(disrupted.to_lower()).contains("shift")
+	assert_str(disrupted.to_lower()).contains("residual")
 	assert_str(disrupted).contains("10 min")
 	assert_str(longer).contains("1 h 30 min")
 

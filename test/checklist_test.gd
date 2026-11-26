@@ -277,10 +277,10 @@ func test_the_first_boundary_begins_as_it_approaches_and_wants_standby_pretuned_
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 600.0, seen, 0.5)).is_not_empty()
 	sim.advance(0.1)
 	assert_str(sim.checklist()[sim.checklist_phase()].title).is_equal(Scenario.first_dive().phases[2].title)
-	# STANDBY still holds the sand's wobble: not pretuned for the sandstone.
+	# STANDBY still cancels the sand's Wobble: not pretuned for the sandstone.
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"pretune_standby")
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_PENDING)
-	sim.set_standby_tuning(DiveTestKit.wobble_in(Medium.sandstone()))
+	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(Medium.sandstone()))
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_DONE)
 
@@ -293,11 +293,11 @@ func test_the_first_boundary_begins_as_it_approaches_and_wants_standby_pretuned_
 	assert_str(sim.checklist()[sim.checklist_phase()].title).is_equal(Scenario.first_dive().phases[3].title)
 
 
-func test_a_shift_the_autopilot_makes_is_not_the_crews() -> void:
+func test_the_autopilots_tuning_is_not_the_crews_shift() -> void:
 	var sim := _through_the_sand()
 	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.medium().name == &"sandstone", 2000.0, 0.5)).is_true()
-	# The Reactor's autopilot Shifts late; the crew never did.
-	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return not s.shift_due(), 2000.0, 0.5)).is_true()
+	# The Reactor's autopilot tunes ACTIVE back inside the Band; the crew never Shifted.
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return not s.out_of_band(), 2000.0, 0.5)).is_true()
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"shift")).is_equal(DiveSimulation.STEP_MISSED)
 	assert_str(sim.checklist()[sim.checklist_phase()].title).is_equal(Scenario.first_dive().phases[3].title)
@@ -308,7 +308,7 @@ func test_a_shift_the_autopilot_makes_is_not_the_crews() -> void:
 func _into_the_sandstone() -> DiveSimulation:
 	var sim := _through_the_sand()
 	DiveTestKit.run_until(sim, &"boundary_approaching", 600.0, [], 0.5)
-	sim.set_standby_tuning(DiveTestKit.wobble_in(Medium.sandstone()))
+	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(Medium.sandstone()))
 	sim.advance(0.1)
 	DiveTestKit.run_until(sim, &"boundary_crossed", 600.0, [], 0.1)
 	sim.shift()
@@ -341,10 +341,10 @@ func test_the_sandstone_and_granite_steps_tick_as_each_is_done() -> void:
 	assert_str(DiveTestKit.step_state(sim, &"upload")).is_equal(DiveSimulation.STEP_DONE)
 
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"pretune_standby_granite")
-	sim.set_standby_tuning(DiveTestKit.wobble_in(Medium.sand()))
+	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(Medium.sand()))
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby_granite")).is_equal(DiveSimulation.STEP_PENDING)
-	sim.set_standby_tuning(DiveTestKit.wobble_in(Medium.granite()))
+	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(Medium.granite()))
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby_granite")).is_equal(DiveSimulation.STEP_DONE)
 

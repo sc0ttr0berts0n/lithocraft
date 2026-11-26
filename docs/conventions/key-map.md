@@ -28,15 +28,15 @@ The panel, F1 and the dispatch follow with no other change.
 |---|---|
 | Anywhere | WASD walk; mouse look (click captures, Esc releases); Space calls the Arm / lets go; A / D while held: next Station left / right |
 | Anywhere | Tab the checklist (orders, next step, surface control) |
-| Anywhere | `.` time rate x4 (held at x1 while any Station calls, except stranded or self-destructing), `,` normal; Enter / keypad Enter: back to the start menu (ignored unless surfaced or dead, and while the end lurch settles); F1 controls; F3 debug overlay |
+| Anywhere | `.` time rate x4 (held at x1 while any Station calls, except stranded or self-destructing), `,` normal; Enter / keypad Enter: back to the start menu (ignored unless surfaced or dead, and while the end lurch settles); F1 controls; F3 debug overlay; F4 debug: Navigation's next scan view (the three candidates of the point cloud) |
 | Navigation | Plot the Course: 1 / 2 / 3 pitch dive / level / climb, Z / X pitch -/+15 deg, J / L heading -/+15 deg; P pulse; Q Quiet Ship |
 | Drive | T / G power +/-10%; Y / H steering effort +/-10%; Z / X nudge the pitch it steers for up / down, J / L its heading left / right, one nudge (`nudge_degrees()`) a press, off the Course from what the Drive steers for now; O returns to the Course. No key at the Drive plots or sets a pitch outright: 1 / 2 / 3 do nothing there |
 | Bore Station | F observe the next feature in the Column; U cycle upload priority; B stop / start the link |
 | Thermal | C / V heat split outward / into the Column, 10% a press; stranded, how hard the pumps cool the hull on the store. Hold K three seconds: self-destruct (the view sends `hold_self_destruct()` each frame while K is held, the simulation counts the hold); K while it runs cancels it |
-| Reactor | N / M STANDBY down / up 2%; R swaps STANDBY and ACTIVE: the Shift (again: swaps back, another Shift); I relight the Head from the emergency store (stranded only; its own key so a Shift pressed as the plasma goes cannot spend the store) |
+| Reactor | C selects which channel the tuning keys tune, STANDBY or ACTIVE; N / M that Counter-wave's frequency down / up 2%; J / K its amplitude down / up 0.02; R swaps STANDBY and ACTIVE: the Shift (again: swaps back, another Shift); I relight the Head from the emergency store (stranded only; its own key so a Shift pressed as the plasma goes cannot spend the store) |
 | Every Station | E: that Station's autopilot on / off (any setting key there switches it off, with the disconnect tone and AUTOPILOT OFF flashing on the screen) |
 | Anywhere | numpad - opens and closes the debug menu |
-| Debug menu (open) | numpad: / overlay (as F3), * surface now, + skip 5 min; 7 / 4 hull wear +/-10%, 1 hull to the brink; 8 / 5 Head wear +/-10%, 2 a Shift due now; 9 to the next Boundary, 6 strand now, 3 lose the plasma; 0 refill the emergency store; . self-destruct now. Numpad Enter keeps its anywhere meaning (back to the start menu) |
+| Debug menu (open) | numpad: / overlay (as F3), * surface now, + skip 5 min; 7 / 4 hull wear +/-10%, 1 hull to the brink; 8 / 5 Head wear +/-10%, 2 detune ACTIVE now; 9 to the next Boundary, 6 strand now, 3 lose the plasma; 0 refill the emergency store; . self-destruct now. Numpad Enter keeps its anywhere meaning (back to the start menu) |
 
 The table is a summary for planning; `BINDINGS` is the truth.
 Check both before binding a key.

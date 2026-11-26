@@ -77,11 +77,12 @@ const COLUMN_PIXELS_PER_METRE := 125.0
 const HEAT_SPLIT_STEP := 0.1
 ## How close the crew must be to a Station's pivot to work it, in metres.
 const STATION_REACH := 2.0
-## How much one press tunes the Shift dial's STANDBY channel, as a share of
-## its frequency.
-const STANDBY_STEP := 0.02
-## How far a lurch shakes the crew's view, metres per m/s^2 of jolt.
-const LURCH_SHAKE_M := 0.004
+## How much one press tunes the selected channel's Counter-wave: its
+## frequency as a share of itself, its amplitude outright.
+const FREQUENCY_STEP := 0.02
+const AMPLITUDE_STEP := 0.02
+## How far the Head's shudder shakes the crew's view, metres per m/s^2.
+const SHUDDER_SHAKE_M := 0.004
 ## How far slipping grip waves shake the crew's view at full slip, metres.
 const SLIP_SHAKE_M := 0.006
 ## How long a passing notice stays on screen, in seconds.
@@ -101,7 +102,7 @@ const BORE_PANEL_ZOOM := 1.7
 ## The status lines each Station's screen usually shows under its instrument:
 ## what its pictures' viewports are sized for (StationScreen.body_size()).
 const REACTOR_LINES := 5
-const NAVIGATION_LINES := 3
+const NAVIGATION_LINES := 4
 ## The debug menu's steps: wear per press (hull or Head), and time skipped.
 const DEBUG_WEAR_STEP := 0.1
 const DEBUG_SKIP_S := 300.0
@@ -361,6 +362,13 @@ func _key_debug_menu(_index: int) -> void:
 		_controls.visible = false
 
 
+## Debug: Navigation's scan display goes to the next of its candidate views.
+## Its own key, outside the debug menu, so the developer can flip between
+## them seated at Navigation with the menu shut.
+func _key_scan_view(_index: int) -> void:
+	_debug_menu.report(_sim.debug_next_scan_view())
+
+
 # The debug menu's keys: each a simulation debug command (DiveSimulation's
 # debug_*), not a crew control; or, for the overlay, a view toggle. What a
 # command refuses, and why, goes to the menu's status line.
@@ -397,8 +405,8 @@ func _key_debug_head_wear_down(_index: int) -> void:
 	_debug_menu.report(_sim.debug_wear_head(-DEBUG_WEAR_STEP))
 
 
-func _key_debug_shift_due(_index: int) -> void:
-	_debug_menu.report(_sim.debug_shift_due())
+func _key_debug_detune(_index: int) -> void:
+	_debug_menu.report(_sim.debug_detune())
 
 
 func _key_debug_next_boundary(_index: int) -> void:
@@ -486,9 +494,25 @@ func _key_heat_split(index: int) -> void:
 	_split_heat(_heat_split + _minus_plus(index) * HEAT_SPLIT_STEP)
 
 
-## Reactor: tune the Shift dial's STANDBY channel one step down / up.
-func _key_tune_standby(index: int) -> void:
-	_sim.set_standby_tuning(_sim.standby_tuning() * (1.0 + STANDBY_STEP * _minus_plus(index)))
+## Reactor: which channel of the Shift dial the tuning keys tune.
+func _key_select_channel(_index: int) -> void:
+	_sim.select_channel(DiveSimulation.CHANNEL_ACTIVE
+			if _sim.selected_channel() == DiveSimulation.CHANNEL_STANDBY
+			else DiveSimulation.CHANNEL_STANDBY)
+
+
+## Reactor: the selected channel's Counter-wave, its frequency one step down
+## / up.
+func _key_tune_frequency(index: int) -> void:
+	_sim.tune_frequency(_sim.counter_wave_frequency(_sim.selected_channel())
+			* (1.0 + FREQUENCY_STEP * _minus_plus(index)))
+
+
+## Reactor: the selected channel's Counter-wave, its amplitude one step down
+## / up.
+func _key_tune_amplitude(index: int) -> void:
+	_sim.tune_amplitude(_sim.counter_wave_amplitude(_sim.selected_channel())
+			+ AMPLITUDE_STEP * _minus_plus(index))
 
 
 ## Reactor: the Shift, swapping STANDBY and ACTIVE.
@@ -576,7 +600,7 @@ func _physics_process(delta: float) -> void:
 		_crew.hold(_arm.held_eye(), GimballedStation.pose_look(), settle)
 	else:
 		_crew.step(felt, delta)
-	# A poor Shift's lurch, the grip waves slipping on the wall, and heat
+	# The Head's shudder, the grip waves slipping on the wall, and heat
 	# wearing the hull are felt. Once the dive is over only its end lurch is,
 	# settling to still before the outcome shows.
 	_hull_feel.step(delta, felt)
@@ -586,7 +610,7 @@ func _physics_process(delta: float) -> void:
 			_show_notice(_outcome_lines, 0.0)
 			_outcome_lines = []
 	else:
-		_shake_m = _sim.lurch() * LURCH_SHAKE_M + _sim.slip() * SLIP_SHAKE_M \
+		_shake_m = _sim.shudder() * SHUDDER_SHAKE_M + _sim.slip() * SLIP_SHAKE_M \
 				+ _hull_feel.shake_metres()
 	_crew.shake(_shake_m)
 	_drive.set_supplied(_sim.drive_supplied())
@@ -756,18 +780,18 @@ func _show_reactor() -> void:
 			starved.append(row[0])
 	lines.append(["  ".join(bars) + ("" if starved.is_empty() else "  STARVED " + " ".join(starved)),
 			StationTheme.NOW if starved.is_empty() else StationTheme.CAUTION])
-	var shift_line := "Head wear %d%%  window %.1f s" % [roundi(_sim.head_wear() * 100.0),
-			_sim.shift_window_length()]
+	var shift_line := "Head wear %d%%" % roundi(_sim.head_wear() * 100.0)
 	if _sim.plasma_lost():
 		lines.append([shift_line + "  PLASMA LOST", StationTheme.WARNING])
 		lines.append(_store_line())
 		lines.append(_relight_line())
 	else:
-		if _sim.shift_due():
-			lines.append([shift_line + "  SHIFT DUE  %s swap" % KeyMap.label(&"shift"), StationTheme.CAUTION])
+		if _sim.out_of_band():
+			lines.append([shift_line + "  OUT OF BAND  %s swap or %s tune ACTIVE" % [KeyMap.label(&"shift"),
+					KeyMap.label(&"select_channel")], StationTheme.CAUTION])
 		elif _boundary_ahead:
-			lines.append([shift_line + "  BOUNDARY AHEAD  pretune standby %s" % KeyMap.label(&"tune_standby"),
-					StationTheme.CAUTION])
+			lines.append([shift_line + "  BOUNDARY AHEAD  prepare STANDBY %s %s" % [
+					KeyMap.label(&"tune_frequency"), KeyMap.label(&"tune_amplitude")], StationTheme.CAUTION])
 		else:
 			lines.append(shift_line)
 		lines.append(_store_line())
@@ -1377,8 +1401,8 @@ func _flight_display() -> Texture2D:
 	return display.get_texture()
 
 
-## Navigation's point cloud display, drawn in its own world and shown on the
-## left of the Navigation Station's screen.
+## Navigation's scan display (the point cloud, as one of its candidate
+## views), shown on the left of the Navigation Station's screen.
 func _scan_display() -> Texture2D:
 	var display := ScanDisplay.new()
 	display.size = _navigation_display_px()
