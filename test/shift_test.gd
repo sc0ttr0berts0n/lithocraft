@@ -50,7 +50,7 @@ func _shift_after(wait: float, off_by := 1.0, sim: DiveSimulation = null) -> Dic
 ## or an empty Dictionary. Events before it are dropped.
 func _shift_now(sim: DiveSimulation, off_by: float) -> Dictionary:
 	sim.take_events()
-	sim.shift(sim.plasma_frequency() * off_by)
+	DiveTestKit.shift_to(sim, sim.plasma_frequency() * off_by)
 	sim.advance(0.1)
 	for event in sim.take_events():
 		if event.type == &"shift_result":
@@ -116,7 +116,7 @@ func test_a_new_load_unsettles_the_plasma_until_the_shift_matches_it() -> void:
 	sim.advance(0.1)
 	assert_float(sim.plasma_stability()).is_less(1.0)
 
-	sim.shift(sim.plasma_frequency())
+	DiveTestKit.shift_to(sim, sim.plasma_frequency())
 	sim.advance(0.1)
 
 	assert_bool(sim.shift_due()).is_false()
@@ -202,7 +202,7 @@ func test_clean_shifts_never_wear_the_head() -> void:
 	var sim := _many_boundaries()
 	for i in 10:
 		DiveTestKit.run_until(sim, &"boundary_crossed", 20000.0, [], 0.25)
-		sim.shift(sim.plasma_frequency())
+		DiveTestKit.shift_to(sim, sim.plasma_frequency())
 
 	sim.advance(0.25)
 	assert_float(sim.head_wear()).is_equal(0.0)
@@ -244,9 +244,9 @@ func test_the_boundary_is_crossed_when_the_head_enters_the_new_medium() -> void:
 func _worn(sim: DiveSimulation) -> DiveSimulation:
 	var on := sim.plasma_frequency()
 	while sim.head_wear() <= 0.5:
-		sim.shift(on * 1.5)
+		DiveTestKit.shift_to(sim, on * 1.5)
 		sim.advance(0.1)
-		sim.shift(on)
+		DiveTestKit.shift_to(sim, on)
 		sim.advance(0.1)
 	sim.take_events()
 	assert_bool(sim.plasma_lost()).is_false()
@@ -357,7 +357,7 @@ func _first_boundary(wear := 0.0) -> DiveSimulation:
 	sim.set_attended(DiveSimulation.STATION_REACTOR, true)
 	if wear > 0.0:
 		DiveTestKit.wear_head_gently(sim, wear)
-		sim.shift(sim.plasma_frequency())
+		DiveTestKit.shift_to(sim, sim.plasma_frequency())
 		sim.advance(0.1)
 		sim.take_events()
 	sim.set_power(0.5)

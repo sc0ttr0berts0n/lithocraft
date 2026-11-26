@@ -47,7 +47,7 @@ func _full_trip(to_column := 0.0, power := 1.0, heeds := true) -> Dictionary:
 			speed_at_turn = sim.speed()
 			sim.set_course(sim.course_heading(), -90.0)
 		if sim.shift_due():
-			sim.shift(sim.plasma_frequency())
+			DiveTestKit.shift_to(sim, sim.plasma_frequency())
 		if sim.slip() > 0.0:
 			sim.set_power(sim.power() * (1.0 - sim.slip()))
 		if heeds:

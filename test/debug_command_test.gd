@@ -232,7 +232,7 @@ func test_self_destruct_now_starts_it_without_the_hold() -> void:
 func test_a_shift_due_now_mistunes_the_reactor() -> void:
 	var sim := _under_way()
 	sim.set_attended(DiveSimulation.STATION_REACTOR, true)
-	sim.shift(sim.plasma_frequency())
+	DiveTestKit.shift_to(sim, sim.plasma_frequency())
 	sim.advance(0.1)
 	assert_bool(sim.shift_due()).is_false()
 

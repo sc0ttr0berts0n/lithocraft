@@ -248,9 +248,9 @@ func test_a_healthy_head_relights_more_reliably_than_a_worn_one() -> void:
 	var fresh := DiveSimulation.new(MediumLayout.uniform(_dense()))
 	var worn := DiveSimulation.new(MediumLayout.uniform(_dense()))
 	var on := worn.plasma_frequency()
-	worn.shift(on * 1.5)
+	DiveTestKit.shift_to(worn, on * 1.5)
 	worn.advance(0.1)
-	worn.shift(on)
+	DiveTestKit.shift_to(worn, on)
 	worn.advance(0.1)
 	var disrupted := _stranded(false)
 	var worn_through := _stranded(false, true)
@@ -310,7 +310,7 @@ func test_a_relit_head_worn_through_holds_through_a_clean_shift() -> void:
 	_relight_until(sim, &"lit", true)
 	assert_float(sim.head_wear()).is_equal(1.0)
 
-	sim.shift(sim.plasma_frequency())
+	DiveTestKit.shift_to(sim, sim.plasma_frequency())
 	DiveTestKit.run(sim, 1.0, 0.25)
 
 	assert_bool(sim.plasma_lost()).is_false()

@@ -66,8 +66,8 @@ const BINDINGS: Array[Dictionary] = [
 	{where = DiveSimulation.STATION_THERMAL, keys = [KEY_C, KEY_V], does = "heat out / into the Column", action = &"heat_split"},
 	{where = DiveSimulation.STATION_THERMAL, keys = [KEY_K], does = "hold: self-destruct; again: cancel", action = &"self_destruct"},
 	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_E], does = "autopilot on / off", action = &"autopilot_reactor"},
-	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_N, KEY_M], does = "Shift dial down / up", action = &"shift_dial"},
-	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_R], does = "Shift", action = &"shift"},
+	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_N, KEY_M], does = "STANDBY down / up", action = &"tune_standby"},
+	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_R], does = "swap STANDBY in: the Shift", action = &"shift"},
 	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_I], does = "stranded: relight the Head", action = &"relight"},
 	# The numpad debug menu, laid out as the numpad: one key each, so the
 	# menu can write what each does beside it.

@@ -89,8 +89,8 @@ func test_two_keys_that_look_the_same_are_shown_once() -> void:
 
 
 func test_a_label_names_every_key_of_its_action() -> void:
-	var label := KeyMap.label(&"shift_dial")
-	for code in KeyMap.binding(&"shift_dial").keys:
+	var label := KeyMap.label(&"tune_standby")
+	for code in KeyMap.binding(&"tune_standby").keys:
 		assert_str(label).contains(KeyMap.name_of(code))
 
 

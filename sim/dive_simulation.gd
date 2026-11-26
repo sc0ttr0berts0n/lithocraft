@@ -331,8 +331,10 @@ var _inferred: Array[BoundaryPatch] = []
 var _inferred_at_pulse := -1
 ## Fixed seed, so a dive's scan is the same every run.
 var _scan_random := RandomNumberGenerator.new()
-## Depth of the Boundary last announced as approaching, or NAN for none.
+## Depth of the Boundary last announced as approaching, or NAN for none, and
+## the Medium beyond it (null for none): what STANDBY previews.
 var _announced_boundary := NAN
+var _medium_ahead: Medium = null
 ## Stranding, rescue and death: what losing the plasma or the hull comes to
 ## (sim/stranding.gd).
 var _stranding := Stranding.new()
@@ -381,8 +383,6 @@ var _checklist: Checklist
 ## taken (take_events()) before it saw them, which it sees next.
 var _events_checked := 0
 var _events_unseen: Array[Dictionary] = []
-## The Reactor's Shift dial, in hertz: the frequency the next Shift is made at.
-var _shift_dial := 0.0
 ## How the dive ended (see outcome()), set once it ends; empty under way.
 var _outcome := {}
 
@@ -393,7 +393,6 @@ func _init(layout: MediumLayout) -> void:
 	_scan_random.seed = 13
 	_relight_random.seed = 29
 	_plasma = Plasma.new(plasma_frequency())
-	_shift_dial = _plasma.tuning()
 	_checklist = Checklist.new(_scenario)
 	_share_power()
 
@@ -661,8 +660,8 @@ func start_below(metres: float) -> void:
 		_follow_the_head(depth_before, piece, 0.0)
 	_events.resize(raised)
 	_announced_boundary = NAN  # A Boundary just ahead is announced on the first step.
+	_medium_ahead = null
 	_plasma = Plasma.new(plasma_frequency())
-	_shift_dial = _plasma.tuning()
 	_heat = Heat.new(surroundings_temperature())
 	_share_power()
 
@@ -694,26 +693,30 @@ func read_orders() -> void:
 	_events.append({type = &"orders_read"})
 
 
-## Reactor Station: turns the Shift dial to this frequency in hertz, the one
-## the next Shift is made at (the view shows shift_dial() and passes it to
-## shift(), so the two never disagree). A
-## selector, not a setting the Reactor acts on: like turning an A320's heading
-## knob, it leaves the Reactor's autopilot engaged.
-func set_shift_dial(frequency: float) -> void:
+## Reactor Station: tunes the STANDBY channel of the Shift dial to this
+## frequency in hertz. The dial has two channels, like an airliner radio's
+## active and standby frequencies: ACTIVE (plasma_tuning()) holds the plasma
+## now, STANDBY (standby_tuning()) is staged and changes nothing until a
+## Shift swaps the two. A selector, not a setting the Reactor acts on: like
+## tuning an A320's standby frequency, it leaves the Reactor's autopilot
+## engaged.
+func set_standby_tuning(frequency: float) -> void:
 	if _off_the_crew():
 		return
-	_shift_dial = maxf(frequency, 0.0)
+	_plasma.set_standby(frequency)
 
 
-## Reactor Station: perform a Shift, setting the Reactor to hold the plasma
-## at this frequency in hertz, on the next step. The closer it matches the
-## plasma's wobble (plasma_frequency()), and the sooner after a Boundary, the
-## better it grades; see the &"shift_result" event.
-func shift(frequency: float) -> void:
+## Reactor Station: perform a Shift, on the next step: the swap, STANDBY
+## becoming the active tuning that holds the plasma and the old active
+## dropping to standby, so a second Shift swaps back (and is graded as a Shift
+## too). It grades on how closely the new active matches the wobble at that
+## moment (plasma_frequency()), then how late it comes after a Boundary: a
+## swap made early, still in the old Medium, is poor. See &"shift_result".
+func shift() -> void:
 	if _off_the_crew():
 		return
 	_disengage_on_command(STATION_REACTOR)
-	_plasma.ask_shift(frequency)
+	_plasma.ask_shift()
 
 
 ## Thermal Station: whether the crew is holding the self-destruct command now.
@@ -1304,7 +1307,8 @@ func shift_window() -> float:
 ## How closely a Shift to `frequency` hertz would match the plasma's wobble
 ## now (plasma_frequency()), 1 (exactly) falling toward 0 the further off: the
 ## match a Shift is graded on, before lateness. A worn Head reads the same
-## frequency as a poorer match. The Reactor screen shows it for the dial.
+## frequency as a poorer match. The Reactor screen shows it for ACTIVE
+## (shift_match(plasma_tuning())).
 func shift_match(frequency: float) -> float:
 	return _plasma.match_to(frequency, plasma_frequency())
 
@@ -1766,9 +1770,25 @@ func paid_this_dive() -> float:
 	return _paid - _paid_before_dive
 
 
-## The Reactor's Shift dial, in hertz; see set_shift_dial().
-func shift_dial() -> float:
-	return _shift_dial
+## The Shift dial's STANDBY channel, in hertz; see set_standby_tuning().
+func standby_tuning() -> float:
+	return _plasma.standby()
+
+
+## The frequency, in hertz, the plasma is expected to wobble at in the Medium
+## beyond the Boundary announced as approaching (&"boundary_approaching"), or
+## NAN before that call comes and once the Boundary is crossed. Exact for now:
+## STANDBY's preview.
+func wobble_ahead() -> float:
+	return NAN if _medium_ahead == null else Plasma.frequency_in(_medium_ahead)
+
+
+## How closely STANDBY (standby_tuning()) matches the wobble expected in the
+## Medium ahead (wobble_ahead()), as shift_match() reads it, or NAN ("—" on
+## the Reactor screen) before the Boundary-approaching call.
+func standby_match() -> float:
+	var ahead := wobble_ahead()
+	return NAN if is_nan(ahead) else _plasma.match_to(standby_tuning(), ahead)
 
 
 ## The title of the Scenario being played, "" for none.
@@ -2122,6 +2142,7 @@ func _watch_boundaries(depth_before: float) -> void:
 	var after := _layout.medium_at(depth())
 	if after != before:
 		_announced_boundary = NAN
+		_medium_ahead = null
 		_events.append({type = &"boundary_crossed", from = before.name, to = after.name,
 				depth = depth(), distance = _distance})
 		_on_boundary_crossed(before, after)
@@ -2137,6 +2158,7 @@ func _watch_boundaries(depth_before: float) -> void:
 		return
 	_announced_boundary = ahead
 	var beyond := _layout.medium_at(ahead + (0.01 if downward else -0.01))
+	_medium_ahead = beyond
 	_events.append({type = &"boundary_approaching", from = after.name, to = beyond.name,
 			depth = ahead, depth_to_go = absf(ahead - depth())})
 

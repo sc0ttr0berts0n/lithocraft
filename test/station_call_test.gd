@@ -87,7 +87,7 @@ func test_the_time_rate_can_be_raised_again_once_no_station_calls() -> void:
 	var sim := _one_boundary(200.0)
 	sim.set_attended(DiveSimulation.STATION_REACTOR, true)
 	DiveTestKit.run_until(sim, &"boundary_crossed", 6000.0)
-	sim.shift(sim.plasma_frequency())
+	DiveTestKit.shift_to(sim, sim.plasma_frequency())
 	sim.advance(0.1)
 	for station in DiveSimulation.STATIONS:
 		assert_float(sim.call_urgency(station)).is_equal(0.0)

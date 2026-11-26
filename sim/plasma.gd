@@ -73,12 +73,16 @@ const _RELIGHT_WORN_THROUGH := 0.4
 ## How steady the plasma is, 0 (lost) to 1 (steady). The Reactor's output
 ## scales with it.
 var _stability := 1.0
-## The frequency the Reactor is tuned to hold the plasma at, in hertz.
+## The frequency the Reactor is tuned to hold the plasma at, in hertz: the
+## ACTIVE channel.
 var _tuning := 0.0
+## The STANDBY channel, in hertz: a tuning staged for the next Shift, which
+## changes nothing until a Shift swaps it with the active one.
+var _standby := 0.0
 ## Seconds the plasma has been mistuned (a Shift due), 0 while tuned.
 var _mistuned_for := 0.0
-## A Shift asked for since the last step (its frequency), or NAN.
-var _shift_asked := NAN
+## A Shift (the swap) asked for since the last step.
+var _shift_asked := false
 ## Wear on the Head from poor Shifts, 0 (none) to 1 (the plasma is lost).
 var _head_wear := 0.0
 ## True once the plasma has gone out. It stays out.
@@ -92,9 +96,10 @@ var _lurch_peak := 0.0
 var _lurch_age := 0.0
 
 
-## Starts steady, tuned to `frequency` in hertz.
+## Starts steady, tuned to `frequency` in hertz on both channels.
 func _init(frequency: float) -> void:
 	_tuning = frequency
+	_standby = frequency
 
 
 ## Energy the pulse that relights the plasma takes from the emergency store.
@@ -119,7 +124,7 @@ func relight(target: float, roll: float) -> bool:
 	_lost_by = &""
 	_tuning = target
 	_mistuned_for = 0.0
-	_shift_asked = NAN
+	_shift_asked = false
 	_stability = 1.0 - _WEAR_UNSTEADINESS * _head_wear
 	return true
 
@@ -150,7 +155,7 @@ func start_dark(wear: float, events: Array[Dictionary], depth: float, distance: 
 func _go_dark(events: Array[Dictionary], depth: float, distance: float, cause: StringName) -> void:
 	_lose(events, depth, distance, cause)
 	_stability = 0.0
-	_shift_asked = NAN
+	_shift_asked = false
 
 
 ## The plasma goes out and stays out, for `cause` (see lost_by()). Raises
@@ -176,9 +181,22 @@ static func frequency_in(medium: Medium) -> float:
 	return _PLASMA_HZ_PER_ROOT_HARDNESS * sqrt(medium.hardness)
 
 
-## Asks for a Shift to `frequency` in hertz, made on the next tend().
-func ask_shift(frequency: float) -> void:
-	_shift_asked = maxf(frequency, 0.0)
+## Tunes the STANDBY channel to `frequency` in hertz. The plasma's tuning is
+## unchanged until a Shift swaps it in.
+func set_standby(frequency: float) -> void:
+	_standby = maxf(frequency, 0.0)
+
+
+## The STANDBY channel's tuning, in hertz.
+func standby() -> float:
+	return _standby
+
+
+## Asks for a Shift, made on the next tend(): the swap, STANDBY becoming the
+## active tuning and the old active the standby. Asked twice before a step,
+## it is still one swap.
+func ask_shift() -> void:
+	_shift_asked = true
 
 
 ## Once a step of dt seconds, before the power is shared, with the wobble at
@@ -193,15 +211,15 @@ func tend(dt: float, target: float, autopilot_on: bool, hull_heat_share: float,
 	_lurch_age += dt
 	_heat_spike *= exp(-dt / _SHIFT_SPIKE_S)
 	if _lost:
-		_shift_asked = NAN
+		_shift_asked = false
 		_stability = 0.0
 		return
-	if not is_nan(_shift_asked):
-		_make_shift(_shift_asked, false, target, hull_heat_share, events, depth, distance)
-		_shift_asked = NAN
+	if _shift_asked:
+		_shift_asked = false
+		_swap_to(_standby, false, target, hull_heat_share, events, depth, distance)
 	if due(target) and autopilot_on \
 			and _mistuned_for >= window_length() + _AUTOPILOT_LATE_S:
-		_make_shift(target, true, target, hull_heat_share, events, depth, distance)
+		_swap_to(target, true, target, hull_heat_share, events, depth, distance)
 	if _lost:
 		_stability = 0.0
 		return
@@ -294,6 +312,15 @@ func shudder() -> float:
 func match_to(frequency: float, target: float) -> float:
 	var error := absf(frequency - target) / target
 	return exp(-pow(error / (_SHIFT_TOLERANCE * _narrowing()), 2.0))
+
+
+## A Shift: the active tuning becomes `frequency` (the standby, or the
+## autopilot's own pick, the wobble) and the old active drops to standby.
+func _swap_to(frequency: float, by_autopilot: bool, target: float, hull_heat_share: float,
+		events: Array[Dictionary], depth: float, distance: float) -> void:
+	var old := _tuning
+	_make_shift(frequency, by_autopilot, target, hull_heat_share, events, depth, distance)
+	_standby = old
 
 
 ## How much of a fresh Head's forgiveness in a Shift this one keeps, 1
