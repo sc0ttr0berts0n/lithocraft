@@ -1,6 +1,6 @@
 # Play test: the second checkpoint (25 November 2026)
 
-The developer's First dive on the second checkpoint build (`dev` at b6fa3cf: round 2, #31 to #43, the Shift dial #56), recorded and narrated, 18 minutes. Video: `Godot 2026.11.25 - 23.00.20.16.mp4`. Transcript: [`2026-11-25-second-checkpoint/transcript.md`](2026-11-25-second-checkpoint/transcript.md). Timestamps below are mm:ss into the video.
+The developer's First dive on the second checkpoint build (`dev` at b6fa3cf: round 2, #31 to #43, the Shift dial #56), recorded and narrated, 18 minutes. Video: `Godot 2026.11.25 - 23.00.20.16.mp4`. Transcript: [`2026-11-25-second-checkpoint/transcript.md`](2026-11-25-second-checkpoint/transcript.md). Timestamps below are mm:ss into the video. The video will be deleted; the frames that carry the findings are kept under [Frames](#frames).
 
 **Headline:** the dive ended in the sandstone with the plasma lost: "Yep, killed the ship" (18:03). Two causes, both silent: the Checklist jumped to "Turn and climb" at 04:17, so the player followed the wrong phase for the rest of the dive; and the Head was worn from 41% to 89% in one moment at 08:49, nine minutes before the Shift that lost it. "I have no earthly idea, but I'm happy to be playing" (12:00).
 
@@ -53,3 +53,19 @@ The developer's First dive on the second checkpoint build (`dev` at b6fa3cf: rou
 ## Not reached
 
 The granite, a seal, uploads under a sealed link, the stranding and rescue, surfacing and payment, the explainer (not yet built), and the drills.
+
+## Frames
+
+Kept in `2026-11-25-second-checkpoint/frames/`, named by timestamp.
+
+| Frame | Shows | Finding |
+|---|---|---|
+| [04:14](2026-11-25-second-checkpoint/frames/04-14-checklist-before.png) | The Checklist before the climb was plotted | 1 |
+| [04:20](2026-11-25-second-checkpoint/frames/04-20-checklist-jumped.png) | The Checklist on "Turn and climb (6 of 7)" at the surface | 1 |
+| [02:03](2026-11-25-second-checkpoint/frames/02-03-station-status-text.jpg) | A Station's floating status text up close | 11 |
+| [08:45](2026-11-25-second-checkpoint/frames/08-45-reactor-wear-41.jpg) | The Reactor: Head wear 41%, SHIFT DUE, ACTIVE at MATCH 5% | 3, 4 |
+| [08:52](2026-11-25-second-checkpoint/frames/08-52-reactor-wear-89.jpg) | Seven seconds on: AUTOPILOT, Head wear 89%, UNSTEADY 73% at MATCH 100% | 4, 5 |
+| [14:08](2026-11-25-second-checkpoint/frames/14-08-thermal-heat-warning.jpg) | Thermal's HEAT WARNING as text | 15 |
+| [15:06](2026-11-25-second-checkpoint/frames/15-06-navigation-point-cloud.jpg) | Navigation's head-up point cloud, pulses "above me" | 14 |
+| [16:22](2026-11-25-second-checkpoint/frames/16-22-map-path.jpg) | The path on the moving map | 10 |
+| [17:24](2026-11-25-second-checkpoint/frames/17-24-reactor-second-boundary.jpg) | The second Boundary: STANDBY at MATCH 0%, no timing shown | 6 |

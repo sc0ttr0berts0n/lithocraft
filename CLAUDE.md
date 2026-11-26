@@ -1,6 +1,6 @@
 # Lithocraft
 
-A hard-science-fiction 3D Godot game about operating the Lithocraft, a ring-shaped vessel that bores through rock. The first playable slice is one Earth desert dive, specified in GitHub issue #1 with its tickets as sub-issues.
+A hard-science-fiction 3D Godot game about operating the Lithocraft, a ring-shaped vessel that bores through rock. The first playable slice is one Earth desert dive. Specs: GitHub issue #1 (First dive), then #71 (After the second checkpoint). Every ticket is a sub-issue of #1.
 
 ## Before any work
 
@@ -24,6 +24,9 @@ Before changing code, read `docs/conventions.md`: the simulation's interface, wh
 ## Designing with the developer
 
 - Grill in rounds: numbered questions, each with a recommended answer worded so "yes" accepts it.
+- Each question stands alone: say how the thing works today, then ask.
+- Grill concepts. Decide a round's tickets yourself and report them.
+- Given a play-test video, follow `docs/playtests/README.md`.
 - The developer's side ideas are the best material in the design. Ground each in real science, fold it into the next round, and record it in the design record as it happens.
 - When an idea needs something impossible, say so plainly and tie it to ADR 0001.
 - Write resolved terms to `GLOSSARY.md` and decisions to `docs/design-record.md` as they happen.

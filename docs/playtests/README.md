@@ -6,7 +6,8 @@ Each play test is played cold, narrated and screen-recorded (NVIDIA ShadowPlay, 
 
 - `YYYY-MM-DD-<name>.md`: the write-up. What worked, findings with video timestamps (mm:ss), what was not reached.
 - `YYYY-MM-DD-<name>/transcript.md` and `transcript.json`: the narration, machine-transcribed with per-word times.
-- Frames stay out of the repo, in `<video name>.analysis/` beside the video. Quote timestamps instead; the frames can be pulled again at any time.
+- `YYYY-MM-DD-<name>/frames/`: the few frames that carry a finding, named `mm-ss-<what>.jpg` and listed in the write-up's Frames table. The developer deletes the video once the write-up lands, so commit these before then.
+- Working frames (bursts, sheets, everything else) stay out of the repo, in `<video name>.analysis/` beside the video.
 
 ## The toolkit: `tools/playtest/playtest.py`
 
@@ -33,4 +34,4 @@ Commands (`PY=~/.venvs/playtest/Scripts/python.exe`; times are seconds or m:ss):
 2. For each complaint, pull a frame at the moment it was said, then a sheet over the stretch around it to see what led to it.
 3. Crop to read text the frame is too small for (the Checklist, Reactor readings, key panels).
 4. Cross-check against the simulation's code when the video shows something the design did not intend.
-5. Write up, then grill the developer on the findings before any ticket is cut.
+5. Write up, copy the frames that carry a finding into `frames/`, then grill the developer on the findings before any ticket is cut.
