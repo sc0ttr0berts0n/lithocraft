@@ -35,6 +35,10 @@ const EFFORT_STEP := 0.1
 const RAIL_GAP := 0.15
 ## How quickly the look settles onto a Station's screen while carried, per second.
 const LOOK_SETTLE_RATE := 4.0
+## The centre dot's size in pixels, and how bright it is off a reading and on one.
+const DOT_PX := 6.0
+const DOT_OFF_READING := Color(1, 1, 1, 0.45)
+const DOT_ON_READING := Color(1, 1, 1, 0.95)
 ## The Column inside the Bore glass.
 const COLUMN_RADIUS := BORE_RADIUS - 0.08
 ## How far the Habitat's Head-side wall is behind the Head, in metres: the
@@ -114,6 +118,8 @@ var _outcome_screen := OutcomeScreen.new()
 var _outcome_lines: Array = []
 ## The crew's shake last frame, metres: what the end-of-dive lurch starts from.
 var _shake_m := 0.0
+## The centre dot: marks what the crew is looking at while the mouse looks.
+var _dot: Panel
 
 @onready var _dive_view: DiveView = %DiveView
 ## The F1 controls, built from the key map.
@@ -144,6 +150,8 @@ func _ready() -> void:
 	add_child(_hull_feel)
 	_build_room()
 	_build_stations()
+	# Under the notice, so a notice reads clear of it.
+	_build_dot()
 	_build_notice()
 	# Over the notice: the developer opened it to use it.
 	_build_debug_menu()
@@ -493,6 +501,28 @@ func _physics_process(delta: float) -> void:
 	_place_feature_ring()
 	_show_thermal()
 	_show_navigation()
+
+
+func _process(_delta: float) -> void:
+	_dot.visible = Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	if _dot.visible:
+		_dot.self_modulate = DOT_ON_READING if under_dot().get("reading", -1) >= 0 else DOT_OFF_READING
+
+
+## What lies under the centre dot: {} for no Station screen, else
+## {station = the GimballedStation, reading = the index of the reading on
+## it in its face().readings (GimballedStation.reading() says what it
+## shows), or -1 for the screen between readings}. The Column in the Bore
+## hides the screens across the ring.
+func under_dot() -> Dictionary:
+	var faces: Array[Pointing.Face] = []
+	for station in _in_use:
+		faces.append(station.face())
+	var view := _crew.view()
+	var under := Pointing.under(view.origin, -view.basis.z, faces, COLUMN_RADIUS)
+	if under.is_empty():
+		return {}
+	return {station = _in_use[under.face], reading = under.reading}
 
 
 func _station_poses() -> Array[Transform3D]:
@@ -853,6 +883,25 @@ func _build_debug_menu() -> void:
 	_debug_menu.offset_bottom = -16.0
 	_debug_menu.visible = false
 	$Overlay.add_child(_debug_menu)
+
+
+## The centre dot, a small round mark at the middle of the screen, hidden
+## until the mouse is captured.
+func _build_dot() -> void:
+	_dot = Panel.new()
+	_dot.set_anchors_preset(Control.PRESET_CENTER)
+	_dot.offset_left = -DOT_PX / 2.0
+	_dot.offset_top = -DOT_PX / 2.0
+	_dot.offset_right = DOT_PX / 2.0
+	_dot.offset_bottom = DOT_PX / 2.0
+	_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var round := StyleBoxFlat.new()
+	round.bg_color = Color.WHITE
+	round.set_corner_radius_all(ceili(DOT_PX / 2.0))
+	round.anti_aliasing = true
+	_dot.add_theme_stylebox_override(&"panel", round)
+	_dot.visible = false
+	$Overlay.add_child(_dot)
 
 
 ## A plain notice in the middle of the screen, hidden until needed.

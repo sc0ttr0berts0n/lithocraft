@@ -22,28 +22,50 @@ var length := 2.4
 
 var _velocity := Vector3.ZERO
 var _look := 0.0
+## While the Arm holds the crew member: how far the mouse has turned them in
+## the harness from the held pose (about their own up), and whether the
+## mouse has moved since the look last settled, which makes it their own.
+var _held := false
+var _held_turn := 0.0
+var _look_is_own := false
 var _grounded := false
 var _camera := Camera3D.new()
 
 
-func _ready() -> void:
+func _init() -> void:
+	# A child from the start, so it is freed with the crew member even if
+	# they never enter the tree (as in tests).
 	_camera.fov = 80.0
 	_camera.near = 0.05
 	_camera.position = Vector3(0, EYE, 0)
 	add_child(_camera)
+
+
+func _ready() -> void:
 	_camera.make_current()
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		var motion := event as InputEventMouseMotion
-		basis = basis * Basis(Vector3.UP, -motion.relative.x * MOUSE_SENSITIVITY)
-		_look = clampf(_look - motion.relative.y * MOUSE_SENSITIVITY, -LOOK_LIMIT, LOOK_LIMIT)
-		_camera.rotation = Vector3(_look, 0, 0)
+		look((event as InputEventMouseMotion).relative)
+
+
+## Turn the view by this much mouse travel, in pixels: across turns about the
+## crew member's own up, down lowers the look. On foot it turns the body;
+## held by the Arm it turns them in the harness, the same in every "down".
+func look(relative: Vector2) -> void:
+	var turn := -relative.x * MOUSE_SENSITIVITY
+	if _held:
+		_held_turn += turn
+		_look_is_own = true
+	basis = basis * Basis(Vector3.UP, turn)
+	_look = clampf(_look - relative.y * MOUSE_SENSITIVITY, -LOOK_LIMIT, LOOK_LIMIT)
+	_camera.rotation = Vector3(_look, 0, 0)
 
 
 ## One physics step. felt is the felt acceleration in the Habitat frame.
 func step(felt: Vector3, dt: float) -> void:
+	_held = false
 	var up_target := -felt.normalized()
 	basis = Gimbal.toward_up(basis, up_target, 1.0 - exp(-dt * UPRIGHT_RATE))
 	var up := basis.y
@@ -71,14 +93,33 @@ func eye() -> Transform3D:
 	return Transform3D(basis, position + basis.y * EYE)
 
 
-## Held by the Arm instead of stepping: eyes put at eye, nothing falls.
-## look_toward is the up/down look to ease toward, by weight (0..1).
+## Where the eyes are and which way they look, up/down look included
+## (Habitat frame, unshaken): the centre dot lies along -basis.z.
+func view() -> Transform3D:
+	var at := eye()
+	return Transform3D(at.basis * Basis(Vector3.RIGHT, _look), at.origin)
+
+
+## Held by the Arm instead of stepping: eyes put at eye_pose, nothing falls,
+## turned in the harness as far as the mouse has turned them. While carried
+## the look eases by weight (0..1) toward look_toward (up/down) and the
+## pose's own facing, unless the mouse has moved since it last settled
+## (weight 0, seated): then the look is the crew member's own and is kept.
 func hold(eye_pose: Transform3D, look_toward: float, weight: float) -> void:
-	basis = eye_pose.basis.orthonormalized()
+	if not _held:
+		# Just caught: the Arm took the eyes as they were, turn and all.
+		_held = true
+		_held_turn = 0.0
+		_look_is_own = false
+	if weight <= 0.0:
+		_look_is_own = false
+	elif not _look_is_own:
+		_look = lerpf(_look, look_toward, weight)
+		_held_turn = lerpf(_held_turn, 0.0, weight)
+	basis = eye_pose.basis.orthonormalized() * Basis(Vector3.UP, _held_turn)
 	position = eye_pose.origin - basis.y * EYE
 	_velocity = Vector3.ZERO
 	_grounded = false
-	_look = lerpf(_look, look_toward, weight)
 	_camera.rotation = Vector3(_look, 0, 0)
 
 
