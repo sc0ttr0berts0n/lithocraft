@@ -1,16 +1,17 @@
 # Steering at the Drive Station, tested at the simulation's interface: power
-# and the Course (heading and pitch) in, the Drive attended and steering as
-# hard as it can; the Lithocraft's path, depth and heat out.
+# and the Course (heading and pitch) in, the Drive steering as hard as it
+# can; the Lithocraft's path, depth and heat out.
 # Assert relationships, never tuned constants (ADR 0001).
 extends GdUnitTestSuite
 
 
-## A Lithocraft under power, its Drive attended, that has turned from its dive
-## to travel level, heading 0, and has had all the time it needs to get there.
+## A Lithocraft under power, steering hard, that has turned from its dive to
+## travel level, heading 0, and has had all the time it needs to get there.
+## Thermal's autopilot keeps the hull whole at full power.
 func _travelling_level(power := 1.0, layout: MediumLayout = null) -> DiveSimulation:
 	var sim := DiveSimulation.new(layout if layout else MediumLayout.uniform(DiveTestKit.rock(1.0)))
-	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
 	sim.set_power(power)
+	sim.set_autopilot(DiveSimulation.STATION_THERMAL, true)
 	sim.set_course(0.0, 0.0)
 	DiveTestKit.run(sim, 3000.0)
 	return sim

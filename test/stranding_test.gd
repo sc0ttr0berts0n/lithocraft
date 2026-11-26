@@ -25,8 +25,8 @@ func _dense_hard() -> Medium:
 
 
 ## Open rock down to `open_to` m, then dense rock with a Boundary every 15 m,
-## each needing a Shift nobody makes: the autopilot's late Shifts wear the Head
-## until the plasma is lost.
+## each needing a Shift nobody makes: the Reactor's autopilot's late Shifts
+## wear the Head until the plasma is lost.
 func _careless_dive(open_to := 40.0, dense := true) -> DiveSimulation:
 	var layers := [[0.0, _open_rock()]]
 	for i in 40:
@@ -40,6 +40,7 @@ func _careless_dive(open_to := 40.0, dense := true) -> DiveSimulation:
 		layers.append([open_to + i * 15.0, medium])
 	var sim := DiveSimulation.new(MediumLayout.layered(layers))
 	sim.set_power(1.0)
+	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
 	return sim
 
 

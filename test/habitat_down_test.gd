@@ -12,12 +12,14 @@ func _sand_dive() -> DiveSimulation:
 	return DiveSimulation.new(MediumLayout.uniform(Medium.sand()))
 
 
-## Under way, since the Lithocraft turns only by cutting its path round, with
-## the Drive attended so it steers onto the Course as hard as it can.
+## Under way, since the Lithocraft turns only by cutting its path round, the
+## Drive steering onto the Course as hard as it can, and Thermal's autopilot
+## keeping the hull whole at full power.
 func _settled_at(pitch: float) -> DiveSimulation:
 	var sim := _sand_dive()
-	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
 	sim.set_power(1.0)
+	sim.set_steering_effort(1.0)
+	sim.set_autopilot(DiveSimulation.STATION_THERMAL, true)
 	sim.set_course(sim.course_heading(), pitch)
 	sim.advance(SETTLE)
 	return sim

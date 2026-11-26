@@ -40,7 +40,7 @@ func test_a_course_out_of_range_is_kept_to_real_headings_and_pitches() -> void:
 	assert_float(sim.course_pitch()).is_equal(90.0)
 
 
-func test_an_unattended_drive_turns_the_lithocraft_toward_the_course() -> void:
+func test_a_drive_nobody_is_at_still_turns_the_lithocraft_toward_the_course() -> void:
 	var sim := _diving()
 	assert_bool(sim.attended(DiveSimulation.STATION_DRIVE)).is_false()
 
@@ -65,14 +65,15 @@ func _turn_onto_level_course(sim: DiveSimulation) -> Dictionary:
 	return {seconds = seconds, hottest = hottest}
 
 
-func test_an_unattended_drive_follows_the_course_more_gently_than_one_steering_hard() -> void:
-	var hard := _diving()
-	hard.set_attended(DiveSimulation.STATION_DRIVE, true)
+func test_the_drives_autopilot_follows_the_course_more_gently_than_a_crew_steering_hard() -> void:
+	var autopiloted := _diving()
+	autopiloted.set_autopilot(DiveSimulation.STATION_DRIVE, true)
+	# The same power as the autopilot's, so only the steering differs.
+	var hard := _diving(autopiloted.power())
 	hard.set_steering_effort(1.0)
-	var unattended := _diving()
 
 	var steered := _turn_onto_level_course(hard)
-	var followed := _turn_onto_level_course(unattended)
+	var followed := _turn_onto_level_course(autopiloted)
 
 	assert_float(steered.seconds).is_less(20000.0)
 	assert_float(followed.seconds).is_less(20000.0)
@@ -117,13 +118,16 @@ func test_an_attended_drive_can_steer_away_from_the_course() -> void:
 	assert_float(sim.heading_degrees()).is_equal_approx(90.0, 0.01)
 
 
-func test_an_override_lasts_only_while_the_drive_is_attended() -> void:
+func test_an_override_lasts_until_the_drives_autopilot_is_engaged() -> void:
 	var sim := _on_level_course()
 	sim.override_course(90.0, 0.0)
 	DiveTestKit.run(sim, 6000.0)
-
 	sim.set_attended(DiveSimulation.STATION_DRIVE, false)
-	DiveTestKit.run(sim, 6000.0)
+	DiveTestKit.run(sim, 60.0)
+	assert_bool(sim.overriding()).is_true()
+
+	sim.set_autopilot(DiveSimulation.STATION_DRIVE, true)
+	DiveTestKit.run(sim, 20000.0)
 
 	assert_bool(sim.overriding()).is_false()
 	assert_float(sim.steered_heading()).is_equal(sim.course_heading())
@@ -143,7 +147,7 @@ func test_the_drive_can_give_up_its_override_and_return_to_the_course() -> void:
 	assert_float(wrapf(sim.heading_degrees(), -180.0, 180.0)).is_equal_approx(0.0, 0.01)
 
 
-func test_an_unattended_drive_cannot_override_the_course() -> void:
+func test_the_crew_must_be_at_the_drive_to_override_the_course() -> void:
 	var sim := _diving()
 
 	sim.override_course(90.0, 0.0)

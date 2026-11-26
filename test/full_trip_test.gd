@@ -18,18 +18,20 @@ var _cooked := {}
 
 ## Flies the first dive the way a solo player at the Reactor and Thermal
 ## Stations would: Drive at `power`, heat split `to_column`, a Shift on the
-## plasma's frequency whenever one is due, time run fast between calls. A
-## player who `heeds` the heat warning eases the Drive off while it lasts,
-## sparing the hull at the cost of speed; one who does not runs on. The
-## Course is straight down until TURN_AT_M, when Navigation plots it straight
-## up; the unattended Drive follows it round its gentle arc until the
-## Lithocraft surfaces. Stops at the payment, or at death. Returns {sim,
+## plasma's frequency whenever one is due, time run fast between calls, the
+## Drive eased off to what the wall grips whenever it slips. A player who
+## `heeds` the heat warning eases the Drive off while it lasts, sparing the
+## hull at the cost of speed; one who does not runs on. The Course is
+## straight down until TURN_AT_M, when Navigation plots it straight up; the
+## Drive, set to steer gently, follows it round a wide arc until the
+## Lithocraft surfaces. No autopilot is engaged: the player flies it all. Stops at the payment, or at death. Returns {sim,
 ## events, deepest, speed_at_turn}.
 func _full_trip(to_column := 0.0, power := 1.0, heeds := true) -> Dictionary:
 	var sim := DiveSimulation.new(MediumLayout.first_dive())
 	sim.set_attended(DiveSimulation.STATION_REACTOR, true)
 	sim.set_attended(DiveSimulation.STATION_THERMAL, true)
 	sim.set_power(power)
+	sim.set_steering_effort(0.25)
 	sim.set_heat_split(to_column)
 	var events := []
 	var deepest := 0.0
@@ -44,9 +46,10 @@ func _full_trip(to_column := 0.0, power := 1.0, heeds := true) -> Dictionary:
 		if sim.depth() >= TURN_AT_M and sim.course_pitch() > -90.0:
 			speed_at_turn = sim.speed()
 			sim.set_course(sim.course_heading(), -90.0)
-			assert_bool(sim.attended(DiveSimulation.STATION_DRIVE)).is_false()
 		if sim.shift_due():
 			sim.shift(sim.plasma_frequency())
+		if sim.slip() > 0.0:
+			sim.set_power(sim.power() * (1.0 - sim.slip()))
 		if heeds:
 			sim.set_power(sim.power() * 0.9 if sim.heat_warning() else minf(power, sim.power() + 0.01))
 		var done := false
