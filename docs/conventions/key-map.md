@@ -9,7 +9,7 @@ The panel, F1 and the dispatch follow with no other change.
 `key_map_test.gd` fails if the handler is missing, if two press bindings share a key at one place, or if a Station key would be shadowed where it is shown.
 
 - **Where**: a Station binding runs only while `_at` that Station; ANYWHERE always.
-  A key may be bound at several places (the Course keys at Navigation and the Drive); a press runs the first binding, in list order, that applies where the crew stands.
+  A key may be bound at several places (Z / X and J / L plot the Course at Navigation and nudge off it at the Drive); a press runs the first binding, in list order, that applies where the crew stands.
   List order is also the order on the panel and in F1.
 - **Held keys** (`held = true`): not run on a press; read each frame with `KeyMap.held(action)` (one bool per key).
   Use it for walking.
@@ -30,7 +30,7 @@ The panel, F1 and the dispatch follow with no other change.
 | Anywhere | Tab the checklist (orders, next step, surface control) |
 | Anywhere | `.` time rate x4 (held at x1 while any Station calls, except stranded or self-destructing), `,` normal; Enter / keypad Enter: back to the start menu (ignored unless surfaced or dead, and while the end lurch settles); F1 controls; F3 debug overlay |
 | Navigation | Plot the Course: 1 / 2 / 3 pitch dive / level / climb, Z / X pitch -/+15 deg, J / L heading -/+15 deg; P pulse; Q Quiet Ship |
-| Drive | T / G power +/-10%; Y / H steering effort +/-10%; the Course keys override the Course from what the Drive steers toward now; O ends the override |
+| Drive | T / G power +/-10%; Y / H steering effort +/-10%; Z / X nudge the pitch it steers for up / down, J / L its heading left / right, one nudge (`nudge_degrees()`) a press, off the Course from what the Drive steers for now; O returns to the Course. No key at the Drive plots or sets a pitch outright: 1 / 2 / 3 do nothing there |
 | Bore Station | F observe the next feature in the Column; U cycle upload priority; B stop / start the link |
 | Thermal | C / V heat split outward / into the Column, 10% a press; stranded, how hard the pumps cool the hull on the store. Hold K three seconds: self-destruct (the view sends `hold_self_destruct()` each frame while K is held, the simulation counts the hold); K while it runs cancels it |
 | Reactor | N / M STANDBY down / up 2%; R swaps STANDBY and ACTIVE: the Shift (again: swaps back, another Shift); I relight the Head from the emergency store (stranded only; its own key so a Shift pressed as the plasma goes cannot spend the store) |
