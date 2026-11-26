@@ -101,6 +101,8 @@ var _drive: GimballedStation
 var _bore_station: GimballedStation
 ## A ring on the Bore glass that rides along with the feature being observed.
 var _feature_ring: MeshInstance3D
+## The strip that draws the Column in the Bore.
+var _column_strip: ColumnStrip
 var _thermal: GimballedStation
 ## Thermal Station setting: share of heat sent into the Column.
 var _heat_split := 0.0
@@ -192,6 +194,29 @@ func _ready() -> void:
 ## by commands (tools/screenshot).
 func simulation() -> DiveSimulation:
 	return _sim
+
+
+## The strip that draws the Column in the Bore, wrapped round its tube.
+func column_strip() -> ColumnStrip:
+	return _column_strip
+
+
+## Where the Bore Station hangs now (Habitat frame): the side of the Column
+## its features are turned to, so the crew turn from its screen and find them.
+func bore_station_place() -> Vector3:
+	return _bore_station.position
+
+
+## Where along the Bore (Habitat frame, z) the Column that far behind the
+## Head is: the one account of where the Habitat sits along the vessel, read
+## by everything placed from the simulation's distances along the path.
+static func column_z(behind_head: float) -> float:
+	return -LENGTH / 2.0 + behind_head - HABITAT_BEHIND_HEAD_M
+
+
+## How far behind the Head a place along the Bore is: column_z() turned round.
+static func behind_head_at(z: float) -> float:
+	return z + LENGTH / 2.0 + HABITAT_BEHIND_HEAD_M
 
 
 ## Seats the crew member at a Station (the simulation's name for it) at once,
@@ -994,6 +1019,8 @@ func _bore_reading() -> String:
 ## Keeps the ring on the observed feature while it is in the Habitat's
 ## stretch of the Bore.
 func _place_feature_ring() -> void:
+	var station := bore_station_place()
+	_column_strip.features_face = fposmod(atan2(station.y, station.x) / TAU, 1.0)
 	_feature_ring.visible = false
 	var observed := _sim.observed_feature()
 	if observed < 0:
@@ -1001,10 +1028,10 @@ func _place_feature_ring() -> void:
 	for feature in _sim.features_in_column():
 		if feature.id != observed:
 			continue
-		var into_habitat := _sim.distance() - feature.at - HABITAT_BEHIND_HEAD_M
-		if into_habitat < 0.0 or into_habitat > LENGTH:
+		var z := column_z(_sim.distance() - feature.at)
+		if absf(z) > LENGTH / 2.0:
 			return
-		_feature_ring.position.z = -LENGTH / 2.0 + into_habitat
+		_feature_ring.position.z = z
 		(_feature_ring.material_override as StandardMaterial3D).albedo_color = (
 				FeatureLook.RECORDED_COLOUR if feature.is_recorded() else FeatureLook.OBSERVING_COLOUR)
 		_feature_ring.visible = true
@@ -1311,6 +1338,7 @@ func _column_material() -> StandardMaterial3D:
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	viewport.disable_3d = true
 	var strip := ColumnStrip.new()
+	_column_strip = strip
 	strip.sim = _sim
 	strip.pixels_per_metre = COLUMN_PIXELS_PER_METRE
 	strip.cell_m = 0.1

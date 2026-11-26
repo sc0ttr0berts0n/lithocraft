@@ -7,8 +7,9 @@
 #   --look <what>        a Station by the name on its screen (Reactor, Drive,
 #                        Navigation, Thermal, "Bore Station"), seen seated at
 #                        it by the Arm; bore, into the Bore from the outer
-#                        wall; crew, the crew's own view where the dive starts
-#                        them
+#                        wall; column, the Column as the crew see it turning
+#                        round from the Bore Station; crew, the crew's own
+#                        view where the dive starts them
 #   --time <seconds>     the dive time to run to
 #   --scenario <title>   the Scenario or drill, by its title (default
 #                        "First dive"; first-dive is the same name)
