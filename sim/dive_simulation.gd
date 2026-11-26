@@ -1182,6 +1182,12 @@ func reactor_output() -> float:
 	return _reactor_output
 
 
+## The Reactor's output with its plasma steady and the Head running: the most
+## it supplies, and the whole that each Station's power is read as a share of.
+func reactor_full_output() -> float:
+	return _REACTOR_FULL_OUTPUT
+
+
 ## How steady the Head's plasma is, 0 (lost) to 1 (steady).
 func plasma_stability() -> float:
 	return _plasma.stability()

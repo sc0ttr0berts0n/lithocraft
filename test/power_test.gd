@@ -79,3 +79,20 @@ func test_starved_thermal_sends_less_heat_into_the_column_than_the_split_asks() 
 	assert_float(sim.thermal_supplied()).is_less(1.0)
 	assert_float(sim.heat_to_column()).is_less(sim.heat_produced())
 	assert_float(sim.heat_outward()).is_greater(0.0)
+
+
+func test_the_reactor_never_supplies_more_than_its_full_output() -> void:
+	for quiet in [false, true]:
+		var sim := _sim(0.5)
+		sim.set_quiet_ship(quiet)
+		for i in 20:
+			sim.advance(0.5)
+			assert_float(sim.reactor_output()).is_less_equal(sim.reactor_full_output() + 1e-9)
+
+
+func test_an_idling_head_supplies_less_than_the_reactor_s_full_output() -> void:
+	var sim := _sim(0.5)
+	sim.set_quiet_ship(true)
+	DiveTestKit.run(sim, 20.0, 0.5)
+
+	assert_float(sim.reactor_output()).is_less(sim.reactor_full_output())
