@@ -7,10 +7,22 @@ extends Node3D
 
 const BORE_RADIUS := 0.8
 const OUTER_RADIUS := 3.3
-const LENGTH := 2.4
+## The Habitat's length along the Bore: its height when the Lithocraft dives
+## or climbs. A can of beans, about 1.45 times as tall as it is wide.
+const LENGTH := 9.6
+## How far along the Bore from the Head end floor the ring of Stations and the
+## Arm's rail are: working height for a crew member standing on that floor in
+## a dive, and far enough that no Station's screen or key panel reaches the
+## floor at any pitch. The rest of the height is empty for now.
+const RING_ABOVE_HEAD_FLOOR := 1.3
+## The room's ribs round the outer wall are this far apart along the Bore, and
+## its lamps on the Bore's axis this far apart.
+const RIB_SPACING := 0.8
+const LAMP_SPACING := 2.4
 ## Stations pivot this far in from the outer wall: close to it, so the crew
-## stand between the Bore and the screen.
-const STATION_HANG := 0.75
+## stand between the Bore and the screen, and far enough in that no corner of
+## a screen or key panel reaches the wall at any pitch.
+const STATION_HANG := 0.85
 ## Six Station positions in order round the ring (see place_angle()); this
 ## dive uses five. "" is the empty mount where the Fabricator will go. The
 ## Drive sits beside Navigation, since steering and the Course go together.
@@ -81,7 +93,7 @@ const BORE_PANEL_ZOOM := 1.7
 ## The status lines each Station's screen usually shows under its instrument:
 ## what its pictures' viewports are sized for (StationScreen.body_size()).
 const REACTOR_LINES := 5
-const NAVIGATION_LINES := 3
+const NAVIGATION_LINES := 4
 ## The debug menu's steps: wear per press (hull or Head), and time skipped.
 const DEBUG_WEAR_STEP := 0.1
 const DEBUG_SKIP_S := 300.0
@@ -112,7 +124,7 @@ var _heat_split := 0.0
 var _holding_self_destruct := false
 var _navigation: GimballedStation
 var _crew := CrewMember.new()
-var _arm := Arm.new(BORE_RADIUS + RAIL_GAP)
+var _arm := new_arm()
 ## The Stations in use, in order round the ring; the Arm carries to these.
 var _in_use: Array[GimballedStation] = []
 ## True from a Boundary announced ahead until it is crossed.
@@ -189,6 +201,7 @@ func _ready() -> void:
 	var arm_view := ArmView.new()
 	arm_view.arm = _arm
 	arm_view.rail_radius = BORE_RADIUS + RAIL_GAP
+	arm_view.rail_z = ring_z()
 	add_child(arm_view)
 
 
@@ -207,6 +220,20 @@ func column_strip() -> ColumnStrip:
 ## its features are turned to, so the crew turn from its screen and find them.
 func bore_station_place() -> Vector3:
 	return _bore_station.position
+
+
+## Where along the Bore (Habitat frame, z) the ring of Stations and the Arm's
+## rail are: the one piece of layout data for it. Every Station's pivot(), its
+## strut, the Arm from new_arm() and the rail drawn for it read this and
+## nothing else places them along the axis.
+static func ring_z() -> float:
+	return -LENGTH / 2.0 + RING_ABOVE_HEAD_FLOOR
+
+
+## An Arm on the Habitat's rail: round the Bore, RAIL_GAP out from its glass,
+## at ring_z() along it.
+static func new_arm() -> Arm:
+	return Arm.new(BORE_RADIUS + RAIL_GAP, ring_z())
 
 
 ## Where along the Bore (Habitat frame, z) the Column that far behind the
@@ -317,6 +344,13 @@ func _key_debug_menu(_index: int) -> void:
 	_debug_menu.visible = not _debug_menu.visible
 	if _debug_menu.visible:
 		_controls.visible = false
+
+
+## Debug: Navigation's scan display goes to the next of its candidate views.
+## Its own key, outside the debug menu, so the developer can flip between
+## them seated at Navigation with the menu shut.
+func _key_scan_view(_index: int) -> void:
+	_debug_menu.report(_sim.debug_next_scan_view())
 
 
 # The debug menu's keys: each a simulation debug command (DiveSimulation's
@@ -1204,7 +1238,8 @@ func _build_room() -> void:
 	_feature_ring.visible = false
 
 	# Ribs round the outer wall and along it, so walking and turning show.
-	for z in [-LENGTH / 3.0, 0.0, LENGTH / 3.0]:
+	for i in roundi(LENGTH / RIB_SPACING):
+		var z := -LENGTH / 2.0 + (i + 0.5) * RIB_SPACING
 		var rib := TorusMesh.new()
 		rib.inner_radius = OUTER_RADIUS - 0.04
 		rib.outer_radius = OUTER_RADIUS
@@ -1224,11 +1259,15 @@ func _build_room() -> void:
 	_add_cap(-LENGTH / 2.0, Color(0.36, 0.22, 0.1), "HEAD", Color("e0964a"))
 	_add_cap(LENGTH / 2.0, Color(0.09, 0.16, 0.24), "TAIL", Color("5aa2e0"))
 
-	var light := OmniLight3D.new()
-	light.omni_range = 8.0
-	light.light_energy = 1.2
-	light.position = Vector3(0, 0, 0)
-	add_child(light)
+	# Lamps along the Bore's axis, the first at the ring of Stations.
+	var lamp_z := ring_z()
+	while lamp_z < LENGTH / 2.0:
+		var light := OmniLight3D.new()
+		light.omni_range = 8.0
+		light.light_energy = 1.2
+		light.position = Vector3(0, 0, lamp_z)
+		add_child(light)
+		lamp_z += LAMP_SPACING
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = Color.BLACK
@@ -1249,10 +1288,11 @@ static func place_angle(place: int) -> float:
 	return TAU * (place - 0.5) / STATIONS.size() - PI / 2.0
 
 
-## Where a Station place's gimbal pivots, STATION_HANG in from the outer wall.
+## Where a Station place's gimbal pivots, STATION_HANG in from the outer wall
+## and at ring_z() along the Bore.
 static func pivot(place: int) -> Vector3:
 	var a := place_angle(place)
-	return Vector3(cos(a), sin(a), 0) * (OUTER_RADIUS - STATION_HANG)
+	return Vector3(cos(a), sin(a), 0) * (OUTER_RADIUS - STATION_HANG) + Vector3(0, 0, ring_z())
 
 
 func _build_stations() -> void:
@@ -1267,7 +1307,7 @@ func _build_stations() -> void:
 		rod.height = STATION_HANG
 		strut.mesh = rod
 		strut.material_override = _surface(Color(0.54, 0.6, 0.64))
-		strut.position = outward * (OUTER_RADIUS - STATION_HANG / 2.0)
+		strut.position = outward * (OUTER_RADIUS - STATION_HANG / 2.0) + Vector3(0, 0, ring_z())
 		strut.basis = Basis(Vector3.BACK, a - PI / 2.0)
 		add_child(strut)
 
@@ -1319,8 +1359,8 @@ func _flight_display() -> Texture2D:
 	return display.get_texture()
 
 
-## Navigation's point cloud display, drawn in its own world and shown on the
-## left of the Navigation Station's screen.
+## Navigation's scan display (the point cloud, as one of its candidate
+## views), shown on the left of the Navigation Station's screen.
 func _scan_display() -> Texture2D:
 	var display := ScanDisplay.new()
 	display.size = _navigation_display_px()

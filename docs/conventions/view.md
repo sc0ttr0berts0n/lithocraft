@@ -24,9 +24,14 @@
 - Station places: `habitat.gd::STATIONS` is the order round the ring, `place_angle()` / `pivot()` where each hangs (half a place off straight down, so level no Station is straight below or above the Bore).
   Each gimbal hangs `STATION_HANG` in from the outer wall and settles upright with its screen turned to face the Bore (`GimballedStation.settled_cradle()`): the crew work every Station from the Bore side, looking out at it with the wall behind the screen and the Column behind them.
   Tests read this layout data (`preload("res://view/habitat.gd")`), never a copy of it.
+- The Habitat's shape: `LENGTH` along the Bore (its height in a dive or a climb) is about 1.45 times its width, and the node's origin is the middle of that length, the Head end cap at `-LENGTH / 2`.
+  `habitat.gd::ring_z()` is the one place that says where along the Bore the ring of Stations and the Arm's rail are (`RING_ABOVE_HEAD_FLOOR` from the Head end cap): `pivot()`, the struts, the Arm (`Habitat.new_arm()`, which hands `Arm` its rail's radius and z) and the drawn rail (`ArmView.rail_z`) all read it.
+  Nothing else may place a Station or the rail along the axis, so moving the ring is a change to `ring_z()` alone.
+  `habitat_layout_test` holds every screen and key panel inside the room at every pitch; a larger screen or a ring nearer a wall must keep it passing.
 - Anything drawn along the Column pins each piece to its path position (`distance() - behind_head`) so it scrolls at exactly `speed()`.
   Never integrate speed in the view.
   The Bore's Column uses its own tube mesh with explicit UVs, because `CylinderMesh` shares its texture with its caps.
+  `ColumnStrip` builds each band's grains once, as one mesh it keeps while the band is in the strip, and each frame only moves it: the Bore's strip holds some twelve thousand grains, too many to place and draw one by one every frame.
   `Habitat.column_z(behind_head)` (and `behind_head_at(z)`, its inverse) is the one account of where the Habitat sits along the vessel: place anything in the Bore from the simulation's distance behind the Head through it, never from the Habitat's length.
 - A feature of interest is drawn by `FeatureLook` (`view/feature_look.gd`) on the Column strip, in metres, at the row of its `ColumnFeature.at` (`ColumnStrip.feature_box()`).
   A new kind adds its line to `FeatureLook.LOOKS` (how wide across the Column, and its paint function); `feature_look_test` fails on a kind any Scenario's layout holds that has none.

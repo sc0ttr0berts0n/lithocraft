@@ -340,3 +340,30 @@ func _sealed_in() -> DiveSimulation:
 	assert_bool(sim.tunnel_sealed()).is_true()
 	sim.take_events()
 	return sim
+
+func test_the_scan_view_starts_on_the_first_candidate_and_cycles_through_them_all() -> void:
+	var sim := _under_way()
+	var candidates := sim.scan_views()
+	var seen: Array[StringName] = [sim.scan_view()]
+
+	for i in candidates.size() - 1:
+		assert_str(sim.debug_next_scan_view()).is_equal(&"")
+		seen.append(sim.scan_view())
+	sim.debug_next_scan_view()
+
+	assert_int(candidates.size()).is_equal(3)
+	assert_str(seen[0]).is_equal(candidates[0])
+	assert_array(seen).contains_exactly_in_any_order(candidates)
+	assert_str(sim.scan_view()).is_equal(candidates[0])
+
+
+func test_changing_the_scan_view_changes_nothing_of_the_dive() -> void:
+	var plain := _under_way()
+	var flipped := _under_way()
+
+	flipped.debug_next_scan_view()
+	DiveTestKit.run(plain, 20.0)
+	DiveTestKit.run(flipped, 20.0)
+
+	assert_float(flipped.depth()).is_equal(plain.depth())
+	assert_array(flipped.take_events()).is_equal(plain.take_events())

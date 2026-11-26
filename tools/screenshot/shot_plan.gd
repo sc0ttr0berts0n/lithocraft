@@ -24,11 +24,11 @@ const LOOK_BORE := &"view:bore"
 const LOOK_COLUMN := &"view:column"
 ## Those looks by the name --look takes.
 const VIEWS := {"bore": LOOK_BORE, "column": LOOK_COLUMN, "crew": LOOK_CREW}
-## Where the Bore is seen from (Habitat frame): by the outer wall at mid
-## length, at this angle round the ring from the first Station place, which
-## is midway between two places. It looks straight across at the Column with
-## the Tail up, so the Head end is at the bottom of the picture, as the
-## Column strip draws it.
+## Where the Bore is seen from (Habitat frame): by the outer wall, level with
+## the ring of Stations, at this angle round the ring from the first Station
+## place, which is midway between two places. It looks straight across at the
+## Column with the Tail up, so the Head end is at the bottom of the picture,
+## as the Column strip draws it.
 const BORE_EYE_RADIUS := 2.6
 const BORE_EYE_PLACE := 3.5
 
@@ -45,6 +45,11 @@ var look := &""
 var commands: Array[Dictionary] = []
 var out := ""
 var overlay := false
+## How far the look is turned from what it names, in degrees, the eyes staying
+## where they are: tilted up (down if negative) and turned to the right (left
+## if negative) about the view's own up. For a look along the room's height.
+var tilt := 0.0
+var turn := 0.0
 
 
 ## The plan these arguments ask for; its `error` says why if they ask for none.
@@ -53,6 +58,7 @@ static func parse(arguments: PackedStringArray) -> ShotPlan:
 	var scenario_name := "First dive"
 	var look_name := ""
 	var time_text := ""
+	var angles := {"--tilt": "0", "--turn": "0"}
 	var i := 0
 	while i < arguments.size() and plan.error.is_empty():
 		var flag := arguments[i]
@@ -60,7 +66,7 @@ static func parse(arguments: PackedStringArray) -> ShotPlan:
 		if flag == "--overlay":
 			plan.overlay = true
 			continue
-		if not flag in ["--scenario", "--look", "--time", "--do", "--out"]:
+		if not flag in ["--scenario", "--look", "--time", "--do", "--out", "--tilt", "--turn"]:
 			plan.error = "unknown argument '%s'" % flag
 		elif i >= arguments.size():
 			plan.error = "%s needs a value" % flag
@@ -73,6 +79,7 @@ static func parse(arguments: PackedStringArray) -> ShotPlan:
 				"--time": time_text = value
 				"--out": plan.out = value
 				"--do": plan._add_command(value)
+				"--tilt", "--turn": angles[flag] = value
 	if not plan.error.is_empty():
 		return plan
 	plan.scenario = _scenario_named(scenario_name)
@@ -89,9 +96,14 @@ static func parse(arguments: PackedStringArray) -> ShotPlan:
 		plan.error = "--time needs the dive time in seconds, 0 or more"
 	elif plan.out.is_empty():
 		plan.error = "--out is needed: where the PNG goes"
+	for flag: String in angles:
+		if plan.error.is_empty() and not (angles[flag] as String).is_valid_float():
+			plan.error = "%s needs degrees, got '%s'" % [flag, angles[flag]]
 	if not plan.error.is_empty():
 		return plan
 	plan.time = time_text.to_float()
+	plan.tilt = (angles["--tilt"] as String).to_float()
+	plan.turn = (angles["--turn"] as String).to_float()
 	for command in plan.commands:
 		if command.at > plan.time:
 			plan.error = "'%s' is sent at %s s, after the shot at %s s" % [
@@ -154,7 +166,8 @@ func _send(sim: DiveSimulation, command: Dictionary) -> String:
 ## Sets the view on what the plan looks at. Seated, the crew's own eyes
 ## already do; the Bore gets a camera of its own, and the Column one where
 ## the crew's eyes are at the Bore Station, turned from the screen to look
-## square at the Bore's axis, up still the crew's up.
+## square at the Bore's axis, up still the crew's up. A tilt or turn is taken
+## from there, by a camera of its own where that one's eyes are.
 func _frame(habitat: Node3D) -> void:
 	habitat.get_node("Overlay").visible = overlay
 	if look == LOOK_COLUMN:
@@ -169,14 +182,23 @@ func _frame(habitat: Node3D) -> void:
 		var camera := Camera3D.new()
 		camera.fov = 80.0
 		habitat.add_child(camera)
-		camera.look_at_from_position(bore_eye(), Vector3.ZERO, Vector3.BACK)
+		var eye := bore_eye()
+		camera.look_at_from_position(eye, Vector3(0.0, 0.0, eye.z), Vector3.BACK)
 		camera.make_current()
+	if tilt != 0.0 or turn != 0.0:
+		var named := habitat.get_viewport().get_camera_3d()
+		var moved := Camera3D.new()
+		moved.fov = named.fov
+		habitat.add_child(moved)
+		moved.global_transform = Transform3D(named.global_basis * Basis(Vector3.UP, -deg_to_rad(turn))
+				* Basis(Vector3.RIGHT, deg_to_rad(tilt)), named.global_position)
+		moved.make_current()
 
 
 ## Where the Bore is seen from (Habitat frame).
 static func bore_eye() -> Vector3:
 	var angle := Habitat.place_angle(0) + TAU * BORE_EYE_PLACE / Habitat.STATIONS.size()
-	return Vector3(cos(angle), sin(angle), 0.0) * BORE_EYE_RADIUS
+	return Vector3(cos(angle), sin(angle), 0.0) * BORE_EYE_RADIUS + Vector3(0.0, 0.0, Habitat.ring_z())
 
 
 ## Reads one --do value, "<seconds> <command> [arguments]", checking the

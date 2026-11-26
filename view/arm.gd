@@ -31,7 +31,9 @@ const CHAIN_LINKS := 18
 ## Metres: two neighbours closer than this to the same side count as level.
 const SIDE_TIE := 0.1
 
+## The rail: its radius round the Bore's axis and its place along it (z).
 var _rail_radius: float
+var _rail_z: float
 var _state := State.PARKED
 var _rail_angle := -PI / 2.0
 var _t := 0.0
@@ -54,8 +56,9 @@ var _came_from := -1
 var _last_round := 0
 
 
-func _init(rail_radius: float) -> void:
+func _init(rail_radius: float, rail_z := 0.0) -> void:
 	_rail_radius = rail_radius
+	_rail_z = rail_z
 	_hand = _parked_hand()
 
 
@@ -271,11 +274,11 @@ func _harness(eye: Transform3D) -> Vector3:
 
 
 func _rail_point() -> Vector3:
-	return Vector3(cos(_rail_angle), sin(_rail_angle), 0) * _rail_radius
+	return Vector3(cos(_rail_angle), sin(_rail_angle), 0) * _rail_radius + Vector3(0, 0, _rail_z)
 
 
 func _parked_hand() -> Vector3:
-	return _rail_point() * (_rail_radius + PARKED_REACH) / _rail_radius
+	return _rail_point() + Vector3(cos(_rail_angle), sin(_rail_angle), 0) * PARKED_REACH
 
 
 func _turn_carriage_toward(angle: float, dt: float) -> void:

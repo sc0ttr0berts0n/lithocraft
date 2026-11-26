@@ -226,6 +226,16 @@ const _SELF_DESTRUCT_HOLD_S := 3.0
 ## resistive load and becomes heat (real basis), so a full store is spent in
 ## well under a minute. Tuned for play (ADR 0001).
 const _SELF_DESTRUCT_DUMP := 5.0
+## The candidate views of Navigation's scan, awaiting the developer's pick
+## (docs/design/14-after-second-checkpoint-as-built.md): a forward scope
+## (ahead up the screen, range rings), a plan and section pair (top-down
+## over side-on), and a world-up 3D view (deeper always lower). The first is
+## shown when a dive starts.
+const SCAN_VIEW_FORWARD_SCOPE := &"forward_scope"
+const SCAN_VIEW_PLAN_AND_SECTION := &"plan_and_section"
+const SCAN_VIEW_WORLD_UP := &"world_up"
+const SCAN_VIEWS: Array[StringName] = [SCAN_VIEW_FORWARD_SCOPE, SCAN_VIEW_PLAN_AND_SECTION,
+		SCAN_VIEW_WORLD_UP]
 ## Debug commands (see "Debug commands" below). The hull's wear at the brink
 ## of failure, all but worn through. Not tuned for play: a debug setting.
 const _DEBUG_BRINK_WEAR := 0.98
@@ -365,6 +375,9 @@ var _inferred: Array[BoundaryPatch] = []
 var _inferred_at_pulse := -1
 ## Fixed seed, so a dive's scan is the same every run.
 var _scan_random := RandomNumberGenerator.new()
+## Which of SCAN_VIEWS Navigation's scan display draws: a debug setting
+## (debug_next_scan_view()), nothing of the dive.
+var _scan_view := 0
 ## Depth of the Boundary last announced as approaching, or NAN for none (from
 ## its crossing). The Medium beyond the last one announced, null before the
 ## first: what STANDBY previews, kept through the crossing.
@@ -878,7 +891,8 @@ func _off_the_crew() -> bool:
 # debug_* and returns why it could not act, or &"" when it did, so the menu
 # can say so: &"dive_over" once the dive is over (surfaced() or dead(), for
 # every one of them), &"plasma_lost", &"stranded", &"tail_at_surface",
-# &"self_destructing", &"store_empty", &"level", &"no_boundary_ahead". See
+# &"self_destructing", &"store_empty", &"level", &"no_boundary_ahead". One
+# is a setting of the view, not of the dive: debug_next_scan_view(). See
 # docs/conventions/debug-commands.md.
 
 ## Debug: wears the hull by `amount` (negative mends it), clamped to whole and
@@ -1043,6 +1057,16 @@ func debug_next_boundary() -> StringName:
 		var depth_before := depth()
 		_position += _direction * piece
 		_follow_the_head(depth_before, piece, 0.0)
+	return &""
+
+
+## Debug: Navigation's scan display goes to the next of its candidate views
+## (scan_view(), in the order of scan_views(), round again after the last).
+## The dive itself is untouched: only which picture of the scan is drawn.
+func debug_next_scan_view() -> StringName:
+	if _debug_dive_over():
+		return &"dive_over"
+	_scan_view = (_scan_view + 1) % SCAN_VIEWS.size()
 	return &""
 
 
@@ -1636,6 +1660,19 @@ func point_resolution() -> float:
 ## vessel has since moved relative to.
 func point_age(point: ScanPoint) -> float:
 	return _dive_time - point.returned_at
+
+
+## The candidate view of the scan that Navigation's display draws now: one of
+## scan_views(), the first when a dive starts. Changed only by the debug
+## command debug_next_scan_view(); the dive does not depend on it.
+func scan_view() -> StringName:
+	return SCAN_VIEWS[_scan_view]
+
+
+## The candidate views of the scan, in the order the debug command cycles
+## them.
+func scan_views() -> Array[StringName]:
+	return SCAN_VIEWS.duplicate()
 
 
 ## The Inferred Boundaries: surfaces fitted to the point cloud alone

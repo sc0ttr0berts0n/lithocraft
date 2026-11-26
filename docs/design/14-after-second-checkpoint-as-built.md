@@ -33,20 +33,38 @@ Agent's choices within round 3's design (spec #71), one bullet per ticket.
     - Fulgurite: a dark glass tube with a branch or two inside a pale sleeve of sintered sand, as lightning leaves in dune sand.
     - Quartz vein and pegmatite keep the looks they had: a white sheet right round the Column (a slanted plane unwrapped is a sine wave), and a pale pocket of giant crystals with tourmaline and garnet.
   A feature is still in the Habitat's stretch of the Bore for only a few seconds at speed, and the Bore Station's list gives it in metres behind the Head, which the crew cannot turn into "look now"; the taller Habitat (#68) lengthens the pass, and the screen's wording is left to the screens' rebuild (#62).
-- **How the Reactor cancels the Wobble (ticket #60, agent's choices within the design).**
-  The Wobble's frequency rises with the Medium's hardness, as before; its amplitude rises with the Medium's strength (stronger rock pushes back on the Head harder), so sand, sandstone and granite each differ in both.
-  Only that ordering is meant true; the numbers are tuned (ADR 0001).
-  The phase lock is played up from a real one: the Counter-wave's phase holds to the Wobble's on average and swings about it at the difference of the two frequencies, wider the further off, a full half turn each way past the lock's range.
-  That gives the two looks the design asks for from one sum of two waves: a wrong amplitude alone leaves a steady Residual, a wrong frequency alone leaves beats that slow and shrink as it nears.
-  Real basis: two waves of unlike frequency beat at the difference of their frequencies, and a phase-locked loop near the edge of its range slips and recovers.
-  Wear is charged on the Residual's distance outside the Band, averaged along the beat, at a fixed rate; nothing is charged at the swap, so a Shift is only ever as good as the Counter-wave swapped in.
-  The grinding is live too: the heat and the shudder that a poor Shift used to give in one lump now last exactly as long as the Residual is outside the Band.
-  The plasma's steadiness falls only for the Residual outside the Band and for the Head's own wear, so a hot hull shows as a cause (HOT) only while the Band it narrowed is costing something.
-  A disruption needs time: a Residual far outside the Band must stay there about four seconds on a badly worn Head before the plasma is lost.
-  Without that, a Head worn past half could never cross a Boundary by hand, since no crew swaps in the very instant of the crossing; with it, a prompt swap saves a worn Head and the slow autopilot does not, which is what Stranded in the granite teaches.
-  The Reactor's autopilot makes no Shift at all: it tunes ACTIVE toward the Wobble at a slow fixed rate and leaves STANDBY alone, so the First dive's four Boundaries cost it about a tenth of the Head and the crew's prepared swaps cost nothing.
-  The Checklist's phase after a Boundary begins once the Residual is inside the Band in the new Medium, however it got there, since the autopilot no longer raises a Shift to begin it.
-  A Reactor nobody tends is no longer merely weak: left alone past a Boundary it loses the plasma within minutes, so a dive with nobody at the Reactor engages its autopilot.
-  (Before, an untuned plasma only supplied less power for ever, which also kept a full-power hull cool by accident.)
-  Stand-in keys at the Reactor: C selects the channel, N / M tune frequency, J / K tune amplitude, R swaps.
-  The Reactor's call for a Residual outside the Band is `out_of_band`, and the debug menu's "a Shift due now" became "detune ACTIVE now".
+- **The Habitat as a can of beans (ticket #68, agent's choices within the design).**
+  The Habitat is 9.6 m along the Bore against 6.6 m across (1.45 to 1): 9.6 rather than 9.5 so the Column's texture is a whole number of pixels long.
+  The ring of Stations and the Arm's rail are one piece of layout (a single height above the Head end floor), which is what the slide to the other floor (#69) will move.
+  Until #69 the ring stays by the Head end: in a climb the floor is the Tail end cap, 8 m from the Stations, and only the Arm reaches them.
+  Two clearances were opened a little, because the larger screens (#62) put a corner through a wall at some pitches between level and a climb.
+    - The ring is 1.3 m above the Head end floor, where it was 1.2 m: a key panel's corner went 3 cm through the floor in a shallow climb.
+    - Each Station pivots 0.85 m in from the outer wall, where it was 0.75 m: an upper Station's top corner went 3 cm through the wall near 25 degrees of climb.
+      It is now at least 6 cm inside at every pitch, and a test holds it there.
+  Four times the Column is in view, so its grains are built once per band and kept, where they were placed afresh every frame: the picture is the same to the byte and the frame time is back where it was.
+  The ribs keep their 0.8 m spacing up the whole wall, and lamps hang on the Bore's axis every 2.4 m from the ring up, so the working level is lit as it was.
+- **The point cloud's three candidate views (ticket #67): awaiting the developer's pick.**
+  Navigation's scan display draws one of three views of the same scan, flipped with the debug key F4 during a dive; the caption over the picture names the one shown.
+  The developer picks one in the next play test; until then none is the design, and the other two go when one is picked.
+  Each draws the vessel, the Course, the projected path, the points and the Inferred Boundaries; the moving map beside it is unchanged.
+    - **1. Forward scope** (shown when a dive starts, the agent's pick).
+      The vessel sits low on the screen with ahead straight up, range rings every 50 m about the Head, as a forward-looking sonar's fan.
+      What it shows is the vessel's own vertical plane; in a dive it is the moving map flipped top to bottom, so a turn bends the same way on both.
+      A return off that plane is drawn where it meets the plane square on, so a level Boundary is one line at any pitch, and its range ahead is read off the rings.
+      A plumb line with a tick on each ring shows where down is: up the screen in a dive, swinging to the left as the vessel levels.
+      Real basis: a forward-looking sonar's sector display, and a ship radar's head-up mode.
+      Its cost is the play test's complaint in a milder form: in a dive, down is still up the screen, though now labelled.
+    - **2. Plan and section pair.**
+      A top-down plan beside a side-on section, at one scale, both with ahead (the compass heading) to the right, as the moving map has it, and nothing in 3D.
+      The section has deeper lower, with a line and its depth every 50 m; the plan shows what lies left and right of the track, which the section cannot.
+      Real basis: the plan and profile sheets of a drilled well or a tunnel drive.
+      Its cost: the plan says little in a dive straight down, where the vessel is a ring seen end-on, and each view is half the width.
+      The pair is side by side, not stacked: the screen is wide and short, and a stacked section had no room to show what lies below.
+    - **3. World-up 3D.**
+      The cloud seen from above the vessel's right side and a little behind, with no perspective, deeper always lower, the eye going round only with the compass heading; ahead is to the right, as on the moving map.
+      A level ring with north marked and a plumb line with a tick every 50 m give the eye its bearings.
+      Its cost: a flat picture of 3D cannot tell further from higher without those marks.
+  Agent's choices: the candidate shown is held by the simulation (`scan_view()`), though it is nothing of the dive, so that the screenshot tool and a test can set it with the one debug command.
+  All three are flat drawings through one function each from a place in the world to a place on the screen, so none can turn on its own, and the points stream past at the simulation's speed.
+  The scope's range is fixed (rings to 250 m), so a Boundary a few tens of metres ahead sits close to the vessel's marker; a range that follows the nearest return is left for whichever view is picked.
+  Points are white as they are certain and grey as they are a guess (the colour language's "now"), larger the surer, and never fade out altogether: #62 had left them faint.
