@@ -66,7 +66,7 @@ func test_a_station_call_returns_the_time_rate_to_normal() -> void:
 	assert_float(sim.time_rate()).is_equal(1.0)
 	# It drops back the moment the call comes, not after running on fast.
 	assert_bool(DiveTestKit.types(seen).has(&"boundary_crossed")).is_false()
-	assert_bool(sim.shift_due()).is_false()
+	assert_bool(sim.out_of_band()).is_false()
 
 
 func test_the_time_rate_cannot_be_raised_while_a_station_is_still_calling() -> void:
@@ -87,7 +87,7 @@ func test_the_time_rate_can_be_raised_again_once_no_station_calls() -> void:
 	var sim := _one_boundary(200.0)
 	sim.set_attended(DiveSimulation.STATION_REACTOR, true)
 	DiveTestKit.run_until(sim, &"boundary_crossed", 6000.0)
-	DiveTestKit.shift_to(sim, sim.plasma_frequency())
+	DiveTestKit.cancel_wobble(sim)
 	sim.advance(0.1)
 	for station in DiveSimulation.STATIONS:
 		assert_float(sim.call_urgency(station)).is_equal(0.0)
@@ -111,7 +111,7 @@ func test_a_quiet_dive_raises_no_calls() -> void:
 		assert_float(sim.call_urgency(station)).is_equal(0.0)
 
 
-func test_the_reactor_calls_for_a_boundary_ahead_and_more_urgently_for_a_shift_due() -> void:
+func test_the_reactor_calls_for_a_boundary_ahead_and_more_urgently_for_a_residual_outside_the_band() -> void:
 	var sim := _one_boundary(60.0)
 	var approaching := DiveTestKit.run_until(sim, &"boundary_approaching")
 	sim.advance(0.1)
@@ -122,13 +122,13 @@ func test_the_reactor_calls_for_a_boundary_ahead_and_more_urgently_for_a_shift_d
 	DiveTestKit.run_until(sim, &"boundary_crossed")
 	sim.advance(0.1)
 	var due := sim.call_urgency(DiveSimulation.STATION_REACTOR)
-	assert_str(String(sim.call_reason(DiveSimulation.STATION_REACTOR))).is_equal("shift_due")
+	assert_str(String(sim.call_reason(DiveSimulation.STATION_REACTOR))).is_equal("out_of_band")
 
 	assert_float(ahead).is_greater(0.0)
 	assert_float(due).is_greater(ahead)
 
 
-func test_urgency_rises_as_a_boundary_nears_and_as_a_shift_goes_late() -> void:
+func test_urgency_rises_as_a_boundary_nears_and_the_further_the_residual_is_outside_the_band() -> void:
 	var sim := _one_boundary(60.0)
 	DiveTestKit.run_until(sim, &"boundary_approaching")
 	sim.advance(0.1)
@@ -137,12 +137,18 @@ func test_urgency_rises_as_a_boundary_nears_and_as_a_shift_goes_late() -> void:
 		sim.advance(0.1)
 	assert_float(sim.call_urgency(DiveSimulation.STATION_REACTOR)).is_greater(far)
 
-	DiveTestKit.run_until(sim, &"boundary_crossed")
-	sim.advance(0.1)
-	var early := sim.call_urgency(DiveSimulation.STATION_REACTOR)
-	for i in 80:
-		sim.advance(0.1)
-	assert_float(sim.call_urgency(DiveSimulation.STATION_REACTOR)).is_greater(early)
+	# A Residual a little outside the Band calls; one far outside, louder.
+	var near := _one_boundary(600.0)
+	var wide := _one_boundary(600.0)
+	near.advance(0.1)
+	wide.advance(0.1)
+	DiveTestKit.tune(near, DiveSimulation.CHANNEL_ACTIVE, DiveTestKit.wobble(near) + Vector2(0.0, 1.5 * near.band()))
+	DiveTestKit.tune(wide, DiveSimulation.CHANNEL_ACTIVE, DiveTestKit.wobble(wide) + Vector2(0.0, 3.0 * wide.band()))
+	near.advance(0.1)
+	wide.advance(0.1)
+	assert_float(near.call_urgency(DiveSimulation.STATION_REACTOR)).is_greater(0.0)
+	assert_float(wide.call_urgency(DiveSimulation.STATION_REACTOR)).is_greater(
+			near.call_urgency(DiveSimulation.STATION_REACTOR))
 
 
 func test_a_call_is_announced_once_when_it_begins() -> void:
@@ -155,7 +161,7 @@ func test_a_call_is_announced_once_when_it_begins() -> void:
 
 	var reactor := _calls(seen, DiveSimulation.STATION_REACTOR)
 	assert_array(reactor.map(func(e: Dictionary) -> StringName: return e.reason)) \
-			.is_equal([&"boundary_approaching", &"shift_due"])
+			.is_equal([&"boundary_approaching", &"out_of_band"])
 	assert_float(reactor[1].urgency).is_greater(0.0)
 
 
@@ -189,6 +195,7 @@ func test_a_starved_station_calls() -> void:
 func test_the_bore_station_calls_before_the_tunnel_seals() -> void:
 	var sim := _one_boundary(30.0, _dense())
 	DiveTestKit.run_until(sim, &"boundary_crossed")
+	DiveTestKit.cancel_wobble(sim)  # The Reactor's crew sees to the new Wobble.
 	sim.advance(0.1)
 	var soon := sim.call_urgency(DiveSimulation.STATION_BORE)
 	assert_str(String(sim.call_reason(DiveSimulation.STATION_BORE))).is_equal("tunnel_about_to_seal")

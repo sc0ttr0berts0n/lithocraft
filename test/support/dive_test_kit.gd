@@ -73,48 +73,68 @@ static func types(events: Array) -> Array:
 	return events.map(func(e: Dictionary) -> StringName: return e.type)
 
 
-## A Shift straight to `frequency` hertz: STANDBY pretuned to it, then the
-## swap, made on the next step.
-static func shift_to(sim: DiveSimulation, frequency: float) -> void:
-	sim.set_standby_tuning(frequency)
+## Sets a channel's Counter-wave (DiveSimulation.CHANNEL_ACTIVE or
+## CHANNEL_STANDBY) to `wave`, Vector2(frequency in hertz, amplitude), as the
+## crew does: select the channel, tune it, and select back what was selected.
+static func tune(sim: DiveSimulation, channel: StringName, wave: Vector2) -> void:
+	var selected := sim.selected_channel()
+	sim.select_channel(channel)
+	sim.tune_frequency(wave.x)
+	sim.tune_amplitude(wave.y)
+	sim.select_channel(selected)
+
+
+## The Wobble on the plasma now, as Vector2(frequency in hertz, amplitude).
+static func wobble(sim: DiveSimulation) -> Vector2:
+	return Vector2(sim.wobble_frequency(), sim.wobble_amplitude())
+
+
+## A channel's Counter-wave, as Vector2(frequency in hertz, amplitude).
+static func counter_wave(sim: DiveSimulation, channel: StringName) -> Vector2:
+	return Vector2(sim.counter_wave_frequency(channel), sim.counter_wave_amplitude(channel))
+
+
+## A Shift straight to the Counter-wave `wave`: STANDBY prepared with it, then
+## the swap, made on the next step.
+static func shift_to(sim: DiveSimulation, wave: Vector2) -> void:
+	tune(sim, DiveSimulation.CHANNEL_STANDBY, wave)
 	sim.shift()
 
 
-## Gentle Shifts, each a little wide of the wobble, until the Head's wear
-## reaches `wear` or the plasma is lost: each Shift wears the Head a little,
-## never roughly enough to disrupt the plasma.
+## ACTIVE's Counter-wave set to cancel the Wobble now exactly, as a crew
+## tuning ACTIVE by hand would in the end: a flat Residual from the next step.
+static func cancel_wobble(sim: DiveSimulation) -> void:
+	tune(sim, DiveSimulation.CHANNEL_ACTIVE, wobble(sim))
+
+
+## Holds ACTIVE's amplitude a little too big, its steady Residual just
+## outside the Band (never far enough out to disrupt the plasma), until the
+## Head's wear reaches `wear` or the plasma is lost; then cancels the Wobble
+## again. Run with the vessel at rest or in one Medium.
 static func wear_head_gently(sim: DiveSimulation, wear: float) -> void:
-	var on := sim.plasma_frequency()
-	var off := 0.01
-	for i in 2000:
+	for i in 20000:
 		if sim.plasma_lost() or sim.head_wear() >= wear:
-			return
-		shift_to(sim, on * (1.0 + off))
+			break
+		tune(sim, DiveSimulation.CHANNEL_ACTIVE, wobble(sim) + Vector2(0.0, 2.0 * sim.band()))
+		sim.advance(5.0)
+	if not sim.plasma_lost():
+		cancel_wobble(sim)
 		sim.advance(0.1)
-		var results := sim.take_events().filter(
-				func(e: Dictionary) -> bool: return e.type == &"shift_result")
-		# Keep each Shift's wear small: wider while clean or barely worn,
-		# closer once it wears more.
-		if results[0].wear < 0.02:
-			off *= 1.1
-		elif results[0].wear > 0.05:
-			off *= 0.9
+	sim.take_events()
 
 
 ## Stops the Drive, lets the hull cool, wears the Head gently to a little more
-## than half, then makes Shifts well wide of the wobble until one disrupts the
-## plasma on the worn Head, short of wearing it through. Sealed in, that
-## strands the Lithocraft where it stands. The hull is let cool first, since a
-## hot hull makes each Shift wear the Head harder.
+## than half, then drives ACTIVE's Counter-wave far too big, a Residual far
+## outside the Band, which disrupts the plasma on the worn Head, short of
+## wearing it through. Sealed in, that strands the Lithocraft where it stands.
 static func lose_plasma(sim: DiveSimulation) -> void:
 	sim.set_power(0.0)
 	run(sim, 600.0, 1.0)
 	wear_head_gently(sim, 0.51)
-	var on := sim.plasma_frequency()
-	for i in 20:
+	tune(sim, DiveSimulation.CHANNEL_ACTIVE, wobble(sim) + Vector2(0.0, 10.0))
+	for i in 600:
 		if sim.plasma_lost():
 			return
-		shift_to(sim, on * 1.5)
 		sim.advance(0.1)
 
 
@@ -161,6 +181,20 @@ static func fly_until(sim: DiveSimulation, done: Callable, seconds := 3000.0,
 	return done.call(sim)
 
 
-## The frequency the plasma wobbles at in this Medium, read from a dive in it.
-static func wobble_in(medium: Medium) -> float:
-	return DiveSimulation.new(MediumLayout.uniform(medium)).plasma_frequency()
+## The Wobble this Medium puts on the plasma, as Vector2(frequency in hertz,
+## amplitude), read from a dive in it.
+static func wobble_in(medium: Medium) -> Vector2:
+	return wobble(DiveSimulation.new(MediumLayout.uniform(medium)))
+
+
+## The fullest size the wave `wave(seconds)` reaches in each of `count`
+## stretches of `stretch` seconds, one after another from now: steady when
+## they are all alike, beating when they swell and fade.
+static func swells(wave: Callable, stretch: float, count: int) -> Array[float]:
+	var sizes: Array[float] = []
+	for i in count:
+		var size := 0.0
+		for j in 40:
+			size = maxf(size, absf(wave.call((i + j / 40.0) * stretch)))
+		sizes.append(size)
+	return sizes

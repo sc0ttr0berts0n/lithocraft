@@ -50,9 +50,9 @@ func test_starting_below_puts_the_head_that_deep_in_its_own_medium_tuned_to_it()
 	sim.start_below(deep)
 	assert_float(sim.depth()).is_equal_approx(deep, 0.01)
 	assert_str(sim.medium().name).is_equal(layout.medium_at(deep).name)
-	# Cut with a clean Shift at every Boundary: none is due, and the Head is
-	# as fresh as at the surface.
-	assert_bool(sim.shift_due()).is_false()
+	# Cut with the Residual inside the Band all the way: it is flat now, and
+	# the Head is as fresh as at the surface.
+	assert_bool(sim.out_of_band()).is_false()
 	assert_float(sim.head_wear()).is_equal(0.0)
 	assert_float(sim.plasma_stability()).is_equal(DiveSimulation.new(layout).plasma_stability())
 	# The hull at the rock's temperature: no warmer than the rock round it.
@@ -139,7 +139,7 @@ func test_the_shift_drill_starts_in_the_sand_a_short_way_above_the_sandstone() -
 	# Nearer the Boundary than the surface.
 	assert_float(boundary - sim.depth()).is_less(sim.depth())
 	assert_bool(sim.plasma_lost()).is_false()
-	assert_bool(sim.shift_due()).is_false()
+	assert_bool(sim.out_of_band()).is_false()
 
 
 func test_the_shift_drill_leaves_the_crew_only_the_reactor() -> void:
@@ -172,7 +172,7 @@ func test_the_shift_drills_checklist_and_orders_tick_as_the_shift_is_made() -> v
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"pretune_standby")
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 600.0, [], 0.5)).is_not_empty()
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_PENDING)
-	sim.set_standby_tuning(DiveTestKit.wobble_in(below))
+	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(below))
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_DONE)
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_crossed", 600.0, [], 0.1)).is_not_empty()
@@ -183,14 +183,14 @@ func test_the_shift_drills_checklist_and_orders_tick_as_the_shift_is_made() -> v
 	assert_bool(DiveTestKit.achieved(sim, &"clean_shift")).is_true()
 
 
-func test_a_shift_drill_shift_well_wide_of_the_wobble_is_not_clean() -> void:
+func test_a_shift_drill_shift_that_leaves_the_residual_outside_the_band_is_not_clean() -> void:
 	var scenario := Scenario.shift_drill()
 	var sim := scenario.start()
 	sim.read_orders()
-	sim.set_standby_tuning(DiveTestKit.wobble_in(scenario.layout.medium_at(scenario.layout.boundary_depths()[0] + 0.01)))
+	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(scenario.layout.medium_at(scenario.layout.boundary_depths()[0] + 0.01)))
 	DiveTestKit.run_until(sim, &"boundary_crossed", 600.0, [], 0.5)
-	# STANDBY was pretuned, but the Shift is made well wide of it.
-	DiveTestKit.shift_to(sim, sim.plasma_frequency() * 1.5)
+	# STANDBY was pretuned, but the Shift is made with it well wide of the Wobble.
+	DiveTestKit.shift_to(sim, DiveTestKit.wobble(sim) * Vector2(1.5, 1.0))
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"shift")).is_equal(DiveSimulation.STEP_DONE)
 	assert_bool(DiveTestKit.achieved(sim, &"clean_shift")).is_false()
@@ -308,7 +308,7 @@ func test_a_relight_that_lights_leads_to_the_climb_home_shifting_by_hand() -> vo
 		var above := scenario.layout.medium_at(boundaries[b] - 0.01)
 		assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 40000.0, [], 1.0,
 				func() -> void: sim.set_time_rate(sim.max_time_rate()))).is_not_empty()
-		sim.set_standby_tuning(DiveTestKit.wobble_in(above))
+		DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(above))
 		sim.advance(0.1)
 		assert_str(DiveTestKit.step_state(sim, StringName("pretune_standby_%s" % above.name))).is_equal(DiveSimulation.STEP_DONE)
 		assert_dict(DiveTestKit.run_until(sim, &"boundary_crossed", 4000.0, [], 0.1)).is_not_empty()

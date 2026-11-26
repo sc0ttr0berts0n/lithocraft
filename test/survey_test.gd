@@ -7,7 +7,9 @@ func _dive(layout: MediumLayout, power: float, seconds: float) -> DiveSimulation
 	var sim := DiveSimulation.new(layout)
 	sim.set_power(power)
 	# Thermal's autopilot is off, so the split holds where it is set; engaged,
-	# Thermal would move heat into the Column once the hull warns.
+	# Thermal would move heat into the Column once the hull warns. Nobody is
+	# at the Reactor: its autopilot sees the plasma through any Boundary.
+	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
 	for i in int(seconds):
 		sim.advance(1.0)
 	return sim

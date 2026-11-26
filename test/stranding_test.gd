@@ -25,8 +25,8 @@ func _dense_hard() -> Medium:
 
 
 ## Open rock down to `open_to` m, then dense rock with a Boundary every 15 m,
-## each needing a Shift nobody makes: the Reactor's autopilot's late Shifts
-## wear the Head until the plasma is lost.
+## each a new Wobble nobody Shifts for: the Reactor's autopilot, tuning
+## slowly through every one, wears the Head until the plasma is lost.
 func _careless_dive(open_to := 40.0, dense := true) -> DiveSimulation:
 	var layers := [[0.0, _open_rock()]]
 	for i in 40:
@@ -124,12 +124,13 @@ func test_after_coming_home_through_the_tunnel_the_crew_can_dive_again() -> void
 
 	sim.new_dive()
 	var types := DiveTestKit.types(sim.take_events())
+	var wear_as_it_begins := sim.head_wear()
 	sim.set_power(1.0)
 	DiveTestKit.run(sim, 30.0, STEP_S)
 
 	assert_array(types).contains([&"new_dive"])
 	assert_bool(sim.plasma_lost()).is_false()
-	assert_float(sim.head_wear()).is_equal(0.0)
+	assert_float(wear_as_it_begins).is_equal(0.0)
 	assert_float(sim.depth()).is_greater(10.0)
 	assert_float(sim.paid()).is_greater_equal(paid)
 

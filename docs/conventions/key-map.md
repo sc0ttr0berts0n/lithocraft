@@ -33,10 +33,10 @@ The panel, F1 and the dispatch follow with no other change.
 | Drive | T / G power +/-10%; Y / H steering effort +/-10%; the Course keys override the Course from what the Drive steers toward now; O ends the override |
 | Bore Station | F observe the next feature in the Column; U cycle upload priority; B stop / start the link |
 | Thermal | C / V heat split outward / into the Column, 10% a press; stranded, how hard the pumps cool the hull on the store. Hold K three seconds: self-destruct (the view sends `hold_self_destruct()` each frame while K is held, the simulation counts the hold); K while it runs cancels it |
-| Reactor | N / M STANDBY down / up 2%; R swaps STANDBY and ACTIVE: the Shift (again: swaps back, another Shift); I relight the Head from the emergency store (stranded only; its own key so a Shift pressed as the plasma goes cannot spend the store) |
+| Reactor | C selects which channel the tuning keys tune, STANDBY or ACTIVE; N / M that Counter-wave's frequency down / up 2%; J / K its amplitude down / up 0.02; R swaps STANDBY and ACTIVE: the Shift (again: swaps back, another Shift); I relight the Head from the emergency store (stranded only; its own key so a Shift pressed as the plasma goes cannot spend the store) |
 | Every Station | E: that Station's autopilot on / off (any setting key there switches it off, with the disconnect tone and AUTOPILOT OFF flashing on the screen) |
 | Anywhere | numpad - opens and closes the debug menu |
-| Debug menu (open) | numpad: / overlay (as F3), * surface now, + skip 5 min; 7 / 4 hull wear +/-10%, 1 hull to the brink; 8 / 5 Head wear +/-10%, 2 a Shift due now; 9 to the next Boundary, 6 strand now, 3 lose the plasma; 0 refill the emergency store; . self-destruct now. Numpad Enter keeps its anywhere meaning (back to the start menu) |
+| Debug menu (open) | numpad: / overlay (as F3), * surface now, + skip 5 min; 7 / 4 hull wear +/-10%, 1 hull to the brink; 8 / 5 Head wear +/-10%, 2 detune ACTIVE now; 9 to the next Boundary, 6 strand now, 3 lose the plasma; 0 refill the emergency store; . self-destruct now. Numpad Enter keeps its anywhere meaning (back to the start menu) |
 
 The table is a summary for planning; `BINDINGS` is the truth.
 Check both before binding a key.

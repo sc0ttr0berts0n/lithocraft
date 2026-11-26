@@ -4,12 +4,13 @@
   above a display it does not), `show_display(texture, instruments)` for a `SubViewport` texture (the Bore, Reactor and Drive screens do this), `show_displays(textures)` for several side by side with no instruments, each sized to `display_rect(index, count)` and each its own reading (Navigation:
   the point cloud and the moving map), `set_supplied(share)` dims a starved screen, `set_call(urgency)` beats the Station's tone and flashes its light.
   Set `call_tone_hz` / `call_pips` before `_ready`.
-- `head_wear()` (the Head, from poor Shifts) and `vessel_wear()` (the hull, from heat) are different things.
+- `head_wear()` (the Head, from its Residual outside the Band) and `vessel_wear()` (the hull, from heat) are different things.
   The Thermal screen shows the hull as `hull_integrity()` and `hull_creep_rate()`, and once sealed in `stranding_clock()` beside `rescue_time()` ("if stranded" estimates under way, the race itself while stranded).
-- The Reactor's screen (`PlasmaDisplay`, `view/plasma_display.gd`, on a `SubViewport`) shows the Shift dial as two lanes, ACTIVE over STANDBY, each its wobble (Reactor hue) against its tuning's opposing wave (white) with its MATCH at the right:
-  ACTIVE against `plasma_frequency()` by `shift_match(plasma_tuning())`, STANDBY against `wobble_ahead()` by `standby_match()`, the tuning's wave alone and "MATCH —" while those are NAN (`PlasmaDisplay.match_text()`, tested directly).
+- The Reactor's screen (`PlasmaDisplay`, `view/plasma_display.gd`, on a `SubViewport`) shows the Shift dial as two lanes, ACTIVE over STANDBY, each three lines over its Band (a strip about the centre line): its Wobble (Reactor hue), its Counter-wave (white, thin) and its Residual (bold, red while it reaches outside the Band).
+  Each line is drawn from the simulation's own wave (`wobble_wave()`, `counter_wave()`, `residual_wave()`, by channel), and each lane writes its Counter-wave's frequency and amplitude, marks the channel the controls tune, and reads its Residual against the Band (`PlasmaDisplay.residual_text()`, tested directly; "RESIDUAL —" and the Counter-wave alone for STANDBY while its Wobble is NAN).
   It reads only the simulation; the view keeps no copy of either channel.
-  The window bar runs along the bottom.
+  The Caution lamps run along the bottom, one per cause in `steadiness_causes()`, lit while it is named.
+  Plain for now: the Reactor screen's composition is its own ticket.
 - The Drive's screen is a primary flight display (`FlightDisplay`, `view/flight_display.gd`), drawn on a `SubViewport` like the Reactor's: attitude (pitch ladder), speed and depth tapes, heading tape, power, grip and steering, each read from the simulation's queries every frame;
   its text above says only whether the Drive follows the Course or overrides it (or how the dive ended).
   A tape's scale is a `FlightTape`: the reading stays at its middle, a value's place is `place(value, reading)` (the short way round on the compass), and a bug off the tape is `pinned()` to its nearer end.

@@ -50,6 +50,9 @@ func _advance_until_gone(sim: DiveSimulation, id: int) -> void:
 func test_the_first_dive_meets_features_from_time_to_time_in_every_medium() -> void:
 	var sim := DiveSimulation.new(MediumLayout.first_dive())
 	sim.set_power(1.0)
+	# Nobody at the Reactor or Thermal: their autopilots see the dive through.
+	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
+	sim.set_autopilot(DiveSimulation.STATION_THERMAL, true)
 	var media_with_features := {}
 	var gaps: Array[float] = []
 	var last_at := 0.0

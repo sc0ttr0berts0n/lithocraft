@@ -44,6 +44,6 @@ The rules:
 - `DiveSimulation` keeps every command, query and event; a subsystem's state reaches the outside only through a `DiveSimulation` query that delegates to it.
   A new query is added to both.
 - A subsystem knows nothing of the layout, the path, the Stations or the survey, and holds no reference back to the simulation (a new dive swaps it for a fresh one).
-  Whatever it needs (depth, the wobble's frequency, the surroundings' temperature, whether the Reactor's autopilot may Shift) is passed in on each call.
+  Whatever it needs (depth, the Wobble, the surroundings' temperature, whether the Reactor's autopilot is engaged) is passed in on each call.
   Its tuned constants are its own `const _NAME`.
 - Events a subsystem raises are appended to the `events` array the simulation passes it (`Plasma.tend()`), so `take_events()`'s catalogue still lists them all.

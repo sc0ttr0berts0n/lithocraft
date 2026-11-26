@@ -82,7 +82,7 @@ func step(felt: Vector3, dt: float) -> void:
 
 
 ## Shakes the view by up to this many metres this frame (a jolt the body
-## feels, e.g. a poor Shift's lurch); 0 holds it still.
+## feels, e.g. the Head's shudder); 0 holds it still.
 func shake(metres: float) -> void:
 	_camera.h_offset = randf_range(-metres, metres)
 	_camera.v_offset = randf_range(-metres, metres)

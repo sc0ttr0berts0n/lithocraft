@@ -6,7 +6,7 @@
 ##   state out     - read-only query methods, e.g. depth()
 ##   events out    - take_events(): events since the last call, then cleared.
 ##                   Each a Dictionary with a `type` StringName plus fields.
-## Heat (Heat), the plasma and the Shift (Plasma), and stranding (Stranding)
+## Heat (Heat), the plasma and its Counter-wave (Plasma), and stranding (Stranding)
 ## are its own subsystems, reached only through this interface; see
 ## docs/conventions/simulation-interface.md, "Subsystems".
 class_name DiveSimulation
@@ -166,6 +166,13 @@ const STATIONS: Array[StringName] = [STATION_REACTOR, STATION_DRIVE, STATION_THE
 ## second while the hull warns: its steadying rule, slow on purpose so a
 ## sudden heat outruns it. Tuned for play (ADR 0001).
 const _AUTOPILOT_SPLIT_RATE := 0.01
+## The Shift dial's two channels (see select_channel()).
+const CHANNEL_ACTIVE := Plasma.ACTIVE
+const CHANNEL_STANDBY := Plasma.STANDBY
+## The causes that pull the plasma's steadiness down (see steadiness_causes()).
+const CAUSE_WORN := Plasma.CAUSE_WORN
+const CAUSE_HOT := Plasma.CAUSE_HOT
+const CAUSE_OUT_OF_BAND := Plasma.CAUSE_OUT_OF_BAND
 ## Why an autopilot disengaged, as &"autopilot_off" carries it: a crew command
 ## that changed that Station's setting, or the crew's own switch.
 const AUTOPILOT_OFF_BY_COMMAND := &"command"
@@ -173,14 +180,15 @@ const AUTOPILOT_OFF_BY_SWITCH := &"switch"
 ## How urgently each kind of call is made, 0 to 1: x when it begins, y at its
 ## worst (the hull at the damage temperature, a Station given nothing, the Tail
 ## about to leave the tunnel open, a feature about to leave through the Tail,
-## the Shift's window long closed, the Boundary reached). So the Reactor's
-## Shift and a hot hull always call louder than a feature passing by. Losing
+## the Residual so far outside the Band that the Head grinds at its roughest,
+## the Boundary reached). So a Residual outside the Band and a hot hull always
+## call louder than a feature passing by. Losing
 ## the plasma calls as loudly as anything can. Tuned for play (ADR 0001).
 const _HEAT_WARNING_CALL := Vector2(0.5, 1.0)
 const _STARVED_CALL := Vector2(0.3, 0.8)
 const _SEAL_COMING_CALL := Vector2(0.4, 0.9)
 const _FEATURE_CALL := Vector2(0.2, 0.6)
-const _SHIFT_DUE_CALL := Vector2(0.6, 1.0)
+const _OUT_OF_BAND_CALL := Vector2(0.6, 1.0)
 const _BOUNDARY_AHEAD_CALL := Vector2(0.2, 0.5)
 const _EMERGENCY_CALL_URGENCY := 1.0
 ## The fastest the simulation may be run, as a multiple of normal. Turns take
@@ -310,7 +318,7 @@ var _navigation_request := 0.0
 var _drive_draw := 0.0
 var _thermal_draw := 0.0
 var _navigation_draw := 0.0
-## The Head's plasma and the Shift, and the Head's wear (sim/plasma.gd).
+## The Head's plasma, its Counter-waves and the Head's wear (sim/plasma.gd).
 var _plasma: Plasma
 ## Navigation's point cloud, oldest first, and whether a pulse is waiting to
 ## be sent on the next step.
@@ -393,7 +401,7 @@ func _init(layout: MediumLayout) -> void:
 	_heat = Heat.new(surroundings_temperature())
 	_scan_random.seed = 13
 	_relight_random.seed = 29
-	_plasma = Plasma.new(plasma_frequency())
+	_plasma = Plasma.new(_wobble())
 	_checklist = Checklist.new(_scenario)
 	_share_power()
 
@@ -528,7 +536,7 @@ func set_attended(station: StringName, attended: bool) -> void:
 
 ## Engages or disengages this Station's autopilot (one of STATIONS): the
 ## crew's switch. Engaged, the Station applies its steadying rule: the
-## Reactor makes an overdue Shift on frequency but late, so poorly; Thermal
+## Reactor tunes ACTIVE's Counter-wave toward the Wobble, slowly; Thermal
 ## slowly sends heat into the Column while the hull warns; the Drive follows
 ## the Course (ending any override) at slow, safe power, steering gently, and
 ## backs its power off to the grip limit while it slips. Navigation's and the
@@ -638,11 +646,11 @@ func _begin_scenario() -> void:
 # paths. See docs/conventions/scenarios-and-checklist.md.
 
 ## Scenario start: the dive begins with the Head `metres` down, the
-## Lithocraft having cut straight down from the surface with a clean Shift at
-## every Boundary. The Column it passed is recorded and aboard (none of it yet
+## Lithocraft having cut straight down from the surface with its Residual
+## inside the Band all the way. The Column it passed is recorded and aboard (none of it yet
 ## up the link), its features found, the tunnel behind lined or sealed as the
-## rock it crossed makes it; the Head is fresh and tuned to the Medium it is
-## in, the hull at that rock's temperature. That descent is history: its
+## rock it crossed makes it; the Head is fresh, both its Counter-waves
+## cancelling the Wobble of the Medium it is in, the hull at that rock's temperature. That descent is history: its
 ## events are not raised. Ignored unless the dive has not begun and the Head is
 ## at the surface.
 func start_below(metres: float) -> void:
@@ -662,13 +670,13 @@ func start_below(metres: float) -> void:
 	_events.resize(raised)
 	_announced_boundary = NAN  # A Boundary just ahead is announced on the first step.
 	_medium_ahead = null
-	_plasma = Plasma.new(plasma_frequency())
+	_plasma = Plasma.new(_wobble())
 	_heat = Heat.new(surroundings_temperature())
 	_share_power()
 
 
 ## Scenario start: the dive begins with the Head's plasma just lost, the Head
-## worn `head_wear` (0 fresh, 1 worn through) as the poor Shifts that lost it
+## worn `head_wear` (0 fresh, 1 worn through) as the Residual that lost it
 ## left it, and what that comes to follows at once: stranded where it stands
 ## when sealed in (the rescue called, the stranding clock running), brought
 ## home through the tunnel when it is open. Raises &"plasma_lost" (its cause
@@ -694,25 +702,46 @@ func read_orders() -> void:
 	_events.append({type = &"orders_read"})
 
 
-## Reactor Station: tunes the STANDBY channel of the Shift dial to this
-## frequency in hertz. The dial has two channels, like an airliner radio's
-## active and standby frequencies: ACTIVE (plasma_tuning()) holds the plasma
-## now, STANDBY (standby_tuning()) is staged and changes nothing until a
-## Shift swaps the two. A selector, not a setting the Reactor acts on: like
-## tuning an A320's standby frequency, it leaves the Reactor's autopilot
-## engaged.
-func set_standby_tuning(frequency: float) -> void:
+## Reactor Station: selects which channel of the Shift dial the Reactor's
+## controls tune (tune_frequency(), tune_amplitude()): CHANNEL_ACTIVE or
+## CHANNEL_STANDBY. The dial has two channels, like an airliner radio's
+## active and standby frequencies, each holding a Counter-wave: ACTIVE's
+## cancels the Wobble now, STANDBY's is prepared for the Medium ahead and
+## changes nothing until a Shift swaps the two. Each dive starts on STANDBY,
+## and a Shift leaves the selection where it was. A selector: it leaves the
+## Reactor's autopilot engaged.
+func select_channel(channel: StringName) -> void:
 	if _off_the_crew():
 		return
-	_plasma.set_standby(frequency)
+	_plasma.select(channel)
 
 
-## Reactor Station: perform a Shift, on the next step: the swap, STANDBY
-## becoming the active tuning that holds the plasma and the old active
-## dropping to standby, so a second Shift swaps back (and is graded as a Shift
-## too). It grades on how closely the new active matches the wobble at that
-## moment (plasma_frequency()), then how late it comes after a Boundary: a
-## swap made early, still in the old Medium, is poor. See &"shift_result".
+## Reactor Station: sets the frequency, in hertz, of the selected channel's
+## Counter-wave (see select_channel()). On STANDBY it changes nothing until
+## the Shift; on ACTIVE it moves the live plasma's Residual at once. Tuning is
+## a selector, not a setting the Reactor acts on: like tuning an A320's
+## radio, it leaves the Reactor's autopilot engaged (which goes on tuning
+## ACTIVE itself).
+func tune_frequency(frequency: float) -> void:
+	if _off_the_crew():
+		return
+	_plasma.tune_frequency(frequency)
+
+
+## Reactor Station: sets the amplitude of the selected channel's Counter-wave,
+## from 0 up to the most the Reactor can drive. As tune_frequency().
+func tune_amplitude(amplitude: float) -> void:
+	if _off_the_crew():
+		return
+	_plasma.tune_amplitude(amplitude)
+
+
+## Reactor Station: perform a Shift, on the next step: the swap, STANDBY's
+## Counter-wave becoming ACTIVE's and the old ACTIVE's dropping to STANDBY,
+## so a second Shift swaps back. The swap itself costs nothing: what tells is
+## the Residual the new ACTIVE leaves of the Wobble from then on, so a swap
+## made early, still in the old Medium, puts the Residual outside the Band
+## until the Boundary. Raises &"shift_result".
 func shift() -> void:
 	if _off_the_crew():
 		return
@@ -728,7 +757,7 @@ func shift() -> void:
 ## self-destruct is the vessel mismanaging itself on purpose: the Drive at
 ## full power, Quiet Ship off and every bit of heat sent outward through the
 ## hull, the Stations taken off the crew (their commands are ignored, the
-## Reactor's Shifts left to its autopilot) so the hull fails. Stranded, with
+## Reactor's Counter-wave left to its autopilot) so the hull fails. Stranded, with
 ## the Head dark, it dumps the emergency store into the hull as heat, the
 ## pumps stopped; with the store empty it would do nothing, so the hold does
 ## not count (can_self_destruct()). Raises &"self_destruct_started".
@@ -820,8 +849,8 @@ func debug_hull_to_brink() -> StringName:
 
 
 ## Debug: wears the Head by `amount` (negative mends it), clamped to fresh
-## and worn through. It narrows the Shift and lowers the relight chance as
-## poor Shifts' wear does, but does not itself lose the plasma.
+## and worn through. It narrows the Band and lowers the relight chance as
+## any wear does, but does not itself lose the plasma.
 func debug_wear_head(amount: float) -> StringName:
 	if _debug_dive_over():
 		return &"dive_over"
@@ -891,7 +920,7 @@ func debug_surface() -> StringName:
 ## raised time rate takes. Unlike a raised rate, a Station call does not cut
 ## it short; it stops only if the dive ends. The Stations are as they were:
 ## those whose autopilot is engaged steady themselves (the Reactor's
-## autopilot Shifts).
+## autopilot tunes ACTIVE).
 func debug_skip(seconds: float) -> StringName:
 	if _debug_dive_over():
 		return &"dive_over"
@@ -918,23 +947,23 @@ func debug_self_destruct() -> StringName:
 	return &""
 
 
-## Debug: a Shift is due now: the Reactor is mistuned well wide of the
-## plasma's wobble, its window just opened, as after crossing a Boundary.
-## Refused while the plasma is lost.
-func debug_shift_due() -> StringName:
+## Debug: ACTIVE's Counter-wave is set well wide of the Wobble in frequency,
+## so the Residual beats outside the Band from the next step, as after
+## crossing a Boundary. Refused while the plasma is lost.
+func debug_detune() -> StringName:
 	if _debug_dive_over():
 		return &"dive_over"
 	if plasma_lost():
 		return &"plasma_lost"
-	_plasma.debug_mistune(plasma_frequency())
+	_plasma.debug_detune(_wobble())
 	return &""
 
 
 ## Debug: the Head jumps along the way it points to just past the next
 ## Boundary ahead (deeper diving, shallower climbing), as if it had cut there
 ## in no time: the Column it passed is recorded, its features found, the
-## tunnel behind made (and sealed in dense rock), the Boundary crossed (a
-## Shift comes due), but no heat is made and no survey goes up the link.
+## tunnel behind made (and sealed in dense rock), the Boundary crossed (the
+## Wobble changes), but no heat is made and no survey goes up the link.
 ## Refused while stranded, travelling level, or with no Boundary ahead.
 func debug_next_boundary() -> StringName:
 	if _debug_dive_over():
@@ -1018,7 +1047,7 @@ func _step(dt: float) -> void:
 		_mismanage()
 	_head_activity = move_toward(_head_activity, 0.0 if _quiet_ship else 1.0,
 			_HEAD_SPIN_RATE * dt)
-	_plasma.tend(dt, plasma_frequency(), autopilot(STATION_REACTOR) or _self_destructing,
+	_plasma.tend(dt, _wobble(), autopilot(STATION_REACTOR) or _self_destructing,
 			_heat.hull_heat_share(surroundings_temperature()), _events, depth(), _distance)
 	_share_power()
 	# Steering heats one side of the Head harder; that share of the Drive's
@@ -1032,10 +1061,10 @@ func _step(dt: float) -> void:
 	_speed = _FULL_POWER_SPEED * gripped_power / medium.hardness
 	# Every system that draws power makes heat: the Drive (power lost to slip
 	# included; less while the Head idles; more while it steers), Thermal and
-	# Navigation. A poor Shift's grinding adds a spike.
+	# Navigation. The Head's grinding, its Residual outside the Band, adds more.
 	# Heat reaches the Column only as far as Thermal's pumps are powered; the
 	# rest goes out through the hull.
-	_heat.step(power_drawn(), _plasma.heat_spike(), _heat_split, thermal_supplied(),
+	_heat.step(power_drawn(), _plasma.grind_heat(), _heat_split, thermal_supplied(),
 			surroundings_temperature(), depth(), dt)
 	_noise = _head_activity * _HEAD_HUM + _DRIVE_NOISE * power * (1.0 + _slip)
 	var depth_before := depth()
@@ -1101,7 +1130,7 @@ func call_urgency(station: StringName) -> float:
 	return _calls[station][1] if _calls.has(station) else 0.0
 
 
-## Why this Station calls: &"boundary_approaching", &"shift_due",
+## Why this Station calls: &"boundary_approaching", &"out_of_band",
 ## &"plasma_lost", &"stranded" (Reactor); &"heat_warning", &"starved" (Thermal);
 ## &"starved" (Navigation); &"tunnel_about_to_seal", &"feature_in_column"
 ## (Bore). &"" when not calling.
@@ -1189,22 +1218,25 @@ func steering() -> float:
 ## The acceleration the crew feel in the Habitat, in m/s^2 in the Habitat
 ## frame, pointing the way things fall: the crew's "down". Gravity seen from
 ## inside the vessel (turns are too wide for their own pull to be felt), plus
-## the shudder of a poor Shift's lurch along the Bore.
+## the shudder of the Head's grinding along the Bore.
 func felt_acceleration() -> Vector3:
 	var th := deg_to_rad(pitch())
 	return (TOWARD_UNDERSIDE * cos(th) + TOWARD_HEAD * sin(th)) * _GRAVITY \
-			+ TOWARD_HEAD * lurch() * _plasma.shudder()
+			+ TOWARD_HEAD * shudder() * _plasma.shudder_phase()
 
 
-## How hard a poor Shift's lurch is jolting the vessel now, in m/s^2: sharp at
-## the Shift, gone in a moment. 0 after a clean one.
-func lurch() -> float:
-	return _plasma.lurch()
+## How hard the Head's grinding is shuddering the vessel now, in m/s^2: there
+## while the Residual is outside the Band, harder the further out, and gone
+## once it is back inside.
+func shudder() -> float:
+	return _plasma.shudder()
 
 
-## Wear on the Head from poor Shifts, 0 (none) to 1. It only accumulates; a
-## worn Head holds the plasma less steadily; a rough Shift on a badly worn
-## Head can lose it, and one that wears the Head through does.
+## Wear on the Head, 0 (none) to 1. It builds only while the Residual is
+## outside the Band, faster the further out, and only accumulates. A worn
+## Head holds the plasma less steadily and has a narrower Band; a Residual
+## far outside the Band can lose the plasma on a badly worn Head, and wearing
+## the Head through does.
 func head_wear() -> float:
 	return _plasma.head_wear()
 
@@ -1280,44 +1312,133 @@ func plasma_stability() -> float:
 	return _plasma.stability()
 
 
-## The frequency, in hertz, of the wobble the load on the Head excites in the
-## plasma now. Harder rock loads the Head more and wobbles it faster, so
-## crossing a Boundary changes it. A Shift matches it.
-func plasma_frequency() -> float:
-	return Plasma.frequency_in(_layout.medium_at(depth()))
+## The Wobble the Medium being cut puts on the Head's plasma now, as
+## Vector2(frequency in hertz, amplitude).
+func _wobble() -> Vector2:
+	return Plasma.wobble_in(_layout.medium_at(depth()))
 
 
-## The frequency, in hertz, the Reactor is tuned to hold the plasma at: the
-## opposing wave it drives. Set by the last Shift.
-func plasma_tuning() -> float:
-	return _plasma.tuning()
+## The frequency, in hertz, of the Wobble the Medium puts on the Head's plasma
+## now. Harder rock loads the Head more and wobbles it faster, so crossing a
+## Boundary changes it.
+func wobble_frequency() -> float:
+	return _wobble().x
 
 
-## True while the tuning no longer holds the plasma's wobble (after crossing a
-## Boundary, or after a Shift wide of the mark) and a Shift is due.
-func shift_due() -> bool:
-	return _plasma.due(plasma_frequency())
+## The amplitude of the Wobble now (no unit; about 1 at its biggest). Stronger
+## rock pushes back on the Head harder and wobbles it bigger, so crossing a
+## Boundary changes it too.
+func wobble_amplitude() -> float:
+	return _wobble().y
 
 
-## Seconds left in the window in which a due Shift loses nothing to lateness;
-## 0 when no Shift is due or the window has closed.
-func shift_window() -> float:
-	return _plasma.window(plasma_frequency())
+## The channel of the Shift dial the Reactor's controls tune: CHANNEL_STANDBY
+## as a dive begins; see select_channel().
+func selected_channel() -> StringName:
+	return _plasma.selected()
 
 
-## How closely a Shift to `frequency` hertz would match the plasma's wobble
-## now (plasma_frequency()), 1 (exactly) falling toward 0 the further off: the
-## match a Shift is graded on, before lateness. A worn Head reads the same
-## frequency as a poorer match. The Reactor screen shows it for ACTIVE
-## (shift_match(plasma_tuning())).
-func shift_match(frequency: float) -> float:
-	return _plasma.match_to(frequency, plasma_frequency())
+## The frequency, in hertz, of a channel's Counter-wave (CHANNEL_ACTIVE or
+## CHANNEL_STANDBY).
+func counter_wave_frequency(channel: StringName) -> float:
+	return _plasma.counter_wave(channel).x
 
 
-## Seconds the window for a Shift stays open once one is due, on the Head as
-## it is now: a worn Head narrows it (and grades a Shift harsher).
-func shift_window_length() -> float:
-	return _plasma.window_length()
+## The amplitude of a channel's Counter-wave.
+func counter_wave_amplitude(channel: StringName) -> float:
+	return _plasma.counter_wave(channel).y
+
+
+## The Wobble a channel's Counter-wave is read against, as Vector2(frequency,
+## amplitude): ACTIVE's is the Wobble now; STANDBY's the one expected ahead
+## (NAN in both parts before the first Boundary-approaching call).
+func _wobble_for(channel: StringName) -> Vector2:
+	if channel == CHANNEL_ACTIVE:
+		return _wobble()
+	return Vector2(NAN, NAN) if _medium_ahead == null else Plasma.wobble_in(_medium_ahead)
+
+
+## The steady part of a channel's Residual: what the difference between the
+## Counter-wave's amplitude and the Wobble's leaves, a small wave the same
+## size at every moment. ACTIVE's is read against the Wobble now; STANDBY's is
+## predicted against the Wobble ahead (wobble_ahead_frequency()), NAN before
+## the first Boundary-approaching call. So with the three below.
+func residual_steady(channel: StringName) -> float:
+	var wobble := _wobble_for(channel)
+	return NAN if is_nan(wobble.x) else Plasma.residual_steady(_plasma.counter_wave(channel), wobble)
+
+
+## The beating part of a channel's Residual: how much further it swells at
+## its fullest because the Counter-wave's frequency is off the Wobble's. It
+## swells and fades residual_beat_frequency() times a second. 0 on frequency.
+func residual_beat(channel: StringName) -> float:
+	var wobble := _wobble_for(channel)
+	return NAN if is_nan(wobble.x) else Plasma.residual_beat(_plasma.counter_wave(channel), wobble)
+
+
+## How often a channel's Residual beats, in hertz: the difference between the
+## Counter-wave's frequency and the Wobble's, so the beats slow as the
+## frequency nears. 0 on frequency.
+func residual_beat_frequency(channel: StringName) -> float:
+	var wobble := _wobble_for(channel)
+	return NAN if is_nan(wobble.x) else Plasma.beat_frequency(_plasma.counter_wave(channel), wobble)
+
+
+## A channel's Residual at its fullest: its steady part and its beating part.
+## It is this, for ACTIVE, that the Band is held against (out_of_band()).
+func residual(channel: StringName) -> float:
+	var wobble := _wobble_for(channel)
+	return NAN if is_nan(wobble.x) else Plasma.residual_reach(_plasma.counter_wave(channel), wobble)
+
+
+## The Band: how much Residual the Head bears without wearing, in the units
+## of the Wobble's amplitude, as of the last step. It narrows as the Head
+## wears and as the hull runs hot, and eases as the hull cools.
+func band() -> float:
+	return _plasma.band()
+
+
+## True while ACTIVE's Residual, at its fullest, is outside the Band: the
+## Head wears, grinds and shudders, and the plasma is less steady, for as
+## long as it lasts. After crossing a Boundary it is so until ACTIVE's
+## Counter-wave cancels the new Wobble (a Shift, or tuning ACTIVE).
+func out_of_band() -> bool:
+	return _plasma.out_of_band(_wobble())
+
+
+## The causes pulling the plasma's steadiness (plasma_stability()) down now,
+## one name each: CAUSE_WORN (the Head's wear), CAUSE_HOT (the hot hull's
+## narrowing of the Band), CAUSE_OUT_OF_BAND (the Residual outside the Band).
+## Empty while it is steady or lost. Each is a Caution lamp on the Reactor.
+func steadiness_causes() -> Array[StringName]:
+	return _plasma.causes()
+
+
+## The Wobble as a wave, `seconds` from now (negative: ago), for a channel's
+## lane on the Reactor screen: ACTIVE's is the Wobble now, STANDBY's the one
+## expected ahead (NAN before the first Boundary-approaching call).
+func wobble_wave(channel: StringName, seconds: float) -> float:
+	var wobble := _wobble_for(channel)
+	return NAN if is_nan(wobble.x) else _plasma.wobble_wave(wobble, seconds)
+
+
+## A channel's Counter-wave as a wave, `seconds` from now, against its Wobble
+## (see wobble_wave()): the Wobble's inverse, its phase locked to the Wobble's
+## and swinging about it the further its frequency is off. STANDBY's before
+## the first Boundary-approaching call, with no Wobble to lock to, is a plain
+## wave at its own frequency.
+func counter_wave(channel: StringName, seconds: float) -> float:
+	var wobble := _wobble_for(channel)
+	if is_nan(wobble.x):
+		return _plasma.counter_wave_alone(channel, seconds)
+	return _plasma.counter_wave_against(channel, wobble, seconds)
+
+
+## A channel's Residual as a wave, `seconds` from now: its Wobble summed with
+## its Counter-wave. A flat line when the cancelling is perfect. NAN for
+## STANDBY before the first Boundary-approaching call.
+func residual_wave(channel: StringName, seconds: float) -> float:
+	return wobble_wave(channel, seconds) + counter_wave(channel, seconds)
 
 
 ## How hard the Head is running, 0 (idle, Quiet Ship) to 1 (running).
@@ -1507,9 +1628,13 @@ func survey_value() -> float:
 ## Dictionary with a `type` StringName and its own fields:
 ##   &"tunnel_sealed" {distance}: the melt has filled the tunnel behind the
 ##       Tail; the link to the surface is now the slow one.
-##   &"boundary_approaching", &"boundary_crossed", &"shift_result",
+##   &"boundary_approaching", &"boundary_crossed",
 ##       &"plasma_lost" {cause, depth, distance}: see ticket #11
 ##       (shift_test.gd); `cause` as outcome()'s plasma_lost_by.
+##   &"shift_result" {clean, residual, band}: the crew made a Shift (the
+##       swap). `residual` is the new ACTIVE's Residual at its fullest
+##       against the Wobble at that moment, `band` the Band, `clean` whether
+##       the Residual is inside it.
 ##   &"station_call" {station, reason, urgency}: a Station has begun calling,
 ##       or calls for a new reason (see call_reason()). The time rate returns
 ##       to normal.
@@ -1641,8 +1766,9 @@ func cause_of_death() -> StringName:
 ##   cause: why it ended so. Dead: &"heat" or &"self_destruct" (as
 ##       cause_of_death()). Brought home or rescued: why the plasma was lost
 ##       (as plasma_lost_by). Surfaced or under way: &"".
-##   plasma_lost_by: why the plasma is lost, &"disrupted" (a rough Shift on a
-##       badly worn Head), &"worn_through" (a poor Shift wore the Head through)
+##   plasma_lost_by: why the plasma is lost, &"disrupted" (a Residual far
+##       outside the Band on a badly worn Head), &"worn_through" (the Residual
+##       outside the Band wore the Head through)
 ##       or &"debug"; &"" while it holds (or was relit).
 ##   stranded_for: seconds the crew was stranded: rescued, what the rescue
 ##       took; dead, how long they waited before the hull failed; stranded
@@ -1771,26 +1897,18 @@ func paid_this_dive() -> float:
 	return _paid - _paid_before_dive
 
 
-## The Shift dial's STANDBY channel, in hertz; see set_standby_tuning().
-func standby_tuning() -> float:
-	return _plasma.standby()
+## The frequency, in hertz, of the Wobble expected in the Medium beyond the
+## Boundary last announced as approaching (&"boundary_approaching"), or NAN
+## before the first such call. It holds through the crossing (when STANDBY is
+## swapped in, and swapped back) until the next Boundary is announced. Exact
+## for now: STANDBY's preview.
+func wobble_ahead_frequency() -> float:
+	return _wobble_for(CHANNEL_STANDBY).x
 
 
-## The frequency, in hertz, the plasma is expected to wobble at in the Medium
-## beyond the Boundary last announced as approaching (&"boundary_approaching"),
-## or NAN before the first such call. It holds through the crossing (the
-## window in which STANDBY is swapped in, and swapped back) until the next
-## Boundary is announced. Exact for now: STANDBY's preview.
-func wobble_ahead() -> float:
-	return NAN if _medium_ahead == null else Plasma.frequency_in(_medium_ahead)
-
-
-## How closely STANDBY (standby_tuning()) matches the wobble expected in the
-## Medium ahead (wobble_ahead()), as shift_match() reads it, or NAN ("—" on
-## the Reactor screen) before the Boundary-approaching call.
-func standby_match() -> float:
-	var ahead := wobble_ahead()
-	return NAN if is_nan(ahead) else _plasma.match_to(standby_tuning(), ahead)
+## The amplitude of the Wobble expected ahead; as wobble_ahead_frequency().
+func wobble_ahead_amplitude() -> float:
+	return _wobble_for(CHANNEL_STANDBY).y
 
 
 ## The title of the Scenario being played, "" for none.
@@ -2164,10 +2282,9 @@ func _watch_boundaries(depth_before: float) -> void:
 			depth = ahead, depth_to_go = absf(ahead - depth())})
 
 
-## The load on the Head has changed, so the plasma's wobble has too: a new
-## window for the Shift opens.
+## A Boundary crossed. The Wobble has changed (the plasma is handed the new
+## one each step); what follows here is the tunnel behind.
 func _on_boundary_crossed(from: Medium, to: Medium) -> void:
-	_plasma.open_window()
 	if not _tunnel_sealed and to.porosity < _SEAL_POROSITY and from.porosity >= _SEAL_POROSITY:
 		_seal_coming_at = _distance
 
@@ -2175,7 +2292,7 @@ func _on_boundary_crossed(from: Medium, to: Medium) -> void:
 # --- Autopilots and calls -------------------------------------------------
 
 ## The steadying rules of Stations whose autopilot is engaged (the Reactor's
-## is in Plasma.tend(), the Drive's gentle steering in _steer()). Steady
+## tuning of ACTIVE is in Plasma.tend(), the Drive's gentle steering in _steer()). Steady
 ## conditions leave every setting as it was. The Drive backs its power off to
 ## what the wall can grip once the grip waves slip: the slipped share only
 ## made heat and noise.
@@ -2228,9 +2345,9 @@ func _reactor_call(calls: Dictionary) -> void:
 		_offer_call(calls, STATION_REACTOR, &"stranded", _EMERGENCY_CALL_URGENCY)
 	elif plasma_lost():
 		_offer_call(calls, STATION_REACTOR, &"plasma_lost", _EMERGENCY_CALL_URGENCY)
-	elif shift_due():
-		_offer_call(calls, STATION_REACTOR, &"shift_due", _urgency(_SHIFT_DUE_CALL,
-				_plasma.overdue_share()))
+	elif out_of_band():
+		_offer_call(calls, STATION_REACTOR, &"out_of_band", _urgency(_OUT_OF_BAND_CALL,
+				_plasma.out_share(_wobble())))
 	elif not is_nan(_announced_boundary):
 		var to_go := absf(_announced_boundary - depth()) / _BOUNDARY_APPROACH_M
 		_offer_call(calls, STATION_REACTOR, &"boundary_approaching",
@@ -2277,7 +2394,7 @@ func _try_relight() -> void:
 	var outcome := &"refused"
 	if _stranding.pay(cost):
 		outcome = &"failed"
-		if _plasma.relight(plasma_frequency(), _relight_random.randf()):
+		if _plasma.relight(_wobble(), _relight_random.randf()):
 			outcome = &"lit"
 			_stranding.relit()
 	_events.append({type = &"relight_result", outcome = outcome, chance = chance,
@@ -2488,7 +2605,7 @@ func _sell_aboard() -> float:
 
 
 ## What putting right a dive that reached the surface cost, each part billed
-## by Stranding: the hull's wear from heat and the Head's from poor Shifts,
+## by Stranding: the hull's wear from heat and the Head's from its Residual,
 ## each in proportion to the wear, and a rescue in proportion to its time.
 ## `covered` is the part of the bill beyond what the dive earned, which is not
 ## charged: a dive's pay never goes below 0 (the game models no debt).
