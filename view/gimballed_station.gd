@@ -310,6 +310,8 @@ func _key_text(text: String, colour: Color) -> Label3D:
 ## Swing toward the given "up" (Habitat frame, unit length), turning to
 ## face the Bore as settled_cradle() says. The first call settles at once.
 func follow_up(up: Vector3, dt: float) -> void:
+	if up.is_zero_approx():
+		return  # nothing felt (a lurch cancelling gravity): hold as it is
 	var settled := settled_cradle(position, up, _cradle.basis)
 	var weight := 1.0 - exp(-dt * SWING_RATE) if _settled else 1.0
 	_settled = true

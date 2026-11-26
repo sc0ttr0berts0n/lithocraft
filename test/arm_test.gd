@@ -6,12 +6,16 @@
 extends GdUnitTestSuite
 
 const Habitat := preload("res://view/habitat.gd")
-const BORE_RADIUS := 0.8
-const PIVOT_RADIUS := 2.2
+## Standing on the outer wall, this far in from it.
+const ON_THE_WALL := Habitat.OUTER_RADIUS - 0.4
 
 const LEVEL := Vector3.UP
 const DIVING := Vector3.BACK      # down is toward the Head (-Z)
 const CLIMBING := Vector3.FORWARD # down is toward the Tail (+Z)
+## Pitched a little off level, where left and right are nearly but not
+## quite a tie.
+var SHALLOW_DIVE := Vector3(0, cos(deg_to_rad(5.0)), sin(deg_to_rad(5.0)))
+var SHALLOW_CLIMB := Vector3(0, cos(deg_to_rad(5.0)), -sin(deg_to_rad(5.0)))
 
 ## Long enough for any reach or carry to finish, however it is tuned.
 const PLENTY := 30.0
@@ -19,44 +23,38 @@ const PLENTY := 30.0
 
 ## The Habitat's places with a Station on them, in order round the ring:
 ## the Arm's Stations, with the empty mount left out, as the Habitat does.
-var IN_USE := _places_in_use()
-
-
-static func _places_in_use() -> Array[int]:
-	var places: Array[int] = []
-	for place in Habitat.STATIONS.size():
-		if not Habitat.STATIONS[place][0].is_empty():
-			places.append(place)
-	return places
+var in_use := DiveTestKit.station_places()
 
 
 func _pivot(place: int) -> Vector3:
 	return Habitat.pivot(place)
 
 
-## The in-use Station of that name, as an index into IN_USE.
+## The in-use Station of that name, as an index into in_use.
 func _index_of(station_name: String) -> int:
-	for index in IN_USE.size():
-		if Habitat.STATIONS[IN_USE[index]][0] == station_name:
-			return index
-	return -1
+	return in_use.find(DiveTestKit.station_place(station_name))
+
+
+## A new Arm on the Habitat's rail.
+func _new_arm() -> Arm:
+	return Arm.new(Habitat.BORE_RADIUS + Habitat.RAIL_GAP)
 
 
 ## A Station's cradle with its gimbal settled to up.
 func _cradle(index: int, up: Vector3) -> Basis:
-	return GimballedStation.settled_cradle(_pivot(IN_USE[index]), up, Basis())
+	return GimballedStation.settled_cradle(_pivot(in_use[index]), up, Basis())
 
 
 ## Where each in-use Station is worked from, with the gimbals settled to up.
 func _poses(up: Vector3) -> Array[Transform3D]:
 	var poses: Array[Transform3D] = []
-	for index in IN_USE.size():
-		poses.append(GimballedStation.pose_for(_pivot(IN_USE[index]), _cradle(index, up)))
+	for index in in_use.size():
+		poses.append(GimballedStation.pose_for(_pivot(in_use[index]), _cradle(index, up)))
 	return poses
 
 
 func _screen(index: int, up: Vector3) -> Vector3:
-	return GimballedStation.screen_centre_for(_pivot(IN_USE[index]), _cradle(index, up))
+	return GimballedStation.screen_centre_for(_pivot(in_use[index]), _cradle(index, up))
 
 
 ## A crew member standing upright for this "up", eyes at the given point.
@@ -85,7 +83,7 @@ func _anywhere() -> Array[Vector3]:
 	for i in 12:
 		var a := TAU * (i + 0.5) / 12.0
 		var radial := Vector3(cos(a), sin(a), 0)
-		points.append(radial * 2.9)
+		points.append(radial * ON_THE_WALL)
 		points.append(radial * 1.2 + Vector3(0, 0, -0.9))
 		points.append(radial * 2.0 + Vector3(0, 0, 0.9))
 	return points
@@ -94,7 +92,7 @@ func _anywhere() -> Array[Vector3]:
 func _assert_caught_from_anywhere(up: Vector3) -> void:
 	var poses := _poses(up)
 	for point in _anywhere():
-		var arm := Arm.new(BORE_RADIUS + 0.15)
+		var arm := _new_arm()
 		arm.press()
 
 		var eye := _run(arm, _eye_at(point, up), poses)
@@ -116,19 +114,20 @@ func test_from_anywhere_climbing_the_arm_seats_the_player_at_a_station() -> void
 
 
 ## Standing on whatever is the floor at that pitch, at a Station's place
-## round the ring: on the outer wall when level, on an end cap otherwise.
+## round the ring: on the outer wall when level or nearly, on an end cap
+## otherwise.
 func _beside(index: int, up: Vector3) -> Vector3:
-	var round_ring := _pivot(IN_USE[index]).normalized()
-	if up == LEVEL:
-		return round_ring * 2.9
-	return round_ring * PIVOT_RADIUS - up * 0.9
+	var pivot := _pivot(in_use[index])
+	if up.dot(LEVEL) > 0.9:
+		return pivot.normalized() * ON_THE_WALL
+	return pivot - up * 0.9
 
 
 func test_at_every_pitch_the_arm_takes_the_player_to_the_station_they_are_standing_by() -> void:
 	for up in [LEVEL, DIVING, CLIMBING]:
 		var poses := _poses(up)
-		for index in IN_USE.size():
-			var arm := Arm.new(BORE_RADIUS + 0.15)
+		for index in in_use.size():
+			var arm := _new_arm()
 			arm.press()
 
 			var eye := _run(arm, _eye_at(_beside(index, up), up), poses)
@@ -139,7 +138,7 @@ func test_at_every_pitch_the_arm_takes_the_player_to_the_station_they_are_standi
 
 ## Seated at a Station, once the carry there has finished.
 func _seated_at(index: int, up: Vector3) -> Arm:
-	var arm := Arm.new(BORE_RADIUS + 0.15)
+	var arm := _new_arm()
 	arm.press()
 	_run(arm, _eye_at(_beside(index, up), up), _poses(up))
 	return arm
@@ -163,7 +162,7 @@ func _one_step_from(index: int, up: Vector3) -> Array:
 func test_the_drive_and_navigation_are_one_left_or_right_apart_at_every_pitch() -> void:
 	var drive := _index_of("Drive")
 	var navigation := _index_of("Navigation")
-	for up in [LEVEL, DIVING, CLIMBING]:
+	for up in [LEVEL, DIVING, CLIMBING, SHALLOW_DIVE, SHALLOW_CLIMB]:
 		assert_array(_one_step_from(drive, up)) \
 			.override_failure_message("Navigation is not one step from the Drive, up %s" % up) \
 			.contains([navigation])
@@ -173,8 +172,8 @@ func test_the_drive_and_navigation_are_one_left_or_right_apart_at_every_pitch() 
 
 
 func test_left_or_right_moves_one_station_at_a_time_toward_that_side() -> void:
-	var count := IN_USE.size()
-	for up in [LEVEL, DIVING, CLIMBING]:
+	var count := in_use.size()
+	for up in [LEVEL, DIVING, CLIMBING, SHALLOW_DIVE, SHALLOW_CLIMB]:
 		var poses := _poses(up)
 		for index in count:
 			for side in [-1, 1]:
@@ -195,8 +194,8 @@ func test_left_or_right_moves_one_station_at_a_time_toward_that_side() -> void:
 
 
 func test_every_station_in_use_can_be_reached_with_left_and_right_at_every_pitch() -> void:
-	var count := IN_USE.size()
-	for up in [LEVEL, DIVING, CLIMBING]:
+	var count := in_use.size()
+	for up in [LEVEL, DIVING, CLIMBING, SHALLOW_DIVE, SHALLOW_CLIMB]:
 		# Where left and right lead from each Station, then follow them.
 		var leads := []
 		for index in count:
@@ -232,7 +231,7 @@ func test_pressing_again_lets_go_and_the_arm_goes_back_to_its_rail() -> void:
 
 
 func test_pressing_while_it_reaches_calls_it_off() -> void:
-	var arm := Arm.new(BORE_RADIUS + 0.15)
+	var arm := _new_arm()
 	arm.press()
 	arm.step(0.1, _eye_at(_beside(0, LEVEL), LEVEL), _poses(LEVEL))
 
@@ -259,7 +258,7 @@ func _in_the_way(p: Vector3, eye: Vector3, screen: Vector3, cradle: Basis) -> bo
 
 func test_seated_the_chain_and_claw_never_block_the_view_of_the_station() -> void:
 	for up in [LEVEL, DIVING, CLIMBING]:
-		for index in IN_USE.size():
+		for index in in_use.size():
 			var arm := _seated_at(index, up)
 			var eye := arm.held_eye().origin
 			var screen := _screen(index, up)
@@ -271,7 +270,7 @@ func test_seated_the_chain_and_claw_never_block_the_view_of_the_station() -> voi
 
 
 func test_left_or_right_before_being_caught_is_not_saved_up_for_later() -> void:
-	var arm := Arm.new(BORE_RADIUS + 0.15)
+	var arm := _new_arm()
 	arm.shift(1)
 	arm.press()
 
@@ -281,8 +280,8 @@ func test_left_or_right_before_being_caught_is_not_saved_up_for_later() -> void:
 
 
 func test_one_way_then_the_other_comes_back_to_the_same_station() -> void:
-	for up in [LEVEL, DIVING, CLIMBING]:
-		for index in IN_USE.size():
+	for up in [LEVEL, DIVING, CLIMBING, SHALLOW_DIVE, SHALLOW_CLIMB]:
+		for index in in_use.size():
 			for side in [-1, 1]:
 				var arm := _seated_at(index, up)
 
