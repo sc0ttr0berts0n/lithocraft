@@ -108,6 +108,12 @@ var _notice: Label
 var _notice_left := 0.0
 ## Sparks, shake and groans while heat wears the hull.
 var _hull_feel := HullFeel.new()
+## The end of a dive: the lurch that settles to still, then the outcome
+## sentence over the breakdown, held in _outcome_lines until the view is still.
+var _outcome_screen := OutcomeScreen.new()
+var _outcome_lines: Array = []
+## The crew's shake last frame, metres: what the end-of-dive lurch starts from.
+var _shake_m := 0.0
 
 @onready var _dive_view: DiveView = %DiveView
 ## The F1 controls, built from the key map.
@@ -211,7 +217,10 @@ func _key_time_normal(_index: int) -> void:
 	_sim.set_time_rate(1.0)
 
 
+## A new dive, once the end of the last one has settled into its outcome.
 func _key_new_dive(_index: int) -> void:
+	if _outcome_screen.settling():
+		return
 	_sim.new_dive()
 
 
@@ -463,10 +472,18 @@ func _physics_process(delta: float) -> void:
 	else:
 		_crew.step(felt, delta)
 	# A poor Shift's lurch, the grip waves slipping on the wall, and heat
-	# wearing the hull are felt.
+	# wearing the hull are felt. Once the dive is over only its end lurch is,
+	# settling to still before the outcome shows.
 	_hull_feel.step(delta, felt)
-	_crew.shake(_sim.lurch() * LURCH_SHAKE_M + _sim.slip() * SLIP_SHAKE_M
-			+ _hull_feel.shake_metres())
+	if _sim.surfaced() or _sim.dead():
+		_shake_m = _outcome_screen.step(delta)
+		if _outcome_screen.still() and not _outcome_lines.is_empty():
+			_show_notice(_outcome_lines, 0.0)
+			_outcome_lines = []
+	else:
+		_shake_m = _sim.lurch() * LURCH_SHAKE_M + _sim.slip() * SLIP_SHAKE_M \
+				+ _hull_feel.shake_metres()
+	_crew.shake(_shake_m)
 	_drive.set_supplied(_sim.drive_supplied())
 	_thermal.set_supplied(_sim.thermal_supplied())
 	_navigation.set_supplied(_sim.navigation_supplied())
@@ -673,22 +690,28 @@ func _on_relight_result(event: Dictionary) -> void:
 					"Store left %d%%" % left, "Wait for the rescue"], 0.0)
 
 
-## Heat wore the hull through and the crew died: the dive is over. The
-## breakdown: where, the unsold survey lost, what was paid and kept, and the
-## rebuy (shown, not charged while there is no balance to take it from).
+## The hull failed and the crew died: the dive is over. Under the outcome
+## sentence, the breakdown: the unsold survey lost, what was paid and kept,
+## and the rebuy (shown, not charged while there is no balance to take it
+## from).
 func _on_hull_failed(event: Dictionary) -> void:
-	var self_destructed: bool = event.cause == &"self_destruct"
-	_show_notice([
-		"SELF-DESTRUCT  at %.0f m" % event.depth if self_destructed
-			else "HULL FAILED  at %.0f m" % event.depth,
-		"The crew chose its end: the hull is cooked through. The crew is lost."
-			if self_destructed else "Heat wore the hull through. The crew is lost.",
+	_end_dive([
 		"Unsold survey lost: %d stretches, worth %.0f" % [event.lost_stretches, event.lost],
 		"Paid for this dive: %.0f   Paid in all: %.0f" % [event.amount, event.total_paid],
 		"Rebuy: %.0f  (charged %.0f: no balance yet)" % [event.rebuy, event.rebuy_charged],
 		"",
 		"%s rebuy and start another dive" % KeyMap.label(&"new_dive"),
-	], 0.0)
+	])
+
+
+## The dive has ended: the view lurches from its shake now and settles to
+## still, then shows the outcome sentence (DiveSimulation.outcome()) above
+## the `breakdown`. Whatever notice was up goes as the lurch begins.
+func _end_dive(breakdown: Array) -> void:
+	_outcome_lines = [OutcomeScreen.sentence(_sim.outcome()), ""] + breakdown
+	_outcome_screen.start(_shake_m)
+	_notice.visible = false
+	_notice_left = 0.0
 
 
 ## Self-destruct has started: under way the Stations are taken off the crew
@@ -720,11 +743,11 @@ func _on_self_destruct_cancelled(event: Dictionary) -> void:
 
 
 ## However the Lithocraft reached the surface (surfaced, rescued, or brought
-## home through the open tunnel) and the survey sold: what this dive was paid
-## and why, the repairs to its hull and Head and any rescue taken out, until
-## the crew starts another dive.
+## home through the open tunnel) and the survey sold: under the outcome
+## sentence, what this dive was paid and why, the repairs to its hull and Head
+## and any rescue taken out, until the crew starts another dive.
 func _on_paid(event: Dictionary) -> void:
-	var lines := _arrival_lines(event.arrival)
+	var lines := ["The survey is sold."]
 	lines.append_array([
 		"Paid for this dive: %.0f" % event.amount,
 		"  up the link under way %.0f, carried home %.0f" % [event.by_link, event.carried_home],
@@ -748,24 +771,14 @@ func _on_paid(event: Dictionary) -> void:
 	lines.append("Paid in all: %.0f" % event.total_paid)
 	lines.append("")
 	lines.append("%s start another dive" % KeyMap.label(&"new_dive"))
-	_show_notice(lines, 0.0)
-
-
-## The heading of the breakdown: how the Lithocraft reached the surface.
-func _arrival_lines(arrival: Dictionary) -> Array:
-	match arrival.type:
-		&"rescued":
-			return ["RESCUED  from %.0f m after %s  The survey is sold" % [
-					arrival.depth, _duration(arrival.rescue_time)]]
-		&"brought_home":
-			return ["PLASMA LOST  at %.0f m" % arrival.depth,
-					"The tunnel behind is open: brought home through it. The survey is sold"]
-	return ["SURFACED  The survey is sold"]
+	_end_dive(lines)
 
 
 ## A fresh dive after surfacing: back to the start settings, ready to dive.
 func _on_new_dive(event: Dictionary) -> void:
 	_reset_settings()
+	_outcome_screen.reset()
+	_outcome_lines = []
 	_show_notice([
 		"At the surface, ready to dive",
 		"Paid so far: %.0f" % event.paid,

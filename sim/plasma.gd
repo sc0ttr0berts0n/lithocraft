@@ -83,6 +83,8 @@ var _shift_asked := NAN
 var _head_wear := 0.0
 ## True once the plasma has gone out. It stays out.
 var _lost := false
+## Why the plasma went out (see lost_by()), or &"" while it holds.
+var _lost_by := &""
 ## Extra heat per second from the last poor Shift, fading.
 var _heat_spike := 0.0
 ## The last poor Shift's lurch: its peak jolt in m/s^2 and seconds since.
@@ -114,6 +116,7 @@ func relight(target: float, roll: float) -> bool:
 	if not _lost or roll >= relight_chance():
 		return false
 	_lost = false
+	_lost_by = &""
 	_tuning = target
 	_mistuned_for = 0.0
 	_shift_asked = NAN
@@ -128,18 +131,21 @@ func debug_set_wear(wear: float) -> void:
 
 
 ## Debug only: the plasma goes out, as a Shift that loses it would leave it,
-## by the same path (_lose()), raising &"plasma_lost" into `events`.
+## by the same path (_lose()), raising &"plasma_lost" into `events`. Its cause
+## is &"debug".
 func debug_lose(events: Array[Dictionary], depth: float, distance: float) -> void:
-	_lose(events, depth, distance)
+	_lose(events, depth, distance, &"debug")
 	_stability = 0.0
 	_shift_asked = NAN
 
 
-## The plasma goes out and stays out. Raises &"plasma_lost" into `events`,
-## placed at `depth` and `distance`.
-func _lose(events: Array[Dictionary], depth: float, distance: float) -> void:
+## The plasma goes out and stays out, for `cause` (see lost_by()). Raises
+## &"plasma_lost" into `events`, placed at `depth` and `distance`.
+func _lose(events: Array[Dictionary], depth: float, distance: float,
+		cause: StringName) -> void:
 	_lost = true
-	events.append({type = &"plasma_lost", depth = depth, distance = distance})
+	_lost_by = cause
+	events.append({type = &"plasma_lost", cause = cause, depth = depth, distance = distance})
 
 
 ## Debug only: retunes the Reactor well wide of a wobble at `target` hertz,
@@ -243,6 +249,13 @@ func lost() -> bool:
 	return _lost
 
 
+## Why the plasma went out: &"disrupted" (a rough Shift on a badly worn Head),
+## &"worn_through" (a poor Shift wore the Head through) or &"debug" (the debug
+## menu); &"" while it holds, and again once relit.
+func lost_by() -> StringName:
+	return _lost_by
+
+
 ## Extra heat per second from the last poor Shift's grinding, fading.
 func heat_spike() -> float:
 	return _heat_spike
@@ -304,4 +317,4 @@ func _make_shift(frequency: float, by_autopilot: bool, target: float, hull_heat_
 	events.append({type = &"shift_result", grade = grade,
 			clean = roughness <= 0.0, late = late, autopilot = by_autopilot, wear = wear})
 	if roughness > 0.0 and (disrupted or worn_through):
-		_lose(events, depth, distance)
+		_lose(events, depth, distance, &"worn_through" if worn_through else &"disrupted")
