@@ -7,7 +7,7 @@
   No Station shows a `Label3D`: every reading is on the screen, and `station_screen_test.gd` fails a Station that floats text or lays a reading off its screen.
 - **The frame, top to bottom:** the header strip, the body, the status lines, the footer.
   The header strip is laid out the same on every Station: its name, its autopilot's state (green AUTOPILOT, amber while AUTOPILOT OFF flashes, then white), and its Caution lamps at the right.
-  The body is the Station's own instrument and takes all the room the rest leaves; a Station with none yet (Thermal) gives the room to its status lines.
+  The body is the Station's own instrument and takes all the room the rest leaves; a Station with none yet gives the room to its status lines.
   The status lines are the Station's readings as text, shrunk together until every line is whole (`StationScreen.fitting_font_size()`), at most `STATUS_MOST` of the room under an instrument.
   The footer is one line every Station shows alike (the time rate).
 - **Putting a Station's instrument in the body** is one call as the Station is built in `habitat.gd::_build_stations`:
@@ -39,16 +39,24 @@
 ## Each Station's screen
 
 - `head_wear()` (the Head, from poor Shifts) and `vessel_wear()` (the hull, from heat) are different things.
-  The Thermal screen shows the hull as `hull_integrity()` and `hull_creep_rate()`, and once sealed in `stranding_clock()` beside `rescue_time()` ("if stranded" estimates under way, the race itself while stranded).
+  The Thermal screen's status lines show the hull as `hull_integrity()` and `hull_creep_rate()`, and once sealed in `stranding_clock()` beside `rescue_time()` ("if stranded" estimates under way, the race itself while stranded).
+- Thermal's instrument (`ThermalGauge`, `view/thermal_gauge.gd`, a Control in the body) is a gauge of the hull against what it bears, over the heat split drawn as one divided bar.
+  The gauge is a bar along a kelvin scale filled to `vessel_temperature()`; its amber range starts at `hull_warning_temperature()` and its red at `hull_damage_temperature()`, read from the simulation, never written in the view, and the bar and the number take the colour of the range the hull is in (`range_of()`).
+  The trend mark is an airliner's speed trend arrow: from the hull's place to where it will be `TREND_AHEAD_S` on at `hull_warming_rate()`, in the colour of the range its tip reaches, with a triangle up or down and RISING or FALLING beside the number (a bar and STEADY under `STEADY_K_PER_S`).
+  The split bar divides at the heat's own division (`heat_to_column()` over `heat_produced()`), out through the hull on the left; the crew's setting (`heat_split()`) is the cyan mark under it, so starved pumps show as the division standing short of the mark.
+  It keeps no state and no clock: what it shows is in its queries (`needle()`, `trend()`, `trend_place()`, `column_share()`, `parts()`), tested in `thermal_gauge_test.gd`, so the hull's numbers are no longer repeated as status lines.
 - The Reactor's screen (`PlasmaDisplay`, `view/plasma_display.gd`, on a `SubViewport`) shows the Shift dial as two lanes, ACTIVE over STANDBY, each its wobble (white) against its tuning's opposing wave (cyan) with its MATCH at the right:
   ACTIVE against `plasma_frequency()` by `shift_match(plasma_tuning())`, STANDBY against `wobble_ahead()` by `standby_match()`, the tuning's wave alone and "MATCH —" while those are NAN (`PlasmaDisplay.match_text()`, tested directly).
   It reads only the simulation; the view keeps no copy of either channel.
   The window bar runs along the bottom.
 - The Drive's screen is a primary flight display (`FlightDisplay`, `view/flight_display.gd`), drawn on a `SubViewport` like the Reactor's: attitude (pitch ladder), speed and depth tapes, heading tape, power, grip and steering, each read from the simulation's queries every frame;
-  its status line says only whether the Drive follows the Course or overrides it (or how the dive ended).
+  its status lines are the Course, written as Navigation's screen writes it (`habitat.gd::_course_line()`), then whether the Drive follows it or how far off it steers (or how the dive ended).
   A tape's scale is a `FlightTape`: the reading stays at its middle, a value's place is `place(value, reading)` (the short way round on the compass), and a bug off the tape is `pinned()` to its nearer end.
   On the attitude indicator a mark lies aside by `FlightTape.sideways()`, the true angle off the vessel's vertical plane, not the bare heading difference, which means nothing in a steep dive.
-  The Course is always cyan (`StationTheme.SELECTED_COLOUR`), the override hollow in the same cyan: both are what the crew has selected.
+  The Course is always cyan (`StationTheme.SELECTED_COLOUR`), what the Drive steers for off it hollow in the same cyan (both are what the crew has selected), and where the Head points white.
+- The deviation is stated in one set of words on every screen that states it (`CourseDeviation`, `view/course_deviation.gd`: "30 deg up, 15 deg right", from `deviation_pitch()` and `deviation_heading()`):
+  at the foot of the Drive's attitude indicator beside the hollow mark ("OFF COURSE 30 deg up"), in the Drive's status line ("off Course: 30 deg up") and in Navigation's second status line ("Drive is off the Course by 30 deg up", else "Drive follows the Course" in green).
+  `course_deviation_test.gd` stages a Habitat and fails if the two screens differ on the Course or the deviation; a new screen that shows either uses `_course_line()` and `CourseDeviation`.
   Pitch follows the simulation's sign (+ diving), so diving rungs lie below the horizon, as nose-down ones do on an airliner's.
 - Navigation's point cloud (`ScanDisplay`) is head-up: the vessel fixed at the centre, its Head up the screen, the camera set from `heading()` and `heading_degrees()` over its back and right side, so it turns only as the vessel does and a Course differing in pitch or heading shows beside the heading line.
   The cloud is placed at `-head_position()`, so points stream toward the marker at the simulation's speed; their places are rebuilt only when `pulses_sent()` changes (never by copying `points()` each frame), their fade (by `point_age()`) every frame.

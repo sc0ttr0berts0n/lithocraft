@@ -2,6 +2,24 @@
 
 Agent's choices within round 3's design (spec #71), one bullet per ticket.
 
+- **Navigation plans, the Drive deviates (ticket #65, agent's choices within the design).**
+  A nudge is one fixed step, 15 degrees (tuned for play, ADR 0001), and the command carries only its direction, so nothing sent to the Drive can point it at a dive, level or a climb in one go.
+  The override the nudges build is still a heading and pitch of its own, not an offset carried along with the Course: if Navigation replots while the Drive is off the Course, the Drive holds where it was steering and the deviation changes, which both screens show.
+  An override that comes back onto the Course ends by itself, whether the Drive nudged back or Navigation plotted the Course onto it, so "off Course by nothing" is never a state and the Drive follows the next plot.
+  This changes round 2's "the override ends only on O or the Drive's autopilot" (12-second-checkpoint.md); walking away still does not end it.
+  Straight up or down a compass heading means nothing (real: at the pole of a sphere every direction is south), so the heading deviation reads zero there and a heading nudge does nothing until the pitch is nudged off vertical.
+  The deviation is said in up / down / left / right, not signed degrees, because pitch is signed + diving and "-30" for "up" was part of the play test's confusion.
+  The deviation is written in cyan, as the Course is: it is what the crew has selected, not a fault, so it lights no Caution lamp; "Following the Course" stays green.
+  Navigation's screen gained one status line for it and nothing on its displays, which #67 is redrawing; the projected path already bends toward what the Drive steers for (#66), now under test for a nudged Drive.
+- **The Thermal gauge (ticket #64, agent's choices within the design).**
+  The hull's temperature is a bar along a scale in kelvin, with the amber range from the temperature the heat warning comes on at and the red from the temperature the hull bears: both the simulation's thresholds, so the gauge and the warning cannot disagree.
+  The heat warning can also come on below the amber range, when the heat now sent outward will take the hull past what it bears; the gauge shows that as the trend arrow reaching into the amber or red, the HULL HOT lamp lit above it.
+  The trend mark is borrowed from an airliner's speed tape: an arrow from the present value to where it will be in thirty seconds at the present rate, so its length is how fast and its tip is how bad.
+  Real basis: a hull settling toward the temperature at which it sheds its heat changes fastest when furthest from it, so the arrow shortens as the hull settles.
+  The scale starts below any rock the first dive meets and runs a little past what the hull bears; a hull hotter than its end is pinned there and the number still reads true.
+  Where the heat is sent is one bar divided where the heat divides, with the amounts over it and the crew's setting as a cyan mark under it; the two differ only when the pumps are starved.
+  The Medium's temperature is written beside the gauge, not marked on it: a mark among the scale's numbers read as one more threshold.
+  A new simulation query, `hull_warming_rate()`, gives the trend; the hull's temperature and the split no longer repeat as status lines, and integrity and creep keep theirs.
 - **Features of interest in the Column (ticket #70, agent's choices within the design).**
   The play test's iron concretions were drawn, but as marbles two to four centimetres across, the size of the grain speckle round them, at a place round the Column picked per feature, so often on the far side from the Bore Station.
   Every feature is now turned to the Bore Station's side of the Column: the crew turn round from its screen and it is there.

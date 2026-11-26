@@ -62,7 +62,7 @@ func test_commands_for_the_same_time_are_sent_in_the_order_given() -> void:
 
 
 func test_a_command_that_needs_the_crew_at_a_station_works_seated_there() -> void:
-	var override := ["--time", "2", "--do", "1 override_course 90 60"]
+	var override := ["--time", "2", "--do", "1 nudge_pitch -1"]
 	var at_the_drive := _staged(["--look", "Drive"] + override)
 	var elsewhere := _staged(["--look", "Thermal"] + override)
 
@@ -224,3 +224,13 @@ func test_a_look_can_be_tilted_up_and_turned_from_where_the_eyes_are() -> void:
 func test_a_tilt_or_turn_that_is_not_a_number_of_degrees_makes_no_shot() -> void:
 	assert_str(_plan(["--look", "crew", "--time", "1", "--tilt", "up"]).error).is_not_empty()
 	assert_str(_plan(["--look", "crew", "--time", "1", "--turn", "left"]).error).is_not_empty()
+
+
+## Looking at one Station while another is worked: attended in the same
+## moment, before its command.
+func test_a_station_attended_at_the_same_time_takes_its_command_while_another_is_looked_at() -> void:
+	var habitat := _staged(["--look", "Navigation", "--time", "2",
+			"--do", "1 set_attended drive true", "--do", "1 nudge_pitch -1"])
+
+	assert_bool(habitat.simulation().overriding()).is_true()
+	assert_bool(habitat.simulation().attended(DiveSimulation.STATION_DRIVE)).is_false()

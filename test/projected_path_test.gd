@@ -91,6 +91,33 @@ func test_the_projection_runs_through_the_turn_then_straight_along_what_the_driv
 			path[1].distance_to(path[0]))
 
 
+func test_the_projection_follows_the_drive_nudged_off_the_course() -> void:
+	var following := _diving()
+	var nudged := _diving()
+	nudged.set_attended(DiveSimulation.STATION_DRIVE, true)
+	DiveTestKit.nudge(nudged, 0.0, -60.0)
+	following.advance(1.0)
+	nudged.advance(1.0)
+
+	var path := nudged.projected_path()
+
+	# The Course still plots the dive; the projection ends along the override.
+	assert_float(nudged.course_pitch()).is_equal(following.course_pitch())
+	var last := (path[path.size() - 1] - path[path.size() - 2]).normalized()
+	assert_float(rad_to_deg(last.angle_to(nudged.course_direction()))).is_equal_approx(
+			absf(nudged.deviation_pitch()), 0.5)
+	assert_float(rad_to_deg(last.angle_to(nudged.course_direction()))).is_greater(30.0)
+	# Flown on, the vessel stays on it, and off the line the Course projects.
+	var straight := following.projected_path()
+	var start := nudged.distance()
+	var furthest_off := 0.0
+	while nudged.distance() - start < _length(path) - 2.0 * nudged.speed():
+		nudged.advance(1.0)
+		furthest_off = maxf(furthest_off, _off_path(nudged.head_position(), path))
+	assert_float(furthest_off).is_less(0.5)
+	assert_float(_off_path(nudged.head_position(), straight)).is_greater(10.0)
+
+
 func test_on_its_course_the_projection_is_a_straight_line_ahead() -> void:
 	var sim := _diving()
 
