@@ -1,0 +1,326 @@
+## A Station hung on a gimbal at its pivot. It swings so its own up follows
+## the crew's "up", lagging a little so the swing can be seen.
+## Without a name it is an empty mount: the gimbal with no Station on it.
+class_name GimballedStation
+extends Node3D
+
+## How quickly the gimbal settles onto a new "up", per second.
+const SWING_RATE := 3.0
+## Middle of the screen, in the cradle's frame.
+const SCREEN_CENTRE := Vector3(0, 0.2, 0)
+## Eyes of a crew member working the Station, in the cradle's frame: in front
+## of the screen and at standing eye height (1.65 m) above a floor 1.1 m
+## below the pivot.
+const POSE_EYE := Vector3(0, 0.55, -0.85)
+## The screen's size and colour; the key panel beside it matches.
+const SCREEN_SIZE := Vector2(0.8, 0.4)
+const SCREEN_COLOUR := Color(0.04, 0.07, 0.09)
+## The key panel: its gap from the screen, its width, one row's height, a key
+## prompt's size, and the size of what each key does.
+const KEYS_GAP := 0.02
+const KEYS_WIDTH := 0.64
+const KEY_ROW_M := 0.058
+const KEY_SIZE_M := 0.052
+const KEY_TEXT_PIXEL := 0.001
+const KEY_FONT_SIZE := 32
+
+var station_name := ""
+var hue := Color.WHITE
+## Font size of the screen's text; smaller fits more lines on the screen.
+var screen_font_size := 48
+
+## Seconds between call beats at the least and the most urgent, and the call
+## light's brightest energy (on each beat; it fades between them).
+const CALL_BEAT_CALM_S := 1.4
+const CALL_BEAT_URGENT_S := 0.3
+const CALL_LIGHT_ENERGY := 2.5
+const CALL_LIGHT_FADE_S := 0.25
+## How far up the call tone climbs at full urgency, as a pitch scale.
+const CALL_PITCH_RISE := 0.5
+## Sample rate and pip shape of the call tone.
+const _TONE_RATE := 22050
+const _PIP_S := 0.08
+const _PIP_GAP_S := 0.06
+
+## The Station's call: its own tone (base frequency in hertz) and the number of
+## pips in each beat, so each Station sounds different. Set before _ready.
+var call_tone_hz := 440.0
+var call_pips := 1
+## Text shown under the reading, e.g. the time rate. Every Station shows it.
+var footer := ""
+
+var _cradle := Node3D.new()
+var _screen_text: Label3D
+var _call_light: OmniLight3D
+var _call_sound: AudioStreamPlayer3D
+## How urgently the Station calls, 0 (not calling) to 1.
+var _urgency := 0.0
+var _until_beat := 0.0
+## Share of the power it asks for the Station is getting, 0 to 1. Below 1 its
+## screen browns out: dimmer the less it gets, and flickering.
+var _supplied := 1.0
+var _flicker := RandomNumberGenerator.new()
+## The key panel's prompts and words, each with its own colour, so they dim
+## with the screen: [node, colour].
+var _key_parts: Array = []
+
+
+func _ready() -> void:
+	add_child(_cradle)
+	_add_yoke()
+	if station_name.is_empty():
+		return
+	var desk := MeshInstance3D.new()
+	var desk_mesh := BoxMesh.new()
+	desk_mesh.size = Vector3(0.9, 0.04, 0.5)
+	desk.mesh = desk_mesh
+	desk.material_override = _material(Color(0.29, 0.34, 0.37))
+	desk.position = Vector3(0, -0.08, 0)
+	_cradle.add_child(desk)
+
+	var screen := MeshInstance3D.new()
+	var screen_mesh := BoxMesh.new()
+	screen_mesh.size = Vector3(SCREEN_SIZE.x, SCREEN_SIZE.y, 0.02)
+	screen.mesh = screen_mesh
+	screen.material_override = _material(SCREEN_COLOUR)
+	screen.position = SCREEN_CENTRE
+	_cradle.add_child(screen)
+
+	# The screen faces the Head; the crew work it from the Head side.
+	_screen_text = Label3D.new()
+	_screen_text.text = station_name
+	_screen_text.modulate = hue
+	_screen_text.pixel_size = 0.0015
+	_screen_text.font_size = screen_font_size
+	_screen_text.position = SCREEN_CENTRE + Vector3(0, 0, -0.015)
+	_screen_text.rotation = Vector3(0, PI, 0)
+	_cradle.add_child(_screen_text)
+
+	# The Station's own light, dark until it calls for attention.
+	_call_light = OmniLight3D.new()
+	_call_light.light_color = hue
+	_call_light.light_energy = 0.0
+	_call_light.omni_range = 2.5
+	_call_light.position = Vector3(0, 0.5, -0.3)
+	_cradle.add_child(_call_light)
+
+	# Its own tone, from where it hangs, so the ring tells the ear which way.
+	_call_sound = AudioStreamPlayer3D.new()
+	_call_sound.stream = _call_tone()
+	_call_sound.unit_size = 2.0
+	_call_sound.position = SCREEN_CENTRE
+	_cradle.add_child(_call_sound)
+
+
+func _process(delta: float) -> void:
+	if not _call_light:
+		return
+	var dim := 1.0
+	if _supplied < 1.0:
+		dim = lerpf(0.25, 0.8, _supplied) * _flicker.randf_range(0.6, 1.0)
+	_screen_text.modulate = Color(hue * dim, 1.0)
+	for part in _key_parts:
+		part[0].modulate = Color(part[1] * dim, 1.0)
+	_call_light.light_energy *= exp(-delta / CALL_LIGHT_FADE_S)
+	if _urgency <= 0.0:
+		_until_beat = 0.0
+		return
+	_until_beat -= delta
+	if _until_beat <= 0.0:
+		_until_beat = beat_seconds(_urgency)
+		_call_light.light_energy = CALL_LIGHT_ENERGY
+		_call_sound.pitch_scale = pitch_scale(_urgency)
+		_call_sound.play()
+
+
+## Call for attention, 0 (stop) to 1 (most urgent): a beat of the Station's
+## own tone and a flash of its own light, faster and higher the more urgent.
+## Nothing is drawn over the view; the screen says why.
+func set_call(urgency: float) -> void:
+	_urgency = clampf(urgency, 0.0, 1.0)
+
+
+func is_calling() -> bool:
+	return _urgency > 0.0
+
+
+## Seconds between beats of a call this urgent.
+static func beat_seconds(urgency: float) -> float:
+	return lerpf(CALL_BEAT_CALM_S, CALL_BEAT_URGENT_S, clampf(urgency, 0.0, 1.0))
+
+
+## Pitch scale of the call tone for a call this urgent.
+static func pitch_scale(urgency: float) -> float:
+	return 1.0 + CALL_PITCH_RISE * clampf(urgency, 0.0, 1.0)
+
+
+## One beat of the call: call_pips short pips of the Station's tone, with a
+## little of its octave so it carries, each faded in and out to avoid clicks.
+func _call_tone() -> AudioStreamWAV:
+	var pip := int(_PIP_S * _TONE_RATE)
+	var gap := int(_PIP_GAP_S * _TONE_RATE)
+	var frames := call_pips * (pip + gap)
+	var data := PackedByteArray()
+	data.resize(frames * 2)
+	for i in frames:
+		var in_pip := i % (pip + gap)
+		var value := 0.0
+		if in_pip < pip:
+			var t := float(i) / _TONE_RATE
+			var envelope := minf(1.0, minf(in_pip, pip - in_pip) / (0.01 * _TONE_RATE))
+			value = envelope * (0.8 * sin(TAU * call_tone_hz * t) + 0.2 * sin(TAU * 2.0 * call_tone_hz * t))
+		data.encode_s16(i * 2, int(value * 0.6 * 32767.0))
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = _TONE_RATE
+	wav.stereo = false
+	wav.data = data
+	return wav
+
+
+## Tell the Station what share of the power it asks for it is getting, 0 to 1.
+## Starved (below 1), its screen dims and flickers so it shows at the Station.
+func set_supplied(share: float) -> void:
+	_supplied = clampf(share, 0.0, 1.0)
+
+
+func is_starved() -> bool:
+	return _supplied < 1.0
+
+
+## Text shown on the Station's screen, under its name.
+func show_reading(text: String) -> void:
+	if _screen_text:
+		_screen_text.text = "%s\n%s%s" % [station_name, text,
+				"" if footer.is_empty() else "\n" + footer]
+
+
+## Where a crew member's eyes are held to work this Station, Habitat frame:
+## origin at the eyes, basis upright with the cradle, facing the screen.
+func pose() -> Transform3D:
+	return pose_for(position, _cradle.basis)
+
+
+## The middle of this Station's screen, Habitat frame.
+func screen_centre() -> Vector3:
+	return screen_centre_for(position, _cradle.basis)
+
+
+## The working pose of a Station pivoting at pivot with its cradle at cradle.
+## The eyes are where a person standing STATION_HANG below the pivot would
+## have them, on the Head side of the cradle, as the screen faces that way.
+static func pose_for(pivot: Vector3, cradle: Basis) -> Transform3D:
+	var facing_screen := cradle * Basis(Vector3.UP, PI)
+	return Transform3D(facing_screen, pivot + cradle * POSE_EYE)
+
+
+static func screen_centre_for(pivot: Vector3, cradle: Basis) -> Vector3:
+	return pivot + cradle * SCREEN_CENTRE
+
+
+## How far to look down from level, in radians, to see the screen from the pose.
+static func pose_look() -> float:
+	return -atan2(POSE_EYE.y - SCREEN_CENTRE.y, -POSE_EYE.z)
+
+
+## Show a live picture (e.g. a SubViewport's texture) filling the Station's
+## screen. The name and reading move above the screen.
+func show_display(texture: Texture2D) -> void:
+	if _screen_text == null:
+		return
+	var display := MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.76, 0.36)
+	display.mesh = quad
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_texture = texture
+	display.material_override = material
+	# Faces the Head, like the text.
+	display.position = SCREEN_CENTRE + Vector3(0, 0, -0.012)
+	display.rotation = Vector3(0, PI, 0)
+	_cradle.add_child(display)
+	_screen_text.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	_screen_text.position.y = 0.42
+
+
+## Show the Station's keys on a panel beside its screen, on the crew's right
+## as they work it: each binding's key prompts, then what it does. Pass
+## KeyMap.bindings_at(<this Station>), so the panel is the key map.
+func show_keys(bindings: Array[Dictionary]) -> void:
+	if _screen_text == null:
+		return
+	# The screen text is turned to face the Head, so the crew's right is -x.
+	var right_edge := -KEYS_GAP - SCREEN_SIZE.x / 2.0
+	var board := MeshInstance3D.new()
+	var board_mesh := BoxMesh.new()
+	board_mesh.size = Vector3(KEYS_WIDTH, SCREEN_SIZE.y, 0.02)
+	board.mesh = board_mesh
+	board.material_override = _material(SCREEN_COLOUR)
+	board.position = SCREEN_CENTRE + Vector3(right_edge - KEYS_WIDTH / 2.0, 0, 0)
+	_cradle.add_child(board)
+	var left := right_edge - KEY_ROW_M / 2.0
+	var y := SCREEN_CENTRE.y + SCREEN_SIZE.y / 2.0 - KEY_ROW_M * 0.8
+	for binding in bindings:
+		var x := left
+		for code: int in KeyPrompt.distinct(binding.keys):
+			var key := Sprite3D.new()
+			key.texture = KeyPrompt.texture(code)
+			key.pixel_size = KEY_SIZE_M / key.texture.get_width()
+			key.position = Vector3(x - KEY_SIZE_M / 2.0, y, -0.012)
+			key.rotation = Vector3(0, PI, 0)
+			_cradle.add_child(key)
+			_key_parts.append([key, Color.WHITE])
+			var glyph := KeyPrompt.glyph(code)
+			if not glyph.is_empty():
+				var mark := _key_text(glyph, Color.BLACK)
+				mark.position = key.position + Vector3(0, 0, -0.001)
+				_cradle.add_child(mark)
+			x -= KEY_SIZE_M * 1.08
+		var does := _key_text(binding.does, hue)
+		does.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		does.position = Vector3(x - 0.01, y, -0.012)
+		_cradle.add_child(does)
+		_key_parts.append([does, hue])
+		y -= KEY_ROW_M
+
+
+func _key_text(text: String, colour: Color) -> Label3D:
+	var label := Label3D.new()
+	label.text = text
+	label.modulate = colour
+	label.outline_size = 0
+	label.pixel_size = KEY_TEXT_PIXEL
+	label.font_size = KEY_FONT_SIZE
+	label.rotation = Vector3(0, PI, 0)
+	return label
+
+
+## Swing toward the given "up" (Habitat frame, unit length).
+func follow_up(up: Vector3, dt: float) -> void:
+	_cradle.basis = Gimbal.toward_up(_cradle.basis, up, 1.0 - exp(-dt * SWING_RATE))
+
+
+func _add_yoke() -> void:
+	# A ring at the pivot so the gimbal itself is visible.
+	var yoke := MeshInstance3D.new()
+	var ring := TorusMesh.new()
+	ring.inner_radius = 0.1
+	ring.outer_radius = 0.13
+	yoke.mesh = ring
+	yoke.material_override = _material(Color(0.54, 0.6, 0.64))
+	yoke.rotation = Vector3(PI / 2, 0, 0)
+	add_child(yoke)
+	var bob := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.05
+	sphere.height = 0.1
+	bob.mesh = sphere
+	bob.material_override = _material(hue if not station_name.is_empty() else Color(0.4, 0.4, 0.4))
+	_cradle.add_child(bob)
+
+
+static func _material(colour: Color) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = colour
+	return m

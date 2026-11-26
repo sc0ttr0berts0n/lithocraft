@@ -1,0 +1,13 @@
+; Engine configuration file.
+
+config_version=5
+
+[application]
+
+config/name="Lithocraft"
+run/main_scene="res://view/habitat.tscn"
+config/features=PackedStringArray("4.7")
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/gdUnit4/plugin.cfg")
