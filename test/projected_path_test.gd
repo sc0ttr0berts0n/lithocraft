@@ -179,3 +179,23 @@ func test_looking_ahead_changes_nothing() -> void:
 	assert_vector(looked.head_position()).is_equal(unlooked.head_position())
 	assert_vector(looked.heading()).is_equal(unlooked.heading())
 	assert_float(looked.steering()).is_equal(unlooked.steering())
+
+
+# --- On the moving map ---------------------------------------------------------
+
+func test_the_map_unrolls_the_projection_onward_from_the_head_at_true_depths() -> void:
+	var sim := _diving()
+	sim.set_course(90.0, -45.0)
+	sim.advance(1.0)
+	var path := sim.projected_path()
+
+	var drawn := MovingMap.ahead(path, 40.0)
+
+	assert_int(drawn.size()).is_equal(path.size())
+	assert_vector(drawn[0]).is_equal_approx(Vector2(40.0, sim.depth()), Vector2(0.001, 0.001))
+	for i in range(1, drawn.size()):
+		assert_float(drawn[i].y).is_equal_approx(-path[i].y, 0.001)
+		assert_float(drawn[i].x).is_greater_equal(drawn[i - 1].x)
+		# One scale both ways: each piece is as long on the map as in the rock.
+		assert_float(drawn[i].distance_to(drawn[i - 1])).is_equal_approx(
+				path[i].distance_to(path[i - 1]), 0.001)
