@@ -95,40 +95,83 @@ func test_the_habitat_has_the_proportions_of_a_can_of_beans() -> void:
 	assert_float(tall_to_wide).is_between(1.4, 1.5)
 
 
-func test_standing_on_the_head_end_floor_in_a_dive_every_station_is_within_reach() -> void:
-	var diving := Vector3.FORWARD * 9.8  # felt toward the Head: its cap is the floor
-	for place in DiveTestKit.station_places():
-		var crew := _standing_under(place, diving)
-		var station_name := DiveTestKit.station_name(place)
+## Each end of the Habitat as a floor: the felt acceleration that makes it
+## one, how far the ring of Stations has slid to be above it (Habitat.ring_z()),
+## and which way along the Bore is up from it.
+const FLOORS := [
+	{name = "Head end", felt = Vector3.FORWARD * 9.8, slid = 0.0, up = Vector3.BACK},
+	{name = "Tail end", felt = Vector3.BACK * 9.8, slid = 1.0, up = Vector3.FORWARD},
+]
 
-		assert_float(crew.position.z) 			.override_failure_message("the crew did not land on the Head end floor") 			.is_less(-Habitat.LENGTH / 2.0 + 2.0 * CrewMember.BODY)
-		assert_float(crew.position.distance_to(Habitat.pivot(place))) 			.override_failure_message("%s is out of reach from the Head end floor" % station_name) 			.is_less_equal(Habitat.STATION_REACH)
+
+func test_standing_on_either_end_floor_with_the_ring_above_it_every_station_is_within_reach() -> void:
+	for floor: Dictionary in FLOORS:
+		for place in DiveTestKit.station_places():
+			var crew := _standing_under(place, floor.felt)
+			var where := "%s from the %s floor" % [DiveTestKit.station_name(place), floor.name]
+
+			# Landed on that end cap, feet on it.
+			assert_float(crew.position.dot(floor.up)) \
+				.override_failure_message("the crew did not land on the floor: " + where) \
+				.is_less(-Habitat.LENGTH / 2.0 + 2.0 * CrewMember.BODY)
+			assert_float(crew.position.distance_to(Habitat.pivot(place, floor.slid))) \
+				.override_failure_message("out of reach: " + where) \
+				.is_less_equal(Habitat.STATION_REACH)
 
 
-func test_standing_on_the_head_end_floor_in_a_dive_every_screen_is_at_eye_level() -> void:
-	var diving := Vector3.FORWARD * 9.8
-	for place in DiveTestKit.station_places():
-		var eye := _standing_under(place, diving).eye().origin
-		var pivot := Habitat.pivot(place)
-		var screen := GimballedStation.screen_centre_for(pivot,
-				GimballedStation.settled_cradle(pivot, Vector3.BACK, Basis()))
+func test_standing_on_either_end_floor_with_the_ring_above_it_every_screen_is_at_eye_level() -> void:
+	for floor: Dictionary in FLOORS:
+		for place in DiveTestKit.station_places():
+			var eye := _standing_under(place, floor.felt).eye().origin
+			var pivot := Habitat.pivot(place, floor.slid)
+			var screen := GimballedStation.screen_centre_for(pivot,
+					GimballedStation.settled_cradle(pivot, floor.up, Basis()))
 
-		# The eyes are no higher than the screen's top nor lower than its foot.
-		assert_float(absf(eye.z - screen.z)) 			.override_failure_message("%s's screen is not at eye level" % DiveTestKit.station_name(place)) 			.is_less(GimballedStation.SCREEN_SIZE.y / 2.0)
+			# The eyes are no higher than the screen's top nor lower than its foot.
+			assert_float(absf(eye.z - screen.z)) \
+				.override_failure_message("%s's screen is not at eye level from the %s floor" % [
+						DiveTestKit.station_name(place), floor.name]) \
+				.is_less(GimballedStation.SCREEN_SIZE.y / 2.0)
+
+
+func test_part_of_the_way_through_its_slide_the_ring_is_between_its_two_ends() -> void:
+	var by_head: float = Habitat.ring_z(0.0)
+	var by_tail: float = Habitat.ring_z(1.0)
+
+	# Each end's place is in that end's half of the Habitat.
+	assert_float(by_head).is_less(0.0)
+	assert_float(by_tail).is_greater(0.0)
+	assert_float(Habitat.ring_z(0.25)).is_between(by_head, Habitat.ring_z(0.75))
+	assert_float(Habitat.ring_z(0.75)).is_between(Habitat.ring_z(0.25), by_tail)
 
 
 func test_every_screen_and_key_panel_stays_inside_the_room_in_every_down() -> void:
 	var half_screen := GimballedStation.SCREEN_SIZE / 2.0 + Vector2.ONE * GimballedStation.CASING
 	# The key panel hangs off the cradle's -x side of the screen.
-	var keys_edge := -(GimballedStation.SCREEN_SIZE.x / 2.0 + GimballedStation.KEYS_GAP 			+ GimballedStation.KEYS_WIDTH + GimballedStation.CASING)
-	for up in _ups():
-		for place in DiveTestKit.station_places():
-			var pivot := Habitat.pivot(place)
-			var cradle := GimballedStation.settled_cradle(pivot, up, Basis())
-			for x in [keys_edge, half_screen.x]:
-				for y in [-half_screen.y, half_screen.y]:
-					var corner := pivot + cradle * (GimballedStation.SCREEN_CENTRE + Vector3(x, y, 0.0))
-					var where := "%s's corner %s, up %s" % [DiveTestKit.station_name(place), corner, up]
-					assert_float(Vector2(corner.x, corner.y).length()) 						.override_failure_message("through the outer wall: " + where) 						.is_less(Habitat.OUTER_RADIUS)
-					assert_float(Vector2(corner.x, corner.y).length()) 						.override_failure_message("through the Bore glass: " + where) 						.is_greater(Habitat.BORE_RADIUS)
-					assert_float(absf(corner.z)) 						.override_failure_message("through an end cap: " + where) 						.is_less(Habitat.LENGTH / 2.0)
+	var keys_edge := -(GimballedStation.SCREEN_SIZE.x / 2.0 + GimballedStation.KEYS_GAP \
+			+ GimballedStation.KEYS_WIDTH + GimballedStation.CASING)
+	# With the ring by the Head end, by the Tail end, and all along its slide
+	# between them: a slide does not wait for the gimbals, nor they for it.
+	for slid in [0.0, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 1.0]:
+		for up in _ups():
+			for place in DiveTestKit.station_places():
+				var pivot := Habitat.pivot(place, slid)
+				var cradle := GimballedStation.settled_cradle(pivot, up, Basis())
+				for x in [keys_edge, half_screen.x]:
+					for y in [-half_screen.y, half_screen.y]:
+						var corner := pivot + cradle * (GimballedStation.SCREEN_CENTRE + Vector3(x, y, 0.0))
+						var where := "%s's corner %s, up %s, ring slid %s" % [
+								DiveTestKit.station_name(place), corner, up, slid]
+						_assert_inside_the_room(corner, where)
+
+
+## Fails unless this point (Habitat frame) is inside the room: within the
+## outer wall, outside the Bore glass and between the end caps.
+func _assert_inside_the_room(corner: Vector3, where: String) -> void:
+	var from_axis := Vector2(corner.x, corner.y).length()
+	assert_float(from_axis).override_failure_message("through the outer wall: " + where) \
+			.is_less(Habitat.OUTER_RADIUS)
+	assert_float(from_axis).override_failure_message("through the Bore glass: " + where) \
+			.is_greater(Habitat.BORE_RADIUS)
+	assert_float(absf(corner.z)).override_failure_message("through an end cap: " + where) \
+			.is_less(Habitat.LENGTH / 2.0)

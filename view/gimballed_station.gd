@@ -17,8 +17,10 @@ const FACING_FREE := 0.05
 ## Station hangs.
 const SCREEN_CENTRE := Vector3(0, 0.42, 0)
 ## Eyes of a crew member working the Station, in the cradle's frame: in front
-## of the screen and at standing eye height (1.65 m) above a floor 1.1 m
-## below the pivot.
+## of the screen and a little above its middle. The Arm holds them here; the
+## floor is the ring's working height below the pivot (the Habitat's
+## RING_ABOVE_HEAD_FLOOR), so the hold is some 0.2 m above standing eye height
+## (1.65 m) and the feet hang clear of it.
 const POSE_EYE := Vector3(0, 0.55, -0.85)
 ## The screen's size, the shape of StationScreen.SIZE: large enough that from
 ## the working pose the whole of it is in view and its text reads. The casing

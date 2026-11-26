@@ -87,6 +87,16 @@ const UPLOAD_MOST_VALUABLE_FIRST := &"most_valuable_first"
 ## Earth's surface gravity, m/s^2.
 const _GRAVITY := 9.81
 
+## The ring of Stations and the Arm's rail slide along the Habitat's wall to
+## the other end once that end is the floor: once "down" points more toward
+## it than toward the outer wall, as this share of the felt gravity along the
+## Bore. Real basis: a carriage on a rail up the wall. The seconds the slide
+## takes are tuned for play (ADR 0001): long enough to watch a Station leave,
+## short beside the turn that causes it. The slide is free: it draws no power
+## and cannot fail.
+const _END_IS_FLOOR := 0.70710678
+const _RING_SLIDE_S := 6.0
+
 ## Length of the Lithocraft from Head to Tail, in metres: how far behind the
 ## Head the tunnel is made. Tuned for play (ADR 0001).
 const _VESSEL_LENGTH_M := 12.0
@@ -372,6 +382,11 @@ var _relight_asked := false
 var _relight_random := RandomNumberGenerator.new()
 ## Stations a crew member is at (StringName -> true).
 var _attended := {}
+## The ring of Stations: which end's floor it is at or sliding to, and how far
+## along the slide it is, 0 at the Head end to 1 at the Tail end, at a steady
+## rate (station_ring() eases it).
+var _ring_to_tail := false
+var _ring_slide := 0.0
 ## Stations whose autopilot is engaged (StringName -> true). All start off.
 var _autopilot := {}
 ## How many times normal the simulation runs, 1 or more.
@@ -1062,6 +1077,7 @@ func _step(dt: float) -> void:
 	if _surfaced or dead():
 		return  # The dive is over; nothing moves until new_dive().
 	_dive_time += dt
+	_slide_ring(dt)
 	if stranded():
 		_step_stranded(dt)
 		return
@@ -1109,6 +1125,19 @@ func _step(dt: float) -> void:
 	if _surfaced or dead():
 		return  # Brought home through the open tunnel, or the hull failed.
 	_update_calls()
+
+
+## The ring of Stations follows the floor: it sets off for an end once that
+## end is the floor (_END_IS_FLOOR) and slides there at a steady rate. While
+## neither end is the floor (near level) it stays at, or goes on to, the end
+## it last set off for. Runs stranded too: the carriages need no plasma.
+func _slide_ring(dt: float) -> void:
+	var toward_head := sin(deg_to_rad(pitch()))
+	if toward_head >= _END_IS_FLOOR:
+		_ring_to_tail = false
+	elif toward_head <= -_END_IS_FLOOR:
+		_ring_to_tail = true
+	_ring_slide = move_toward(_ring_slide, 1.0 if _ring_to_tail else 0.0, dt / _RING_SLIDE_S)
 
 
 ## The share of this much pushing power the grip waves can put into this
@@ -1293,6 +1322,21 @@ func felt_acceleration() -> Vector3:
 	var th := deg_to_rad(pitch())
 	return (TOWARD_UNDERSIDE * cos(th) + TOWARD_HEAD * sin(th)) * _GRAVITY \
 			+ TOWARD_HEAD * lurch() * _plasma.shudder()
+
+
+## Where the ring of Stations and the Arm's rail are along the Habitat: 0 at
+## working height above the Head end floor, 1 at working height above the
+## Tail end floor, between while they slide (eased, so they set off and
+## arrive gently). They slide only when "down" flips from one end to the
+## other, a dive to a climb or back; level, they stay where they last were.
+## Every Station stays live through the slide.
+func station_ring() -> float:
+	return smoothstep(0.0, 1.0, _ring_slide)
+
+
+## Whether the ring of Stations is sliding from one end to the other now.
+func ring_sliding() -> bool:
+	return _ring_slide != (1.0 if _ring_to_tail else 0.0)
 
 
 ## How hard a poor Shift's lurch is jolting the vessel now, in m/s^2: sharp at

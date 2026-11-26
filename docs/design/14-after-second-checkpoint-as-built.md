@@ -43,3 +43,16 @@ Agent's choices within round 3's design (spec #71), one bullet per ticket.
       It is now at least 6 cm inside at every pitch, and a test holds it there.
   Four times the Column is in view, so its grains are built once per band and kept, where they were placed afresh every frame: the picture is the same to the byte and the frame time is back where it was.
   The ribs keep their 0.8 m spacing up the whole wall, and lamps hang on the Bore's axis every 2.4 m from the ring up, so the working level is lit as it was.
+- **Stations and the Arm's ring slide when "down" flips (ticket #69, agent's choices within the design).**
+  The slide belongs to the simulation: it knows which way "down" is, so it says where the ring is, and every view (and a later second player's) shows the same slide.
+  An end counts as the floor once "down" points more toward it than toward the outer wall, past 45 degrees of dive or climb; nearer level the ring stays where it last was, or finishes a slide it had begun.
+  The slide takes six seconds, eased at both ends (tuned for play, ADR 0001): long enough to watch a Station leave, short beside the turn that causes it.
+  It follows gravity only, so the jolt of a poor Shift cannot send the Stations off.
+  The ring hangs 1.45 m above the Tail end floor against 1.3 m above the Head end floor: a Station is not its own mirror image (its key panel hangs to one side), and at 1.3 m a key panel's corner went 7 cm through the Tail end cap in a shallow dive with the ring still by the Tail.
+  Each Station's strut rides a rail up the wall, drawn from one end's place to the other's.
+  The Arm's rail runs along the Bore at 4 m/s, faster than the ring ever slides: called, it runs to the crew member first and reaches only once level with them, so a call from the far end takes about two seconds longer than one from beside the ring; then it runs back as it carries them.
+  A held crew member rides the slide with nothing to do, since the Arm holds them at their Station's own working place each step.
+  What breaks a held action is the simulation's existing rule that a hold counts only at an attended Station; the view reports reach each step and nothing checks reach per command.
+  Found on the way, and left alone: on foot the crew member slides down the tipping wall toward the new floor well before the ring sets off (the body creeps on any slope), so in play they and the Stations part early in the turn, by the crew member's leaving, and meet again when the ring arrives; a Station visibly pulling away from someone standing at it happens only if they walk uphill to stay.
+  Either way the hold stops for as long as the Station is out of reach, and the Arm is the way to keep working through a turn.
+  A Scenario that begins in a climb would begin with the ring by the Head end and slide in its first seconds; none does yet.

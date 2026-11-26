@@ -3,7 +3,8 @@
 - `habitat.gd` owns the `DiveSimulation`, sets each Station's attendance from `_at(station)`, calls `advance(delta)` in `_physics_process`, then takes events.
   Child views get the sim handed to them (`DiveView.attach(sim)`, or a public `sim` var on a `Control`).
   A tool that drives a dive from outside (`tools/screenshot`) gets the sim from `simulation()` and sends it commands only, seats the crew with `seat_at(station)` (`Arm.seat()`: held at once, as after a carry), and steps the Habitat by calling `_physics_process(step)` itself with its physics processing off.
-- `_at(station)`: the crew member is seated there by the Arm, or within `STATION_REACH` of its pivot.
+- `_at(station)`: the crew member is seated there by the Arm, or within `STATION_REACH` of its pivot where it is now.
+  That is all the view says of a Station that slides away: it reports reach each step (`set_attended()`), and the simulation decides what a held command does (see Self-destruct), so there is no reach check per command.
   Every Station key is gated by `_at` of its Station, once, in the key map's dispatch (see Key map); a `_key_` handler need not check it.
 - Nothing is drawn over the crew's view (story 52).
   What the crew must know goes on a Station screen, into the Bore, or into shake and sound.
@@ -25,9 +26,12 @@
   Each gimbal hangs `STATION_HANG` in from the outer wall and settles upright with its screen turned to face the Bore (`GimballedStation.settled_cradle()`): the crew work every Station from the Bore side, looking out at it with the wall behind the screen and the Column behind them.
   Tests read this layout data (`preload("res://view/habitat.gd")`), never a copy of it.
 - The Habitat's shape: `LENGTH` along the Bore (its height in a dive or a climb) is about 1.45 times its width, and the node's origin is the middle of that length, the Head end cap at `-LENGTH / 2`.
-  `habitat.gd::ring_z()` is the one place that says where along the Bore the ring of Stations and the Arm's rail are (`RING_ABOVE_HEAD_FLOOR` from the Head end cap): `pivot()`, the struts, the Arm (`Habitat.new_arm()`, which hands `Arm` its rail's radius and z) and the drawn rail (`ArmView.rail_z`) all read it.
-  Nothing else may place a Station or the rail along the axis, so moving the ring is a change to `ring_z()` alone.
-  `habitat_layout_test` holds every screen and key panel inside the room at every pitch; a larger screen or a ring nearer a wall must keep it passing.
+  `habitat.gd::ring_z(slid)` is the one place that says where along the Bore the ring of Stations and the Arm's rail are: `RING_ABOVE_HEAD_FLOOR` from the Head end cap at 0, `RING_ABOVE_TAIL_FLOOR` from the Tail end cap at 1.
+  `slid` is the simulation's `station_ring()`, which owns the slide (when it starts, how long it takes); `Habitat._place_ring()` puts the Stations, their struts and the Arm's rail (`Arm.slide_to()`) there each step, and nothing else may place them along the axis.
+  The static `pivot(place, slid)` and `new_arm(slid)` default to the Head end, for tests and tools; anything that wants the ring now reads the Station's `position` or `ring_z(sim.station_ring())`.
+  `habitat_layout_test` holds every screen and key panel inside the room at every pitch at both ends and all along the slide; a larger screen or a ring nearer a wall must keep it passing.
+- The Arm's rail runs along the Bore (`Arm.rail_z()`, drawn by `ArmView`): level with the ring unless called, when it first runs to the crew member (`RUN_SPEED`), reaches only once level with them, then runs back as it carries them.
+  Seated, the crew member's pose is their Station's each step, so they ride a slide with nothing more done.
 - Anything drawn along the Column pins each piece to its path position (`distance() - behind_head`) so it scrolls at exactly `speed()`.
   Never integrate speed in the view.
   The Bore's Column uses its own tube mesh with explicit UVs, because `CylinderMesh` shares its texture with its caps.
