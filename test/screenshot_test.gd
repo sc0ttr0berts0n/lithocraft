@@ -189,3 +189,13 @@ func test_the_column_is_seen_from_the_bore_station_turned_round_to_it() -> void:
 	assert_float(camera.global_position.distance_to(seat)).is_less(0.01)
 	var to_axis := Vector3(-seat.x, -seat.y, 0.0).normalized()
 	assert_float((-camera.global_basis.z).dot(to_axis)).is_greater(0.999)
+
+
+## Looking at one Station while another is worked: attended in the same
+## moment, before its command.
+func test_a_station_attended_at_the_same_time_takes_its_command_while_another_is_looked_at() -> void:
+	var habitat := _staged(["--look", "Navigation", "--time", "2",
+			"--do", "1 set_attended drive true", "--do", "1 nudge_pitch -1"])
+
+	assert_bool(habitat.simulation().overriding()).is_true()
+	assert_bool(habitat.simulation().attended(DiveSimulation.STATION_DRIVE)).is_false()
