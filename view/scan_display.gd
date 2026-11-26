@@ -91,16 +91,18 @@ const SCOPE_VESSEL_AT := 0.84
 const PAIR_BELOW_M := 300.0
 const PAIR_VESSEL_AT := Vector2(0.3, 0.2)
 const PLAN_SHARE := 0.5
-## The world-up view: the metres across it shows, where the vessel sits in
-## it (shares), how far round from the vessel's right side toward its Tail
+## The world-up view: the metres it shows across and under the vessel
+## (whichever asks the smaller scale), where the vessel sits in it (shares),
+## how far round from the vessel's right side toward its Tail
 ## the eye is, how far above level, degrees, and the radius of the level ring
 ## drawn round the vessel, metres.
 const WORLD_SPAN_M := 460.0
-const WORLD_VESSEL_AT := Vector2(0.42, 0.3)
+const WORLD_BELOW_M := 250.0
+const WORLD_VESSEL_AT := Vector2(0.42, 0.24)
 const WORLD_ROUND_DEG := 12.0
 const WORLD_ABOVE_DEG := 20.0
 const WORLD_RING_M := 100.0
-const WORLD_PLUMB_M := 300.0
+const WORLD_PLUMB_M := 200.0
 
 const FONT_SIZE := StationTheme.FONT_SIZE_SMALL
 const CAPTION_PX := 28.0
@@ -290,7 +292,7 @@ func _draw_pane(canvas: Control, index: int) -> void:
 				_draw_scan(canvas, place)
 		DiveSimulation.SCAN_VIEW_WORLD_UP:
 			var vessel := area * WORLD_VESSEL_AT
-			var scale := area.x / WORLD_SPAN_M
+			var scale := minf(area.x / WORLD_SPAN_M, area.y * (1.0 - WORLD_VESSEL_AT.y) / WORLD_BELOW_M)
 			var place := func(offset: Vector3) -> Vector2:
 				return vessel + world_up_place(offset, bearing) * scale
 			_draw_world_marks(canvas, place)
@@ -358,9 +360,9 @@ func _draw_scope_marks(canvas: Control, vessel: Vector2, scale: float, place: Ca
 		var range_m := ring * TICK_M
 		canvas.draw_arc(vessel, range_m * scale, 0.0, TAU, 96, StationTheme.RULE_COLOUR, 1.5)
 		if ring % 2 == 0 and vessel.x + range_m * scale < canvas.size.x:
-			_label(canvas, vessel + Vector2(range_m * scale - 56.0, FONT_SIZE), "%d m" % roundi(range_m))
+			_label(canvas, vessel + Vector2(range_m * scale - 40.0, FONT_SIZE), "%d" % roundi(range_m))
 	canvas.draw_line(Vector2(vessel.x, 0.0), Vector2(vessel.x, canvas.size.y), StationTheme.RULE_COLOUR, 1.0)
-	_label(canvas, Vector2(vessel.x + 8.0, FONT_SIZE + 4.0), "AHEAD")
+	_label(canvas, Vector2(vessel.x + 8.0, FONT_SIZE + 4.0), "AHEAD  m")
 	# Where straight down lies: a tick mark on each ring it crosses.
 	var down: Vector2 = (place.call(Vector3.DOWN) as Vector2) - vessel
 	if down.length() > 0.0:
@@ -425,7 +427,6 @@ func _draw_world_marks(canvas: Control, place: Callable) -> void:
 		canvas.draw_line(at - Vector2(6.0, 0.0), at + Vector2(6.0, 0.0), StationTheme.LEGEND_COLOUR, 1.5)
 		if tick % 2 == 0:
 			_label(canvas, at + Vector2(10.0, 6.0), "+%d m" % roundi(tick * TICK_M))
-	_label(canvas, foot + Vector2(-22.0, FONT_SIZE + 2.0), "DOWN")
 
 
 func _label(canvas: Control, at: Vector2, text: String) -> void:

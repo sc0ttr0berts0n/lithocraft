@@ -80,7 +80,7 @@ const BORE_PANEL_ZOOM := 1.7
 ## The status lines each Station's screen usually shows under its instrument:
 ## what its pictures' viewports are sized for (StationScreen.body_size()).
 const REACTOR_LINES := 5
-const NAVIGATION_LINES := 3
+const NAVIGATION_LINES := 4
 ## The debug menu's steps: wear per press (hull or Head), and time skipped.
 const DEBUG_WEAR_STEP := 0.1
 const DEBUG_SKIP_S := 300.0
