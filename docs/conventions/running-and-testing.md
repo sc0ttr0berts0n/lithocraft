@@ -21,7 +21,7 @@ For a look at the game, `tools/screenshot/shot.sh` takes one PNG of a Scenario r
 `tools/screenshot/shot.sh --scenario "First dive" --look Reactor --time 120 --out /c/tmp/reactor-120.png`.
 It prints the PNG's path and exits 0; on any failure it prints why, leaves no PNG at that path and exits 1.
 
-- `--look` is a Station by the name on its screen (seen seated at it by the Arm, so that Station is attended; `"Bore Station"` is the Station), `bore` (into the Bore from the outer wall, Head end down) or `crew` (the crew's own view where the dive starts them).
+- `--look` is a Station by the name on its screen (seen seated at it by the Arm, so that Station is attended), `bore` (into the Bore from the outer wall, Head end down), `column` (the Column as the crew see it turning round from the Bore Station, seated there) or `crew` (the crew's own view where the dive starts them).
 - `--do "<seconds> <command> [arguments]"`, repeated, sends a `DiveSimulation` command at that dive time, in time order, then in the order given: `--do "0 set_power 1" --do "40 set_course 30 60"`.
   Any public method works, Scenario start and debug commands included (`"0 start_below 500"`, `"1 debug_skip 600"`); a debug command the simulation refuses fails the shot, but a crew command it ignores (an override with nobody at the Drive) does not.
 - Times are `dive_time()`, so a skip or a raised time rate counts for what it ran; ten minutes at the normal rate take about half a minute to stage.

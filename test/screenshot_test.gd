@@ -165,3 +165,27 @@ func test_arguments_that_make_no_shot_say_why() -> void:
 		assert_str(_plan(wrong).error).override_failure_message(
 				"no error for %s" % [wrong]).is_not_empty()
 	assert_str(_plan(shot).error).is_empty()
+
+
+func test_the_bore_station_is_a_station_and_not_the_view_into_the_bore() -> void:
+	var seated := _staged(["--look", "Bore Station", "--time", "1"])
+	var camera := seated.get_viewport().get_camera_3d()
+
+	assert_bool(seated.simulation().attended(DiveSimulation.STATION_BORE)).is_true()
+	assert_float(camera.global_position.distance_to(
+			DiveTestKit.station_pivot("Bore Station"))).is_less(1.5)
+
+
+func test_the_column_is_seen_from_the_bore_station_turned_round_to_it() -> void:
+	var seated := _staged(["--look", "Bore Station", "--time", "1"])
+	var seat := seated.get_viewport().get_camera_3d().global_position
+	seated.free()
+	var turned := _staged(["--look", "column", "--time", "1"])
+	var camera := turned.get_viewport().get_camera_3d()
+
+	# The crew's own eyes at the Bore Station, looking square at the Bore's
+	# axis instead of the screen.
+	assert_bool(turned.simulation().attended(DiveSimulation.STATION_BORE)).is_true()
+	assert_float(camera.global_position.distance_to(seat)).is_less(0.01)
+	var to_axis := Vector3(-seat.x, -seat.y, 0.0).normalized()
+	assert_float((-camera.global_basis.z).dot(to_axis)).is_greater(0.999)

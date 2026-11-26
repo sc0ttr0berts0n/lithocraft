@@ -27,6 +27,10 @@ const GRAIN_COVER := 1.05
 @export var behind_head_m := 0.0
 ## Ruler, end labels and frame: on for the overlay readout, off in the Bore.
 @export var show_readout := true
+## Where round the Column every feature's middle lies, 0..1 of the strip's
+## width, for a strip wrapped round the Column: the Habitat turns them to the
+## Bore Station. -1 on a flat strip, where each keeps a place of its own.
+@export var features_face := -1.0
 
 var sim: DiveSimulation
 
@@ -97,10 +101,28 @@ func _draw_features(bottom_at: float, visible_m: float) -> void:
 		var reach := feature.size_m * 2.0
 		if feature.at < bottom_at - visible_m - reach or feature.at > bottom_at + reach:
 			continue
-		var centre_y := size.y - (bottom_at - feature.at) * pixels_per_metre
-		var box := FeatureLook.bounds(feature, size.x, centre_y, pixels_per_metre)
-		FeatureLook.draw(self, feature, box, pixels_per_metre)
-		FeatureLook.draw_marks(self, feature, box, feature.id == observed)
+		var box := feature_box(feature)
+		# A box hanging over an edge of a wrapped strip carries on at the other
+		# edge: the two are one line round the Column.
+		var shifts := [0.0]
+		if box.position.x < 0.0:
+			shifts.append(size.x)
+		if box.end.x > size.x:
+			shifts.append(-size.x)
+		for shift in shifts:
+			draw_set_transform(Vector2(shift, 0.0))
+			FeatureLook.draw(self, feature, box, pixels_per_metre)
+			FeatureLook.draw_marks(self, feature, box, feature.id == observed)
+		draw_set_transform(Vector2.ZERO)
+
+
+## The rectangle the strip draws a feature in now, in the strip's own pixels:
+## its middle on the row of the place the simulation gives it along the path
+## (ColumnFeature.at), turned to features_face round the Column.
+func feature_box(feature: ColumnFeature) -> Rect2:
+	var behind_bottom := sim.distance() - behind_head_m - feature.at
+	return FeatureLook.bounds(feature, size.x, size.y - behind_bottom * pixels_per_metre,
+			pixels_per_metre, features_face)
 
 
 ## Ticks every metre along the path, moving with the Column.
