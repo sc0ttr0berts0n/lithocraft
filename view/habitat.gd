@@ -75,6 +75,10 @@ const UPLOAD_PRIORITIES: Array[StringName] = [
 ## The Bore Station's display: the survey and the tunnel side by side, in the
 ## proportions of a Station screen.
 const BORE_DISPLAY_SIZE := Vector2i(768, 363)
+## Pixels per metre of a Station screen's display: Navigation's two
+## displays, the point cloud and the moving map, are sized from their share
+## of the screen (GimballedStation.display_rect()).
+const DISPLAY_PX_PER_M := 1010.0
 ## The debug menu's steps: wear per press (hull or Head), and time skipped.
 const DEBUG_WEAR_STEP := 0.1
 const DEBUG_SKIP_S := 300.0
@@ -583,28 +587,17 @@ func _show_calls() -> void:
 		station.footer = footer
 
 
-## The Drive Station's screen: depth and speed; heading and pitch now beside
-## the Course Navigation plotted (and the Drive's override, if it holds one);
-## power, the steering effort and how hard the Head is steering (turning heats
-## one side of it harder); and whether the grip waves hold the wall or slip.
+## The Drive Station's screen, over its primary flight display (FlightDisplay,
+## which reads depth, speed, attitude, heading, the Course, power, grip and
+## steering itself): whether it follows the Course or its own override, or how
+## the dive ended.
 func _show_drive() -> void:
-	var slip := _sim.slip()
-	var lines := [
+	_drive.show_reading(
 		"SURFACED  %s start menu" % KeyMap.label(&"new_dive") if _sim.surfaced() else
 			"%s  %s start menu" % [_death_headline(), KeyMap.label(&"new_dive")] if _sim.dead() else
-			"Depth %.1f m  Speed %.2f m/s" % [_sim.depth(), _sim.speed()],
-		"Heading %03.0f  Course %03.0f" % [_sim.heading_degrees(), _sim.course_heading()],
-		"Pitch %+.0f  Course %+.0f deg" % [_sim.pitch(), _sim.course_pitch()],
-		"OVERRIDE %03.0f %+.0f  %s back to Course" % [
+			"OVERRIDE %03.0f %+.0f  %s back to Course" % [
 			_sim.steered_heading(), _sim.steered_pitch(), KeyMap.label(&"end_override")] if _sim.overriding()
-			else "Following the Course",
-		"Throttle %d%%  Effort %d%%  Steer %d%%" % [roundi(_power_setting * 100.0),
-			roundi(_effort_setting * 100.0), roundi(_sim.steering() * 100.0)],
-		"GRIP SLIPPING %d%%  ease off %s" % [roundi(slip * 100.0), KeyMap.label(&"power_step", 1)] if slip > 0.0
-			else "Grip holding",
-		_power_line(_sim.drive_request(), _sim.drive_draw()),
-	]
-	_drive.show_reading("\n".join(lines))
+			else "Following the Course")
 
 
 ## Navigation's screen, over its point cloud (which shows the Course): the
@@ -1208,6 +1201,7 @@ func _build_stations() -> void:
 			_reactor.show_display(_make_plasma_display())
 		elif station.station_name == "Drive":
 			_drive = station
+			_drive.show_display(_flight_display(station.hue), FlightDisplay.instrument_shares())
 		elif station.station_name == "Bore Station":
 			_bore_station = station
 			_bore_station.show_display(_bore_display())
@@ -1215,7 +1209,8 @@ func _build_stations() -> void:
 			_thermal = station
 		elif station.station_name == "Navigation":
 			_navigation = station
-			_navigation.show_display(_scan_display())
+			var navigation_displays: Array[Texture2D] = [_scan_display(), _moving_map()]
+			_navigation.show_displays(navigation_displays)
 
 
 ## The Reactor's waveform display for the Shift, its dial starting where the
@@ -1230,14 +1225,38 @@ func _make_plasma_display() -> Texture2D:
 	return _plasma_display.get_texture()
 
 
+## The Drive's primary flight display, shown on the Drive Station's screen.
+func _flight_display(hue: Color) -> Texture2D:
+	var display := FlightDisplay.new()
+	display.sim = _sim
+	display.hue = hue
+	add_child(display)
+	return display.get_texture()
+
+
 ## Navigation's point cloud display, drawn in its own world and shown on the
-## Navigation Station's screen.
+## left of the Navigation Station's screen.
 func _scan_display() -> Texture2D:
 	var display := ScanDisplay.new()
-	display.size = Vector2i(512, 242)
+	display.size = _navigation_display_px()
 	display.sim = _sim
 	add_child(display)
 	return display.get_texture()
+
+
+## The size in pixels of each of Navigation's two displays side by side.
+static func _navigation_display_px() -> Vector2i:
+	return Vector2i((GimballedStation.display_rect(0, 2).size * DISPLAY_PX_PER_M).round())
+
+
+## Navigation's moving map, a cross-section of the whole dive, shown on the
+## right of its screen beside the point cloud.
+func _moving_map() -> Texture2D:
+	var map := MovingMap.new()
+	map.size = _navigation_display_px()
+	map.sim = _sim
+	add_child(map)
+	return map.get_texture()
 
 
 ## The Column as an open tube along the Bore, with the whole texture on its

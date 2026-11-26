@@ -25,8 +25,10 @@ const SCREEN_COLOUR := Color(0.04, 0.07, 0.09)
 ## text's size in metres per font pixel.
 const SCREEN_TEXT_FILL := 0.94
 const SCREEN_TEXT_PIXEL := 0.0015
-## A live picture's size on the screen (show_display()).
+## The live pictures' room on the screen (show_display(), show_displays()),
+## and the gap between pictures side by side.
 const DISPLAY_SIZE := Vector2(0.76, 0.36)
+const DISPLAY_GAP := 0.01
 ## The key panel: its gap from the screen, its width, one row's height, a key
 ## prompt's size, and the size of what each key does.
 const KEYS_GAP := 0.02
@@ -77,8 +79,13 @@ var _cradle := Node3D.new()
 ## rather than swinging it in from where it was built.
 var _settled := false
 var _screen_text: Label3D
-## The live picture on the screen, if show_display() put one there.
-var _display: MeshInstance3D
+## The live pictures on the screen, left to right as the crew see them, if
+## show_display() or show_displays() put any there; and a lone picture's
+## instruments' names and places on the face, in the order show_display()
+## had them.
+var _displays: Array[MeshInstance3D] = []
+var _instrument_names: Array[StringName] = []
+var _instrument_places: Array[Rect2] = []
 var _call_light: OmniLight3D
 var _call_sound: AudioStreamPlayer3D
 var _disengage_sound: AudioStreamPlayer3D
@@ -277,7 +284,7 @@ func show_reading(text: String) -> void:
 	_screen_text.text = "%s   %s\n%s%s" % [station_name,
 			autopilot_caption(autopilot, _since_disengaged), text,
 			"" if footer.is_empty() else "\n" + footer]
-	if not _display:
+	if _displays.is_empty():
 		_screen_text.font_size = fitting_font_size(_screen_text.text, _screen_font(),
 				screen_font_size, _text_box())
 
@@ -335,7 +342,9 @@ static func pose_look() -> float:
 
 ## This Station's screen as the centre dot sees it (Habitat frame), with its
 ## readings: one per line of its screen text, the name first, then its
-## display if it shows one (see reading()). An empty mount has no readings.
+## displays if it shows any, left to right, then each of a lone display's
+## instruments, which lie over it (see reading(), is_display(),
+## display_index(), instrument()). An empty mount has no readings.
 func face() -> Pointing.Face:
 	var screen := face_for(position, _cradle.basis)
 	if _screen_text == null:
@@ -353,22 +362,46 @@ func face() -> Pointing.Face:
 		top += line_m * lines.size()
 	for i in lines.size():
 		screen.readings.append(Rect2(-SCREEN_SIZE.x / 2.0, top - line_m * (i + 1), SCREEN_SIZE.x, line_m))
-	if _display:
-		screen.readings.append(Rect2(-DISPLAY_SIZE / 2.0, DISPLAY_SIZE))
+	for d in _displays.size():
+		screen.readings.append(display_rect(d, _displays.size()))
+	screen.readings.append_array(_instrument_places)
 	return screen
 
 
+## The place of display `index` of `count` side by side, in face
+## coordinates: sharing DISPLAY_SIZE equally, the first on the crew's left.
+static func display_rect(index: int, count: int) -> Rect2:
+	var width := (DISPLAY_SIZE.x - DISPLAY_GAP * (count - 1)) / count
+	return Rect2(-DISPLAY_SIZE.x / 2.0 + index * (width + DISPLAY_GAP), -DISPLAY_SIZE.y / 2.0,
+			width, DISPLAY_SIZE.y)
+
+
 ## What the reading at this index of face().readings shows: its line of
-## screen text, or "" for the display.
+## screen text, or "" for a display.
 func reading(index: int) -> String:
 	var lines := _lines()
 	return lines[index] if index >= 0 and index < lines.size() else ""
 
 
-## True if the reading at this index of face().readings is the display: it
-## comes after the last line of text.
+## True if the reading at this index of face().readings is a display: they
+## come after the last line of text.
 func is_display(index: int) -> bool:
-	return _display != null and index == _lines().size()
+	return display_index(index) >= 0
+
+
+## Which display the reading at this index of face().readings is, counting
+## from the crew's left (the order given to show_displays()), or -1 for a
+## line of text or nothing.
+func display_index(index: int) -> int:
+	var d := index - _lines().size()
+	return d if d >= 0 and d < _displays.size() else -1
+
+
+## The name of the display's instrument at this index of face().readings
+## (as show_display() was given it), or &"" for anything else.
+func instrument(index: int) -> StringName:
+	var i := index - _lines().size() - _displays.size()
+	return _instrument_names[i] if i >= 0 and i < _instrument_names.size() else &""
 
 
 ## The screen text's lines, the name first; none on an empty mount.
@@ -388,23 +421,48 @@ static func face_for(pivot: Vector3, cradle: Basis) -> Pointing.Face:
 
 
 ## Show a live picture (e.g. a SubViewport's texture) filling the Station's
-## screen. The name and reading move above the screen.
-func show_display(texture: Texture2D) -> void:
+## screen. The name and reading move above the screen. instruments names the
+## picture's instruments, each a reading of its own: {name: its place as
+## shares of the picture, 0 to 1 across from the left and down from the top}.
+func show_display(texture: Texture2D, instruments: Dictionary = {}) -> void:
 	if _screen_text == null:
 		return
-	var display := MeshInstance3D.new()
-	_display = display
-	var quad := QuadMesh.new()
-	quad.size = DISPLAY_SIZE
-	display.mesh = quad
-	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.albedo_texture = texture
-	display.material_override = material
-	# Faces the crew, like the text.
-	display.position = SCREEN_CENTRE + Vector3(0, 0, -0.012)
-	display.rotation = Vector3(0, PI, 0)
-	_cradle.add_child(display)
+	_instrument_names = []
+	_instrument_places = []
+	for name: StringName in instruments:
+		var share: Rect2 = instruments[name]
+		# Face coordinates: x the crew's right, y up, origin at the middle.
+		var place := Rect2(Vector2(share.position.x - 0.5, 0.5 - share.end.y) * DISPLAY_SIZE,
+				share.size * DISPLAY_SIZE)
+		_instrument_names.append(name)
+		_instrument_places.append(place)
+	var textures: Array[Texture2D] = [texture]
+	show_displays(textures)
+
+
+## Show live pictures side by side on the Station's screen, the first on the
+## crew's left, sharing it equally (display_rect()); each is its own reading.
+## Their textures should match that shape. The name and reading move above
+## the screen. Once only, as the Station is built.
+func show_displays(textures: Array[Texture2D]) -> void:
+	if _screen_text == null:
+		return
+	for d in textures.size():
+		var rect := display_rect(d, textures.size())
+		var display := MeshInstance3D.new()
+		_displays.append(display)
+		var quad := QuadMesh.new()
+		quad.size = rect.size
+		display.mesh = quad
+		var material := StandardMaterial3D.new()
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.albedo_texture = textures[d]
+		display.material_override = material
+		# Faces the crew, like the text; turned to face them, the crew's
+		# right is the cradle's -x.
+		display.position = SCREEN_CENTRE + Vector3(-rect.get_center().x, rect.get_center().y, -0.012)
+		display.rotation = Vector3(0, PI, 0)
+		_cradle.add_child(display)
 	_screen_text.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	_screen_text.position.y = 0.42
 

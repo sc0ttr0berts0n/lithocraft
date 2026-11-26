@@ -324,6 +324,11 @@ var _point_cells := {}
 var _dive_time := 0.0
 var _pulse_pending := false
 var _pulses_sent := 0
+## The Boundaries inferred from the cloud (BoundaryFit), and the pulses_sent()
+## they were fitted at: refitted only when a pulse has changed the cloud and
+## someone asks.
+var _inferred: Array[BoundaryPatch] = []
+var _inferred_at_pulse := -1
 ## Fixed seed, so a dive's scan is the same every run.
 var _scan_random := RandomNumberGenerator.new()
 ## Depth of the Boundary last announced as approaching, or NAN for none.
@@ -1406,6 +1411,26 @@ func point_age(point: ScanPoint) -> float:
 	return _dive_time - point.returned_at
 
 
+## The Inferred Boundaries: surfaces fitted to the point cloud alone
+## (BoundaryFit), never read from the layout, so they show only what the scan
+## returned. Each patch's confidence follows how many points support it; it
+## lies in the world frame with the points, and is as old as they are
+## (patch_age()). Refitted only once a pulse has changed the cloud, so a view
+## may read this every frame. A copy of the list, but the patches in it are
+## the fit's own: read them, never change them.
+func inferred_boundaries() -> Array[BoundaryPatch]:
+	if _inferred_at_pulse != _pulses_sent:
+		_inferred_at_pulse = _pulses_sent
+		_inferred = BoundaryFit.fit(_points)
+	return _inferred.duplicate()
+
+
+## Seconds since the points this patch was fitted to returned, on average. It
+## fades as they do.
+func patch_age(patch: BoundaryPatch) -> float:
+	return _dive_time - patch.returned_at
+
+
 ## Seconds simulated this dive, stranded time included.
 func dive_time() -> float:
 	return _dive_time
@@ -1415,6 +1440,18 @@ func dive_time() -> float:
 ## from where the dive began, +Y up (so y = -depth), compass heading 0 along -Z.
 func head_position() -> Vector3:
 	return _position
+
+
+## The path behind, as the simulation remembers it: (metres along the path
+## since the dive began, depth) pairs, oldest first, from (0, 0) to the
+## Head's place now. A perfect record, not a scan: what lies behind is never
+## revised. Straight or short pieces are merged, so it stays small. A copy.
+func remembered_path() -> PackedVector2Array:
+	var path := PackedVector2Array()
+	path.resize(_path_distances.size())
+	for i in _path_distances.size():
+		path[i] = Vector2(_path_distances[i], _path_depths[i])
+	return path
 
 
 ## The way the Head points in the world frame, unit length: straight down (-Y)
@@ -1742,6 +1779,12 @@ func scenario_title() -> String:
 ## The Orders' goals in order, each {id, text, achieved}.
 func orders() -> Array[Dictionary]:
 	return _checklist.orders()
+
+
+## The depth the Orders send the dive to, metres below the surface: the
+## deepest a goal sets (Scenario.Goal.target_depth), NAN if none sets one.
+func target_depth() -> float:
+	return _checklist.target_depth()
 
 
 ## The Checklist's phases in order, each {title, steps}; each step {id, text,

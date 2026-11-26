@@ -35,6 +35,10 @@ class Goal:
 	var id: StringName
 	var text: String
 	var achieved_when: Callable
+	## The depth this goal sends the dive to, metres below the surface, as
+	## surface control's survey has it; NAN for a goal with no depth.
+	## Navigation's moving map marks it.
+	var target_depth := NAN
 
 	func _init(p_id: StringName, p_text: String, p_achieved_when: Callable) -> void:
 		id = p_id
@@ -192,9 +196,13 @@ static func first_dive() -> Scenario:
 	s.summary = "From the desert surface down through the %s into the %s, and home with the data." % [
 			middle.name, bottom.name]
 
+	# Surface control's own survey puts the top of the deepest Medium at its
+	# Boundary, so the Orders' target depth is that Boundary's depth.
+	var into_bottom := Goal.new(&"into_the_granite",
+			"Survey down through the %s into the %s" % [middle.name, bottom.name], in_medium(bottom.name))
+	into_bottom.target_depth = boundaries[1]
 	s.orders = [
-		Goal.new(&"into_the_granite", "Survey down through the %s into the %s" % [middle.name, bottom.name],
-				in_medium(bottom.name)),
+		into_bottom,
 		Goal.new(&"survey_paid", "Be paid for survey: uploaded, or brought home",
 				when(func(sim: DiveSimulation) -> bool: return sim.paid_this_dive() > 0.0)),
 		Goal.new(&"surfaced", "Surface with the data", on_event(&"surfaced")),

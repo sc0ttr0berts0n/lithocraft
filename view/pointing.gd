@@ -20,15 +20,18 @@ class Face:
 	## The screen itself, in face coordinates (metres).
 	var bounds := Rect2()
 	## Each reading's place on the face, in face coordinates (metres). A
-	## reading may lie past the screen's edge (text set above a display).
+	## reading may lie past the screen's edge (text set above a display), and
+	## a later one may lie over an earlier (an instrument on a display): the
+	## later is the one pointed at.
 	var readings: Array[Rect2] = []
 
 
 ## What lies along the look from eyes in direction (Habitat frame) among
 ## faces, with the Column filling the Bore out to bore_radius: {} for no
 ## screen, else {face = its index in faces, reading = the index of the
-## reading on it, or -1 for the screen between readings}. Only a screen's
-## front is pointed at, and the nearest screen along the look wins.
+## reading on it (the last of those under the look), or -1 for the screen
+## between readings}. Only a screen's front is pointed at, and the nearest
+## screen along the look wins.
 static func under(eyes: Vector3, direction: Vector3, faces: Array[Face], bore_radius: float) -> Dictionary:
 	var best := {}
 	var nearest := INF
@@ -44,7 +47,7 @@ static func under(eyes: Vector3, direction: Vector3, faces: Array[Face], bore_ra
 		var local := face.transform.affine_inverse() * (eyes + direction * along)
 		var at := Vector2(local.x, local.y)
 		var reading := -1
-		for r in face.readings.size():
+		for r in range(face.readings.size() - 1, -1, -1):
 			if face.readings[r].has_point(at):
 				reading = r
 				break

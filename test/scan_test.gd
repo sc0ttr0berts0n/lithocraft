@@ -292,3 +292,64 @@ func test_mashing_pulse_keeps_the_count_at_its_bound() -> void:
 	assert_int(most).is_equal(bound)
 	# The oldest points gave way first: the first pulses' points are gone.
 	assert_int(_from_pulse(sim.points(), 0).size()).is_equal(0)
+
+
+func test_before_any_pulse_no_boundary_is_inferred() -> void:
+	var sim := DiveSimulation.new(_layout(60.0))
+	_go_quiet(sim)
+
+	assert_int(sim.inferred_boundaries().size()).is_equal(0)
+
+
+func test_a_pulse_infers_the_boundary_ahead_from_its_points() -> void:
+	var sim := DiveSimulation.new(_layout(60.0))
+	_go_quiet(sim)
+	_pulse(sim)
+
+	var patches := sim.inferred_boundaries()
+
+	assert_int(patches.size()).is_greater(0)
+	var near_boundary := 0
+	for patch in patches:
+		if absf(-patch.centre.y - 60.0) < 10.0:
+			near_boundary += 1
+	assert_int(near_boundary).is_greater(patches.size() / 2)
+
+
+func test_a_uniform_medium_infers_no_boundary() -> void:
+	var sim := DiveSimulation.new(MediumLayout.uniform(_clay()))
+	_go_quiet(sim)
+	_pulse(sim)
+
+	assert_int(sim.inferred_boundaries().size()).is_equal(0)
+
+
+func test_inferred_boundaries_age_with_their_points() -> void:
+	var sim := DiveSimulation.new(_layout(50.0))
+	_go_quiet(sim)
+	_pulse(sim)
+	var patch: BoundaryPatch = sim.inferred_boundaries()[0]
+	var age_then := sim.patch_age(patch)
+
+	DiveTestKit.run(sim, 10.0)
+	var older := sim.patch_age(patch)
+	var newer := _pulse(sim)
+
+	assert_float(older).is_greater(age_then)
+	# A later pulse's points make younger surfaces.
+	assert_int(newer.size()).is_greater(0)
+	var youngest := INF
+	for fresh in sim.inferred_boundaries():
+		youngest = minf(youngest, sim.patch_age(fresh))
+	assert_float(youngest).is_less(older)
+
+
+func test_the_inferred_boundaries_handed_out_are_a_copy() -> void:
+	var sim := DiveSimulation.new(_layout(50.0))
+	_go_quiet(sim)
+	_pulse(sim)
+	var count := sim.inferred_boundaries().size()
+
+	sim.inferred_boundaries().clear()
+
+	assert_int(sim.inferred_boundaries().size()).is_equal(count)

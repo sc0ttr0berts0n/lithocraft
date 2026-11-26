@@ -180,6 +180,31 @@ func test_a_screens_readings_are_its_lines_top_to_bottom_then_its_display() -> v
 			assert_float(readings[lines.size()].end.y).is_less_equal(readings[lines.size() - 1].position.y + 0.0001)
 
 
+func test_displays_side_by_side_are_each_a_reading_pointed_at_left_to_right() -> void:
+	var station: GimballedStation = auto_free(GimballedStation.new())
+	station.station_name = "Test"
+	station._ready()
+	var picture := ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGB8))
+	var pictures: Array[Texture2D] = [picture, picture]
+	station.show_displays(pictures)
+	station.show_reading("first")
+	var face := station.face()
+	var faces: Array[Pointing.Face] = [face]
+	var eye := station.pose().origin
+	var lines := 2
+
+	var left := Pointing.under(eye, _toward(eye, face, face.readings[lines].get_center()), faces, BORE_RADIUS)
+	var right := Pointing.under(eye, _toward(eye, face, face.readings[lines + 1].get_center()), faces, BORE_RADIUS)
+
+	assert_int(face.readings.size()).is_equal(lines + 2)
+	assert_int(station.display_index(left.reading)).is_equal(0)
+	assert_int(station.display_index(right.reading)).is_equal(1)
+	assert_int(station.display_index(0)).is_equal(-1)
+	# The first is on the crew's left: x is the crew's right.
+	assert_float(face.readings[lines].get_center().x).is_less(face.readings[lines + 1].get_center().x)
+	assert_bool(face.readings[lines].intersects(face.readings[lines + 1])).is_false()
+
+
 func test_each_line_of_text_is_pointed_at_from_the_working_pose() -> void:
 	var station := _station(true)
 	var face := station.face()
