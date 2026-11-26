@@ -81,6 +81,24 @@ func shift(side: int) -> void:
 		_shift = signi(side)
 
 
+## Holds the crew member seated at this Station at once, with no reach and no
+## carry: `station` indexes the Stations step() is given, `pose` is where that
+## one is worked from now. For a start already at a Station (the screenshot
+## tool); left, right and the button work from there as after any carry.
+func seat(station: int, pose: Transform3D) -> void:
+	_state = State.HOLDING
+	_to = station
+	_from = pose
+	_held = pose
+	_body = pose
+	_u = 1.0
+	_hand = _harness(pose)
+	_rail_angle = _angle_of(pose.origin)
+	_shift = 0
+	_last_side = 0
+	_came_from = -1
+
+
 func _take_shift(stations: Array[Transform3D]) -> void:
 	var count := stations.size()
 	if _shift == 0 or count < 2:

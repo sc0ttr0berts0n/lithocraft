@@ -289,3 +289,25 @@ func test_one_way_then_the_other_comes_back_to_the_same_station() -> void:
 				_shifted(arm, -side, up)
 
 				assert_int(arm.station()).is_equal(index)
+
+
+func test_seated_at_once_the_arm_holds_the_player_at_that_station() -> void:
+	var poses := _poses(DIVING)
+	for index in in_use.size():
+		var arm := _new_arm()
+
+		arm.seat(index, poses[index])
+
+		assert_bool(arm.arrived()).is_true()
+		assert_int(arm.station()).is_equal(index)
+		_assert_seated_at(arm.held_eye(), poses[index])
+
+
+func test_seated_at_once_the_arm_follows_the_station_as_down_turns() -> void:
+	var arm := _new_arm()
+	arm.seat(0, _poses(DIVING)[0])
+
+	var eye := _run(arm, arm.held_eye(), _poses(LEVEL), 1.0)
+
+	assert_bool(arm.arrived()).is_true()
+	_assert_seated_at(eye, _poses(LEVEL)[0])

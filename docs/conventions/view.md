@@ -2,6 +2,7 @@
 
 - `habitat.gd` owns the `DiveSimulation`, sets each Station's attendance from `_at(station)`, calls `advance(delta)` in `_physics_process`, then takes events.
   Child views get the sim handed to them (`DiveView.attach(sim)`, or a public `sim` var on a `Control`).
+  A tool that drives a dive from outside (`tools/screenshot`) gets the sim from `simulation()` and sends it commands only, seats the crew with `seat_at(station)` (`Arm.seat()`: held at once, as after a carry), and steps the Habitat by calling `_physics_process(step)` itself with its physics processing off.
 - `_at(station)`: the crew member is seated there by the Arm, or within `STATION_REACH` of its pivot.
   Every Station key is gated by `_at` of its Station, once, in the key map's dispatch (see Key map); a `_key_` handler need not check it.
 - Nothing is drawn over the crew's view (story 52).
@@ -38,4 +39,6 @@
   groans come from points round the ring as `AudioStreamPlayer3D`s, timed and sized by `HullGroans` from wear and `hull_stress()`, and rising with `self_destruct_hold()` while the crew holds K.
   The Habitat calls `HullFeel.step(delta, felt)` after `advance`.
   Shake from any source sums into the one `_crew.shake()` call.
+- Chance that shows in the picture is repeatable, so two screenshots of one moment match: drawn in the Habitat's physics step from the global generator, which the screenshot tool seeds (the crew's shake, where the sparks spit), or from a generator of the node's own with a fixed seed (a starved screen's flicker).
+  Never from the global generator in `_process`, where the sounds draw on it by the clock, nor from one seeded with `randomize()`.
 - Sounds are generated until real assets exist: a looping `AudioStreamGenerator` for continuous sound (`SlipSound`), an `AudioStreamWAV` built once at `_ready` for one-shots (`HullFeel._make_groan`).
