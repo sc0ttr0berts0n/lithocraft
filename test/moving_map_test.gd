@@ -1,7 +1,7 @@
 # Navigation's moving map (ticket #42): a side-on cross-section of the whole
 # dive. The simulation's side is tested at its interface (the remembered path,
-# the Orders' target depth); the map's own logic (Boundaries inferred from
-# points alone, the path unrolled into a cross-section, the scale) is plain
+# the Orders' target depth); the map's own logic (the path unrolled into a
+# cross-section, the Inferred Boundaries seen side-on, the scale) is plain
 # static code, tested directly. Assert relationships, never tuned constants
 # (ADR 0001).
 extends GdUnitTestSuite
@@ -95,69 +95,6 @@ func test_the_first_dives_target_depth_is_the_top_of_the_medium_its_orders_name(
 	assert_str(sim.orders()[0].text).contains(String(bottom.name))
 
 
-# --- Boundaries inferred from points alone -----------------------------------
-
-## A sheet of points at a depth, spread across a patch of ground, as echoes
-## off a level Boundary would lie. Seeded, so the scatter is the same each run.
-func _sheet(depth: float, count: int, confidence := 0.9, scatter_m := 1.0, seed := 1) -> Array[ScanPoint]:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed
-	var sheet: Array[ScanPoint] = []
-	for i in count:
-		var position := Vector3(rng.randf_range(-60.0, 60.0), -depth + rng.randfn() * scatter_m,
-				rng.randf_range(-60.0, 60.0))
-		sheet.append(ScanPoint.new(position, confidence, 100.0, 0, 0.0))
-	return sheet
-
-
-func test_no_points_infer_no_boundaries() -> void:
-	var none: Array[ScanPoint] = []
-
-	assert_array(MapBoundaries.infer(none)).is_empty()
-
-
-func test_sheets_of_points_infer_a_boundary_at_each_depth_shallowest_first() -> void:
-	var points := _sheet(400.0, 60, 0.9, 1.0, 2)
-	points.append_array(_sheet(120.0, 60, 0.9, 1.0, 3))
-
-	var found := MapBoundaries.infer(points)
-
-	assert_int(found.size()).is_equal(2)
-	assert_float(found[0].depth).is_equal_approx(120.0, 2.0)
-	assert_float(found[1].depth).is_equal_approx(400.0, 2.0)
-	assert_int(found[0].points.size()).is_greater(0)
-
-
-func test_a_lone_point_is_not_a_boundary() -> void:
-	var points: Array[ScanPoint] = [ScanPoint.new(Vector3(0.0, -200.0, 0.0), 0.9, 100.0, 0, 0.0)]
-
-	assert_array(MapBoundaries.infer(points)).is_empty()
-
-
-func test_doubtful_points_strewn_through_the_rock_infer_no_boundary() -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 4
-	var points: Array[ScanPoint] = []
-	for i in 40:
-		points.append(ScanPoint.new(Vector3(0.0, -rng.randf_range(0.0, 500.0), 0.0), 0.1, 300.0, 0, 0.0))
-
-	assert_array(MapBoundaries.infer(points)).is_empty()
-
-
-func test_a_boundary_more_points_support_is_surer() -> void:
-	var few := MapBoundaries.infer(_sheet(200.0, 30))
-	var many := MapBoundaries.infer(_sheet(200.0, 120))
-
-	assert_float(many[0].support).is_greater(few[0].support)
-
-
-func test_doubtful_points_support_a_boundary_less_than_sure_ones() -> void:
-	var doubtful := MapBoundaries.infer(_sheet(200.0, 60, 0.3))
-	var sure := MapBoundaries.infer(_sheet(200.0, 60, 0.9))
-
-	assert_float(sure[0].support).is_greater(doubtful[0].support)
-
-
 # --- The cross-section -------------------------------------------------------
 
 func test_a_path_straight_down_stays_at_the_start_across_the_map() -> void:
@@ -196,6 +133,29 @@ func test_a_point_ahead_of_the_vessel_lies_further_across_than_it() -> void:
 
 	assert_float(ahead).is_greater(40.0)
 	assert_float(behind).is_less(40.0)
+
+
+## A patch of ground at a depth, 20 m square, centred ahead of the origin
+## along +X, rising `rise` metres per metre toward +X.
+func _patch(depth: float, rise := 0.0) -> BoundaryPatch:
+	var normal := Vector3(-rise, 1.0, 0.0).normalized()
+	return BoundaryPatch.new(Vector3(50.0, -depth, 0.0), normal, Vector2(20.0, 20.0), 10, 0.9, 0.0)
+
+
+func test_a_level_patch_ahead_is_seen_side_on_at_its_depth_ahead_of_the_vessel() -> void:
+	# Heading 90: along +X.
+	var side := MovingMap.side_on(_patch(200.0), Vector3.ZERO, 40.0, 90.0)
+
+	assert_float(side[0].x).is_greater(40.0)
+	assert_float(side[1].x).is_greater(side[0].x)
+	assert_float(side[0].y).is_equal_approx(200.0, 0.001)
+	assert_float(side[1].y).is_equal_approx(200.0, 0.001)
+
+
+func test_a_patch_rising_ahead_is_seen_shallower_at_its_far_end() -> void:
+	var side := MovingMap.side_on(_patch(200.0, 0.2), Vector3.ZERO, 40.0, 90.0)
+
+	assert_float(side[1].y).is_less(side[0].y)
 
 
 func test_the_map_covers_all_it_must_show_and_grows_with_the_dive() -> void:

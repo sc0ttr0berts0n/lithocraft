@@ -80,8 +80,12 @@ var _cradle := Node3D.new()
 var _settled := false
 var _screen_text: Label3D
 ## The live pictures on the screen, left to right as the crew see them, if
-## show_display() or show_displays() put any there.
+## show_display() or show_displays() put any there; and a lone picture's
+## instruments' names and places on the face, in the order show_display()
+## had them.
 var _displays: Array[MeshInstance3D] = []
+var _instrument_names: Array[StringName] = []
+var _instrument_places: Array[Rect2] = []
 var _call_light: OmniLight3D
 var _call_sound: AudioStreamPlayer3D
 var _disengage_sound: AudioStreamPlayer3D
@@ -338,8 +342,9 @@ static func pose_look() -> float:
 
 ## This Station's screen as the centre dot sees it (Habitat frame), with its
 ## readings: one per line of its screen text, the name first, then its
-## displays if it shows any, left to right (see reading()). An empty mount
-## has no readings.
+## displays if it shows any, left to right, then each of a lone display's
+## instruments, which lie over it (see reading(), is_display(),
+## display_index(), instrument()). An empty mount has no readings.
 func face() -> Pointing.Face:
 	var screen := face_for(position, _cradle.basis)
 	if _screen_text == null:
@@ -359,6 +364,7 @@ func face() -> Pointing.Face:
 		screen.readings.append(Rect2(-SCREEN_SIZE.x / 2.0, top - line_m * (i + 1), SCREEN_SIZE.x, line_m))
 	for d in _displays.size():
 		screen.readings.append(display_rect(d, _displays.size()))
+	screen.readings.append_array(_instrument_places)
 	return screen
 
 
@@ -391,6 +397,13 @@ func display_index(index: int) -> int:
 	return d if d >= 0 and d < _displays.size() else -1
 
 
+## The name of the display's instrument at this index of face().readings
+## (as show_display() was given it), or &"" for anything else.
+func instrument(index: int) -> StringName:
+	var i := index - _lines().size() - _displays.size()
+	return _instrument_names[i] if i >= 0 and i < _instrument_names.size() else &""
+
+
 ## The screen text's lines, the name first; none on an empty mount.
 func _lines() -> PackedStringArray:
 	return _screen_text.text.split("\n") if _screen_text else PackedStringArray()
@@ -408,8 +421,21 @@ static func face_for(pivot: Vector3, cradle: Basis) -> Pointing.Face:
 
 
 ## Show a live picture (e.g. a SubViewport's texture) filling the Station's
-## screen. The name and reading move above the screen.
-func show_display(texture: Texture2D) -> void:
+## screen. The name and reading move above the screen. instruments names the
+## picture's instruments, each a reading of its own: {name: its place as
+## shares of the picture, 0 to 1 across from the left and down from the top}.
+func show_display(texture: Texture2D, instruments: Dictionary = {}) -> void:
+	if _screen_text == null:
+		return
+	_instrument_names = []
+	_instrument_places = []
+	for name: StringName in instruments:
+		var share: Rect2 = instruments[name]
+		# Face coordinates: x the crew's right, y up, origin at the middle.
+		var place := Rect2(Vector2(share.position.x - 0.5, 0.5 - share.end.y) * DISPLAY_SIZE,
+				share.size * DISPLAY_SIZE)
+		_instrument_names.append(name)
+		_instrument_places.append(place)
 	var textures: Array[Texture2D] = [texture]
 	show_displays(textures)
 

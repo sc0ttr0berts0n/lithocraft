@@ -321,6 +321,11 @@ var _point_cells := {}
 var _dive_time := 0.0
 var _pulse_pending := false
 var _pulses_sent := 0
+## The Boundaries inferred from the cloud (BoundaryFit), and the pulses_sent()
+## they were fitted at: refitted only when a pulse has changed the cloud and
+## someone asks.
+var _inferred: Array[BoundaryPatch] = []
+var _inferred_at_pulse := -1
 ## Fixed seed, so a dive's scan is the same every run.
 var _scan_random := RandomNumberGenerator.new()
 ## Depth of the Boundary last announced as approaching, or NAN for none.
@@ -1343,6 +1348,26 @@ func point_resolution() -> float:
 ## vessel has since moved relative to.
 func point_age(point: ScanPoint) -> float:
 	return _dive_time - point.returned_at
+
+
+## The Inferred Boundaries: surfaces fitted to the point cloud alone
+## (BoundaryFit), never read from the layout, so they show only what the scan
+## returned. Each patch's confidence follows how many points support it; it
+## lies in the world frame with the points, and is as old as they are
+## (patch_age()). Refitted only once a pulse has changed the cloud, so a view
+## may read this every frame. A copy of the list, but the patches in it are
+## the fit's own: read them, never change them.
+func inferred_boundaries() -> Array[BoundaryPatch]:
+	if _inferred_at_pulse != _pulses_sent:
+		_inferred_at_pulse = _pulses_sent
+		_inferred = BoundaryFit.fit(_points)
+	return _inferred.duplicate()
+
+
+## Seconds since the points this patch was fitted to returned, on average. It
+## fades as they do.
+func patch_age(patch: BoundaryPatch) -> float:
+	return _dive_time - patch.returned_at
 
 
 ## Seconds simulated this dive, stranded time included.

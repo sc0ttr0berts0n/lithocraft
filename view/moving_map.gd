@@ -2,18 +2,18 @@
 ## of the whole dive, depth down the screen against distance across it, at
 ## one scale both ways so the path's shape is true. It shows the surface, the
 ## path behind (the remembered path, a perfect record), the Course ahead, the
-## Boundaries as inferred from the point cloud (MapBoundaries; never the
-## layout) and the Orders' target depth. Drawn in 2D inside this SubViewport
+## Inferred Boundaries (fitted to the point cloud alone; never the layout)
+## and the Orders' target depth. Drawn in 2D inside this SubViewport
 ## so a Station screen can show it as a texture.
 ##
 ## Across is distance over the ground along the track, unrolled: the path's
 ## turns in heading are straightened out, as a profile along a route is. A
-## scan point is placed across by how far ahead of the Head it lies along
-## the heading now.
+## patch of an Inferred Boundary is placed across by how far ahead of the
+## Head its corners lie along the heading now.
 ##
 ## Reads only the simulation: remembered_path(), head_position(), heading(),
-## heading_degrees(), course_direction(), target_depth(), points() and
-## pulses_sent().
+## heading_degrees(), course_direction(), target_depth() and
+## inferred_boundaries().
 class_name MovingMap
 extends SubViewport
 
@@ -37,8 +37,6 @@ const MARGIN_TOP := 18.0
 const MARGIN_RIGHT := 8.0
 const MARGIN_BOTTOM := 6.0
 const FONT_SIZE := 13
-## A Boundary's support at which it is drawn about two-thirds sure.
-const SURE_SUPPORT := 40.0
 const DASH_PX := 6.0
 
 const BACKGROUND := Color(0.01, 0.015, 0.025)
@@ -51,8 +49,6 @@ var sim: DiveSimulation
 
 var _canvas := Control.new()
 var _until_redraw := 0.0
-var _pulses_shown := -1
-var _boundaries: Array[MapBoundaries.Boundary] = []
 
 
 func _ready() -> void:
@@ -69,9 +65,6 @@ func _process(delta: float) -> void:
 	if _until_redraw > 0.0:
 		return
 	_until_redraw = REDRAW_S
-	if sim.pulses_sent() != _pulses_shown:
-		_pulses_shown = sim.pulses_sent()
-		_boundaries = MapBoundaries.infer(sim.points())
 	_canvas.queue_redraw()
 
 
@@ -100,6 +93,23 @@ static func across(position: Vector3, head: Vector3, head_across: float, heading
 	return head_across + (position - head).dot(ahead)
 
 
+## A patch of an Inferred Boundary seen side-on: its ends on the map, each
+## (metres across, depth), the nearer first. Its corners are placed across
+## as across() places them, and the patch runs between the nearest and the
+## furthest, so a sloping patch is drawn sloping.
+static func side_on(patch: BoundaryPatch, head: Vector3, head_across: float,
+		heading_degrees: float) -> PackedVector2Array:
+	var near := Vector2(INF, 0.0)
+	var far := Vector2(-INF, 0.0)
+	for corner in patch.corners():
+		var x := across(corner, head, head_across, heading_degrees)
+		if x < near.x:
+			near = Vector2(x, -corner.y)
+		if x > far.x:
+			far = Vector2(x, -corner.y)
+	return PackedVector2Array([near, far])
+
+
 ## The depth the map spans to show this much (metres, or the depth matching
 ## the width across it): a step of SPANS_M with room to spare.
 static func span_for(needed: float) -> float:
@@ -122,7 +132,10 @@ func _draw_map() -> void:
 
 	var path := profile(sim.remembered_path())
 	var head_across := path[path.size() - 1].x
-	var spans := _boundary_spans(head_across)
+	var patches := sim.inferred_boundaries()
+	var sides: Array[PackedVector2Array] = []
+	for patch in patches:
+		sides.append(side_on(patch, sim.head_position(), head_across, sim.heading_degrees()))
 	var target := sim.target_depth()
 
 	# Fit the whole dive: the path, the Boundaries heard (some lie behind
@@ -133,10 +146,10 @@ func _draw_map() -> void:
 	for p in path:
 		deepest = maxf(deepest, p.y)
 		widest = maxf(widest, p.x)
-	for s in spans:
-		deepest = maxf(deepest, s.depth)
-		leftmost = minf(leftmost, s.from)
-		widest = maxf(widest, s.to)
+	for side in sides:
+		deepest = maxf(deepest, maxf(side[0].y, side[1].y))
+		leftmost = minf(leftmost, side[0].x)
+		widest = maxf(widest, side[1].x)
 	if not is_nan(target):
 		deepest = maxf(deepest, target)
 	var span := span_for(maxf(deepest, (widest - leftmost) * area.size.y / area.size.x))
@@ -157,13 +170,14 @@ func _draw_map() -> void:
 		_canvas.draw_string(font, Vector2(area.end.x - 120.0, y - 3.0), "target %d m" % roundi(target),
 				HORIZONTAL_ALIGNMENT_RIGHT, 120.0, FONT_SIZE, TARGET_COLOUR)
 
-	# Over the target: a Boundary heard at the target depth shows.
-	for s in spans:
-		var sureness := 1.0 - exp(-s.support / SURE_SUPPORT)
+	# Over the target: a Boundary heard at the target depth shows. As sure
+	# as its patch; the map keeps what was heard, so it does not fade.
+	for i in patches.size():
+		var sureness := patches[i].confidence
 		var colour := ScanDisplay.DOUBTFUL.lerp(ScanDisplay.CERTAIN, sureness)
 		colour.a = lerpf(0.3, 1.0, sureness)
-		var from: Vector2 = at.call(s.from, s.depth)
-		var to: Vector2 = at.call(s.to, s.depth)
+		var from: Vector2 = at.call(sides[i][0].x, sides[i][0].y)
+		var to: Vector2 = at.call(sides[i][1].x, sides[i][1].y)
 		_canvas.draw_line(from, Vector2(maxf(to.x, from.x + 2.0), to.y), colour, 2.0)
 
 	var drawn := PackedVector2Array()
@@ -184,23 +198,6 @@ func _draw_map() -> void:
 ## over the ground (always onward, as the track is unrolled), down by depth.
 static func _side_on(direction: Vector3) -> Vector2:
 	return Vector2(Vector2(direction.x, direction.z).length(), -direction.y).normalized()
-
-
-## Each inferred Boundary's depth, support and the stretch across it its
-## points cover, as {depth, support, from, to}.
-func _boundary_spans(head_across: float) -> Array[Dictionary]:
-	var spans: Array[Dictionary] = []
-	var head := sim.head_position()
-	var heading := sim.heading_degrees()
-	for boundary in _boundaries:
-		var from := INF
-		var to := -INF
-		for point in boundary.points:
-			var x := across(point.position, head, head_across, heading)
-			from = minf(from, x)
-			to = maxf(to, x)
-		spans.append({depth = boundary.depth, support = boundary.support, from = from, to = to})
-	return spans
 
 
 func _draw_ticks(area: Rect2, span: float, scale: float) -> void:
