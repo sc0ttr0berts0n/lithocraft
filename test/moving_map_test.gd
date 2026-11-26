@@ -145,8 +145,8 @@ func test_doubtful_points_strewn_through_the_rock_infer_no_boundary() -> void:
 
 
 func test_a_boundary_more_points_support_is_surer() -> void:
-	var few := MapBoundaries.infer(_sheet(200.0, 15))
-	var many := MapBoundaries.infer(_sheet(200.0, 60))
+	var few := MapBoundaries.infer(_sheet(200.0, 30))
+	var many := MapBoundaries.infer(_sheet(200.0, 120))
 
 	assert_float(many[0].support).is_greater(few[0].support)
 

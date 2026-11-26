@@ -51,21 +51,21 @@ static func infer(points: Array[ScanPoint]) -> Array[Boundary]:
 	var keys := bins.keys()
 	keys.sort()
 	var run: Array[ScanPoint] = []
-	var last := 0
+	var last_bin := 0
 	for bin: int in keys:
 		if bins[bin].support < BIN_SUPPORT:
 			continue
-		if not run.is_empty() and bin != last + 1:
-			_close(run, found)
+		if not run.is_empty() and bin != last_bin + 1:
+			_add_if_supported(run, found)
 			run = []
 		run.append_array(bins[bin].points)
-		last = bin
-	_close(run, found)
+		last_bin = bin
+	_add_if_supported(run, found)
 	return found
 
 
 ## Adds the run of points as a Boundary, if it is supported enough.
-static func _close(run: Array[ScanPoint], found: Array[Boundary]) -> void:
+static func _add_if_supported(run: Array[ScanPoint], found: Array[Boundary]) -> void:
 	var support := 0.0
 	var weighted := 0.0
 	for point in run:

@@ -75,9 +75,10 @@ const UPLOAD_PRIORITIES: Array[StringName] = [
 ## The Bore Station's display: the survey and the tunnel side by side, in the
 ## proportions of a Station screen.
 const BORE_DISPLAY_SIZE := Vector2i(768, 363)
-## Each of Navigation's two displays, the point cloud and the moving map, in
-## pixels: half the screen's room each (GimballedStation.display_rect()).
-const NAVIGATION_DISPLAY_PX := Vector2i(380, 364)
+## Pixels per metre of a Station screen's display: Navigation's two
+## displays, the point cloud and the moving map, are sized from their share
+## of the screen (GimballedStation.display_rect()).
+const DISPLAY_PX_PER_M := 1010.0
 ## The debug menu's steps: wear per press (hull or Head), and time skipped.
 const DEBUG_WEAR_STEP := 0.1
 const DEBUG_SKIP_S := 300.0
@@ -1252,17 +1253,22 @@ func _make_plasma_display() -> Texture2D:
 ## left of the Navigation Station's screen.
 func _scan_display() -> Texture2D:
 	var display := ScanDisplay.new()
-	display.size = NAVIGATION_DISPLAY_PX
+	display.size = _navigation_display_px()
 	display.sim = _sim
 	add_child(display)
 	return display.get_texture()
+
+
+## The size in pixels of each of Navigation's two displays side by side.
+static func _navigation_display_px() -> Vector2i:
+	return Vector2i((GimballedStation.display_rect(0, 2).size * DISPLAY_PX_PER_M).round())
 
 
 ## Navigation's moving map, a cross-section of the whole dive, shown on the
 ## right of its screen beside the point cloud.
 func _moving_map() -> Texture2D:
 	var map := MovingMap.new()
-	map.size = NAVIGATION_DISPLAY_PX
+	map.size = _navigation_display_px()
 	map.sim = _sim
 	add_child(map)
 	return map.get_texture()

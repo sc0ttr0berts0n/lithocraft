@@ -173,14 +173,17 @@ func _draw_map() -> void:
 		_canvas.draw_polyline(drawn, ScanDisplay.VESSEL_COLOUR, 2.0)
 
 	var vessel: Vector2 = drawn[drawn.size() - 1]
-	var course := sim.course_direction()
-	var course_way := Vector2(Vector2(course.x, course.z).length(), -course.y).normalized()
-	_dashes(vessel, _to_edge(vessel, course_way, area), ScanDisplay.COURSE_COLOUR)
-	var facing := sim.heading()
-	var way := Vector2(Vector2(facing.x, facing.z).length(), -facing.y).normalized()
-	var side := Vector2(-way.y, way.x)
-	_canvas.draw_colored_polygon(PackedVector2Array([vessel + way * 7.0, vessel - way * 4.0 + side * 4.0,
-			vessel - way * 4.0 - side * 4.0]), ScanDisplay.VESSEL_COLOUR)
+	_dashes(vessel, _to_edge(vessel, _side_on(sim.course_direction()), area), ScanDisplay.COURSE_COLOUR)
+	var facing := _side_on(sim.heading())
+	var side := Vector2(-facing.y, facing.x)
+	_canvas.draw_colored_polygon(PackedVector2Array([vessel + facing * 7.0,
+			vessel - facing * 4.0 + side * 4.0, vessel - facing * 4.0 - side * 4.0]), ScanDisplay.VESSEL_COLOUR)
+
+
+## A world direction as the map draws it, unit length: across by its run
+## over the ground (always onward, as the track is unrolled), down by depth.
+static func _side_on(direction: Vector3) -> Vector2:
+	return Vector2(Vector2(direction.x, direction.z).length(), -direction.y).normalized()
 
 
 ## Each inferred Boundary's depth, support and the stretch across it its
