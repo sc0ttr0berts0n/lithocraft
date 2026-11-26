@@ -17,6 +17,12 @@ var _judder_phase := 0.0
 
 
 func _ready() -> void:
+	# With no sound device (headless: the tests, a server) nothing is played.
+	# A playing generator freed there can crash the engine: three Habitats
+	# alive at once and then freed, as screenshot_test stages them, corrupted
+	# memory and segfaulted a little later, most runs.
+	if AudioServer.get_driver_name() == "Dummy":
+		return
 	var generator := AudioStreamGenerator.new()
 	generator.mix_rate = MIX_RATE
 	generator.buffer_length = 0.1
@@ -26,7 +32,7 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if sim:
+	if sim and playing:
 		_feed(sim.slip())
 
 

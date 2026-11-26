@@ -12,7 +12,7 @@ Exit 0 is a pass, 100 a test failure, 105 a script or parse error.
 - A low test count means a failure: GdUnit stops a suite at its first failing test.
 
 Scene smoke check: `"$GODOT_BIN" --headless --path . res://view/habitat.tscn --quit-after 120` (the Habitat on its own plays the First dive).
-Success prints only `WARNING: 1 ObjectDB instance was leaked at exit` (a playing `AudioStreamGenerator`'s playback, engine behaviour).
+Success prints nothing after the engine's version line.
 Any script error is a real failure.
 The same without the scene path runs the main scene, the start menu, which should print nothing.
 
@@ -54,5 +54,7 @@ It prints the PNG's path and exits 0; on any failure it prints why, leaves no PN
 
 ## Gotchas
 
+- A playing `AudioStreamGenerator` freed with no sound device can crash the engine a little later (exit 139, a segmentation fault, most often in `screenshot_test`, which has three Habitats alive at once).
+  `SlipSound` therefore plays nothing when the audio driver is `Dummy` (headless); a new generated, looping sound does the same.
 - Type inference (`:=`) from a missing class is a parse error: the run exits 105, not with a test failure.
 - `runtest.*` refuses `--headless` without `--ignoreHeadlessMode`; the wrappers pass it.
