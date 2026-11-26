@@ -10,5 +10,5 @@
 - A helmet display: the crew's readings worn rather than read off a Station (developer's idea, second play test).
 - A dive plan of legs (turns of chosen radius, straight runs) that Navigation projects and the Drive flies.
 - A directional scan: a steered, narrow beam that sees further ahead and nothing elsewhere (developer's idea, second play test).
-- What the Arm and the sliding Stations cost, and how they fail.
+- What the Arm and the slides cost, and how they fail: the Stations' slide to the new floor and the Arm's run along the Bore are free for now, drawing no power and never failing.
 - Phase as a third control of the Counter-wave.

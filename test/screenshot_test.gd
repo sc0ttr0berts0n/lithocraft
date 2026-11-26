@@ -133,6 +133,9 @@ func test_a_station_is_seen_through_the_crews_eyes_and_the_bore_from_outside_it(
 	# Level with the ring of Stations, where the crew work and the Column's
 	# features pass the Bore Station.
 	assert_float(eye.z).is_equal_approx(DiveTestKit.station_pivot("Bore Station").z, 0.001)
+	# And it goes with the ring when the ring has slid to the Tail end.
+	assert_float(ShotPlan.bore_eye(1.0).z).is_equal_approx(ShotPlan.Habitat.ring_z(1.0), 0.001)
+	assert_float(ShotPlan.bore_eye(1.0).z).is_greater(eye.z)
 
 
 ## The Bore Station's name in the simulation is &"bore", which is also what

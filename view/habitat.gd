@@ -15,6 +15,12 @@ const LENGTH := 9.6
 ## a dive, and far enough that no Station's screen or key panel reaches the
 ## floor at any pitch. The rest of the height is empty for now.
 const RING_ABOVE_HEAD_FLOOR := 1.3
+## The same for the Tail end floor, where the ring slides to when a climb
+## makes that end the floor. A little more than by the Head end: a Station is
+## not its own mirror image (its key panel hangs to one side), and with the
+## ring by the Tail end in a shallow dive a key panel's corner would reach
+## that floor from any nearer.
+const RING_ABOVE_TAIL_FLOOR := 1.45
 ## The room's ribs round the outer wall are this far apart along the Bore, and
 ## its lamps on the Bore's axis this far apart.
 const RIB_SPACING := 0.8
@@ -49,6 +55,9 @@ const POWER_STEP := 0.1
 const EFFORT_STEP := 0.1
 ## The Arm's rail runs round the Bore this far out from its glass.
 const RAIL_GAP := 0.15
+## Running along the Bore to the crew member, the rail stops this short of an
+## end cap.
+const RAIL_END_GAP := 0.2
 ## How quickly the look settles onto a Station's screen while carried, per second.
 const LOOK_SETTLE_RATE := 4.0
 ## The centre dot's size in pixels, and how bright it is off a reading and on one.
@@ -109,6 +118,8 @@ var _sim: DiveSimulation
 var _power_setting := 0.0
 var _effort_setting := 1.0
 var _stations: Array[GimballedStation] = []
+## Each Station place's strut from the outer wall, which slides with it.
+var _struts: Array[MeshInstance3D] = []
 var _reactor: GimballedStation
 var _drive: GimballedStation
 var _bore_station: GimballedStation
@@ -178,6 +189,7 @@ func _ready() -> void:
 	add_child(_hull_feel)
 	_build_room()
 	_build_stations()
+	_place_ring()
 	# Under the notice, so a notice reads clear of it.
 	_build_dot()
 	_build_notice()
@@ -198,7 +210,6 @@ func _ready() -> void:
 	var arm_view := ArmView.new()
 	arm_view.arm = _arm
 	arm_view.rail_radius = BORE_RADIUS + RAIL_GAP
-	arm_view.rail_z = ring_z()
 	add_child(arm_view)
 
 
@@ -220,17 +231,22 @@ func bore_station_place() -> Vector3:
 
 
 ## Where along the Bore (Habitat frame, z) the ring of Stations and the Arm's
-## rail are: the one piece of layout data for it. Every Station's pivot(), its
-## strut, the Arm from new_arm() and the rail drawn for it read this and
-## nothing else places them along the axis.
-static func ring_z() -> float:
-	return -LENGTH / 2.0 + RING_ABOVE_HEAD_FLOOR
+## rail are once they have slid this share of the way from the Head end to the
+## Tail end (the simulation's station_ring(): 0 is working height above the
+## Head end floor, 1 working height above the Tail end floor). The one piece
+## of layout data for it: every Station's pivot(), its strut, the Arm from
+## new_arm() and the rail drawn for it read this and nothing else places them
+## along the axis.
+static func ring_z(slid := 0.0) -> float:
+	return lerpf(-LENGTH / 2.0 + RING_ABOVE_HEAD_FLOOR, LENGTH / 2.0 - RING_ABOVE_TAIL_FLOOR, slid)
 
 
 ## An Arm on the Habitat's rail: round the Bore, RAIL_GAP out from its glass,
-## at ring_z() along it.
-static func new_arm() -> Arm:
-	return Arm.new(BORE_RADIUS + RAIL_GAP, ring_z())
+## at ring_z(slid) along it to begin with, free to run along the Bore from
+## RAIL_END_GAP short of one end cap to as far short of the other.
+static func new_arm(slid := 0.0) -> Arm:
+	var run_end := LENGTH / 2.0 - RAIL_END_GAP
+	return Arm.new(BORE_RADIUS + RAIL_GAP, ring_z(slid), -run_end, run_end)
 
 
 ## Where along the Bore (Habitat frame, z) the Column that far behind the
@@ -568,6 +584,7 @@ func _physics_process(delta: float) -> void:
 			&"autopilot_off": _on_autopilot_off(event)
 	_fade_notice(delta)
 	_show_calls()
+	_place_ring()
 	var felt := _sim.felt_acceleration()
 	var up := -felt.normalized()
 	for station in _stations:
@@ -622,6 +639,19 @@ func under_dot() -> Dictionary:
 	if under.is_empty():
 		return {}
 	return {station = _in_use[under.face], reading = under.reading}
+
+
+## Puts the ring of Stations, their struts and the Arm's rail where the
+## simulation says the ring has slid to (station_ring()): the one place the
+## view moves them along the Bore. A Station stays live as it slides, and
+## whether the crew can still reach it is _at()'s to say, each step.
+func _place_ring() -> void:
+	var z := ring_z(_sim.station_ring())
+	for station in _stations:
+		station.position.z = z
+	for strut in _struts:
+		strut.position.z = z
+	_arm.slide_to(z)
 
 
 func _station_poses() -> Array[Transform3D]:
@@ -1270,10 +1300,11 @@ static func place_angle(place: int) -> float:
 
 
 ## Where a Station place's gimbal pivots, STATION_HANG in from the outer wall
-## and at ring_z() along the Bore.
-static func pivot(place: int) -> Vector3:
+## and at ring_z(slid) along the Bore: by the Head end unless the ring has
+## slid (see ring_z()).
+static func pivot(place: int, slid := 0.0) -> Vector3:
 	var a := place_angle(place)
-	return Vector3(cos(a), sin(a), 0) * (OUTER_RADIUS - STATION_HANG) + Vector3(0, 0, ring_z())
+	return Vector3(cos(a), sin(a), 0) * (OUTER_RADIUS - STATION_HANG) + Vector3(0, 0, ring_z(slid))
 
 
 func _build_stations() -> void:
@@ -1291,6 +1322,17 @@ func _build_stations() -> void:
 		strut.position = outward * (OUTER_RADIUS - STATION_HANG / 2.0) + Vector3(0, 0, ring_z())
 		strut.basis = Basis(Vector3.BACK, a - PI / 2.0)
 		add_child(strut)
+		_struts.append(strut)
+		# The rail up the wall its strut slides along, from where the ring
+		# hangs by the Head end to where it hangs by the Tail end.
+		var rail := MeshInstance3D.new()
+		var bar := BoxMesh.new()
+		bar.size = Vector3(0.1, 0.06, ring_z(1.0) - ring_z(0.0) + 0.3)
+		rail.mesh = bar
+		rail.material_override = _surface(Color(0.54, 0.6, 0.64))
+		rail.position = outward * (OUTER_RADIUS - 0.03)
+		rail.basis = Basis(Vector3.BACK, a + PI / 2.0)
+		add_child(rail)
 
 		var station := GimballedStation.new()
 		station.station_name = STATIONS[i][0]

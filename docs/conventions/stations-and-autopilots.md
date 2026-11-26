@@ -24,3 +24,10 @@ Heading means nothing straight up or down, so there the heading deviation is zer
 A view that says how far off the Drive is reads these two, in `CourseDeviation`'s words, never its own subtraction.
 A new Station's rule goes in `_steady_autopilots()` behind `autopilot(STATION_...)`.
 A test that wants a Station to steady itself engages its autopilot (see Testing).
+
+**The ring's slide.**
+`station_ring()` is where the ring of Stations and the Arm's rail are along the Habitat, 0 by the Head end floor to 1 by the Tail end floor, and `ring_sliding()` whether it is on its way.
+`_slide_ring()` runs every step, stranded steps included: the ring sets off once an end is the floor (the felt gravity points more toward it than toward the outer wall, `_END_IS_FLOOR`) and takes `_RING_SLIDE_S`; near level it stays at, or finishes going to, the end it last set off for.
+It reads `pitch()`, not `felt_acceleration()`, so the Head's shudder cannot start a slide.
+Nothing else in the simulation knows of the slide: Stations stay live through it, and a held command stops only because the view reports the Station unattended.
+The slide is free; what it should cost and how it fails is in `docs/design/not-yet-designed.md`.
