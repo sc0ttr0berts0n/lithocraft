@@ -213,3 +213,24 @@ static func swells(wave: Callable, stretch: float, count: int) -> Array[float]:
 			size = maxf(size, absf(wave.call((i + j / 40.0) * stretch)))
 		sizes.append(size)
 	return sizes
+
+
+## A Quiet Ship scan as a crew makes one: Quiet Ship on, wait until the
+## vessel is still and silent, `pulses` pulses, Quiet Ship off again.
+static func quiet_scan(sim: DiveSimulation, pulses := 3) -> void:
+	sim.set_quiet_ship(true)
+	for i in 600:
+		sim.advance(0.1)
+		if sim.speed() == 0.0 and sim.noise() == 0.0:
+			break
+	for i in pulses:
+		sim.pulse()
+		sim.advance(0.1)
+	sim.set_quiet_ship(false)
+	sim.advance(0.1)
+
+
+## The scan's guess of the Wobble ahead (DiveSimulation.wobble_ahead_*), as
+## Vector2(frequency in hertz, amplitude); NAN in both with no scan of it.
+static func wobble_ahead(sim: DiveSimulation) -> Vector2:
+	return Vector2(sim.wobble_ahead_frequency(), sim.wobble_ahead_amplitude())

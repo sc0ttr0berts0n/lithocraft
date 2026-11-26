@@ -280,7 +280,8 @@ func test_the_first_boundary_begins_as_it_approaches_and_wants_standby_pretuned_
 	# STANDBY still cancels the sand's Wobble: not pretuned for the sandstone.
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"pretune_standby")
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_PENDING)
-	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(Medium.sandstone()))
+	# Pretuned against the scan's guess, which is what the crew can see.
+	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_ahead(sim))
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_DONE)
 
@@ -291,6 +292,20 @@ func test_the_first_boundary_begins_as_it_approaches_and_wants_standby_pretuned_
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"shift")).is_equal(DiveSimulation.STEP_DONE)
 	assert_str(sim.checklist()[sim.checklist_phase()].title).is_equal(Scenario.first_dive().phases[3].title)
+
+
+func test_with_no_scan_of_the_boundary_ahead_standby_cannot_be_pretuned() -> void:
+	var sim := _started()
+	assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 600.0, [], 0.5)).is_not_empty()
+	sim.advance(0.1)
+	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"pretune_standby")
+
+	# Tuned to the very Wobble of the sandstone, which no scan has shown the
+	# crew: the Checklist reads what the crew can see, and that is no guess.
+	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(Medium.sandstone()))
+	sim.advance(0.1)
+
+	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_PENDING)
 
 
 func test_the_autopilots_tuning_is_not_the_crews_shift() -> void:
@@ -344,7 +359,8 @@ func test_the_sandstone_and_granite_steps_tick_as_each_is_done() -> void:
 	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(Medium.sand()))
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby_granite")).is_equal(DiveSimulation.STEP_PENDING)
-	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(Medium.granite()))
+	DiveTestKit.quiet_scan(sim)
+	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_ahead(sim))
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby_granite")).is_equal(DiveSimulation.STEP_DONE)
 

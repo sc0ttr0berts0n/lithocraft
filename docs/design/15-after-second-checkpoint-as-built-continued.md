@@ -22,6 +22,19 @@ Continues `14-after-second-checkpoint-as-built.md`, which is full.
   The Reactor's screen stays plain until its own ticket (#63): two lanes of three lines over the Band, in the colour language (Wobble white, Counter-wave cyan, Residual white inside the Band and amber outside it, the Band a green strip).
   Stand-in keys at the Reactor: C selects the channel, N / M tune frequency, J / K tune amplitude, R swaps.
   The Reactor's call for a Residual outside the Band is `out_of_band`, and the debug menu's "a Shift due now" became "detune ACTIVE now".
+- **STANDBY's preview and the Boundary countdown (ticket #61, agent's choices within the design).**
+  The guess is three spurious sines and, once the Boundary ahead is scanned, the true Wobble placed off the truth by up to a quarter in frequency and a quarter of a unit in amplitude.
+  The error falls with the square of the scan's doubt and the spurious sines with the doubt itself, so a scan worked at leaves a prepared swap inside the Band while its ripple still shows; the numbers are tuned (ADR 0001).
+  On the First dive one Quiet Ship pulse from the top of the sand leaves a trim to make after the swap, and four leave none.
+  The predicted Residual's number is read against the guess's true component alone, so it can read flat on a wrong guess ("a poor scan can mislead"); the spurious sines stay in the Residual drawn, as a ripple that tells the crew how unsure the scan is.
+  With no scan STANDBY has no predicted Residual at all: the Boundary-approaching call no longer tells the Reactor anything of the rock ahead.
+  How sure the guess is comes from the Inferred Boundary on the line ahead of the Head; neighbouring patches of one surface are averaged, and a few stray echoes short of a well-supported surface are passed over.
+  The layout is asked only what the echoes would carry and whether the Inferred Boundary lies about where the next Boundary is, so the scan of one Boundary is never taken for the next.
+  The guess stays as it was from the crossing until the Residual is inside the Band, then looks to the next Boundary: the old Counter-wave left in STANDBY after a swap is read against the rock ahead, not the rock behind.
+  The countdown is distance over speed from the scan alone, with a plus-or-minus of a quarter of the distance (and ten metres) times the doubt; stopped under Quiet Ship it reads "> 5 min", since at no speed the Boundary never comes.
+  Real basis for the guess: an echo's strength carries the contrast between the rock either side of a Boundary, and stacking repeated shots reinforces the coherent echo.
+  The Checklist's "Pretune standby" steps read the guess, not the truth: a Checklist that ticked on the truth would be an oracle the scan could never mislead.
+  So the Shift drill begins with one pulse already sent, and Stranded in the granite asks for a pulse before each pretune on the climb.
 - **Stations and the Arm's ring slide when "down" flips (ticket #69, agent's choices within the design).**
   The slide belongs to the simulation: it knows which way "down" is, so it says where the ring is, and every view (and a later second player's) shows the same slide.
   An end counts as the floor once "down" points more toward it than toward the outer wall, past 45 degrees of dive or climb; nearer level the ring stays where it last was, or finishes a slide it had begun.

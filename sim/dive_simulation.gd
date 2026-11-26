@@ -175,6 +175,21 @@ const _SCAN_RESOLUTION_M := 1.0
 ## Boundaries. A Boundary this many metres of depth ahead is announced, so the
 ## Reactor Station can prepare for the Shift. Tuned for play (ADR 0001).
 const _BOUNDARY_APPROACH_M := 30.0
+## The Boundary countdown reads as beyond this many seconds when the scan
+## cannot say better. Tuned for play (ADR 0001): five minutes.
+const _COUNTDOWN_CAP_S := 300.0
+## The countdown's plus-or-minus, as a share of the distance to the Inferred
+## Boundary ahead when its confidence is nothing; it shrinks to nothing as the
+## confidence rises to 1. Tuned for play (ADR 0001): the truth lies inside it.
+const _COUNTDOWN_DOUBT := 0.25
+## How far off the Boundary ahead the Inferred Boundary ahead may lie, in
+## metres and as a share of the distance to it, and still be the scan's sight
+## of that Boundary, so that its confidence is the guess's. Tuned for play.
+const _GUESS_NEAR_M := 15.0
+const _GUESS_NEAR_SHARE := 0.25
+## Metres added to that distance, so the doubt does not vanish as the Head
+## closes on an Inferred Boundary it is not sure of. Tuned for play.
+const _COUNTDOWN_NEAR_M := 10.0
 
 ## A Checklist step's state, as checklist() gives it: still to do, done, or
 ## missed (its phase was left behind first).
@@ -389,10 +404,20 @@ var _scan_random := RandomNumberGenerator.new()
 ## (debug_next_scan_view()), nothing of the dive.
 var _scan_view := 0
 ## Depth of the Boundary last announced as approaching, or NAN for none (from
-## its crossing). The Medium beyond the last one announced, null before the
-## first: what STANDBY previews, kept through the crossing.
+## its crossing).
 var _announced_boundary := NAN
-var _medium_ahead: Medium = null
+## The Inferred Boundary ahead along the Head's direction, from the scan
+## alone (BoundaryFit.ahead()): Vector2(metres to it, its confidence), or
+## Vector2(INF, 0) when the scan shows none. As of _look_ahead().
+var _ahead := Vector2(INF, 0.0)
+## The scan's guess of the Wobble beyond the Boundary ahead, which STANDBY
+## previews, and the depth of the Boundary it is of (NAN: none ahead). Held
+## as it was through a crossing (_guess_held) until ACTIVE's Residual is
+## inside the Band in the Medium entered, so STANDBY still reads against the
+## rock it was prepared for when it is swapped in.
+var _guess: WobbleGuess
+var _guess_boundary := NAN
+var _guess_held := false
 ## Stranding, rescue and death: what losing the plasma or the hull comes to
 ## (sim/stranding.gd).
 var _stranding := Stranding.new()
@@ -456,6 +481,7 @@ func _init(layout: MediumLayout) -> void:
 	_scan_random.seed = 13
 	_relight_random.seed = 29
 	_plasma = Plasma.new(_wobble())
+	_look_ahead()
 	_checklist = Checklist.new(_scenario)
 	_share_power()
 
@@ -749,8 +775,9 @@ func start_below(metres: float) -> void:
 		_follow_the_head(depth_before, piece, 0.0)
 	_events.resize(raised)
 	_announced_boundary = NAN  # A Boundary just ahead is announced on the first step.
-	_medium_ahead = null
 	_plasma = Plasma.new(_wobble())
+	_guess_held = false
+	_look_ahead()
 	_heat = Heat.new(surroundings_temperature())
 	_share_power()
 
@@ -1173,6 +1200,7 @@ func _step(dt: float) -> void:
 	if _pulse_pending:
 		_pulse_pending = false
 		_send_pulse()
+		_look_ahead()
 	_steady_autopilots(dt)
 	_check_stranded()
 	if _surfaced or dead():
@@ -1228,6 +1256,7 @@ func _follow_the_head(depth_before: float, travelled: float, dt: float) -> void:
 	_distance += travelled
 	_remember_path()
 	_watch_boundaries(depth_before)
+	_look_ahead()
 	_update_tunnel()
 
 
@@ -1517,19 +1546,19 @@ func counter_wave_amplitude(channel: StringName) -> float:
 
 
 ## The Wobble a channel's Counter-wave is read against, as Vector2(frequency,
-## amplitude): ACTIVE's is the Wobble now; STANDBY's the one expected ahead
-## (NAN in both parts before the first Boundary-approaching call).
+## amplitude): ACTIVE's is the Wobble now; STANDBY's the true component of
+## the scan's guess of the Wobble ahead (NAN in both parts with no scan of the
+## Boundary ahead).
 func _wobble_for(channel: StringName) -> Vector2:
-	if channel == CHANNEL_ACTIVE:
-		return _wobble()
-	return Vector2(NAN, NAN) if _medium_ahead == null else Plasma.wobble_in(_medium_ahead)
+	return _wobble() if channel == CHANNEL_ACTIVE else _guess.wobble
 
 
 ## The steady part of a channel's Residual: what the difference between the
 ## Counter-wave's amplitude and the Wobble's leaves, a small wave the same
 ## size at every moment. ACTIVE's is read against the Wobble now; STANDBY's is
-## predicted against the Wobble ahead (wobble_ahead_frequency()), NAN before
-## the first Boundary-approaching call. So with the three below.
+## predicted against the scan's guess of the Wobble ahead
+## (wobble_ahead_frequency()), so it is only as true as the guess, and NAN
+## with no scan of the Boundary ahead. So with the three below.
 func residual_steady(channel: StringName) -> float:
 	var wobble := _wobble_for(channel)
 	return NAN if is_nan(wobble.x) else Plasma.residual_steady(_plasma.counter_wave(channel), wobble)
@@ -1584,18 +1613,21 @@ func steadiness_causes() -> Array[StringName]:
 
 
 ## The Wobble as a wave, `seconds` from now (negative: ago), for a channel's
-## lane on the Reactor screen: ACTIVE's is the Wobble now, STANDBY's the one
-## expected ahead (NAN before the first Boundary-approaching call).
+## lane on the Reactor screen: ACTIVE's is the Wobble now, clean; STANDBY's is
+## the scan's guess of the Wobble ahead, its true component summed with its
+## spurious sines (those alone with no scan of the Boundary ahead).
 func wobble_wave(channel: StringName, seconds: float) -> float:
-	var wobble := _wobble_for(channel)
-	return NAN if is_nan(wobble.x) else _plasma.wobble_wave(wobble, seconds)
+	if channel == CHANNEL_ACTIVE:
+		return _plasma.wobble_wave(_wobble(), seconds)
+	var spurious := _plasma.sines_wave(_guess.spurious, seconds)
+	return spurious + (_plasma.wobble_wave(_guess.wobble, seconds) if _guess.has_wobble() else 0.0)
 
 
 ## A channel's Counter-wave as a wave, `seconds` from now, against its Wobble
 ## (see wobble_wave()): the Wobble's inverse, its phase locked to the Wobble's
-## and swinging about it the further its frequency is off. STANDBY's before
-## the first Boundary-approaching call, with no Wobble to lock to, is a plain
-## wave at its own frequency.
+## and swinging about it the further its frequency is off. STANDBY's locks to
+## the guess's true component; with no scan of the Boundary ahead it has
+## nothing to lock to and is a plain wave at its own frequency.
 func counter_wave(channel: StringName, seconds: float) -> float:
 	var wobble := _wobble_for(channel)
 	if is_nan(wobble.x):
@@ -1604,9 +1636,13 @@ func counter_wave(channel: StringName, seconds: float) -> float:
 
 
 ## A channel's Residual as a wave, `seconds` from now: its Wobble summed with
-## its Counter-wave. A flat line when the cancelling is perfect. NAN for
-## STANDBY before the first Boundary-approaching call.
+## its Counter-wave. A flat line when the cancelling is perfect. STANDBY's is
+## predicted against the guess, so the guess's spurious sines stay in it, a
+## ripple no tuning removes and only a better scan does; NAN with no scan of
+## the Boundary ahead.
 func residual_wave(channel: StringName, seconds: float) -> float:
+	if is_nan(_wobble_for(channel).x):
+		return NAN
 	return wobble_wave(channel, seconds) + counter_wave(channel, seconds)
 
 
@@ -1727,10 +1763,15 @@ func scan_views() -> Array[StringName]:
 ## may read this every frame. A copy of the list, but the patches in it are
 ## the fit's own: read them, never change them.
 func inferred_boundaries() -> Array[BoundaryPatch]:
+	_fit_boundaries()
+	return _inferred.duplicate()
+
+
+## Refits the Inferred Boundaries if a pulse has changed the cloud since.
+func _fit_boundaries() -> void:
 	if _inferred_at_pulse != _pulses_sent:
 		_inferred_at_pulse = _pulses_sent
 		_inferred = BoundaryFit.fit(_points)
-	return _inferred.duplicate()
 
 
 ## Seconds since the points this patch was fitted to returned, on average. It
@@ -2138,18 +2179,62 @@ func paid_this_dive() -> float:
 	return _paid - _paid_before_dive
 
 
-## The frequency, in hertz, of the Wobble expected in the Medium beyond the
-## Boundary last announced as approaching (&"boundary_approaching"), or NAN
-## before the first such call. It holds through the crossing (when STANDBY is
-## swapped in, and swapped back) until the next Boundary is announced. Exact
-## for now: STANDBY's preview.
+## The frequency, in hertz, the scan's guess gives the Wobble in the Medium
+## beyond the Boundary ahead: STANDBY's preview. Off the truth by an error
+## that shrinks as the Inferred Boundary ahead is better resolved
+## (wobble_ahead_confidence()), so a poor scan misleads; NAN with no scan of
+## it. The guess holds through the crossing, as it was, until ACTIVE's
+## Residual is inside the Band in the Medium entered, then looks to the next
+## Boundary.
 func wobble_ahead_frequency() -> float:
-	return _wobble_for(CHANNEL_STANDBY).x
+	return _guess.wobble.x
 
 
-## The amplitude of the Wobble expected ahead; as wobble_ahead_frequency().
+## The amplitude the scan's guess gives the Wobble ahead; as
+## wobble_ahead_frequency().
 func wobble_ahead_amplitude() -> float:
-	return _wobble_for(CHANNEL_STANDBY).y
+	return _guess.wobble.y
+
+
+## How sure the guess of the Wobble ahead is, 0 (no scan of the Boundary
+## ahead) to 1: the confidence of the Inferred Boundary ahead along the
+## Head's direction, so it comes from the scan's points alone and rises with
+## more pulses and quieter ones.
+func wobble_ahead_confidence() -> float:
+	return _guess.confidence
+
+
+## How big the spurious sines in the guess of the Wobble ahead are, their
+## amplitudes summed: the most they add to the guess drawn (wobble_wave()
+## for STANDBY). They shrink as the confidence rises.
+func wobble_ahead_spurious() -> float:
+	return _guess.spurious_reach()
+
+
+## Seconds until the Head reaches the Boundary ahead, the scan's best figure:
+## the distance along the Head's direction to the Inferred Boundary ahead at
+## the speed now. It knows only what the scan returned, never the layout.
+## INF, reading "beyond boundary_countdown_cap()", when the scan cannot say
+## better: no Inferred Boundary ahead, the vessel stopped, or further off
+## than the cap.
+func boundary_countdown() -> float:
+	if is_inf(_ahead.x) or _speed <= 0.0:
+		return INF
+	var seconds := _ahead.x / _speed
+	return INF if seconds > _COUNTDOWN_CAP_S else seconds
+
+
+## The countdown's plus-or-minus, in seconds: smaller the better resolved the
+## Inferred Boundary ahead is. INF while boundary_countdown() is.
+func boundary_countdown_doubt() -> float:
+	if is_inf(boundary_countdown()):
+		return INF
+	return (_ahead.x + _COUNTDOWN_NEAR_M) * (1.0 - _ahead.y) * _COUNTDOWN_DOUBT / _speed
+
+
+## The seconds beyond which the countdown says no more than "beyond this".
+func boundary_countdown_cap() -> float:
+	return _COUNTDOWN_CAP_S
 
 
 ## The title of the Scenario being played, "" for none.
@@ -2540,6 +2625,7 @@ func _watch_boundaries(depth_before: float) -> void:
 	var after := _layout.medium_at(depth())
 	if after != before:
 		_announced_boundary = NAN
+		_guess_held = true
 		_events.append({type = &"boundary_crossed", from = before.name, to = after.name,
 				depth = depth(), distance = _distance})
 		_on_boundary_crossed(before, after)
@@ -2555,9 +2641,48 @@ func _watch_boundaries(depth_before: float) -> void:
 		return
 	_announced_boundary = ahead
 	var beyond := _layout.medium_at(ahead + (0.01 if downward else -0.01))
-	_medium_ahead = beyond
 	_events.append({type = &"boundary_approaching", from = after.name, to = beyond.name,
 			depth = ahead, depth_to_go = absf(ahead - depth())})
+
+
+## Looks ahead along the Head's direction, after the Head has moved or a
+## pulse has returned: the Inferred Boundary ahead (the countdown reads it)
+## and the scan's guess of the Wobble beyond the Boundary ahead. The guess's
+## true component is the Wobble of the Medium beyond the next Boundary in the
+## way the Head's depth is changing (what its echoes carry); how sure it is
+## comes from the Inferred Boundary alone. A guess held through a crossing
+## (_guess_held) stays as it was until ACTIVE's Residual is inside the Band.
+func _look_ahead() -> void:
+	_fit_boundaries()
+	_ahead = BoundaryFit.ahead(_inferred, _position, _direction)
+	if _guess_held and _guess != null:
+		if out_of_band():
+			return
+		_guess_held = false
+	var boundary := NAN
+	var beyond := 0.0
+	for b in _layout.boundary_depths():
+		var gap := (b - depth()) * signf(-_direction.y)
+		if gap > 0.0 and (is_nan(boundary) or gap < absf(boundary - depth())):
+			boundary = b
+			beyond = b + 0.01 * signf(-_direction.y)
+	var same_boundary := boundary == _guess_boundary or (is_nan(boundary) and is_nan(_guess_boundary))
+	# The Head has come to where the scan put this Boundary and has not
+	# crossed it yet: the scan was a little short. It is due, and the guess
+	# of what lies beyond it is as sure as it was.
+	if is_inf(_ahead.x) and same_boundary and _guess != null and _guess.confidence > 0.0:
+		_ahead = Vector2(0.0, _guess.confidence)
+	# The scan has this Boundary only if it puts one about where it is: an
+	# Inferred Boundary well short of it or beyond it is something else.
+	var metres := INF if is_nan(boundary) else absf(boundary - depth()) / absf(_direction.y)
+	var scanned := absf(_ahead.x - metres) <= _GUESS_NEAR_M + _GUESS_NEAR_SHARE * metres
+	var confidence := _ahead.y if scanned else 0.0
+	if _guess != null and same_boundary and confidence == _guess.confidence:
+		return
+	_guess_boundary = boundary
+	_guess = WobbleGuess.of(
+			Vector2.ZERO if is_nan(boundary) else Plasma.wobble_in(_layout.medium_at(beyond)),
+			confidence, hash(boundary))
 
 
 ## A Boundary crossed. The Wobble has changed (the plasma is handed the new

@@ -212,6 +212,7 @@ func test_the_shift_drill_is_under_way_and_reaches_the_boundary_with_no_crew_com
 func test_the_shift_drills_checklist_and_orders_tick_as_the_shift_is_made() -> void:
 	var scenario := Scenario.shift_drill()
 	var below := scenario.layout.medium_at(scenario.layout.boundary_depths()[0] + 0.01)
+	var below_wobble := DiveTestKit.wobble_in(below)
 	var sim := scenario.start()
 	sim.read_orders()
 	sim.advance(0.1)
@@ -219,7 +220,9 @@ func test_the_shift_drills_checklist_and_orders_tick_as_the_shift_is_made() -> v
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"pretune_standby")
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 600.0, [], 0.5)).is_not_empty()
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_PENDING)
-	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(below))
+	# The drill began with a pulse: there is a guess to pretune against.
+	assert_float(sim.wobble_ahead_frequency()).is_between(below_wobble.x * 0.8, below_wobble.x * 1.2)
+	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_ahead(sim))
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_DONE)
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_crossed", 600.0, [], 0.1)).is_not_empty()
@@ -355,7 +358,12 @@ func test_a_relight_that_lights_leads_to_the_climb_home_shifting_by_hand() -> vo
 		var above := scenario.layout.medium_at(boundaries[b] - 0.01)
 		assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 40000.0, [], 1.0,
 				func() -> void: sim.set_time_rate(sim.max_time_rate()))).is_not_empty()
-		DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(above))
+		# With no scan of the Boundary above there is nothing to pretune against.
+		assert_str(DiveTestKit.next_step_id(sim)).is_equal(StringName("pulse_%s" % above.name))
+		DiveTestKit.quiet_scan(sim, 6)
+		sim.set_time_rate(1.0)
+		assert_str(DiveTestKit.step_state(sim, StringName("pulse_%s" % above.name))).is_equal(DiveSimulation.STEP_DONE)
+		DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_ahead(sim))
 		sim.advance(0.1)
 		assert_str(DiveTestKit.step_state(sim, StringName("pretune_standby_%s" % above.name))).is_equal(DiveSimulation.STEP_DONE)
 		assert_dict(DiveTestKit.run_until(sim, &"boundary_crossed", 4000.0, [], 0.1)).is_not_empty()
