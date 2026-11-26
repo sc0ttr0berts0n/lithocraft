@@ -8,8 +8,9 @@ extends Node3D
 const BORE_RADIUS := 0.8
 const OUTER_RADIUS := 3.3
 const LENGTH := 2.4
-## Stations pivot this far above the outer wall.
-const STATION_HANG := 1.1
+## Stations pivot this far in from the outer wall: close to it, so the crew
+## stand between the Bore and the screen.
+const STATION_HANG := 0.75
 ## Six Station positions in order round the ring (see place_angle()); this
 ## dive uses five. "" is the empty mount where the Fabricator will go. The
 ## Drive sits beside Navigation, since steering and the Course go together.
@@ -254,7 +255,7 @@ func _key_toggle_controls(_index: int) -> void:
 		_debug_menu.visible = false
 
 
-## The checklist in the upper right; opening it is reading the orders.
+## The checklist in the upper left; opening it is reading the orders.
 func _key_toggle_checklist(_index: int) -> void:
 	_checklist.visible = not _checklist.visible
 	if _checklist.visible:
@@ -836,16 +837,15 @@ func _build_controls() -> void:
 	$Overlay.add_child(_controls)
 
 
-## The checklist in the upper right, clear of the F1 controls and the debug
+## The checklist in the upper left, clear of the F1 controls and the debug
 ## menu, hidden until asked for; each Station named in its own colour.
 func _build_checklist() -> void:
 	_checklist.sim = _sim
 	for station in STATIONS:
 		if station[2] != &"":
 			_checklist.stations[station[2]] = [station[0], station[1]]
-	_checklist.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_checklist.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_checklist.offset_right = -16.0
+	_checklist.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_checklist.offset_left = 16.0
 	_checklist.offset_top = 16.0
 	_checklist.visible = false
 	$Overlay.add_child(_checklist)

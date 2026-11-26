@@ -1,7 +1,7 @@
 ## A Station hung on a gimbal at its pivot. It swings so its own up follows
 ## the crew's "up", lagging a little so the swing can be seen, and turns
 ## about that up so its screen faces the Bore: the crew work it from the
-## outer side with the Column behind the screen.
+## Bore side, looking out at it with the outer wall behind the screen.
 ## Without a name it is an empty mount: the gimbal with no Station on it.
 class_name GimballedStation
 extends Node3D
@@ -534,8 +534,8 @@ func follow_up(up: Vector3, dt: float) -> void:
 
 ## Where the cradle of a Station pivoting at pivot settles for this "up"
 ## (Habitat frame): upright, and turned about up so its +z, the way the crew
-## look through the screen, points from the screen at the Bore axis as
-## squarely as upright allows. The third gimbal ring that turns it is
+## look through the screen, points from the screen away from the Bore axis
+## as squarely as upright allows: the screen faces the Bore. The third gimbal ring that turns it is
 ## driven, not free. With the axis straight above or below the screen there
 ## is no such turn, and it keeps the heading it had (from).
 static func settled_cradle(pivot: Vector3, up: Vector3, from: Basis) -> Basis:
@@ -545,7 +545,7 @@ static func settled_cradle(pivot: Vector3, up: Vector3, from: Basis) -> Basis:
 	var across := toward_axis - upright.y * toward_axis.dot(upright.y)
 	if across.length() < FACING_FREE * toward_axis.length():
 		return upright
-	var look := across.normalized()
+	var look := -across.normalized()
 	return Basis(upright.y.cross(look), upright.y, look)
 
 
