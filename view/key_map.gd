@@ -41,6 +41,7 @@ const BINDINGS: Array[Dictionary] = [
 	{where = ANYWHERE, keys = [KEY_COMMA], does = "time normal", action = &"time_normal"},
 	{where = ANYWHERE, keys = [KEY_ENTER, KEY_KP_ENTER], does = "surfaced or dead: dive again", action = &"new_dive"},
 	{where = ANYWHERE, keys = [KEY_F1], does = "these controls", action = &"toggle_controls"},
+	{where = ANYWHERE, keys = [KEY_TAB], does = "the checklist: orders, next step, surface control", action = &"toggle_checklist"},
 	{where = ANYWHERE, keys = [KEY_F3], does = "debug overlay", action = &"toggle_debug"},
 	{where = ANYWHERE, keys = [KEY_KP_SUBTRACT], does = "debug menu", action = &"debug_menu"},
 	# E at every Station: its autopilot's switch (DiveSimulation.set_autopilot()).

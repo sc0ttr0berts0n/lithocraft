@@ -73,7 +73,7 @@ const BORE_DISPLAY_SIZE := Vector2i(768, 363)
 const DEBUG_WEAR_STEP := 0.1
 const DEBUG_SKIP_S := 300.0
 
-var _sim := DiveSimulation.new(MediumLayout.first_dive())
+var _sim := Scenario.first_dive().start()
 ## Drive Station settings: they hold when the crew walks away. The Course
 ## (Navigation's) and any override are read from the simulation.
 var _power_setting := 0.0
@@ -114,6 +114,8 @@ var _hull_feel := HullFeel.new()
 var _controls := ControlsPanel.new()
 ## The numpad debug menu (numpad minus); its keys work only while it shows.
 var _debug_menu := DebugPanel.new()
+## The checklist (Tab): the Orders, the next step, surface control's messages.
+var _checklist := ChecklistPanel.new()
 
 
 func _ready() -> void:
@@ -126,6 +128,7 @@ func _ready() -> void:
 	# developer's debug view, the controls a menu.
 	_dive_view.visible = false
 	_build_controls()
+	_build_checklist()
 	var slip_sound := SlipSound.new()
 	slip_sound.sim = _sim
 	add_child(slip_sound)
@@ -140,10 +143,8 @@ func _ready() -> void:
 	_build_debug_menu()
 	_show_notice([
 		"At the surface of the desert, ready to dive",
-		"Power up at the Drive %s. Down through sand, sandstone and granite;" % KeyMap.label(&"power_step", 0),
-		"a few kilometres down, plot a climbing Course at Navigation %s" % KeyMap.label(&"plot_pitch", 2),
-		"to arc home and sell the survey.",
-		"%s controls" % KeyMap.label(&"toggle_controls"),
+		"%s the checklist: your orders and what to do next   %s controls" % [
+				KeyMap.label(&"toggle_checklist"), KeyMap.label(&"toggle_controls")],
 	], NOTICE_S)
 	_crew.bore_radius = BORE_RADIUS
 	_crew.outer_radius = OUTER_RADIUS
@@ -218,6 +219,13 @@ func _key_toggle_controls(_index: int) -> void:
 	_controls.visible = not _controls.visible
 	if _controls.visible:
 		_debug_menu.visible = false
+
+
+## The checklist in the upper right; opening it is reading the orders.
+func _key_toggle_checklist(_index: int) -> void:
+	_checklist.visible = not _checklist.visible
+	if _checklist.visible:
+		_sim.read_orders()
 
 
 func _key_toggle_debug(_index: int) -> void:
@@ -366,6 +374,7 @@ func _key_heat_split(index: int) -> void:
 ## Reactor: turn the Shift dial one step down / up.
 func _key_shift_dial(index: int) -> void:
 	_plasma_display.dial *= 1.0 + SHIFT_DIAL_STEP * _minus_plus(index)
+	_sim.set_shift_dial(_plasma_display.dial)
 
 
 ## Reactor: Shift to the frequency on the dial.
@@ -782,6 +791,7 @@ func _reset_settings() -> void:
 	_sim.set_power(_power_setting)
 	_sim.set_heat_split(_heat_split)
 	_plasma_display.dial = _sim.plasma_tuning()
+	_sim.set_shift_dial(_plasma_display.dial)
 	_boundary_ahead = false
 
 
@@ -805,6 +815,21 @@ func _build_controls() -> void:
 	_controls.offset_bottom = -16.0
 	_controls.visible = false
 	$Overlay.add_child(_controls)
+
+
+## The checklist in the upper right, clear of the F1 controls and the debug
+## menu, hidden until asked for; each Station named in its own colour.
+func _build_checklist() -> void:
+	_checklist.sim = _sim
+	for station in STATIONS:
+		if station[2] != &"":
+			_checklist.stations[station[2]] = [station[0], station[1]]
+	_checklist.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_checklist.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_checklist.offset_right = -16.0
+	_checklist.offset_top = 16.0
+	_checklist.visible = false
+	$Overlay.add_child(_checklist)
 
 
 ## The numpad debug menu in the lower left, where the F1 controls go, hidden
