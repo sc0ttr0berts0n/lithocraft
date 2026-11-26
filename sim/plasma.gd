@@ -139,6 +139,16 @@ func debug_lose(events: Array[Dictionary], depth: float, distance: float) -> voi
 	_shift_asked = NAN
 
 
+## A Scenario's start (DiveSimulation.start_dark()): the Head worn `wear`, 0
+## to 1, and the plasma lost by the same path a Shift loses it (_lose()),
+## raising &"plasma_lost" into `events`. Its cause is &"scenario".
+func start_dark(wear: float, events: Array[Dictionary], depth: float, distance: float) -> void:
+	_head_wear = clampf(wear, 0.0, 1.0)
+	_lose(events, depth, distance, &"scenario")
+	_stability = 0.0
+	_shift_asked = NAN
+
+
 ## The plasma goes out and stays out, for `cause` (see lost_by()). Raises
 ## &"plasma_lost" into `events`, placed at `depth` and `distance`.
 func _lose(events: Array[Dictionary], depth: float, distance: float,
@@ -250,7 +260,8 @@ func lost() -> bool:
 
 
 ## Why the plasma went out: &"disrupted" (a rough Shift on a badly worn Head),
-## &"worn_through" (a poor Shift wore the Head through) or &"debug" (the debug
+## &"worn_through" (a poor Shift wore the Head through), &"scenario" (the
+## Scenario began with the Head dark) or &"debug" (the debug
 ## menu); &"" while it holds, and again once relit.
 func lost_by() -> StringName:
 	return _lost_by

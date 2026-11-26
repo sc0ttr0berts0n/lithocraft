@@ -96,6 +96,8 @@ static func _plasma_lost(by: StringName) -> String:
 			return "a rough Shift on a worn Head disrupted the plasma"
 		&"worn_through":
 			return "a poor Shift wore the Head through and lost the plasma"
+		&"scenario":
+			return "the Scenario began with the Head dark"
 		&"debug":
 			return "the debug menu put the plasma out"
 	return "the plasma was lost"

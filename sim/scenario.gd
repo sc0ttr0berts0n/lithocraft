@@ -14,6 +14,19 @@ extends RefCounted
 ## the dial to count as ready. Tuned for play (ADR 0001): a few presses of the
 ## dial wide still counts, so the crew learn the meter, not a number.
 const _DIAL_READY := 0.03
+## The Shift drill begins this many metres of depth above the first Boundary:
+## far enough that the Boundary's call comes after the crew has looked round,
+## near enough that it comes within a minute. Tuned for play (ADR 0001).
+const _DRILL_ABOVE_BOUNDARY_M := 40.0
+## Stranded in the granite begins this many metres of depth into the granite:
+## the sealed tunnel behind is long enough that, uncooled, the hull fails
+## before the rescue cuts through it, and cooled on the store it holds. Tuned
+## for play (ADR 0001).
+const _STRANDED_INTO_GRANITE_M := 200.0
+## The Head's wear as Stranded in the granite begins, as the poor Shifts that
+## lost its plasma left it: worn enough that a relight is a gamble, not a sure
+## thing. Tuned for play (ADR 0001).
+const _STRANDED_HEAD_WEAR := 0.8
 
 
 ## A goal of the Orders, achieved once its condition has held.
@@ -74,6 +87,9 @@ class Message:
 
 
 var title := ""
+## Where the dive begins and what it asks, in a line, for the start menu and
+## the Habitat's opening notice.
+var summary := ""
 ## The world the Scenario's dives are in.
 var layout: MediumLayout = null
 var orders: Array[Goal] = []
@@ -81,6 +97,9 @@ var phases: Array[Phase] = []
 var messages: Array[Message] = []
 ## The start state: called with the simulation at the start of each of the
 ## Scenario's dives, after the Checklist is set up. Does nothing by default.
+## It works through DiveSimulation's commands only: the crew's, and the
+## Scenario start commands (start_below(), start_dark()) for a start the
+## crew's cannot reach.
 var prepare := func(_sim: DiveSimulation) -> void: pass
 
 
@@ -149,6 +168,11 @@ static func course_plotted(down: bool) -> Callable:
 
 # --- The Scenarios -----------------------------------------------------------
 
+## Every Scenario, in the order the start menu lists them.
+static func all() -> Array[Scenario]:
+	return [first_dive(), shift_drill(), stranded_in_the_granite()]
+
+
 ## The First dive: from the desert surface down through the sandstone into
 ## the granite, and home with the data. Its Media are read from its layout,
 ## shallowest first, so the steps follow the layout's own order.
@@ -160,6 +184,8 @@ static func first_dive() -> Scenario:
 	var top := s.layout.medium_at(0.0)
 	var middle := s.layout.medium_at(boundaries[0] + 0.01)
 	var bottom := s.layout.medium_at(boundaries[1] + 0.01)
+	s.summary = "From the desert surface down through the %s into the %s, and home with the data." % [
+			middle.name, bottom.name]
 
 	s.orders = [
 		Goal.new(&"into_the_granite", "Survey down through the %s into the %s" % [middle.name, bottom.name],
@@ -254,6 +280,144 @@ static func first_dive() -> Scenario:
 		Message.new("Welcome home. The survey is paid for.", on_event(&"paid")),
 	]
 	return s
+
+
+## The Shift drill: the Lithocraft under way in the sand a short way above
+## the sandstone, its Drive and Thermal on their autopilots, so the crew has
+## only the Reactor to work: ready the dial for the sandstone and Shift as the
+## Head crosses.
+static func shift_drill() -> Scenario:
+	var s := Scenario.new()
+	s.title = "Shift drill"
+	s.layout = MediumLayout.first_dive()
+	var boundary := s.layout.boundary_depths()[0]
+	var above := s.layout.medium_at(boundary - 0.01)
+	var below := s.layout.medium_at(boundary + 0.01)
+	s.summary = "Under way in the %s a short way above the %s: ready the dial and Shift as the Head crosses." % [
+			above.name, below.name]
+	s.prepare = func(sim: DiveSimulation) -> void:
+		sim.start_below(boundary - _DRILL_ABOVE_BOUNDARY_M)
+		sim.set_autopilot(DiveSimulation.STATION_THERMAL, true)
+		sim.set_autopilot(DiveSimulation.STATION_DRIVE, true)
+
+	s.orders = [
+		Goal.new(&"clean_shift", "Shift cleanly into the %s" % below.name,
+				on_event(&"shift_result", func(event: Dictionary, sim: DiveSimulation) -> bool:
+					return event.clean and not event.autopilot and sim.medium().name == below.name)),
+	]
+
+	var reactor := Phase.new("The %s Boundary" % below.name)
+	reactor.steps = [
+		Step.new(&"read_orders", "Read the orders", &"", &"toggle_checklist", on_event(&"orders_read")),
+		Step.new(&"ready_dial", "Ready the dial for the %s" % below.name, DiveSimulation.STATION_REACTOR,
+				&"shift_dial", dial_ready_for(below)),
+		Step.new(&"shift", "Shift as the Head crosses", DiveSimulation.STATION_REACTOR,
+				&"shift", crew_shift_in(below.name)),
+	]
+	s.phases = [reactor]
+
+	var always := func(_sim: DiveSimulation, _events: Array) -> bool: return true
+	s.messages = [
+		Message.new("Shift drill: the Drive and Thermal are on their autopilots. Yours is the Reactor: ready the dial for the %s, and Shift as the Head crosses." % below.name, always),
+		Message.new("We have you nearing the %s. Ready the dial at the Reactor and Shift as you cross." % below.name,
+				on_event(&"boundary_approaching")),
+		Message.new("Shift made. That is the drill: dive on, or turn for home.", crew_shift_in(below.name)),
+	]
+	return s
+
+
+## Stranded in the granite: sealed in a way into the granite, the Head's
+## plasma just lost on a worn Head, the rescue called and the stranding clock
+## running. Relight if the Head will light and climb home; if it will not,
+## send the survey aboard up the link, cool the hull on the emergency store
+## and wait for the rescue.
+static func stranded_in_the_granite() -> Scenario:
+	var s := Scenario.new()
+	s.title = "Stranded in the granite"
+	s.layout = MediumLayout.first_dive()
+	var boundaries := s.layout.boundary_depths()
+	var granite_top := boundaries[1]
+	var top := s.layout.medium_at(0.0)
+	var middle := s.layout.medium_at(boundaries[0] + 0.01)
+	var bottom := s.layout.medium_at(granite_top + 0.01)
+	s.summary = "Sealed in the %s, the Head dark and the stranding clock running: relight, or send the survey up, cool the hull and wait for the rescue." % bottom.name
+	s.prepare = func(sim: DiveSimulation) -> void:
+		sim.start_below(granite_top + _STRANDED_INTO_GRANITE_M)
+		sim.start_dark(_STRANDED_HEAD_WEAR)
+
+	s.orders = [
+		Goal.new(&"home_alive", "Come home alive: relit and climbed, or rescued",
+				when(func(sim: DiveSimulation) -> bool: return sim.surfaced())),
+	]
+
+	# Two ways home, as phases. A relight that does not light begins Still
+	# dark, then Wait for the rescue; one that lights, now or later, begins
+	# Relit. Either ends in Home, which begins as the Lithocraft surfaces. A
+	# phase that only follows another for having come next (Still dark after
+	# Dark lit, Relit after the rescue) begins on the same tend as the one
+	# that skips it, so the crew never sees it.
+	var dark := Phase.new("Dark")
+	dark.steps = [
+		Step.new(&"read_orders", "Read the orders", &"", &"toggle_checklist", on_event(&"orders_read")),
+		Step.new(&"relight", "Relight the Head from the emergency store", DiveSimulation.STATION_REACTOR,
+				&"relight", _relight(true)),
+	]
+
+	# The relit Head is worn: the Reactor's autopilot Shifts late, and a late
+	# Shift on it wears it through, so the crew makes every Shift up.
+	var relit := Phase.new("Relit", _relight(true))
+	relit.steps = [
+		Step.new(&"thermal_autopilot", "Engage Thermal's autopilot", DiveSimulation.STATION_THERMAL,
+				&"autopilot_thermal", _autopilot_on(DiveSimulation.STATION_THERMAL)),
+		Step.new(&"plot_climb", "Plot the Course: climb", DiveSimulation.STATION_NAVIGATION,
+				&"plot_pitch", course_plotted(false)),
+		Step.new(&"drive_autopilot", "Engage the Drive's autopilot: it follows the Course up",
+				DiveSimulation.STATION_DRIVE, &"autopilot_drive", _autopilot_on(DiveSimulation.STATION_DRIVE)),
+	]
+	for medium in [middle, top]:
+		relit.steps.append(Step.new(StringName("ready_dial_%s" % medium.name),
+				"Ready the dial for the %s: the worn Head will not bear a poor Shift" % medium.name,
+				DiveSimulation.STATION_REACTOR, &"shift_dial", dial_ready_for(medium)))
+		relit.steps.append(Step.new(StringName("shift_%s" % medium.name), "Shift into the %s" % medium.name,
+				DiveSimulation.STATION_REACTOR, &"shift", crew_shift_in(medium.name)))
+	relit.steps.append(Step.new(&"climbed", "Climb to the surface", &"", &"time_faster", on_event(&"surfaced")))
+
+	var still_dark := Phase.new("Still dark", _relight(false))
+	still_dark.steps = [
+		Step.new(&"link", "Send the most valuable survey up the link first, on the store",
+				DiveSimulation.STATION_BORE, &"upload_priority", when(func(sim: DiveSimulation) -> bool:
+					return sim.uploading() and sim.upload_priority() == DiveSimulation.UPLOAD_MOST_VALUABLE_FIRST)),
+		Step.new(&"cool", "Run Thermal's pumps on the store to cool the hull", DiveSimulation.STATION_THERMAL,
+				&"heat_split", when(func(sim: DiveSimulation) -> bool: return sim.stranded() and sim.heat_split() > 0.0)),
+	]
+
+	var wait := Phase.new("Wait for the rescue")
+	wait.steps = [
+		Step.new(&"rescued", "Wait for the rescue: the stranding clock against the rescue's", &"",
+				&"time_faster", on_event(&"rescued")),
+	]
+
+	var home := Phase.new("Home", when(func(sim: DiveSimulation) -> bool: return sim.surfaced()))
+	home.steps = [
+		Step.new(&"paid", "Be paid for the survey", &"", &"",
+				when(func(sim: DiveSimulation) -> bool: return sim.surfaced())),
+	]
+	s.phases = [dark, still_dark, wait, relit, home]
+
+	var always := func(_sim: DiveSimulation, _events: Array) -> bool: return true
+	s.messages = [
+		Message.new("We hear you are dark, sealed in the %s. A rescue is coming down the tunnel. Try a relight; if the Head will not light, send your survey up and keep the hull cool while you wait." % bottom.name, always),
+		Message.new("You are lit. Climb home.", _relight(true)),
+		Message.new("Welcome home. The survey is paid for.", on_event(&"paid")),
+	]
+	return s
+
+
+## Holds on a relight that lit the Head (`lit`), or on one that did not
+## (it failed, or the store could not pay for it).
+static func _relight(lit: bool) -> Callable:
+	return on_event(&"relight_result", func(event: Dictionary, _sim: DiveSimulation) -> bool:
+		return (event.outcome == &"lit") == lit)
 
 
 static func _autopilot_on(station: StringName) -> Callable:

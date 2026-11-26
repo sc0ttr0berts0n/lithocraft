@@ -79,7 +79,13 @@ const BORE_DISPLAY_SIZE := Vector2i(768, 363)
 const DEBUG_WEAR_STEP := 0.1
 const DEBUG_SKIP_S := 300.0
 
-var _sim := Scenario.first_dive().start()
+## The start menu, which a dive's end returns to.
+const START_MENU := "res://view/start_menu.tscn"
+
+## The Scenario to play, set by the start menu before the Habitat enters the
+## tree; the First dive when the Habitat is run on its own.
+var scenario: Scenario = null
+var _sim: DiveSimulation
 ## Drive Station settings: they hold when the crew walks away. The Course
 ## (Navigation's) and any override are read from the simulation.
 var _power_setting := 0.0
@@ -133,10 +139,14 @@ var _checklist := ChecklistPanel.new()
 
 
 func _ready() -> void:
-	_sim.set_course(0.0, 90.0)
-	_sim.set_steering_effort(_effort_setting)
-	_sim.set_power(_power_setting)
-	_sim.set_heat_split(_heat_split)
+	if scenario == null:
+		scenario = Scenario.first_dive()
+	_sim = scenario.start()
+	# The Scenario set the Stations up (a drill may start under way): the
+	# Habitat's copies of their settings follow the simulation's.
+	_power_setting = _sim.power()
+	_effort_setting = _sim.steering_effort()
+	_heat_split = _sim.heat_split()
 	_dive_view.attach(_sim)
 	# Nothing is drawn over the crew's view (story 52): the overlay is a
 	# developer's debug view, the controls a menu.
@@ -158,7 +168,7 @@ func _ready() -> void:
 	# Over the notice: the developer opened it to use it.
 	_build_debug_menu()
 	_show_notice([
-		"At the surface of the desert, ready to dive",
+		"%s: %s" % [scenario.title, scenario.summary],
 		"%s the checklist: your orders and what to do next   %s controls" % [
 				KeyMap.label(&"toggle_checklist"), KeyMap.label(&"toggle_controls")],
 	], NOTICE_S)
@@ -227,11 +237,13 @@ func _key_time_normal(_index: int) -> void:
 	_sim.set_time_rate(1.0)
 
 
-## A new dive, once the end of the last one has settled into its outcome.
+## Back to the start menu once the dive is over and its end has settled into
+## its outcome.
 func _key_new_dive(_index: int) -> void:
-	if _outcome_screen.settling():
+	if not (_sim.surfaced() or _sim.dead()) or _outcome_screen.settling():
 		return
-	_sim.new_dive()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	get_tree().change_scene_to_file(START_MENU)
 
 
 func _key_toggle_controls(_index: int) -> void:
@@ -465,7 +477,6 @@ func _physics_process(delta: float) -> void:
 			&"hull_failed": _on_hull_failed(event)
 			&"relight_result": _on_relight_result(event)
 			&"paid": _on_paid(event)
-			&"new_dive": _on_new_dive(event)
 			&"self_destruct_started": _on_self_destruct_started(event)
 			&"self_destruct_cancelled": _on_self_destruct_cancelled(event)
 			&"autopilot_off": _on_autopilot_off(event)
@@ -579,8 +590,8 @@ func _show_calls() -> void:
 func _show_drive() -> void:
 	var slip := _sim.slip()
 	var lines := [
-		"SURFACED  %s dive again" % KeyMap.label(&"new_dive") if _sim.surfaced() else
-			"%s  %s rebuy" % [_death_headline(), KeyMap.label(&"new_dive")] if _sim.dead() else
+		"SURFACED  %s start menu" % KeyMap.label(&"new_dive") if _sim.surfaced() else
+			"%s  %s start menu" % [_death_headline(), KeyMap.label(&"new_dive")] if _sim.dead() else
 			"Depth %.1f m  Speed %.2f m/s" % [_sim.depth(), _sim.speed()],
 		"Heading %03.0f  Course %03.0f" % [_sim.heading_degrees(), _sim.course_heading()],
 		"Pitch %+.0f  Course %+.0f deg" % [_sim.pitch(), _sim.course_pitch()],
@@ -732,7 +743,7 @@ func _on_hull_failed(event: Dictionary) -> void:
 		"Paid for this dive: %.0f   Paid in all: %.0f" % [event.amount, event.total_paid],
 		"Rebuy: %.0f  (charged %.0f: no balance yet)" % [event.rebuy, event.rebuy_charged],
 		"",
-		"%s rebuy and start another dive" % KeyMap.label(&"new_dive"),
+		"%s back to the start menu" % KeyMap.label(&"new_dive"),
 	])
 
 
@@ -802,20 +813,8 @@ func _on_paid(event: Dictionary) -> void:
 	lines.append("By rock: " + "  ".join(media))
 	lines.append("Paid in all: %.0f" % event.total_paid)
 	lines.append("")
-	lines.append("%s start another dive" % KeyMap.label(&"new_dive"))
+	lines.append("%s back to the start menu" % KeyMap.label(&"new_dive"))
 	_end_dive(lines)
-
-
-## A fresh dive after surfacing: back to the start settings, ready to dive.
-func _on_new_dive(event: Dictionary) -> void:
-	_reset_settings()
-	_outcome_screen.reset()
-	_outcome_lines = []
-	_show_notice([
-		"At the surface, ready to dive",
-		"Paid so far: %.0f" % event.paid,
-		"Power up at the Drive %s." % KeyMap.label(&"power_step", 0),
-	], NOTICE_S)
 
 
 ## Shows the centre notice; for `seconds` if above 0, else until replaced.
@@ -823,19 +822,6 @@ func _show_notice(lines: Array, seconds: float) -> void:
 	_notice.text = "\n".join(lines)
 	_notice.visible = true
 	_notice_left = seconds
-
-
-## The Stations start a dive from their start settings, so the Habitat's do too.
-func _reset_settings() -> void:
-	_power_setting = 0.0
-	_effort_setting = 1.0
-	_heat_split = 0.0
-	_sim.set_course(0.0, 90.0)
-	_sim.set_steering_effort(_effort_setting)
-	_sim.set_power(_power_setting)
-	_sim.set_heat_split(_heat_split)
-	_plasma_display.dial = _sim.shift_dial()
-	_boundary_ahead = false
 
 
 func _fade_notice(delta: float) -> void:
