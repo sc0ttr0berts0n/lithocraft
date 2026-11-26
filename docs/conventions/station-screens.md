@@ -63,11 +63,7 @@
   The plan and section pair is a top-down view beside a side-on one, ahead to the right in both and at one scale, nothing in 3D.
   The world-up 3D view has deeper always lower and goes round only with the compass heading.
   The debug key F4 (anywhere, `debug_next_scan_view()`) flips to the next, and the display's caption names the one shown, its number and the key.
-  Every view is a flat drawing through one static function from a place's offset from the Head to its place on the screen (`scope_place()`, `plan_place()`, `section_place()`, `world_up_place()`: metres, x right, y down), and `_draw_scan()` draws the same things through whichever it is given.
-  A mark every candidate must show goes in `_draw_scan()`; a view's own scale marks go in its `_draw_*_marks()`.
-  No view may read a clock or the layout (`scan_display_test.gd` checks the source): a place is a function of the simulation's state alone, so a view turns only as the vessel does.
-  The points and patches are fetched only when `pulses_sent()` changes (never `points()` each frame); their fade is worked out at each redraw.
-  A point is white as it is certain, the legend's grey as it is a guess, larger the surer, and never fades out altogether; a patch is its outline, its face filled faintly unless edge-on.
+  How the views are drawn, and the rules for changing them: `docs/conventions/scan.md`, "Drawing the scan".
 - Navigation's moving map (`MovingMap`, `view/moving_map.gd`) is a 2D cross-section of the whole dive, redrawn a few times a second: across is ground distance along the unrolled track (`MovingMap.profile()` of `remembered_path()`, the simulation's perfect record of the path), down is depth, at one scale both ways.
   Its Boundaries are the Inferred Boundaries (`inferred_boundaries()`), never the layout: each patch drawn side-on between its corners, placed across by how far ahead of the Head along the heading they lie (`MovingMap.across()`), as sure as its `confidence`.
   The target depth is `target_depth()`, from the Orders (`Scenario.Goal.target_depth`, NAN for a goal with none).

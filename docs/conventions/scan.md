@@ -6,6 +6,14 @@
 A point's age is `point_age(point)`, counted on `dive_time()` (seconds simulated this dive, stranded time included); the view fades by it.
 Anything that adds points goes through `_add_point()` and the sweep.
 
+**Drawing the scan.**
+Navigation's scan display (`ScanDisplay`) draws the cloud as one of three candidate views (see `docs/conventions/station-screens.md`, "Navigation's point cloud").
+Every view is a flat drawing through one static function from a place's offset from the Head to its place on the screen (`scope_place()`, `plan_place()`, `section_place()`, `world_up_place()`: metres, x right, y down), and `_draw_scan()` draws the same things through whichever it is given.
+A mark every candidate must show goes in `_draw_scan()`; a view's own scale marks go in its `_draw_*_marks()`.
+No view may read a clock or the layout (`scan_display_test.gd` checks the source): a place is a function of the simulation's state alone, so a view turns only as the vessel does.
+The points and patches are fetched only when `pulses_sent()` changes (never `points()` each frame); their fade is worked out at each redraw.
+A point is white as it is certain, the legend's grey as it is a guess, larger the surer, and never fades out altogether; a patch is its outline, its face filled faintly unless edge-on.
+
 **Inferred Boundaries.**
 `inferred_boundaries()` is the one query for the Boundaries as the scan suggests them: `BoundaryPatch`es fitted by `BoundaryFit.fit(points)` (`sim/boundary_fit.gd`), a static, plain function of `ScanPoint`s alone that never sees a Medium, the layout or the simulation (`boundary_fit_test.gd` checks its source).
 The fit grids the ground into square cells, splits each cell's points into layers at a height gap and fits a plane to each layer with enough points, so a patch's `confidence` rises with how many points support it and how confident they are, and its `returned_at` is its points' (confidence-weighted) mean, so it fades with them (`patch_age(patch)`).
