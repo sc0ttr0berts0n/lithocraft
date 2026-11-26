@@ -272,6 +272,9 @@ var _slip := 0.0
 var _heat_split := 0.0
 ## The vessel's heat and the hull it passes through (sim/heat.gd).
 var _heat: Heat
+## How fast the hull's temperature changed over the last step, in kelvin per
+## second: above 0 warming.
+var _hull_warming := 0.0
 ## Metres travelled along the path since the dive began.
 var _distance := 0.0
 ## Completed survey entries, oldest first.
@@ -1083,8 +1086,10 @@ func _step(dt: float) -> void:
 	# Navigation. A poor Shift's grinding adds a spike.
 	# Heat reaches the Column only as far as Thermal's pumps are powered; the
 	# rest goes out through the hull.
+	var hull_before := _heat.vessel_temperature()
 	_heat.step(power_drawn(), _plasma.heat_spike(), _heat_split, thermal_supplied(),
 			surroundings_temperature(), depth(), dt)
+	_hull_warming = (_heat.vessel_temperature() - hull_before) / dt
 	_noise = _head_activity * _HEAD_HUM + _DRIVE_NOISE * power * (1.0 + _slip)
 	var depth_before := depth()
 	# The Head moves along its arc, turning toward the Drive's settings.
@@ -2033,6 +2038,15 @@ func vessel_temperature() -> float:
 	return _heat.vessel_temperature()
 
 
+## Which way the hull's temperature is going, and how fast: kelvin per second
+## over the last step, above 0 while it warms, below 0 while it cools, 0 once
+## it has settled at the heat it sheds. 0 too once the dive has stopped (dead
+## or surfaced), when no step runs to change it. For the Thermal gauge's trend
+## mark.
+func hull_warming_rate() -> float:
+	return 0.0 if dead() or surfaced() else _hull_warming
+
+
 ## Temperature in kelvin of the Medium around the vessel now: the Medium's own
 ## temperature plus the planet's warming with depth, so it rises even within
 ## one Medium and the hull has less room to shed heat the deeper it goes.
@@ -2517,7 +2531,9 @@ func _step_stranded(dt: float) -> void:
 	var cooling_draw := _cooling_draw() * dt
 	if cooling_draw > 0.0:
 		cooling = _heat_split * _stranding.draw(cooling_draw) / cooling_draw
+	var hull_before := _heat.vessel_temperature()
 	_heat.soak(surroundings_temperature(), cooling, depth(), dt, dumped)
+	_hull_warming = (_heat.vessel_temperature() - hull_before) / dt
 	var link_draw := _link_draw() * dt
 	if link_draw > 0.0:
 		_upload(link_rate() * dt * _stranding.draw(link_draw) / link_draw)
