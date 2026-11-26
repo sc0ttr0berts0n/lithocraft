@@ -23,7 +23,7 @@ The old "Extension points" and "Subsystems" sections are spread by topic; their 
 - [conventions/stranding-and-endings.md](conventions/stranding-and-endings.md): Stranding, rescue and death, The emergency store, Self-destruct, How a dive ended, New dives. Read when touching anything after the plasma is lost, how a dive ends, `outcome()`, or what a new dive resets.
 - [conventions/survey-and-payment.md](conventions/survey-and-payment.md): Survey quality, Payment, New minerals. Read when touching the Column's record, the link, what a dive pays, the repair bill or a mineral.
 - [conventions/scan.md](conventions/scan.md): The point cloud, Inferred Boundaries. Read when touching pulses, `points()`, the Boundary fit, or any view that shows Boundaries or the rock ahead.
-- [conventions/scenarios-and-checklist.md](conventions/scenarios-and-checklist.md): Scenarios. Read when touching a Scenario, its start state, the Orders, the Checklist's phases, steps and triggers, or surface control's messages.
+- [conventions/scenarios-and-checklist.md](conventions/scenarios-and-checklist.md): Scenarios, Phase triggers. Read when touching a Scenario, its start state, the Orders, the Checklist's phases, steps and triggers, or surface control's messages.
 - [conventions/debug-commands.md](conventions/debug-commands.md): Debug commands. Read when adding or using a `debug_*` command or a debug menu key.
 
 ## The view
