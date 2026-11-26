@@ -7,7 +7,8 @@
 ## Reads only the simulation: points(), point_age() and pulses_sent() for the
 ## cloud; inferred_boundaries() and patch_age() for the surfaces fitted to it,
 ## drawn as translucent patches among the points, as opaque as the fit is
-## sure, moving with the cloud and fading as their points do; head_position(), heading() and heading_degrees() for the vessel;
+## sure, moving with the cloud and fading as their points do; head_position(),
+## heading() and heading_degrees() for the vessel;
 ## course_direction() for the Course Navigation has plotted, drawn as a dashed
 ## line out ahead among the points. The cloud is drawn in world metres and
 ## shifted by the Head's position each frame, so the points stream toward the

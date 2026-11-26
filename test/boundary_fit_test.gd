@@ -62,10 +62,12 @@ func test_the_surface_lies_where_the_points_are() -> void:
 func test_the_patches_cover_the_points_and_no_further() -> void:
 	var patches := BoundaryFit.fit(_sheet(-60.0, 60.0))
 
+	assert_int(patches.size()).is_greater(0)
 	for patch in patches:
-		assert_float(absf(patch.centre.x)).is_less(30.0 + patch.size)
-		assert_float(absf(patch.centre.z)).is_less(30.0 + patch.size)
 		assert_int(patch.corners().size()).is_equal(4)
+		for corner in patch.corners():
+			assert_float(absf(corner.x)).is_less_equal(30.001)
+			assert_float(absf(corner.z)).is_less_equal(30.001)
 
 
 func test_more_supporting_points_give_higher_confidence() -> void:
@@ -112,6 +114,19 @@ func test_a_sloping_sheet_of_points_makes_a_sloping_surface() -> void:
 	for patch in patches:
 		assert_float(patch.normal.x).is_greater(0.05)
 		assert_float(patch.normal.y).is_greater(0.0)
+
+
+func test_a_steeper_sheet_of_points_makes_a_steeper_surface() -> void:
+	var gentle := BoundaryFit.fit(_sheet(-60.0, 60.0, 3.0, 0.8, 0.0, -0.1))
+	var steep := BoundaryFit.fit(_sheet(-60.0, 60.0, 3.0, 0.8, 0.0, -0.5))
+
+	var gentle_tilt := 0.0
+	var steep_tilt := 0.0
+	for patch in gentle:
+		gentle_tilt += patch.normal.x / gentle.size()
+	for patch in steep:
+		steep_tilt += patch.normal.x / steep.size()
+	assert_float(steep_tilt).is_greater(gentle_tilt)
 
 
 func test_a_surface_is_as_old_as_its_points() -> void:

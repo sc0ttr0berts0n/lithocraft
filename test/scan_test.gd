@@ -332,10 +332,16 @@ func test_inferred_boundaries_age_with_their_points() -> void:
 	var age_then := sim.patch_age(patch)
 
 	DiveTestKit.run(sim, 10.0)
+	var older := sim.patch_age(patch)
+	var newer := _pulse(sim)
 
-	assert_float(sim.patch_age(patch)).is_greater(age_then)
-	# Nothing new returned, so the cloud's surfaces are the same ones, older.
-	assert_bool(sim.inferred_boundaries().has(patch)).is_true()
+	assert_float(older).is_greater(age_then)
+	# A later pulse's points make younger surfaces.
+	assert_int(newer.size()).is_greater(0)
+	var youngest := INF
+	for fresh in sim.inferred_boundaries():
+		youngest = minf(youngest, sim.patch_age(fresh))
+	assert_float(youngest).is_less(older)
 
 
 func test_the_inferred_boundaries_handed_out_are_a_copy() -> void:

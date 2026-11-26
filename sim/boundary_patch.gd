@@ -1,4 +1,4 @@
-## One patch of an Inferred Boundary: a square of surface fitted to the points
+## One patch of an Inferred Boundary: a rectangle of surface fitted to the points
 ## of Navigation's point cloud that seem to lie on it. Plain data; BoundaryFit
 ## makes these, views read them.
 class_name BoundaryPatch
@@ -9,8 +9,9 @@ extends RefCounted
 var centre: Vector3
 ## Which way the surface faces: a unit vector, never pointing down.
 var normal: Vector3
-## Its side in metres, measured across the ground (x and z).
-var size: float
+## The ground it covers, metres: its extent along x and along z, the span of
+## the points it was fitted to.
+var size: Vector2
 ## How many points it was fitted to.
 var support: int
 ## How sure the fit is that a Boundary lies here, 0 to 1: higher the more
@@ -22,7 +23,7 @@ var confidence: float
 var returned_at: float
 
 
-func _init(p_centre: Vector3, p_normal: Vector3, p_size: float, p_support: int,
+func _init(p_centre: Vector3, p_normal: Vector3, p_size: Vector2, p_support: int,
 		p_confidence: float, p_returned_at: float) -> void:
 	centre = p_centre
 	normal = p_normal
@@ -33,12 +34,12 @@ func _init(p_centre: Vector3, p_normal: Vector3, p_size: float, p_support: int,
 
 
 ## The patch's four corners on its surface, in the world frame, going round:
-## the square of ground it covers, lifted onto the fitted plane.
+## the rectangle of ground it covers, lifted onto the fitted plane.
 func corners() -> Array[Vector3]:
 	var half := size * 0.5
 	var found: Array[Vector3] = []
-	for offset in [Vector2(-half, -half), Vector2(half, -half), Vector2(half, half),
-			Vector2(-half, half)]:
+	for offset in [Vector2(-half.x, -half.y), Vector2(half.x, -half.y), half,
+			Vector2(-half.x, half.y)]:
 		found.append(centre + Vector3(offset.x, _rise(offset), offset.y))
 	return found
 

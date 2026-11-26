@@ -1355,7 +1355,8 @@ func point_age(point: ScanPoint) -> float:
 ## returned. Each patch's confidence follows how many points support it; it
 ## lies in the world frame with the points, and is as old as they are
 ## (patch_age()). Refitted only once a pulse has changed the cloud, so a view
-## may read this every frame. A copy; changing it does not change the fit.
+## may read this every frame. A copy of the list, but the patches in it are
+## the fit's own: read them, never change them.
 func inferred_boundaries() -> Array[BoundaryPatch]:
 	if _inferred_at_pulse != _pulses_sent:
 		_inferred_at_pulse = _pulses_sent
