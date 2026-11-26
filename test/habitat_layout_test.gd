@@ -28,7 +28,7 @@ func _settled(place: int, up: Vector3) -> GimballedStation:
 	return station
 
 
-func test_every_station_faces_the_bore_with_the_column_behind_its_screen_in_every_down() -> void:
+func test_every_station_faces_the_bore_with_the_wall_behind_its_screen_in_every_down() -> void:
 	for up in _ups():
 		for place in DiveTestKit.station_places():
 			var station := _settled(place, up)
@@ -38,21 +38,20 @@ func test_every_station_faces_the_bore_with_the_column_behind_its_screen_in_ever
 			var screen := station.screen_centre()
 			var station_name := DiveTestKit.station_name(place)
 
-			# Looking at the screen is looking toward the Bore axis, as
-			# squarely as standing upright allows.
+			# Looking at the screen is looking away from the Bore axis, as
+			# squarely as standing upright allows: the screen faces the Bore.
 			var toward_axis := Vector3(-screen.x, -screen.y, 0)
 			var upright_toward := (toward_axis - up * toward_axis.dot(up)).normalized()
 			assert_float(view.dot(upright_toward)) \
-				.override_failure_message("%s faces away from the Bore, up %s" % [station_name, up]) \
-				.is_greater(0.999)
-			# The line of sight passes the screen before it comes nearest
-			# the axis: the Column is behind the screen.
-			var to_screen := (screen - eye).dot(view)
+				.override_failure_message("%s's screen faces away from the Bore, up %s" % [station_name, up]) \
+				.is_less(-0.999)
+			# The crew stand between the Bore and the screen: the line of
+			# sight comes nearest the axis behind the eye.
 			var view_across := Vector2(view.x, view.y)
 			var nearest_axis := -Vector2(eye.x, eye.y).dot(view_across) / view_across.length_squared()
 			assert_float(nearest_axis) \
-				.override_failure_message("%s has the Column in front of its screen, up %s" % [station_name, up]) \
-				.is_greater(to_screen)
+				.override_failure_message("%s has the Column in front of the crew, up %s" % [station_name, up]) \
+				.is_less(0.0)
 
 
 func test_the_drive_and_navigation_are_neighbours_on_the_ring() -> void:

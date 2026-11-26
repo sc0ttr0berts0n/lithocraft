@@ -29,7 +29,7 @@ const PARKED_REACH := 0.3
 ## Links drawn between the carriage and the claw.
 const CHAIN_LINKS := 18
 ## Metres: two neighbours closer than this to the same side count as level.
-const SIDE_TIE := 0.25
+const SIDE_TIE := 0.1
 
 var _rail_radius: float
 var _state := State.PARKED
