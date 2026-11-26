@@ -186,6 +186,16 @@ static func fly_until(sim: DiveSimulation, done: Callable, seconds := 3000.0,
 	return done.call(sim)
 
 
+## Nudges an attended Drive until it steers this many degrees off where it
+## steers now (as near as whole nudges come): heading + to the right, pitch +
+## steeper down.
+static func nudge(sim: DiveSimulation, heading_degrees: float, pitch_degrees: float) -> void:
+	for i in roundi(absf(pitch_degrees) / sim.nudge_degrees()):
+		sim.nudge_pitch(pitch_degrees)
+	for i in roundi(absf(heading_degrees) / sim.nudge_degrees()):
+		sim.nudge_heading(heading_degrees)
+
+
 ## The Wobble this Medium puts on the plasma, as Vector2(frequency in hertz,
 ## amplitude), read from a dive in it.
 static func wobble_in(medium: Medium) -> Vector2:

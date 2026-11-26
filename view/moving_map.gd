@@ -33,18 +33,21 @@ const TICKS_M: Array[float] = [25.0, 50.0, 100.0, 200.0, 250.0, 500.0, 1000.0, 2
 const MOST_TICKS := 5
 ## The drawing area's margins in pixels: room on the left for the depth
 ## labels, above for the sky and the surface's label.
-const MARGIN_LEFT := 44.0
-const MARGIN_TOP := 18.0
+const MARGIN_LEFT := 66.0
+const MARGIN_TOP := 26.0
 const MARGIN_RIGHT := 8.0
 const MARGIN_BOTTOM := 6.0
-const FONT_SIZE := 13
+const FONT_SIZE := 19
 const DASH_PX := 6.0
 
-const BACKGROUND := Color(0.01, 0.015, 0.025)
-const SKY := Color(0.05, 0.07, 0.1)
-const SURFACE_COLOUR := Color(0.85, 0.72, 0.5)
-const TICK_COLOUR := Color(0.45, 0.55, 0.65)
-const TARGET_COLOUR := Color(0.55, 1.0, 0.55)
+## StationTheme's colours: the sky a backdrop, the surface and the depth
+## scale legends, the target depth what the crew aims for (cyan, as the
+## Course is), the path and the vessel what is happening (white).
+const BACKGROUND := StationTheme.SCREEN_COLOUR
+const SKY := StationTheme.SURFACEWARD_COLOUR
+const SURFACE_COLOUR := StationTheme.LEGEND_COLOUR
+const TICK_COLOUR := StationTheme.LEGEND_COLOUR
+const TARGET_COLOUR := StationTheme.SELECTED_COLOUR
 
 var sim: DiveSimulation
 
@@ -182,14 +185,14 @@ func _draw_map() -> void:
 	var font := ThemeDB.fallback_font
 	_canvas.draw_line(Vector2(area.position.x, area.position.y), Vector2(area.end.x, area.position.y),
 			SURFACE_COLOUR, 2.0)
-	_canvas.draw_string(font, Vector2(area.end.x - 60.0, area.position.y - 4.0), "surface",
-			HORIZONTAL_ALIGNMENT_RIGHT, 60.0, FONT_SIZE, SURFACE_COLOUR)
+	_canvas.draw_string(font, Vector2(area.end.x - 100.0, area.position.y - 6.0), "surface",
+			HORIZONTAL_ALIGNMENT_RIGHT, 100.0, FONT_SIZE, SURFACE_COLOUR)
 
 	if not is_nan(target):
 		var y: float = at.call(0.0, target).y
 		_dashes(Vector2(area.position.x, y), Vector2(area.end.x, y), TARGET_COLOUR)
-		_canvas.draw_string(font, Vector2(area.end.x - 120.0, y - 3.0), "target %d m" % roundi(target),
-				HORIZONTAL_ALIGNMENT_RIGHT, 120.0, FONT_SIZE, TARGET_COLOUR)
+		_canvas.draw_string(font, Vector2(area.end.x - 200.0, y - 5.0), "target %d m" % roundi(target),
+				HORIZONTAL_ALIGNMENT_RIGHT, 200.0, FONT_SIZE, TARGET_COLOUR)
 
 	# Over the target: a Boundary heard at the target depth shows. As sure
 	# as its patch; the map keeps what was heard, so it does not fade.
@@ -238,7 +241,7 @@ func _draw_ticks(area: Rect2, span: float, scale: float) -> void:
 	while depth < span:
 		var y := area.position.y + depth * scale
 		_canvas.draw_line(Vector2(area.position.x - 4.0, y), Vector2(area.position.x, y), TICK_COLOUR, 1.0)
-		_canvas.draw_line(Vector2(area.position.x, y), Vector2(area.end.x, y), Color(TICK_COLOUR, 0.12), 1.0)
+		_canvas.draw_line(Vector2(area.position.x, y), Vector2(area.end.x, y), StationTheme.faded(TICK_COLOUR, 0.2), 1.0)
 		_canvas.draw_string(font, Vector2(0.0, y + FONT_SIZE * 0.35), "%d m" % roundi(depth),
 				HORIZONTAL_ALIGNMENT_RIGHT, area.position.x - 6.0, FONT_SIZE, TICK_COLOUR)
 		depth += step

@@ -143,3 +143,19 @@ func test_no_two_keys_at_one_place_clash() -> void:
 				assert_bool(seen.has(code)).override_failure_message("%s twice at %s" % [
 						KeyMap.name_of(code), where]).is_false()
 				seen[code] = true
+
+
+## The Course is plotted at Navigation alone: the Drive only nudges off it
+## and comes back to it (ticket #65).
+func test_the_drive_has_no_key_that_sets_dive_level_or_climb() -> void:
+	var drive := [KeyMap.ANYWHERE, DiveSimulation.STATION_DRIVE]
+	var navigation := [KeyMap.ANYWHERE, DiveSimulation.STATION_NAVIGATION]
+	for code in KeyMap.binding(&"plot_pitch").keys:
+		assert_dict(KeyMap.find(code, navigation)).is_not_empty()
+		assert_dict(KeyMap.find(code, drive)).is_empty()
+	for binding in KeyMap.bindings_at(DiveSimulation.STATION_DRIVE):
+		for word in ["dive", "level", "climb"]:
+			assert_str((binding.does as String).to_lower()).not_contains(word)
+	assert_dict(KeyMap.binding(&"nudge_pitch")).is_not_empty()
+	assert_dict(KeyMap.binding(&"nudge_heading")).is_not_empty()
+	assert_dict(KeyMap.binding(&"end_override")).is_not_empty()

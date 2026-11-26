@@ -131,8 +131,6 @@ var _band := _BAND
 ## How rough the Head's grinding was over the last step, 0 (none: the
 ## Residual inside the Band) to 1.
 var _roughness := 0.0
-## The causes pulling the steadiness down at the last step.
-var _causes: Array[StringName] = []
 ## Seconds the Residual has stayed rough enough to disrupt the plasma on this
 ## Head (see _DISRUPTION), 0 while it is not.
 var _disrupting_for := 0.0
@@ -321,13 +319,6 @@ func tend(dt: float, wobble: Vector2, autopilot_on: bool, hull_heat_share: float
 			_lose(events, depth, distance, &"worn_through")
 			return
 	_stability = _steadiness(_head_wear, outside)
-	_causes = []
-	if _steadiness(0.0, _outside(sizes, _band_of(0.0, hull_heat_share))) - _stability > _CAUSE_TELLS:
-		_causes.append(CAUSE_WORN)
-	if _steadiness(_head_wear, _outside(sizes, _band_of(_head_wear, 0.0))) - _stability > _CAUSE_TELLS:
-		_causes.append(CAUSE_HOT)
-	if outside > 0.0:
-		_causes.append(CAUSE_OUT_OF_BAND)
 
 
 ## The Band on a Head worn `wear` with the hull's heat at `hull_heat_share`.
@@ -419,13 +410,29 @@ func stability() -> float:
 	return _stability
 
 
-## The causes pulling the steadiness down now, each named once: CAUSE_WORN
+## The causes pulling the steadiness down now, each named once, with
+## `wobble` on the plasma and the hull's heat at `hull_heat_share`: CAUSE_WORN
 ## (the Head's wear), CAUSE_HOT (the hot hull's narrowing of the Band),
-## CAUSE_OUT_OF_BAND (the Residual outside the Band). Empty when steady, and
-## while the plasma is lost.
-func causes() -> Array[StringName]:
-	var none: Array[StringName] = []
-	return none if _lost else _causes.duplicate()
+## CAUSE_OUT_OF_BAND (the Residual outside the Band). Each is judged with the
+## Residual at its fullest, so none comes and goes with the beats; worn and
+## hot by what the steadiness would be without that cause. Empty when steady,
+## and while the plasma is lost.
+func causes(wobble: Vector2, hull_heat_share: float) -> Array[StringName]:
+	var named: Array[StringName] = []
+	if _lost:
+		return named
+	var reach := residual_reach(_counter[ACTIVE], wobble)
+	var band := _band_of(_head_wear, hull_heat_share)
+	var steadiness := _steadiness(_head_wear, maxf(0.0, reach - band))
+	var unworn := _steadiness(0.0, maxf(0.0, reach - _band_of(0.0, hull_heat_share)))
+	var cool := _steadiness(_head_wear, maxf(0.0, reach - _band_of(_head_wear, 0.0)))
+	if unworn - steadiness > _CAUSE_TELLS:
+		named.append(CAUSE_WORN)
+	if cool - steadiness > _CAUSE_TELLS:
+		named.append(CAUSE_HOT)
+	if reach > band:
+		named.append(CAUSE_OUT_OF_BAND)
+	return named
 
 
 ## True while the Residual ACTIVE leaves of `wobble`, at its fullest, is

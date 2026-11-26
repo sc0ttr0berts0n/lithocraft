@@ -62,7 +62,7 @@ func test_commands_for_the_same_time_are_sent_in_the_order_given() -> void:
 
 
 func test_a_command_that_needs_the_crew_at_a_station_works_seated_there() -> void:
-	var override := ["--time", "2", "--do", "1 override_course 90 60"]
+	var override := ["--time", "2", "--do", "1 nudge_pitch -1"]
 	var at_the_drive := _staged(["--look", "Drive"] + override)
 	var elsewhere := _staged(["--look", "Thermal"] + override)
 
@@ -131,6 +131,20 @@ func test_a_station_is_seen_through_the_crews_eyes_and_the_bore_from_outside_it(
 	assert_float((-bore_camera.global_basis.z).dot(to_axis)).is_greater(0.999)
 
 
+## The Bore Station's name in the simulation is &"bore", which is also what
+## --look calls the Bore: the two are different looks.
+func test_the_bore_station_is_seen_seated_at_it_not_as_the_bore() -> void:
+	var seated := _staged(["--look", "Bore Station", "--time", "1"])
+	var camera := seated.get_viewport().get_camera_3d()
+
+	assert_bool(seated.simulation().attended(DiveSimulation.STATION_BORE)).is_true()
+	assert_float(camera.global_position.distance_to(DiveTestKit.station_pivot("Bore Station"))).is_less(1.5)
+	seated.free()
+	var bore := _staged(["--look", "bore", "--time", "1"])
+	assert_bool(bore.simulation().attended(DiveSimulation.STATION_BORE)).is_false()
+	assert_array(Array(ShotPlan._look_names())).contains(["bore", "crew"])
+
+
 func test_arguments_that_make_no_shot_say_why() -> void:
 	var shot := ["--look", "Drive", "--time", "5"]
 	for wrong in [
@@ -175,3 +189,13 @@ func test_the_column_is_seen_from_the_bore_station_turned_round_to_it() -> void:
 	assert_float(camera.global_position.distance_to(seat)).is_less(0.01)
 	var to_axis := Vector3(-seat.x, -seat.y, 0.0).normalized()
 	assert_float((-camera.global_basis.z).dot(to_axis)).is_greater(0.999)
+
+
+## Looking at one Station while another is worked: attended in the same
+## moment, before its command.
+func test_a_station_attended_at_the_same_time_takes_its_command_while_another_is_looked_at() -> void:
+	var habitat := _staged(["--look", "Navigation", "--time", "2",
+			"--do", "1 set_attended drive true", "--do", "1 nudge_pitch -1"])
+
+	assert_bool(habitat.simulation().overriding()).is_true()
+	assert_bool(habitat.simulation().attended(DiveSimulation.STATION_DRIVE)).is_false()

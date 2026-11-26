@@ -146,25 +146,37 @@ func test_the_column_in_the_bore_hides_the_screens_across_it() -> void:
 	assert_int(with_no_column.get("face", -1)).is_equal(3)
 
 
-## A Station built outside the tree, its screen and text made as in the
-## Habitat (_ready builds them; nothing here needs the tree).
+func _picture() -> Texture2D:
+	return ImageTexture.create_from_image(Image.create(8, 4, false, Image.FORMAT_RGB8))
+
+
+## A Station in the tree, its screen made as in the Habitat and laid out
+## (its readings are placed by the screen's Containers).
 func _station(display: bool) -> GimballedStation:
 	var station: GimballedStation = auto_free(GimballedStation.new())
 	station.station_name = "Test"
-	station._ready()
+	add_child(station)
 	if display:
-		station.show_display(ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGB8)))
+		station.show_display(_picture())
 	station.show_reading("first\nsecond")
+	await _laid_out()
 	return station
+
+
+func _laid_out() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 
 func test_a_screens_readings_are_its_lines_top_to_bottom_then_its_display() -> void:
 	for display in [false, true]:
-		var station := _station(display)
+		var station := await _station(display)
 
-		var readings := station.face().readings
+		var face := station.face()
+		var readings := face.readings
 
-		# The first line is the name, with the autopilot's caption beside it.
+		# The first line is the header strip: the name, with the autopilot's
+		# caption beside it.
 		var lines := ["Test", "first", "second"]
 		assert_int(readings.size()).is_equal(lines.size() + (1 if display else 0))
 		for i in lines.size():
@@ -173,21 +185,27 @@ func test_a_screens_readings_are_its_lines_top_to_bottom_then_its_display() -> v
 			else:
 				assert_str(station.reading(i)).is_equal(lines[i])
 			assert_bool(station.is_display(i)).is_false()
+			assert_bool(face.bounds.grow(0.001).encloses(readings[i])).is_true()
 			if i > 0:
 				assert_float(readings[i].end.y).is_less_equal(readings[i - 1].position.y + 0.0001)
 		if display:
+			# The display is the Station's instrument: in the body of the
+			# frame, under the header strip and over the status lines.
+			var picture := readings[lines.size()]
 			assert_bool(station.is_display(lines.size())).is_true()
-			assert_float(readings[lines.size()].end.y).is_less_equal(readings[lines.size() - 1].position.y + 0.0001)
+			assert_bool(face.bounds.grow(0.001).encloses(picture)).is_true()
+			assert_float(picture.end.y).is_less_equal(readings[0].position.y + 0.0001)
+			assert_float(picture.position.y).is_greater_equal(readings[1].end.y - 0.0001)
 
 
 func test_displays_side_by_side_are_each_a_reading_pointed_at_left_to_right() -> void:
 	var station: GimballedStation = auto_free(GimballedStation.new())
 	station.station_name = "Test"
-	station._ready()
-	var picture := ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGB8))
-	var pictures: Array[Texture2D] = [picture, picture]
+	add_child(station)
+	var pictures: Array[Texture2D] = [_picture(), _picture()]
 	station.show_displays(pictures)
 	station.show_reading("first")
+	await _laid_out()
 	var face := station.face()
 	var faces: Array[Pointing.Face] = [face]
 	var eye := station.pose().origin
@@ -206,7 +224,7 @@ func test_displays_side_by_side_are_each_a_reading_pointed_at_left_to_right() ->
 
 
 func test_each_line_of_text_is_pointed_at_from_the_working_pose() -> void:
-	var station := _station(true)
+	var station := await _station(true)
 	var face := station.face()
 	var faces: Array[Pointing.Face] = [face]
 	var eye := station.pose().origin
@@ -214,3 +232,19 @@ func test_each_line_of_text_is_pointed_at_from_the_working_pose() -> void:
 		var under := Pointing.under(eye, _toward(eye, face, face.readings[i].get_center()), faces, BORE_RADIUS)
 
 		assert_int(under.reading).is_equal(i)
+
+
+func test_no_reading_floats_off_the_screen_whatever_a_station_shows() -> void:
+	var station := await _station(true)
+	var lines := PackedStringArray()
+	for i in 14:
+		lines.append("A line of a Station's reading, long enough to run wide %d" % i)
+	station.footer = "Time x1"
+	station.show_reading("\n".join(lines))
+	await _laid_out()
+
+	var face := station.face()
+
+	assert_int(face.readings.size()).is_equal(14 + 3)
+	for reading in face.readings:
+		assert_bool(face.bounds.grow(0.001).encloses(reading)).is_true()

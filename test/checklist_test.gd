@@ -434,7 +434,7 @@ func test_a_climb_plotted_mid_dive_begins_the_turn_only_once_the_lithocraft_clim
 func test_a_lithocraft_climbing_off_its_course_is_still_asked_to_plot_the_climb() -> void:
 	var sim := _diving_in_sand()
 	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
-	sim.override_course(0.0, -90.0)
+	DiveTestKit.nudge(sim, 0.0, -180.0)
 	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return DiveTestKit.phase_title(s) == "Turn and climb", 3000.0)).is_true()
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"plot_climb")
 	sim.set_course(0.0, -90.0)

@@ -84,6 +84,14 @@ _Avoid_: Silent running, scan mode
 The heading and pitch Navigation plots for the Lithocraft to follow; the Drive steers toward it.
 _Avoid_: Route, waypoint, path, heading (for the plotted target)
 
+**Nudge**:
+One small fixed step by which the Drive moves the pitch or heading it steers for off the Course; the only way the Drive leaves the Course.
+_Avoid_: Override preset, trim, adjustment
+
+**Deviation**:
+How far what the Drive steers for is off the Course, in pitch and in heading; nothing while the Drive follows the Course.
+_Avoid_: Error, offset, drift, override (for the amount)
+
 **Projected path**:
 Where the Lithocraft goes from here if nothing changes: through its turn toward what the Drive steers for, then straight on; Navigation draws it.
 _Avoid_: Trend, trajectory, prediction, flight plan (a dive plan of legs is a later idea)

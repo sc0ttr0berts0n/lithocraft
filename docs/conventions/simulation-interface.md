@@ -7,7 +7,7 @@ The shape is in the class's header comment; copy it.
 
 - **Commands** are one method per Station command (`set_power()`, `set_course()`, `shift()`, `pulse()` ...).
   They clamp, and take effect on the next step.
-  A Station's command that needs the crew present checks `attended()` (as `override_course()` does); one that self-destruct takes off the crew starts with the one guard `if _off_the_crew(): return`.
+  A Station's command that needs the crew present checks `attended()` (as the Drive's `nudge_pitch()` does); one that self-destruct takes off the crew starts with the one guard `if _off_the_crew(): return`.
 - **State** is read-only query methods; no public vars.
   Values like `speed()` and `slip()` are recomputed each step, so read them after `advance`.
 - **Events**: `take_events() -> Array[Dictionary]`, each `{type = &"...", ...fields}`.

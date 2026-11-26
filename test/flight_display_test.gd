@@ -6,15 +6,18 @@ extends GdUnitTestSuite
 const BORE_RADIUS := 0.8
 
 
-## A Station built outside the tree showing the flight display's layout over
-## a stand-in picture, as the Habitat shows the Drive's.
+## A Station in the tree, laid out, showing the flight display's layout over
+## a stand-in picture of its shape, as the Habitat shows the Drive's.
 func _drive() -> GimballedStation:
 	var station: GimballedStation = auto_free(GimballedStation.new())
 	station.station_name = "Drive"
-	station._ready()
-	station.show_display(ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGB8)),
+	add_child(station)
+	station.show_display(ImageTexture.create_from_image(Image.create(
+			FlightDisplay.SIZE.x / 8, FlightDisplay.SIZE.y / 8, false, Image.FORMAT_RGB8)),
 			FlightDisplay.instrument_shares())
 	station.show_reading("Following the Course")
+	await get_tree().process_frame
+	await get_tree().process_frame
 	return station
 
 
@@ -40,7 +43,7 @@ func test_the_tapes_stand_as_an_airliner_s_round_the_attitude() -> void:
 
 
 func test_each_instrument_is_a_reading_on_the_drive_s_screen() -> void:
-	var station := _drive()
+	var station := await _drive()
 	var readings := station.face().readings
 	var named := []
 	for i in readings.size():
@@ -53,7 +56,7 @@ func test_each_instrument_is_a_reading_on_the_drive_s_screen() -> void:
 
 
 func test_the_dot_on_an_instrument_points_at_it_not_the_display_under_it() -> void:
-	var station := _drive()
+	var station := await _drive()
 	var face := station.face()
 	var faces: Array[Pointing.Face] = [face]
 	var eye := station.pose().origin
@@ -70,7 +73,7 @@ func test_the_dot_on_an_instrument_points_at_it_not_the_display_under_it() -> vo
 
 
 func test_an_instrument_on_the_display_s_left_lies_on_the_crew_s_left() -> void:
-	var station := _drive()
+	var station := await _drive()
 	var readings := station.face().readings
 	var place := {}
 	for i in readings.size():
