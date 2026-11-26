@@ -9,6 +9,7 @@ The Residual is the Wobble summed with a Counter-wave, and is one model in one p
 So a wrong amplitude leaves a steady Residual (`residual_steady(channel)`), a wrong frequency a beating one (`residual_beat(channel)`, coming `residual_beat_frequency(channel)` times a second), and `residual(channel)` is the two together, the Residual at its fullest.
 The screens draw the same model through `wobble_wave(channel, seconds)`, `counter_wave(channel, seconds)` and `residual_wave(channel, seconds)` (seconds from now, negative for the past), so what the crew sees is what wears the Head.
 The Band (`band()`, in the Wobble's units, as of the last step) is set in one place, `Plasma._band_of(wear, hull_heat_share)`: narrower as the Head wears and as the hull runs hot, easing live as it cools.
+`band_widest()` is a fresh Head's with the hull cool, what the screen shows the Band has narrowed from.
 `out_of_band()` is ACTIVE's Residual at its fullest against the Band, read against the Wobble now, so it is true from the step a Boundary is crossed; the Reactor calls `&"out_of_band"`, louder the further out.
 Each step `tend()` samples the Residual along its swing across the step: its mean distance outside the Band wears the Head (`_WEAR_PER_S`) and unsteadies the plasma, its furthest sets the grinding's roughness (extra heat, `Plasma.grind_heat()`, and the shudder, `shudder()`, felt through `felt_acceleration()`).
 Inside the Band nothing wears, however long; the swap itself costs nothing.
@@ -37,6 +38,7 @@ That confidence is the Inferred Boundary's ahead along the Head's direction (`Bo
 STANDBY's predicted Residual (`residual*(CHANNEL_STANDBY)`) is its Counter-wave against the true component as guessed, so it reads flat on a guess that is wrong and the truth arrives at the Boundary; NAN, drawn "—", with no scan.
 `residual_wave(CHANNEL_STANDBY, seconds)` keeps the spurious sines in it, a ripple no tuning removes and only a better scan does.
 The guess is held as it was from a crossing until ACTIVE's Residual is inside the Band in the Medium entered (so STANDBY reads against the rock it was prepared for when it is swapped in), then looks to the next Boundary.
+`settling_in()` is true for that stretch and no other: a Residual outside the Band with no Boundary just crossed is a mistuned ACTIVE, not a crossing.
 The Boundary countdown is `boundary_countdown()` and `boundary_countdown_doubt()`, seconds: the distance to the Inferred Boundary ahead over the speed now, and a plus-or-minus that shrinks with its confidence.
 It reads only the scan, never the layout, and is INF ("> 5 min", `boundary_countdown_cap()`) with no Inferred Boundary ahead, when stopped, or beyond the cap; it reads 0 once the Head has come to where the scan put a Boundary not yet crossed.
 The Checklist's "Pretune standby" steps hold while STANDBY's predicted Residual is inside the Band (`Scenario.standby_pretuned()`): they read the guess, which is what the crew can see, so they tick on a misleading guess and never with no scan.

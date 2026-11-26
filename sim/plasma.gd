@@ -106,6 +106,11 @@ const _RELIGHT_WORN_THROUGH := 0.4
 ## The most samples of the Residual taken across one step.
 const _SAMPLES := 16
 
+## The Band at its widest: a fresh Head's with the hull cool.
+static func band_widest() -> float:
+	return _band_of(0.0, 0.0)
+
+
 ## How steady the plasma is, 0 (lost) to 1 (steady). The Reactor's output
 ## scales with it.
 var _stability := 1.0

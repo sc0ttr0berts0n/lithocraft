@@ -78,3 +78,8 @@ func test_the_reactors_hot_lamp_lights_only_while_the_hot_hulls_narrower_band_te
 
 	assert_array(_lit(sim, DiveSimulation.STATION_REACTOR)).contains_exactly_in_any_order(
 			[CautionLamps.HOT, CautionLamps.OUT_OF_BAND])
+
+	# The hull cools, the Band eases round the same Residual, and both clear.
+	sim.set_power(0.0)
+	DiveTestKit.run(sim, 900.0)
+	assert_array(_lit(sim, DiveSimulation.STATION_REACTOR)).is_empty()

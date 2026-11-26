@@ -35,3 +35,14 @@ Continues `14-after-second-checkpoint-as-built.md`, which is full.
   Real basis for the guess: an echo's strength carries the contrast between the rock either side of a Boundary, and stacking repeated shots reinforces the coherent echo.
   The Checklist's "Pretune standby" steps read the guess, not the truth: a Checklist that ticked on the truth would be an oracle the scan could never mislead.
   So the Shift drill begins with one pulse already sent, and Stranded in the granite asks for a pulse before each pretune on the climb.
+- **The Reactor screen: three lines and a Band (ticket #63, agent's choices within the design).**
+  The second play test failed on this screen ("the colours to me on this just aren't clear"), where three waves lay over one another on a Band a few pixels high.
+  Each lane now reads left to right as a sum: the names, the Wobble and the Counter-wave together, then the Residual alone against the Band, so the one line the crew judges shares its plot with nothing but the Band.
+  The Residual's plot is magnified against the waves' (half a unit at its edge, against one and a quarter), so the Band is wide enough to judge by; a Residual beyond it is pinned to the edge, which reads as far outside and still shows a beat's swelling.
+  Six seconds of wave cross a plot, so a slow beat is seen whole: a wrong amplitude is a wave of one size, a wrong frequency one that swells and fades.
+  The Band's narrowing is seen three ways: the strip itself, faint dashed lines where a fresh, cool Head's Band would be, and "BAND 0.09 OF 0.20" with a bar under the lanes.
+  STANDBY is honest about the scan: the predicted number is beside a plus-or-minus that is the spurious sines' reach, and the words read "IN BAND IF THE SCAN IS RIGHT" while that ripple could take it outside; the crew judges by how flat the line is and by GUESS SURE.
+  The words "BOUNDARY CROSSED, PRESS [R] TO SWAP STANDBY IN" answer the play test's "I hit shift and nothing happened"; they show only from a crossing until the Residual is back inside the Band (`settling_in()`), not for a mistuned ACTIVE.
+  The countdown's track runs two minutes from NOW; the screen no longer says "BOUNDARY AHEAD" from the Boundary-approaching event, which knew the layout: what the Reactor knows of the Boundary ahead is the scan's alone.
+  Head wear moved from a status line into the instrument, amber while HEAD WORN is lit; the emergency store reads on the supply's line, so the lanes have the room of two status lines.
+  Not done, for the developer to weigh: the screen does not say which control is off (frequency or amplitude), only shows the two looks; and ACTIVE's Wobble is drawn but not given as numbers, as before.

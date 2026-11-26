@@ -1550,6 +1550,20 @@ func band() -> float:
 	return _plasma.band()
 
 
+## The Band at its widest: on a fresh Head with the hull cool. What the Band
+## now (band()) has narrowed from.
+func band_widest() -> float:
+	return Plasma.band_widest()
+
+
+## True from the step the Head crosses a Boundary until ACTIVE's Residual is
+## inside the Band in the Medium entered (a Shift, tuning ACTIVE, or the
+## Reactor's autopilot): the Reactor screen's "crossed, swap now". False for
+## a Residual outside the Band with no Boundary just crossed.
+func settling_in() -> bool:
+	return _guess_held and out_of_band()
+
+
 ## True while ACTIVE's Residual, at its fullest, is outside the Band: the
 ## Head wears, grinds and shudders, and the plasma is less steady, for as
 ## long as it lasts. After crossing a Boundary it is so until ACTIVE's
