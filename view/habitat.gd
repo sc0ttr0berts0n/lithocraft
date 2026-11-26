@@ -10,14 +10,16 @@ const OUTER_RADIUS := 3.3
 const LENGTH := 2.4
 ## Stations pivot this far above the outer wall.
 const STATION_HANG := 1.1
-## Six Station positions; this dive uses five. "" is the empty mount
-## where the Fabricator will go. Each: name, hue, the simulation's name for
-## it, and its call: tone in hertz and pips per beat, so no two sound alike.
+## Six Station positions in order round the ring (see place_angle()); this
+## dive uses five. "" is the empty mount where the Fabricator will go. The
+## Drive sits beside Navigation, since steering and the Course go together.
+## Each: name, hue, the simulation's name for it, and its call: tone in hertz
+## and pips per beat, so no two sound alike.
 const STATIONS := [
 	["Reactor", Color("ff7a45"), DiveSimulation.STATION_REACTOR, 220.0, 1],
 	["Drive", Color("ffd24a"), DiveSimulation.STATION_DRIVE, 294.0, 2],
-	["Thermal", Color("ff4a6a"), DiveSimulation.STATION_THERMAL, 370.0, 3],
 	["Navigation", Color("4ad2ff"), DiveSimulation.STATION_NAVIGATION, 494.0, 1],
+	["Thermal", Color("ff4a6a"), DiveSimulation.STATION_THERMAL, 370.0, 3],
 	["Bore Station", Color("b9ff6a"), DiveSimulation.STATION_BORE, 587.0, 2],
 	["", Color.GRAY, &"", 0.0, 0],
 ]
@@ -1170,10 +1172,24 @@ func _build_room() -> void:
 	add_child(world)
 
 
+## A Station place's angle round the Bore axis, radians from +X toward +Y.
+## The places are spaced evenly and turned half a place off straight down,
+## so level no Station hangs straight below or above the Bore, where its
+## screen could not face it: the Reactor and the Drive sit either side of
+## the floor.
+static func place_angle(place: int) -> float:
+	return TAU * (place - 0.5) / STATIONS.size() - PI / 2.0
+
+
+## Where a Station place's gimbal pivots, STATION_HANG in from the outer wall.
+static func pivot(place: int) -> Vector3:
+	var a := place_angle(place)
+	return Vector3(cos(a), sin(a), 0) * (OUTER_RADIUS - STATION_HANG)
+
+
 func _build_stations() -> void:
-	var pivot_radius := OUTER_RADIUS - STATION_HANG
 	for i in STATIONS.size():
-		var a := TAU * i / STATIONS.size() - PI / 2.0
+		var a := place_angle(i)
 		var outward := Vector3(cos(a), sin(a), 0)
 		# The strut from the outer wall to the gimbal pivot.
 		var strut := MeshInstance3D.new()
@@ -1194,7 +1210,7 @@ func _build_stations() -> void:
 		station.call_pips = STATIONS[i][4]
 		if station.station_name in ["Thermal", "Reactor", "Drive"]:
 			station.screen_font_size = 28
-		station.position = outward * pivot_radius
+		station.position = pivot(i)
 		add_child(station)
 		_stations.append(station)
 		if not station.station_name.is_empty():

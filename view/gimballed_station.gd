@@ -1,11 +1,17 @@
 ## A Station hung on a gimbal at its pivot. It swings so its own up follows
-## the crew's "up", lagging a little so the swing can be seen.
+## the crew's "up", lagging a little so the swing can be seen, and turns
+## about that up so its screen faces the Bore: the crew work it from the
+## outer side with the Column behind the screen.
 ## Without a name it is an empty mount: the gimbal with no Station on it.
 class_name GimballedStation
 extends Node3D
 
 ## How quickly the gimbal settles onto a new "up", per second.
 const SWING_RATE := 3.0
+## Below this share of the screen's distance from the Bore axis, the way to
+## the axis across "up" is too short to face along: the axis is straight
+## above or below.
+const FACING_FREE := 0.05
 ## Middle of the screen, in the cradle's frame.
 const SCREEN_CENTRE := Vector3(0, 0.2, 0)
 ## Eyes of a crew member working the Station, in the cradle's frame: in front
@@ -67,6 +73,9 @@ var call_pips := 1
 var footer := ""
 
 var _cradle := Node3D.new()
+## False until the first follow_up(), which settles the cradle at once
+## rather than swinging it in from where it was built.
+var _settled := false
 var _screen_text: Label3D
 ## The live picture on the screen, if show_display() put one there.
 var _display: MeshInstance3D
@@ -110,7 +119,8 @@ func _ready() -> void:
 	screen.position = SCREEN_CENTRE
 	_cradle.add_child(screen)
 
-	# The screen faces the Head; the crew work it from the Head side.
+	# The screen faces the cradle's -z, out from the Bore; the crew work it
+	# from that side.
 	_screen_text = Label3D.new()
 	_screen_text.text = station_name
 	_screen_text.modulate = hue
@@ -308,7 +318,7 @@ func screen_centre() -> Vector3:
 
 ## The working pose of a Station pivoting at pivot with its cradle at cradle.
 ## The eyes are where a person standing STATION_HANG below the pivot would
-## have them, on the Head side of the cradle, as the screen faces that way.
+## have them, on the cradle's -z side, as the screen faces that way.
 static func pose_for(pivot: Vector3, cradle: Basis) -> Transform3D:
 	var facing_screen := cradle * Basis(Vector3.UP, PI)
 	return Transform3D(facing_screen, pivot + cradle * POSE_EYE)
@@ -391,7 +401,7 @@ func show_display(texture: Texture2D) -> void:
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.albedo_texture = texture
 	display.material_override = material
-	# Faces the Head, like the text.
+	# Faces the crew, like the text.
 	display.position = SCREEN_CENTRE + Vector3(0, 0, -0.012)
 	display.rotation = Vector3(0, PI, 0)
 	_cradle.add_child(display)
@@ -405,7 +415,8 @@ func show_display(texture: Texture2D) -> void:
 func show_keys(bindings: Array[Dictionary]) -> void:
 	if _screen_text == null:
 		return
-	# The screen text is turned to face the Head, so the crew's right is -x.
+	# The screen text is turned to face the cradle's -z, so the crew's right
+	# is -x.
 	var right_edge := -KEYS_GAP - SCREEN_SIZE.x / 2.0
 	var board := MeshInstance3D.new()
 	var board_mesh := BoxMesh.new()
@@ -451,9 +462,33 @@ func _key_text(text: String, colour: Color) -> Label3D:
 	return label
 
 
-## Swing toward the given "up" (Habitat frame, unit length).
+## Swing toward the given "up" (Habitat frame, unit length), turning to
+## face the Bore as settled_cradle() says. The first call settles at once.
 func follow_up(up: Vector3, dt: float) -> void:
-	_cradle.basis = Gimbal.toward_up(_cradle.basis, up, 1.0 - exp(-dt * SWING_RATE))
+	if up.is_zero_approx():
+		return  # nothing felt (a lurch cancelling gravity): hold as it is
+	var settled := settled_cradle(position, up, _cradle.basis)
+	var weight := 1.0 - exp(-dt * SWING_RATE) if _settled else 1.0
+	_settled = true
+	_cradle.basis = Basis(_cradle.basis.get_rotation_quaternion().slerp(
+			settled.get_rotation_quaternion(), weight)).orthonormalized()
+
+
+## Where the cradle of a Station pivoting at pivot settles for this "up"
+## (Habitat frame): upright, and turned about up so its +z, the way the crew
+## look through the screen, points from the screen at the Bore axis as
+## squarely as upright allows. The third gimbal ring that turns it is
+## driven, not free. With the axis straight above or below the screen there
+## is no such turn, and it keeps the heading it had (from).
+static func settled_cradle(pivot: Vector3, up: Vector3, from: Basis) -> Basis:
+	var upright := Gimbal.toward_up(from, up, 1.0)
+	var screen := screen_centre_for(pivot, upright)
+	var toward_axis := Vector3(-screen.x, -screen.y, 0.0)
+	var across := toward_axis - upright.y * toward_axis.dot(upright.y)
+	if across.length() < FACING_FREE * toward_axis.length():
+		return upright
+	var look := across.normalized()
+	return Basis(upright.y.cross(look), upright.y, look)
 
 
 func _add_yoke() -> void:

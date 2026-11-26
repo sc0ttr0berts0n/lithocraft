@@ -99,10 +99,15 @@ func _take_shift(stations: Array[Transform3D]) -> void:
 		var toward := func(i: int) -> float:
 			return (stations[i].origin - eye.origin).dot(eye.basis.x) * _shift
 		var lead: float = toward.call(ahead) - toward.call(behind)
-		if absf(lead) < SIDE_TIE and _shift == _last_side:
+		if absf(lead) < SIDE_TIE:
 			# Neither is clearly that side (both straight above and below,
-			# say): keep going round the way the last press went.
-			pick = ahead if _last_round > 0 else behind
+			# say): keep going round the way the last press went, or on a
+			# first press, right is up the list and left down it, so the
+			# two keys never lead the same way.
+			if _shift == _last_side:
+				pick = ahead if _last_round > 0 else behind
+			else:
+				pick = ahead if _shift > 0 else behind
 		else:
 			pick = ahead if lead >= 0.0 else behind
 	_came_from = _to

@@ -1,7 +1,33 @@
-## Helpers shared by the simulation's test suites: test Media and ways of
-## running a dive. Test values only, never tuned constants (ADR 0001).
+## Helpers shared by the test suites: test Media, ways of running a dive,
+## and reading the Habitat's layout. Test values only, never tuned constants
+## (ADR 0001).
 class_name DiveTestKit
 extends RefCounted
+
+const _Habitat := preload("res://view/habitat.gd")
+
+
+## The Habitat's places that have a Station on them, in order round the
+## ring (the empty mount left out): the Stations the Arm carries to.
+static func station_places() -> Array[int]:
+	var places: Array[int] = []
+	for place in _Habitat.STATIONS.size():
+		if not station_name(place).is_empty():
+			places.append(place)
+	return places
+
+
+## The name of the Station at a place round the ring, "" for the empty mount.
+static func station_name(place: int) -> String:
+	return _Habitat.STATIONS[place][0]
+
+
+## The place round the ring of the Station with this name, or -1.
+static func station_place(name: String) -> int:
+	for place in _Habitat.STATIONS.size():
+		if station_name(place) == name:
+			return place
+	return -1
 
 
 ## Test values only: plain quartz rock. Defaults are strong enough that the
