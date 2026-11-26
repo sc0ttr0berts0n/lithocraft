@@ -27,6 +27,11 @@
 - Anything drawn along the Column pins each piece to its path position (`distance() - behind_head`) so it scrolls at exactly `speed()`.
   Never integrate speed in the view.
   The Bore's Column uses its own tube mesh with explicit UVs, because `CylinderMesh` shares its texture with its caps.
+  `Habitat.column_z(behind_head)` (and `behind_head_at(z)`, its inverse) is the one account of where the Habitat sits along the vessel: place anything in the Bore from the simulation's distance behind the Head through it, never from the Habitat's length.
+- A feature of interest is drawn by `FeatureLook` (`view/feature_look.gd`) on the Column strip, in metres, at the row of its `ColumnFeature.at` (`ColumnStrip.feature_box()`).
+  A new kind adds its line to `FeatureLook.LOOKS` (how wide across the Column, and its paint function); `feature_look_test` fails on a kind any Scenario's layout holds that has none.
+  A look must read from across the Habitat against the grain speckle: a backing or a rim, pieces several grains wide, and no near-black, which shows green in the Bore.
+  In the Bore every feature is turned to the Bore Station (`ColumnStrip.features_face`, set each step from `bore_station_place()`), so the crew turn from its screen and find it; the flat overlay strip leaves it at -1 and each feature keeps a place of its own.
 - Controls that sit over the Habitat set `mouse_filter = 2` so clicks reach the mouse capture.
   An `HSlider` sets `focus_mode = 0` so arrow keys reach `_unhandled_input`.
 - The start menu (`StartMenu`, `view/start_menu.gd`) lists `Scenario.all()` and starts the chosen one in a fresh Habitat (`habitat.scenario`, set before it enters the tree; the First dive when the Habitat runs on its own).
