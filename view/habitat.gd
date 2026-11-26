@@ -75,6 +75,9 @@ const UPLOAD_PRIORITIES: Array[StringName] = [
 ## The Bore Station's display: the survey and the tunnel side by side, in the
 ## proportions of a Station screen.
 const BORE_DISPLAY_SIZE := Vector2i(768, 363)
+## Each of Navigation's two displays, the point cloud and the moving map, in
+## pixels: half the screen's room each (GimballedStation.display_rect()).
+const NAVIGATION_DISPLAY_PX := Vector2i(380, 364)
 ## The debug menu's steps: wear per press (hull or Head), and time skipped.
 const DEBUG_WEAR_STEP := 0.1
 const DEBUG_SKIP_S := 300.0
@@ -1229,7 +1232,8 @@ func _build_stations() -> void:
 			_thermal = station
 		elif station.station_name == "Navigation":
 			_navigation = station
-			_navigation.show_display(_scan_display())
+			var navigation_displays: Array[Texture2D] = [_scan_display(), _moving_map()]
+			_navigation.show_displays(navigation_displays)
 
 
 ## The Reactor's waveform display for the Shift, its dial starting where the
@@ -1245,13 +1249,23 @@ func _make_plasma_display() -> Texture2D:
 
 
 ## Navigation's point cloud display, drawn in its own world and shown on the
-## Navigation Station's screen.
+## left of the Navigation Station's screen.
 func _scan_display() -> Texture2D:
 	var display := ScanDisplay.new()
-	display.size = Vector2i(512, 242)
+	display.size = NAVIGATION_DISPLAY_PX
 	display.sim = _sim
 	add_child(display)
 	return display.get_texture()
+
+
+## Navigation's moving map, a cross-section of the whole dive, shown on the
+## right of its screen beside the point cloud.
+func _moving_map() -> Texture2D:
+	var map := MovingMap.new()
+	map.size = NAVIGATION_DISPLAY_PX
+	map.sim = _sim
+	add_child(map)
+	return map.get_texture()
 
 
 ## The Column as an open tube along the Bore, with the whole texture on its
