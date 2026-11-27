@@ -8,6 +8,9 @@
   The debug key F4 (anywhere, `debug_next_scan_view()`) flips to the next, and the display's caption names the one shown, its number and the key.
   How the views are drawn, and the rules for changing them: `docs/conventions/scan.md`, "Drawing the scan".
 - The Beam shows in every view as its cone (faint cyan fans out to `beam_reach()`) and the label `beam_label()` ("BEAM NARROW 30 deg") in the display's lower left; Navigation's status lines give it a line of its own (width, cone, reach, and "pulses as it goes" or "by hand only"), so the screen has five lines (`NAVIGATION_LINES`).
+- A running Sweep shows in every view as a faint green band each side of its axis, in the Beam's two planes, from the Beam's edge out to where its spiral has reached, its leading edge strong (`_draw_sweep()`), its points joining the cloud a batch at a time.
+  `sweep_label()` over the Beam's names its range and, while it runs, its share done and the time left ("SWEEP 200 m  45%  1:06 left"), else how long it takes and its key.
+  The status lines are unchanged: the Sweep lives in the display.
 - Navigation's moving map (`MovingMap`, `view/moving_map.gd`) is a 2D cross-section of the whole dive, redrawn a few times a second: across is ground distance along the unrolled track (`MovingMap.profile()` of `remembered_path()`, the simulation's perfect record of the path), down is depth, at one scale both ways.
   Its Boundaries are the Inferred Boundaries (`inferred_boundaries()`), never the layout: each patch drawn side-on between its corners, placed across by how far ahead of the Head along the heading they lie (`MovingMap.across()`), as sure as its `confidence`.
   The target depth is `target_depth()`, from the Orders (`Scenario.Goal.target_depth`, NAN for a goal with none).

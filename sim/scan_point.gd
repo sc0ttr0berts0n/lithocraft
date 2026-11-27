@@ -14,7 +14,9 @@ var position: Vector3
 var confidence: float
 ## Distance from the Head to the echo when the pulse was sent, in metres.
 var range: float
-## Which pulse found it: 0 for the dive's first pulse, counting up.
+## Which sounding found it: 0 for the dive's first pulse of the Beam,
+## counting up; a Sweep's points -1 for the dive's first Sweep, counting
+## down. Points of one sounding never replace each other.
 var pulse: int
 ## When its echo returned, in seconds of the dive (DiveSimulation.dive_time()).
 ## Its age is DiveSimulation.point_age().

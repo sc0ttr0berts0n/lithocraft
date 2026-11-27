@@ -1,6 +1,7 @@
 # Navigation's screen: each candidate scan view (ScanDisplay) diving and mid-turn, as ticket #67 named,
 # then its Course lines with the Drive following the Course and off it, as ticket #65 named,
-# then the Beam's three widths and its own pulsing, as ticket #117 named.
+# then the Beam's three widths and its own pulsing, as ticket #117 named,
+# then the Sweep part-way and finished, halted and under way, as ticket #121 named.
 # Every scan view shows the Beam's cone (faint cyan fans to its reach) and names its width in the caption;
 # the forward scope's range steps in to keep the nearest Inferred Boundary ahead in view (the diving tiles: 60 m).
 # From the repo root: tools/screenshot/shot.sh --sheet tools/screenshot/recipes/navigation.txt
@@ -33,3 +34,16 @@ world-up 3D, narrow Beam: --scenario "Shift drill" --look Navigation --time 10 -
 # The Beam pulsing by itself: the First dive under way at full power with the switch on and no key pressed;
 # the Beam line says it pulses as it goes and the cloud grows as the vessel covers ground.
 Beam pulsing by itself, under way: --look Navigation --time 60 --do "0 set_power 1" --do "0 set_autopilot thermal true" --do "0 set_beam_pulsing true"
+
+# The Sweep (#121): the Shift drill, a Sweep at its shortest range (100 m, a minute) started at 6 s.
+# Halted: Quiet Ship from the start, the Head spun down before the Sweep begins. Under way: the drill's own slow
+# dive on the Drive's autopilot, the Reactor's minding the sandstone. Part-way (36 s): the green band each side of
+# the axis from the Beam's edge out to where the spiral has reached, its leading edge strong, only the inner turns'
+# points in, and the SWEEP label's percentage and time left over the Beam's. Finished (70 s): no band, the label
+# back to its range and key, the points out to square across; under way they lie smeared short of the sandstone.
+forward scope, Sweep part-way, halted: --scenario "Shift drill" --look Navigation --time 36 --do "0 set_quiet_ship true" --do "0 set_sweep_range 100" --do "6 start_sweep"
+forward scope, Sweep finished, halted: --scenario "Shift drill" --look Navigation --time 70 --do "0 set_quiet_ship true" --do "0 set_sweep_range 100" --do "6 start_sweep"
+forward scope, Sweep part-way, under way: --scenario "Shift drill" --look Navigation --time 36 --do "0 set_autopilot reactor true" --do "0 set_sweep_range 100" --do "6 start_sweep"
+forward scope, Sweep finished, under way: --scenario "Shift drill" --look Navigation --time 70 --do "0 set_autopilot reactor true" --do "0 set_sweep_range 100" --do "6 start_sweep"
+plan and section, Sweep part-way, halted: --scenario "Shift drill" --look Navigation --time 36 --do "0 debug_next_scan_view" --do "0 set_quiet_ship true" --do "0 set_sweep_range 100" --do "6 start_sweep"
+world-up 3D, Sweep part-way, halted: --scenario "Shift drill" --look Navigation --time 36 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 set_quiet_ship true" --do "0 set_sweep_range 100" --do "6 start_sweep"

@@ -113,7 +113,7 @@ Navigation's scan of the way ahead: a cone of sound pulses, reaching further the
 _Avoid_: Forward scanner, ping, sonar, radar
 
 **Sweep**:
-Navigation's prospecting scan: a narrow beam turned through a full circle to draw one slice, then tilted to draw the next, building a volume slice by slice.
+Navigation's prospecting scan: a narrow beam wound in a spiral from the edge of the Beam's cone out to square across the vessel, each turn taking the same time, so it sees the forward hemisphere thickest ahead and nothing behind, its points arriving as it goes.
 _Avoid_: General scanner, all-round, ultrasound (for the tool), radar
 
 **Target**:

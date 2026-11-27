@@ -1,0 +1,46 @@
+## How an echo is heard, whichever of Navigation's tools sent the sound: how
+## much it fades through the rock out and back, how its strength grows as the
+## same energy is put into a narrower beam, and how weak it may be before it
+## is lost. Static functions, no state; the Beam (sim/beam.gd) and the Sweep
+## (sim/sweep.gd) each hand in their own gain, and DiveSimulation's
+## _echoes_along() asks these for every ray. It knows nothing of the layout.
+class_name Echoes
+extends RefCounted
+
+## The half-angle, degrees, of the beam whose gain is 1: the Beam's middle
+## width, round 3's pulse. Not tuned: the reference gains are counted from.
+const REFERENCE_HALF_ANGLE_DEG := 35.0
+## Metres a sound of gain 1 carries through a Medium of sound-carrying 1
+## before its echo has faded to 1/e (out and back counts twice). Tuned for
+## play (ADR 0001).
+const _FADE_M := 500.0
+## Echoes weaker than this (1 = a perfect reflection close by at gain 1) are
+## lost.
+const _ECHO_CUTOFF := 0.01
+
+
+## How much stronger the echoes of a beam this wide (its half-angle, degrees)
+## are than the reference's, for the same energy: one over the cap of the
+## sphere it is spread over (1 - cos of the half-angle).
+static func gain_of(half_angle_deg: float) -> float:
+	return (1.0 - cos(deg_to_rad(REFERENCE_HALF_ANGLE_DEG))) / (1.0 - cos(deg_to_rad(half_angle_deg)))
+
+
+## The furthest an echo of this gain comes back from through a Medium carrying
+## sound this well (0 to 1), metres: where its strength has faded to the
+## cutoff.
+static func reach(gain: float, sound_carrying := 1.0) -> float:
+	return maxf(log(gain / _ECHO_CUTOFF), 0.0) * _FADE_M * sound_carrying / 2.0
+
+
+## How much an echo fades over `metres` out through a Medium carrying sound
+## this well, and as far back (an exponent: strength goes as exp(-fading)).
+static func fading(metres: float, sound_carrying: float) -> float:
+	return 2.0 * metres / (sound_carrying * _FADE_M)
+
+
+## An echo's strength at this gain after fading this much (fading()), before
+## what the Boundaries reflect: 0 when it is too weak to hear at all.
+static func strength(gain: float, faded: float) -> float:
+	var heard := gain * exp(-faded)
+	return heard if heard >= _ECHO_CUTOFF else 0.0

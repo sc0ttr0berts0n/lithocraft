@@ -8,7 +8,9 @@ extends SceneTree
 ## The conditions, played in this order, each for the same stretch of dive
 ## time: the commands that set it up, and (the full point cloud) whether the
 ## cloud is filled first and how many frames lie between the pulses sent while
-## it is played, and (the last) the Station the crew is seated at instead of
+## it is played, then a Sweep at its shortest range (its rays and batches
+## come quickest) started on that full cloud and left running through the
+## rest, and (the last) the Station the crew is seated at instead of
 ## Navigation, so the screen they watch is timed as well as those they do not,
 ## and (the hull at its worst) whether the hull is first heated until it takes
 ## damage and worn until it would fail within HULL_WORST_S, so every spark
@@ -22,6 +24,8 @@ const CONDITIONS := [
 	{name = "steering effort at zero", send = [[&"set_steering_effort", [0.0]]]},
 	{name = "low power", send = [[&"set_steering_effort", [1.0]], [&"set_power", [0.05]]]},
 	{name = "a full point cloud", send = [[&"set_power", [0.5]]], fill = true, pulse_every = 30},
+	{name = "a Sweep running", send = [[&"set_sweep_range", [DiveSimulation.SWEEP_RANGES[0]]],
+			[&"start_sweep", []]]},
 	{name = "seated at the Reactor", send = [], seat = DiveSimulation.STATION_REACTOR},
 	{name = "the hull at its worst", send = [[&"set_autopilot", [DiveSimulation.STATION_THERMAL, false]],
 			[&"set_heat_split", [0.0]], [&"set_power", [1.0]]], hull_worst = true},
