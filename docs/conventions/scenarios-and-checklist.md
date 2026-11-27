@@ -20,6 +20,11 @@ A phase's `begins_when` holds only on something the simulation reports the dive 
 It never holds on what the crew intends: a plotted Course (`&"course_plotted"`, `course_pitch()`), an engaged autopilot, a setting, `&"orders_read"`, a pulse.
 Intentions tick steps, so a phase that needs one asks for it in a step: "Turn and climb" begins early when the Lithocraft is climbing (pitch above level and moving), and its first step reads `course_pitch()`, ticking at once if the climb is already plotted.
 `test_no_phase_begins_early_on_what_the_crew_only_intends` (`test/scenario_test.gd`) lists every Scenario's early triggers and tries each against every intention command on a dive that has not run; a new trigger is added to its list, and a new intention command to `_state_every_intention()`.
+**The Checklist follower.**
+`test/checklist_follower_test.gd` plays the First dive by its Checklist alone: it reads `next_step()`, has its table's entry for that step send the command the step's key sends, and steps time (run fast, as the time key does) until the step ticks.
+A new or renamed step of the First dive needs an entry in `_first_dive_table()`: the step's own `action` and how the crew follows it; a step with no entry, or an entry naming another action, fails the follower by name.
+An entry sends only what its step asks for, when the crew could see it is time (a Shift once the Head is in the Medium named, a pretune only to the scan's guess), so a step the crew cannot do from what the Checklist has asked so far fails there: fix the Checklist, never the entry.
+A step that does not tick within its time limit, or is left `MISSED`, fails naming the step and its phase.
 A new dive starts the Checklist afresh (`_scenario` is kept between dives).
 Step texts name no keys: a step's `action` names the key-map action that does it, and the panel writes `KeyMap.label(action)`.
 A step that may take a second control names it with `Step.and_also(action)` (`also` in the step's dictionary), and the panel writes both: every "Pretune standby" step names `tune_frequency` and `tune_amplitude`.
