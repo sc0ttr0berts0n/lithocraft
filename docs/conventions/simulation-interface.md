@@ -14,10 +14,10 @@ The shape is in the class's header comment; copy it.
   Raise one by appending to `_events`, and list it in `take_events()`'s doc comment, which is the catalogue.
   In the view, `habitat.gd` is the one consumer (each frame after `advance`); anything else that wants events gets them from the Habitat.
 - **Time**: `advance(dt)` runs `dt * time_rate()` seconds, split into steps; per-step work lives in `_step(dt)`.
-  A Station call returns the rate to 1 and drops the rest of that advance.
+  A warning that sounds anew returns the rate to 1 and drops the rest of that advance; a feature of interest does not (`stations-and-autopilots.md`).
   `advance` does nothing while `surfaced()` or `dead()`.
   While `stranded()` it runs `_step_stranded(dt)` instead: nothing moves and the Head is dark, but a relight is tried, heat soaks into the hull (`Heat.soak()`) while Thermal's pumps cool it on the store, the link sends on the store, the hull may fail, and the rescue may arrive; anything else that runs with the Head dark goes there.
-  Stranded, the time rate may be raised even though the Reactor calls.
+  Stranded, the time rate may be raised even though the Reactor's warning sounds.
 - **Tuned constants** are private `const _NAME` with a comment citing ADR 0001.
   Tests never reference them; a test that needs a size reads it through a query (`stretch.length`, `minimum_turn_radius()`, `vessel_length()`).
 - **Per-step cost**: per-step code must not scan the whole survey; a long dive has thousands of stretches.

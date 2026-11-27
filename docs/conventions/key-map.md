@@ -28,7 +28,7 @@ The panel, F1 and the dispatch follow with no other change.
 |---|---|
 | Anywhere | WASD walk; mouse look (click captures, Esc releases); Space calls the Arm / lets go; A / D while held: next Station left / right |
 | Anywhere | Tab the checklist (orders, next step, surface control) |
-| Anywhere | `.` time rate x4 (held at x1 while any Station calls, except stranded or self-destructing), `,` normal; Enter / keypad Enter: back to the start menu (ignored unless surfaced or dead, and while the end lurch settles); F1 controls; F3 debug overlay; F4 debug: Navigation's next scan view (the three candidates of the point cloud) |
+| Anywhere | `.` time rate x4 (held at x1 by an unacknowledged warning, but stranded or self-destructing), `,` normal; `/` the master acknowledge, lights stay lit; Enter / keypad Enter: back to the start menu (ignored unless surfaced or dead, and while the end lurch settles); F1 controls; F3 debug overlay; F4 debug: Navigation's next scan view (the three candidates of the point cloud) |
 | Navigation | Plot the Course: 1 / 2 / 3 pitch dive / level / climb, Z / X pitch -/+15 deg, J / L heading -/+15 deg; P pulse; Q Quiet Ship |
 | Drive | T / G power +/-10%; Y / H steering effort +/-10%; Z / X nudge the pitch it steers for up / down, J / L its heading left / right (straight up or down: the lean, the ball's arrow), one nudge (`nudge_degrees()`) a press, off the Course from what the Drive steers for now; O returns to the Course. No key at the Drive plots or sets a pitch outright: 1 / 2 / 3 do nothing there |
 | Bore Station | F observe the next feature in the Column; U cycle upload priority; B stop / start the link |
