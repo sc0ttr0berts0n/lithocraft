@@ -88,6 +88,10 @@ _Avoid_: Route, waypoint, path, heading (for the plotted target)
 One small fixed step by which the Drive moves the pitch or heading it steers for off the Course; the only way the Drive leaves the Course.
 _Avoid_: Override preset, trim, adjustment
 
+**Lean**:
+The compass heading the Drive tilts toward when a pitch Nudge takes it off straight up or down, where a compass heading means nothing; while vertical, heading Nudges turn it and nothing else.
+_Avoid_: Heading (while vertical), bias, roll
+
 **Deviation**:
 How far what the Drive steers for is off the Course, in pitch and in heading; nothing while the Drive follows the Course.
 _Avoid_: Error, offset, drift, override (for the amount)

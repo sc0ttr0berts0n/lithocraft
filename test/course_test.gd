@@ -234,6 +234,105 @@ func test_steering_straight_down_a_heading_nudge_is_no_deviation() -> void:
 	assert_float(sim.deviation_heading()).is_equal(0.0)
 
 
+# --- The lean (#91) -------------------------------------------------------------
+
+## A Lithocraft diving straight down with its Drive attended.
+func _diving_attended() -> DiveSimulation:
+	var sim := _diving()
+	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
+	return sim
+
+
+func test_steering_straight_down_a_heading_nudge_turns_the_lean_and_nothing_else() -> void:
+	var leant := _diving_attended()
+	var still := _diving_attended()
+	assert_bool(leant.steers_straight_up_or_down()).is_true()
+
+	leant.nudge_heading(1.0)
+	leant.nudge_heading(1.0)
+	var later := _diving_attended()
+	later.nudge_heading(-1.0)
+
+	assert_float(wrapf(leant.lean() - still.lean(), -180.0, 180.0)).is_equal_approx(2.0 * leant.nudge_degrees(), 0.001)
+	assert_float(wrapf(later.lean() - still.lean(), -180.0, 180.0)).is_equal_approx(-leant.nudge_degrees(), 0.001)
+	assert_bool(leant.overriding()).is_false()
+	assert_float(leant.steered_pitch()).is_equal(still.steered_pitch())
+	assert_float(leant.steered_heading()).is_equal(still.steered_heading())
+	assert_float(leant.deviation_heading()).is_equal(0.0)
+	DiveTestKit.run(leant, 600.0)
+	DiveTestKit.run(still, 600.0)
+	assert_float(leant.head_position().distance_to(still.head_position())).is_less(0.001)
+
+
+## Two dives leant opposite ways tilt opposite ways at the same pitch nudge.
+func test_a_pitch_nudge_from_straight_down_tilts_toward_the_lean() -> void:
+	var east := _diving_attended()
+	var west := _diving_attended()
+	DiveTestKit.nudge(east, 90.0, 0.0)
+	DiveTestKit.nudge(west, -90.0, 0.0)
+
+	east.nudge_pitch(-1.0)
+	west.nudge_pitch(-1.0)
+	DiveTestKit.run(east, 6000.0)
+	DiveTestKit.run(west, 6000.0)
+
+	assert_float(east.steered_heading()).is_equal_approx(east.lean(), 0.001)
+	assert_float(east.heading_degrees()).is_equal_approx(east.lean(), 0.01)
+	assert_float(west.heading_degrees()).is_equal_approx(west.lean(), 0.01)
+	assert_float(east.pitch()).is_equal_approx(west.pitch(), 0.01)
+	assert_float(east.head_position().x).is_greater(1.0)
+	assert_float(west.head_position().x).is_less(-1.0)
+
+
+## Tilted off a Course straight down, the heading has no meaning on the Course's
+## side, so the whole deviation is the tilt.
+func test_tilted_off_a_course_straight_down_the_deviation_is_the_tilt_alone() -> void:
+	var sim := _diving_attended()
+	DiveTestKit.nudge(sim, 90.0, 0.0)
+
+	sim.nudge_pitch(-1.0)
+
+	assert_bool(sim.overriding()).is_true()
+	assert_float(sim.deviation_pitch()).is_equal_approx(-sim.nudge_degrees(), 0.001)
+	assert_float(sim.deviation_heading()).is_equal(0.0)
+
+
+## Off vertical the lean is the heading the Drive steers for, so steering back
+## to straight down and tilting again goes the way it came.
+func test_steered_back_to_straight_down_the_lean_is_the_heading_it_came_from() -> void:
+	var sim := _diving_attended()
+	sim.nudge_pitch(-1.0)
+	DiveTestKit.nudge(sim, 45.0, 0.0)
+	var came_from := sim.steered_heading()
+	assert_bool(sim.steers_straight_up_or_down()).is_false()
+	assert_float(sim.lean()).is_equal(came_from)
+
+	sim.nudge_pitch(1.0)
+	var lean := sim.lean()
+	sim.nudge_pitch(-1.0)
+
+	assert_float(came_from).is_greater(0.0)
+	assert_float(lean).is_equal_approx(came_from, 0.001)
+	assert_float(sim.steered_heading()).is_equal_approx(came_from, 0.001)
+
+
+## A Course plotted off vertical goes its own way whatever the lean, and the
+## lean takes its heading, so the marker never points against the Course.
+func test_a_course_plotted_off_vertical_goes_its_own_way_and_the_lean_follows_it() -> void:
+	var sim := _diving_attended()
+	DiveTestKit.nudge(sim, 90.0, 0.0)
+
+	sim.set_course(180.0, 60.0)
+	DiveTestKit.run(sim, 6000.0)
+
+	assert_float(sim.heading_degrees()).is_equal_approx(180.0, 0.01)
+	assert_float(sim.lean()).is_equal(180.0)
+	# Plotted back to straight down, the next tilt goes the way the Course went.
+	sim.set_course(0.0, 90.0)
+	sim.nudge_pitch(-1.0)
+	assert_float(sim.steered_heading()).is_equal_approx(180.0, 0.001)
+
+
 func test_an_override_lasts_until_the_drives_autopilot_is_engaged() -> void:
 	var sim := _on_level_course()
 	DiveTestKit.nudge(sim, 90.0, 0.0)

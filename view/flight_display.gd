@@ -13,7 +13,10 @@
 ##   depth     where altitude goes: a tape of depth() in metres, deeper down,
 ##             and under it how fast the depth changes (speed along the pitch).
 ##   heading   a tape of heading_degrees() along the foot, with the Course's
-##             bug at course_heading().
+##             bug at course_heading(). While the Drive steers straight up or
+##             down (steers_straight_up_or_down()), the lean (lean(), the way
+##             the next pitch nudge tilts) as a hollow cyan pointer over the
+##             tape and "LEAN 090" at its left.
 ##   power     the Drive's set point against actual, as shares of the
 ##             Reactor's full output (PowerLine), STARVED when short.
 ##   grip      how much of the Drive's power grips the wall, and the slip.
@@ -289,6 +292,16 @@ class _Canvas extends Control:
 				window.size.x, FlightDisplay.FONT, StationTheme.NOW_COLOUR)
 		draw_string(font, Vector2(box.end.x - 178, box.end.y - 8), "COURSE %03d" % roundi(sim.course_heading()),
 				HORIZONTAL_ALIGNMENT_RIGHT, 170, FlightDisplay.FONT_SMALL, StationTheme.SELECTED_COLOUR)
+		if sim.steers_straight_up_or_down():
+			# The lean: the way the next pitch nudge tilts, hollow over the
+			# heading's own pointer as the override's bug is beside the Course's.
+			var lean := sim.lean()
+			var tip := Vector2(clampf(mid.x + tape.pinned(lean, heading), box.position.x + 12, box.end.x - 12),
+					box.position.y + 2)
+			draw_polyline(PackedVector2Array([tip, tip + Vector2(-12, -18), tip + Vector2(12, -18), tip]),
+					StationTheme.SELECTED_COLOUR, 2.0)
+			draw_string(font, Vector2(box.position.x + 8, box.end.y - 8), "LEAN %03d" % roundi(lean),
+					HORIZONTAL_ALIGNMENT_LEFT, 170, FlightDisplay.FONT_SMALL, StationTheme.SELECTED_COLOUR)
 		draw_rect(box, StationTheme.RULE_COLOUR, false, 2.0)
 
 	## The Course's (or the override's) bug on the heading tape's edge.
