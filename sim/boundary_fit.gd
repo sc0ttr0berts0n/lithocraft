@@ -65,8 +65,7 @@ static func ahead(patches: Array[BoundaryPatch], origin: Vector3, direction: Vec
 		if metres < from:
 			continue
 		var off := origin + direction * metres - patch.centre
-		if absf(off.x) > patch.size.x * 0.5 + _AHEAD_REACH_M \
-				or absf(off.z) > patch.size.y * 0.5 + _AHEAD_REACH_M:
+		if absf(off.x) > patch.size.x * 0.5 + _AHEAD_REACH_M 				or absf(off.z) > patch.size.y * 0.5 + _AHEAD_REACH_M:
 			continue
 		hits.append(Vector2(metres, patch.confidence))
 		surest = maxf(surest, patch.confidence)
