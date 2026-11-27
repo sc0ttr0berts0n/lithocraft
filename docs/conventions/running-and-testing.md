@@ -39,8 +39,7 @@ CI: `.github/workflows/ci.yml` runs on every push to `dev` and every pull reques
 It fetches the Linux Godot binary named by its `GODOT_VERSION` (cached between runs), then runs `./test.sh`, then `tools/ci/smoke.sh res://view/habitat.tscn`, then `tools/ci/smoke.sh` for the main scene; the first failure turns the job red.
 A pull request merges into `dev` only on a green job.
 
-Cost budget: `tools/cost/cost.sh` plays the Shift drill headless with every Station's screen live and times the simulation's step, every screen's update and every query; `COST OK` and exit 0, or `COST OVER BUDGET` and exit 1, in about half a minute.
-It is no part of `./test.sh`; what it measures and when to run it are in `cost-budget.md`.
+Cost budget: `tools/cost/cost.sh` times a headless dive with every Station's screen live against a budget, in about half a minute; it is no part of `./test.sh` (see `cost-budget.md`).
 
 Ad-hoc checks: prefer a headless check when a window isn't needed.
 For a look at the game, `tools/screenshot/shot.sh` takes one PNG of a Scenario run to a dive time; from Git Bash at the repo root, with `GODOT_BIN` set as for the tests:
