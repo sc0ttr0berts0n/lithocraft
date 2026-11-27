@@ -40,10 +40,12 @@
   Never integrate speed in the view.
   The Bore's Column uses its own tube mesh with explicit UVs, because `CylinderMesh` shares its texture with its caps.
   `ColumnStrip` builds each band's grains once, as one mesh it keeps while the band is in the strip, and each frame only moves it: the Bore's strip holds some twelve thousand grains, too many to place and draw one by one every frame.
+  The Bore's glass (`BoreGlass`, `view/bore_glass.gd`) covers nothing where a sight line meets the Column and shows only toward the tube's edges, so a colour painted on the Column is the colour seen in the Bore.
+  Never lay a see-through tint over the Column: it adds its own lit colour, which is all that shows on anything near-black (#95).
   `Habitat.column_z(behind_head)` (and `behind_head_at(z)`, its inverse) is the one account of where the Habitat sits along the vessel: place anything in the Bore from the simulation's distance behind the Head through it, never from the Habitat's length.
 - A feature of interest is drawn by `FeatureLook` (`view/feature_look.gd`) on the Column strip, in metres, at the row of its `ColumnFeature.at` (`ColumnStrip.feature_box()`).
   A new kind adds its line to `FeatureLook.LOOKS` (how wide across the Column, and its paint function); `feature_look_test` fails on a kind any Scenario's layout holds that has none.
-  A look must read from across the Habitat against the grain speckle: a backing or a rim, pieces several grains wide, and no near-black, which shows green in the Bore.
+  A look must read from across the Habitat against the grain speckle: a backing or a rim, pieces several grains wide.
   In the Bore every feature is turned to the Bore Station (`ColumnStrip.features_face`, set each step from `bore_station_place()`), so the crew turn from its screen and find it; the flat overlay strip leaves it at -1 and each feature keeps a place of its own.
 - Controls that sit over the Habitat set `mouse_filter = 2` so clicks reach the mouse capture.
   An `HSlider` sets `focus_mode = 0` so arrow keys reach `_unhandled_input`.

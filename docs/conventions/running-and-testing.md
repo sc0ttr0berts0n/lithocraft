@@ -1,12 +1,22 @@
 # Running and testing
 
+## What runs when
+
+Plan tests, screenshots and long-running processes as the work goes, but run the slow ones near review, not on every round.
+
+- While iterating: the one test being written, and the suites for the code being changed (`./test.sh heat scan`).
+- Once, at hand-back or before the push: the whole suite (`./test.sh`), the docs check (`python tools/docs/check_docs.py`), the lint (when ticket #79 has given it a command), and the ticket's screenshots.
+- At the push: CI repeats it, so do not rerun a green whole suite to be sure.
+  CI runs the whole suite and the scene smoke checks today; the lint and the docs check join it with ticket #87.
+- An orchestrator merging several tickets runs the whole suite once per merge that had conflicts and once before review, and puts this policy in each agent's brief.
+
 ## Running
 
 Tests: set `GODOT_BIN` to a Godot 4.7 binary (on Windows the `_console.exe` build), then `./test.sh` or `test.cmd`.
 Exit 0 is a pass, 100 a test failure, 105 a script or parse error.
 
 - While iterating, run only the suites for the code being changed: `./test.sh heat scan` runs `test/heat_test.gd` and `test/scan_test.gd` in seconds (`heat`, `heat_test`, `heat_test.gd` and `test/heat_test.gd` all name the same suite).
-  With no suite named, every suite runs, which takes minutes: do that once, before the push.
+  With no suite named, every suite runs, which takes minutes.
 - A run ends with one plain line, `PASSED: 8 test cases, 0 errors, 0 failures, ... (exit 0)`.
   A failing run first prints `FAILED <suite> > <test>` with what was expected and the line, for each failing test; a script or parse error prints the engine's error lines.
   The run's full output is in `reports/last_run.log`; `--verbose` prints it as it comes instead, colours and all.
