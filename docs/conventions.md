@@ -29,7 +29,12 @@ The old "Extension points" and "Subsystems" sections are spread by topic; their 
 ## The view
 
 - [conventions/view.md](conventions/view.md): The view. Read before changing anything in `view/`: who owns the simulation, `_at`, what may be drawn over the crew's view, mouse look, pointing, Station places, the start menu, the end of a dive, hull feel and sound.
-- [conventions/station-screens.md](conventions/station-screens.md): The view's Station screens. Read when changing what a Station screen shows or how: the frame every screen shares (`StationScreen`), the Theme and the colour language (`StationTheme`), Caution lamps, the key list, `GimballedStation`, the Thermal, Reactor and Drive screens, Navigation's point cloud and moving map.
+- [conventions/station-screens.md](conventions/station-screens.md): The view's Station screens, the frame, the Theme and the colour language. Read when changing what every Station screen shares: `StationScreen`, `StationTheme`, Caution lamps, the key list, `GimballedStation`.
+- [conventions/screen-thermal.md](conventions/screen-thermal.md): The view's Station screens, each Station's screen: the Thermal's. Read when changing the Thermal screen or `ThermalGauge`.
+- [conventions/screen-reactor.md](conventions/screen-reactor.md): The view's Station screens, each Station's screen: the Reactor's. Read when changing the Reactor screen or `PlasmaDisplay`.
+- [conventions/screen-drive.md](conventions/screen-drive.md): The view's Station screens, each Station's screen: the Drive's, and the deviation both the Drive and Navigation state. Read when changing the Drive screen, `FlightDisplay`, `FlightTape` or `CourseDeviation`.
+- [conventions/screen-navigation.md](conventions/screen-navigation.md): The view's Station screens, each Station's screen: Navigation's. Read when changing Navigation's point cloud (`ScanDisplay`), moving map (`MovingMap`) or projected path display.
+- The Bore Station has no screen conventions yet; a new file, with its line here, goes beside the others when it has some.
 - [conventions/key-map.md](conventions/key-map.md): Key map. Read before binding, moving or naming a key, adding a key prompt, or adding a debug menu key.
 
 ## Writing these files
