@@ -37,7 +37,7 @@ A store of a single element, sorted out of the Medium by the Head and used to ma
 _Avoid_: Ore, resource, ink, cargo
 
 **Boundary**:
-The place where one Medium gives way to another along the Lithocraft's path.
+The surface where one Medium gives way to another: generally flat but gently wavy, so where the Lithocraft's path crosses it decides the depth it is met at.
 _Avoid_: Transition, interface, layer change
 
 **Inferred Boundary**:

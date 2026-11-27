@@ -62,3 +62,12 @@ Grilled with the developer on 27 November 2026, following 16-glide-and-scan.md, 
   A Course plotted off vertical is turned onto the short way, along its own heading whatever the lean, and leaves the lean at that heading, so the marker never points against the Course.
   Tilted off a Course straight down, the deviation is the pitch alone: the heading deviation is zero when the Course is vertical too, since a vertical Course has no heading to be off.
   From straight down only a nudge up tilts (a nudge down stays straight down, as before), and from straight up only a nudge down; a heading nudge while vertical still switches the Drive's autopilot off, as any setting does.
+- **Wavy Boundaries, as built (#116).**
+  A Boundary is a surface: its mean depth plus a sum of three plane waves of random direction and phase, wavelengths from a given length to twice it, bounded by a given amplitude (`MediumLayout.with_waviness()`).
+  Everything that asked a depth asks where a line meets the surface (`MediumLayout.meets()`, `next_meet()`) or which Medium is at a place (`medium_at_point()`): the scan's echoes, the Boundary approaching and the Reactor's call, the Wobble the echoes carry, the Column and the survey along the remembered path, and the debug jump to the next Boundary.
+  Agent's choices (the developer away), each until the developer rules:
+  the First dive's folds reach 6 m either side of the mean in folds of 250 m to 500 m, steepest about 9 degrees, beside Boundaries 500 m apart (the first 100 m down);
+  the seed lives with the layout (`MediumLayout.first_dive()`), so every Scenario on that layout, the First dive and its drills, meets the same surfaces;
+  the Boundary approaching is still announced 30 m of depth ahead, counted along the Head's line to where it meets the surface;
+  features of interest stay placed by depth, and the First dive leaves out any that would lie within a fold of a Boundary, where the Medium at that depth depends on the place;
+  the guess of the Wobble ahead is seeded by which Boundary it is (its mean depth), never by where it is met, so it does not jitter as the Head moves.
