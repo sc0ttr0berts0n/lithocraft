@@ -97,6 +97,7 @@ static func _intention_arguments(sim: DiveSimulation) -> Dictionary:
 		&"tune_frequency": [[sim.wobble_frequency() * 1.5]],
 		&"tune_amplitude": [[sim.wobble_amplitude() * 0.5]],
 		&"set_upload_priority": [[DiveSimulation.UPLOAD_MOST_VALUABLE_FIRST]],
+		&"set_beam_width": [[DiveSimulation.BEAM_NARROW], [DiveSimulation.BEAM_WIDE]],
 	}
 
 
