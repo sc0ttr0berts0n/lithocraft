@@ -20,6 +20,10 @@ extends RefCounted
 var pitch: float
 var heading: float
 
+# Directions round each circle drawn (parallel(), meridian()), in the
+# world's frame, worked out once for every ball.
+static var _circles := {}
+
 # The face's basis in the world's (north, east, down) frame: toward the crew
 # (where the Head points), the screen's right, and the screen's up.
 var _toward := Vector3.ZERO
@@ -96,32 +100,55 @@ func surfaceward(samples: int = 48) -> PackedVector2Array:
 ## The visible runs of the circle of a pitch (a parallel), each a polyline on
 ## the unit disc.
 func parallel(at_pitch: float, samples: int = 72) -> Array[PackedVector2Array]:
-	var points: Array[Vector3] = []
-	for i in samples + 1:
-		points.append(facing(heading + 360.0 * i / samples, at_pitch))
-	return _runs(points)
+	var key := Vector3(0.0, at_pitch, samples)
+	if not _circles.has(key):
+		var ring := PackedVector3Array()
+		for i in samples:
+			ring.append(direction(360.0 * i / samples, at_pitch))
+		_circles[key] = ring
+	return _runs(_facing(_circles[key]), true)
 
 
 ## The visible runs of the half circle of a compass heading from pole to pole
 ## (a meridian), each a polyline on the unit disc.
 func meridian(at_heading: float, samples: int = 36) -> Array[PackedVector2Array]:
-	var points: Array[Vector3] = []
-	for i in samples + 1:
-		points.append(facing(at_heading, -90.0 + 180.0 * i / samples))
-	return _runs(points)
+	var key := Vector3(1.0, at_heading, samples)
+	if not _circles.has(key):
+		var half := PackedVector3Array()
+		for i in samples + 1:
+			half.append(direction(at_heading, -90.0 + 180.0 * i / samples))
+		_circles[key] = half
+	return _runs(_facing(_circles[key]), false)
 
 
-## The runs of points on the face, each as places on the unit disc.
-static func _runs(points: Array[Vector3]) -> Array[PackedVector2Array]:
+## Directions in the world's frame as they lie against the face (facing()),
+## all in one native call.
+func _facing(directions: PackedVector3Array) -> PackedVector3Array:
+	return Transform3D(Basis(_right, _up, _toward).transposed(), Vector3.ZERO) * directions
+
+
+## The runs of points on the face, each as places on the unit disc; a closed
+## circle's run across its first point is one run.
+static func _runs(points: PackedVector3Array, closed: bool) -> Array[PackedVector2Array]:
 	var runs: Array[PackedVector2Array] = []
 	var run := PackedVector2Array()
 	for f in points:
 		if f.z >= 0.0:
 			run.append(Vector2(f.x, -f.y))
 		elif run.size() > 0:
-			if run.size() > 1:
-				runs.append(run)
+			runs.append(run)
 			run = PackedVector2Array()
-	if run.size() > 1:
-		runs.append(run)
-	return runs
+	if run.size() > 0:
+		if closed and runs.size() > 0 and points[0].z >= 0.0:
+			run.append_array(runs[0])
+			runs[0] = run
+		elif closed and runs.is_empty():
+			run.append(run[0])
+			runs.append(run)
+		else:
+			runs.append(run)
+	var lines: Array[PackedVector2Array] = []
+	for each in runs:
+		if each.size() > 1:
+			lines.append(each)
+	return lines
