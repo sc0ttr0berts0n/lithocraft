@@ -40,4 +40,4 @@ macOS / Linux / Git Bash:
 GODOT_BIN=/path/to/godot ./test.sh
 ```
 
-Extra arguments are passed to the GdUnit4 runner. Reports are written to `reports/` (ignored by git).
+Name suites to run only those (`./test.sh heat scan`, `test.cmd heat scan`); `--verbose` shows GdUnit4's full output instead of the one summary line. `test.cmd` needs Git for Windows, whose bash runs `test.sh`. Reports are written to `reports/` (ignored by git).
