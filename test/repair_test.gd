@@ -45,7 +45,9 @@ func _dive_and_surface(layout: MediumLayout, linger := 0.0, crew_shifts := true)
 	sim.set_autopilot(DiveSimulation.STATION_REACTOR, not crew_shifts)
 	sim.set_heat_split(0.0)
 	sim.set_power(POWER)
-	var shift := func() -> void: if crew_shifts and sim.out_of_band(): DiveTestKit.shift_to(sim, DiveTestKit.wobble(sim))
+	var shift := func() -> void:
+		if crew_shifts and sim.out_of_band():
+			DiveTestKit.shift_to(sim, DiveTestKit.wobble(sim))
 	while sim.depth() < TURN_AT_M:
 		shift.call()
 		sim.advance(STEP_S)

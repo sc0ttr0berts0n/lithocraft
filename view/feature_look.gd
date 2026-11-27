@@ -173,7 +173,7 @@ static func _concretions(canvas: CanvasItem, box: Rect2, ppm: float, rng: Random
 
 ## A sheet of white quartz crossing the Column at a slant: unwrapped round the
 ## Column, a slanted plane is a sine wave across the strip.
-static func _quartz_vein(canvas: CanvasItem, box: Rect2, ppm: float, rng: RandomNumberGenerator) -> void:
+static func _quartz_vein(canvas: CanvasItem, box: Rect2, _ppm: float, rng: RandomNumberGenerator) -> void:
 	var thick := maxf(box.size.y / 4.0, 3.0)
 	var amp := box.size.y / 2.0 - thick / 2.0
 	var phase := rng.randf() * TAU
