@@ -2,7 +2,8 @@
 # arguments of one shot in, a Habitat staged for it out, read through the
 # Habitat's simulation. The picture itself needs a window, so it is checked
 # by running the tool (docs/conventions/running-and-testing.md, "Ad-hoc
-# checks"), not here.
+# checks"), not here. The last tests are a sheet's (shot_sheet.gd): a list of
+# named shots in, their plans and where each tile goes on the sheet out.
 extends GdUnitTestSuite
 
 
@@ -232,3 +233,110 @@ func test_a_station_attended_at_the_same_time_takes_its_command_while_another_is
 
 	assert_bool(habitat.simulation().overriding()).is_true()
 	assert_bool(habitat.simulation().attended(DiveSimulation.STATION_DRIVE)).is_false()
+
+
+const LIST := """# The Drive at rest and under way.
+at rest: --look Drive --time 2
+
+under way: --look Drive --time 2 --do "0 set_power 1"
+the column: --scenario shift-drill --look column --time 1
+"""
+const SHOT_SIZE := Vector2i(1152, 648)
+
+
+func test_a_list_gives_its_named_shots_in_the_order_of_its_lines() -> void:
+	var sheet := ShotSheet.of(LIST)
+
+	assert_str(sheet.error).is_empty()
+	assert_array(sheet.shots.map(func(shot: Dictionary) -> String: return shot.name)).is_equal(
+			["at rest", "under way", "the column"])
+	assert_str(sheet.shots[2].plan.scenario.title).is_equal(Scenario.shift_drill().title)
+	assert_bool(sheet.shots[2].plan.look == ShotPlan.LOOK_COLUMN).is_true()
+
+
+func test_a_line_of_a_list_is_the_shot_its_arguments_make_alone() -> void:
+	var sheet := ShotSheet.of(LIST)
+	var listed: Node = auto_free(sheet.shots[1].plan.make_habitat())
+	add_child(listed)
+	assert_str(sheet.shots[1].plan.stage(listed)).is_empty()
+	var alone := _staged(["--look", "Drive", "--time", "2", "--do", "0 set_power 1"])
+	var at_rest := _staged(["--look", "Drive", "--time", "2"])
+
+	assert_float(listed.simulation().depth()).is_equal(alone.simulation().depth())
+	assert_float(listed.simulation().depth()).is_greater(at_rest.simulation().depth())
+
+
+func test_a_list_that_makes_no_sheet_says_why_and_names_the_shot_at_fault() -> void:
+	var good := "first: --look Drive --time 1\n"
+	for wrong: Array in [
+		["second: --look Galley --time 1", "second"],
+		["second: --look Drive", "second"],
+		["second: --look Drive --time 1 --do \"0 set_power 1", "second"],
+		["second: --look Drive --time 1 --out second.png", "second"],
+		["first: --look Thermal --time 1", "first"],
+		["--look Drive --time 1", "line 2"],
+		[": --look Drive --time 1", "line 2"],
+	]:
+		assert_str(ShotSheet.of(good + wrong[0]).error).override_failure_message(
+				"no error naming %s for: %s" % [wrong[1], wrong[0]]).contains(wrong[1])
+	assert_str(ShotSheet.of("# nothing yet\n\n").error).is_not_empty()
+	assert_str(ShotSheet.of(good).error).is_empty()
+
+
+func test_the_tools_arguments_for_a_sheet_that_make_none_say_why() -> void:
+	for wrong in [
+		["--sheet", "res://no/such/list.shots", "--out", "sheet.png"],
+		["--sheet", "res://project.godot"],
+		["--sheet", "res://project.godot", "--out", "sheet.png", "--look", "Drive"],
+		["--sheet", "res://project.godot", "--out", "sheet.png", "--columns", "0"],
+		["--sheet", "res://project.godot", "--out", "sheet.png", "--tile", "wide"],
+	]:
+		assert_str(ShotSheet.parse(PackedStringArray(wrong)).error).override_failure_message(
+				"no error for %s" % [wrong]).is_not_empty()
+
+
+func test_every_tile_has_its_own_place_on_the_sheet_under_its_own_label() -> void:
+	var sheet := ShotSheet.of("\n".join(range(7).map(func(n: int) -> String: return "shot %d: --look Drive --time 1" % n)))
+	sheet.lay_out(SHOT_SIZE)
+
+	var whole := Rect2i(Vector2i.ZERO, sheet.size())
+	var taken: Array[Rect2i] = []
+	for i in sheet.shots.size():
+		var label := sheet.label_rect(i)
+		var tile := sheet.tile_rect(i)
+		assert_bool(tile.size == sheet.tile).is_true()
+		# The label rests on its own tile, as wide as it.
+		assert_int(label.end.y).is_equal(tile.position.y)
+		assert_int(label.position.x).is_equal(tile.position.x)
+		assert_int(label.size.x).is_equal(tile.size.x)
+		for rect: Rect2i in [label, tile]:
+			assert_bool(whole.encloses(rect)).is_true()
+			for other in taken:
+				assert_bool(rect.intersects(other)).is_false()
+			taken.append(rect)
+
+
+func test_a_tile_is_its_shot_scaled_down_never_up_and_keeps_its_shape() -> void:
+	var sheet := ShotSheet.of(LIST)
+	sheet.lay_out(SHOT_SIZE)
+	var usual := sheet.tile
+	sheet.tile_width = SHOT_SIZE.x * 2
+	sheet.lay_out(SHOT_SIZE)
+
+	assert_int(usual.x).is_less(SHOT_SIZE.x)
+	assert_float(float(usual.x) / usual.y).is_equal_approx(float(SHOT_SIZE.x) / SHOT_SIZE.y, 0.01)
+	assert_bool(sheet.tile == SHOT_SIZE).is_true()
+
+
+func test_more_columns_make_a_wider_and_shorter_sheet() -> void:
+	var sizes := {}
+	for columns: int in [1, 3, 5]:
+		var sheet := ShotSheet.of(LIST)
+		sheet.columns = columns
+		sheet.lay_out(SHOT_SIZE)
+		sizes[columns] = sheet.size()
+
+	assert_int(sizes[3].x).is_greater(sizes[1].x)
+	assert_int(sizes[3].y).is_less(sizes[1].y)
+	# More columns than shots leave no empty ones.
+	assert_bool(sizes[5] == sizes[3]).is_true()

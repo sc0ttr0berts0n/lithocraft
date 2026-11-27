@@ -5,9 +5,15 @@
 Tests: set `GODOT_BIN` to a Godot 4.7 binary (on Windows the `_console.exe` build), then `./test.sh` or `test.cmd`.
 Exit 0 is a pass, 100 a test failure, 105 a script or parse error.
 
+- While iterating, run only the suites for the code being changed: `./test.sh heat scan` runs `test/heat_test.gd` and `test/scan_test.gd` in seconds (`heat`, `heat_test`, `heat_test.gd` and `test/heat_test.gd` all name the same suite).
+  With no suite named, every suite runs, which takes minutes: do that once, before the push.
+- A run ends with one plain line, `PASSED: 8 test cases, 0 errors, 0 failures, ... (exit 0)`.
+  A failing run first prints `FAILED <suite> > <test>` with what was expected and the line, for each failing test; a script or parse error prints the engine's error lines.
+  The run's full output is in `reports/last_run.log`; `--verbose` prints it as it comes instead, colours and all.
+- `test.cmd` hands its arguments to `test.sh` through the bash of Git for Windows, so there is one script to change: `test.sh`.
 - The wrappers run an `--import` pass first.
   Without it a fresh checkout fails discovery with "Could not find type" for `class_name` classes.
-- Every run prints `ERROR: Remote Debugger: Unable to connect to host '127.0.0.1:0'`.
+- Every verbose run (and every `last_run.log`) has `ERROR: Remote Debugger: Unable to connect to host '127.0.0.1:0'`.
   That is GdUnit4 disabling the debugger on purpose.
 - A low test count means a failure: GdUnit stops a suite at its first failing test.
 
@@ -38,8 +44,15 @@ It prints the PNG's path and exits 0; on any failure it prints why, leaves no PN
   `--look crew --tilt 55` looks up the Habitat's height from the floor; `--look Drive --turn 180 --tilt 30` looks back across the room from the Arm's hold.
 - The same arguments give the same PNG, byte for byte: the Habitat is stepped by hand in the game's own 1/60 s steps (`ShotPlan.stage()`, `tools/screenshot/shot_plan.gd`), then drawn for a fixed 8 frames at a fixed frame time.
   So a view that animates off its own clock (`_process(delta)`: a display's sweep, sparks, a call light's fade) is always 8 frames old in a shot; drive it from `dive_time()` if a shot must show it moving.
+- For more than one look, take a sheet: `tools/screenshot/shot.sh --sheet <list file>` takes every shot of a list in one Godot start (about 5 s a shot) and tiles them into one PNG, each tile under a label with its name and arguments, so one image read shows them all.
+  The list is plain text, a shot to a line, `<name>: <arguments>`, the arguments those of one shot without `--out` or `--size`, quoted as on a command line; blank lines and lines starting with `#` are skipped, and the tiles go in the order of the lines:
+  `lit: --look Reactor --time 120 --do "0 set_power 1"`.
+  `--out` defaults to `tools/screenshot/out/<list>-sheet.png`, and `--size` is the size every shot is taken at.
+  A tile is its shot scaled down to 768 pixels wide, two to a row, at which the text on a Station's screen still reads; `--tile <width>` and `--columns <count>` change that (`--tile 1152` for no scaling).
+  A shot that fails, in the list or in its staging, fails the sheet: the reason names the shot, the exit is 1 and no PNG is left at that path.
+  The same list gives the same sheet, byte for byte; each shot gets a fresh Habitat and the same seed as a shot alone (`ShotSheet`, `tools/screenshot/shot_sheet.gd`).
 - It is safe to run several at once, in one checkout or in several worktrees; each opens a silent window centred on the developer's second monitor (`SHOT_MONITOR` names another).
-- A staged Habitat is tested headless through `ShotPlan` (`test/screenshot_test.gd`); the picture itself needs the window.
+- A staged Habitat is tested headless through `ShotPlan`, and a list and its layout through `ShotSheet` (`test/screenshot_test.gd`); the picture itself needs the window.
 
 ## Testing
 
