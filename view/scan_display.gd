@@ -74,7 +74,7 @@ const VESSEL_PX := 9.0
 ## The projected path is worked out afresh every this many frames: it changes
 ## slowly, and running the turn forward is not free. The picture is redrawn
 ## every REDRAW_FRAMES.
-const PROJECTED_PATH_FRAMES := 6
+const PROJECTED_PATH_FRAMES := 15
 const REDRAW_FRAMES := 2
 
 ## The forward scope: the furthest range it shows ahead, metres, and how far

@@ -24,9 +24,10 @@ STANDBY's guess of the Wobble ahead and the Boundary countdown read it (see `pla
 Hazards, when they come, get a fit of their own beside it.
 
 **The projected path.**
-`projected_path()` is the one query for where this turn takes the vessel: world places (the frame of `head_position()` and `points()`), the Head's first, joined by straight pieces, through the turn and one straight stretch beyond; any view that shows it reads this and draws it in `ScanDisplay.PROJECTED_PATH_COLOUR`.
+`projected_path()` is the one query for where this turn takes the vessel: world places (the frame of `head_position()` and `points()`), the Head's first, joined by straight pieces, through the turn and one straight stretch beyond; any view that shows it reads this and draws it in `StationTheme.PROJECTED_PATH_COLOUR`.
 It is the turning rule itself (`_turned()`, which a step's `_steer()` also runs) run forward, so a change to how the vessel turns goes there and the projection follows.
 It holds the Drive's power setting, the Reactor's supply, the steering effort, what the Drive steers for and the Medium the Head is in, and knows nothing of the rock ahead: only the vessel's own state, never the layout.
 It ends at the surface on a climb, is cut short (no straight stretch) for a turn too wide to finish, and is the Head's place alone while the vessel is stopped or the dive is over.
-It costs up to a few thousand turning steps a call, so a view calls it a few times a second, never every frame (`ScanDisplay.PROJECTED_PATH_FRAMES`, the moving map's `REDRAW_S`).
+It steps by distance (five metres a step, whatever the speed), so a call costs at most a few hundred turning steps and no more as the vessel slows; a view still calls it a few times a second, never every frame (`ScanDisplay.PROJECTED_PATH_FRAMES`, the moving map's `REDRAW_S`).
+With no steering at all it is one straight stretch the way the Head points, since the vessel never comes round.
 A step's bend is that of its mean steering, so a test's one-second steps and the game's sixtieths cut the same arc.

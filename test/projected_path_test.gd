@@ -155,6 +155,34 @@ func test_less_steering_effort_projects_a_wider_turn() -> void:
 	assert_float(_room_below(gentle)).is_greater(_room_below(hard))
 
 
+func test_with_no_steering_the_projection_runs_straight_on_the_way_the_head_points() -> void:
+	var sim := _diving(1.0, 0.0)
+	sim.set_course(0.0, -45.0)
+	DiveTestKit.run(sim, 5.0)
+
+	var path := sim.projected_path()
+	var end := path[path.size() - 1]
+
+	assert_int(path.size()).is_greater(1)
+	assert_float((end - sim.head_position()).normalized().dot(sim.heading())).is_equal_approx(1.0, 0.0001)
+	var before := sim.head_position()
+	DiveTestKit.run(sim, 20.0)
+	assert_float(_off_path(sim.head_position(), path)).is_less(0.5)
+	assert_float(sim.head_position().distance_to(before)).is_greater(1.0)
+
+
+func test_a_crawling_lithocraft_is_projected_in_no_more_pieces_than_a_fast_one() -> void:
+	var slow := _diving(0.3, 0.2)
+	var fast := _diving(1.0, 0.2)
+	slow.set_course(0.0, -45.0)
+	fast.set_course(0.0, -45.0)
+	slow.advance(1.0)
+	fast.advance(1.0)
+
+	assert_float(fast.speed()).is_greater(slow.speed())
+	assert_int(slow.projected_path().size()).is_less_equal(fast.projected_path().size())
+
+
 func test_more_speed_projects_a_wider_turn() -> void:
 	var slow := _diving(0.3)
 	var fast := _diving(1.0)

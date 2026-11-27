@@ -63,14 +63,13 @@ const _STEER_HEAT := 0.5
 ## The path the Column was cut along is remembered as points at least this
 ## far apart (straight runs are merged into one piece). Metres.
 const _PATH_SAMPLE_M := 0.5
-## The projected path (projected_path()): its points lie no more than this far
-## apart along a turn, metres, and no more than this long apart in time,
-## seconds, so a crawling vessel's slow build of steering is still followed;
-## how far the straight stretch beyond the turn reaches, metres; and the most
-## path a turn is followed for, metres, so a Drive barely steering does not
-## project for ever. Tuned for play (ADR 0001).
+## The projected path (projected_path()): its points lie this far apart along
+## a turn, metres, whatever the speed, so the work of projecting does not grow
+## as the vessel slows (the turning rule cuts the same arc in long steps as in
+## short); how far the straight stretch beyond the turn reaches, metres; and
+## the most path a turn is followed for, metres, so a Drive barely steering
+## does not project for ever. Tuned for play (ADR 0001).
 const _PROJECTION_SAMPLE_M := 5.0
-const _PROJECTION_STEP_S := 1.0
 const _PROJECTION_STRAIGHT_M := 250.0
 const _PROJECTION_TURN_M := 4000.0
 ## The turn is over, for the projection, once the Head points within this
@@ -1817,8 +1816,10 @@ func heading() -> Vector3:
 ## steering effort and what it steers for held as they are: it knows nothing
 ## of the rock ahead, so a change of Medium, power or setting bends the real
 ## path away from it. A climb is projected no further than the surface, and a
-## turn too wide to finish is cut short without its straight stretch. Only
-## the Head's place while the vessel is not moving, or the dive is over.
+## turn too wide to finish is cut short without its straight stretch. With no
+## steering at all the vessel never comes round, so the path is one straight
+## stretch the way the Head points. Only the Head's place while the vessel is
+## not moving, or the dive is over.
 func projected_path() -> PackedVector3Array:
 	var path := PackedVector3Array([_position])
 	if _speed <= 0.0 or stranded() or _surfaced or dead():
@@ -1829,13 +1830,20 @@ func projected_path() -> PackedVector3Array:
 	var turning := Turning.new(_position, _direction, _bearing, _steering)
 	var since_point := 0.0
 	var length := 0.0
+	var straight_on := false
 	while turning.direction.angle_to(wanted) > settled and length < _PROJECTION_TURN_M:
 		var speed := _speed_while_steering(turning.steering)
 		if speed <= 0.0:
 			break
-		var dt := minf(_PROJECTION_SAMPLE_M / speed, _PROJECTION_STEP_S)
+		var dt := _PROJECTION_SAMPLE_M / speed
 		var before := turning.position
+		var pointed := turning.direction
 		turning = _turned(turning, wanted, effort, speed, dt)
+		# No steering and none building: the vessel goes straight on and never
+		# comes round, so the rest of the path is the way it points.
+		if turning.steering <= 0.0 and turning.direction.is_equal_approx(pointed):
+			straight_on = true
+			break
 		length += speed * dt
 		since_point += speed * dt
 		if _surfaces_between(before, turning.position):
@@ -1847,9 +1855,10 @@ func projected_path() -> PackedVector3Array:
 	var from := turning.position
 	if since_point > 0.0:
 		path.append(from)
-	if turning.direction.angle_to(wanted) > settled:
+	var onward := turning.direction if straight_on else wanted
+	if not straight_on and turning.direction.angle_to(wanted) > settled:
 		return path
-	var end := from + wanted * _PROJECTION_STRAIGHT_M
+	var end := from + onward * _PROJECTION_STRAIGHT_M
 	path.append(_at_the_surface(from, end) if _surfaces_between(from, end) else end)
 	return path
 
