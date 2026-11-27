@@ -5,9 +5,15 @@
 Tests: set `GODOT_BIN` to a Godot 4.7 binary (on Windows the `_console.exe` build), then `./test.sh` or `test.cmd`.
 Exit 0 is a pass, 100 a test failure, 105 a script or parse error.
 
+- While iterating, run only the suites for the code being changed: `./test.sh heat scan` runs `test/heat_test.gd` and `test/scan_test.gd` in seconds (`heat`, `heat_test`, `heat_test.gd` and `test/heat_test.gd` all name the same suite).
+  With no suite named, every suite runs, which takes minutes: do that once, before the push.
+- A run ends with one plain line, `PASSED: 8 test cases, 0 errors, 0 failures, ... (exit 0)`.
+  A failing run first prints `FAILED <suite> > <test>` with what was expected and the line, for each failing test; a script or parse error prints the engine's error lines.
+  The run's full output is in `reports/last_run.log`; `--verbose` prints it as it comes instead, colours and all.
+- `test.cmd` hands its arguments to `test.sh` through the bash of Git for Windows, so there is one script to change: `test.sh`.
 - The wrappers run an `--import` pass first.
   Without it a fresh checkout fails discovery with "Could not find type" for `class_name` classes.
-- Every run prints `ERROR: Remote Debugger: Unable to connect to host '127.0.0.1:0'`.
+- Every verbose run (and every `last_run.log`) has `ERROR: Remote Debugger: Unable to connect to host '127.0.0.1:0'`.
   That is GdUnit4 disabling the debugger on purpose.
 - A low test count means a failure: GdUnit stops a suite at its first failing test.
 
