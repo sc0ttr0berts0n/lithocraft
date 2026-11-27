@@ -1,6 +1,6 @@
 ## The checklist panel (Tab): the Orders' goals, achieved or not yet; the
 ## phase now running with its steps, the next one highlighted with its
-## Station named in its colour and the key that does it; surface control's
+## Station named and the key that does it; surface control's
 ## messages at its foot. The only overlay the crew uses in play. It reads the
 ## simulation and sends nothing; the Habitat sends read_orders() as it opens.
 class_name ChecklistPanel
@@ -11,15 +11,20 @@ const WIDTH := 460.0
 ## How many of surface control's latest messages are shown.
 const MESSAGES_SHOWN := 3
 
-const _DONE_COLOUR := Color("7fbf7f")
-const _MISSED_COLOUR := Color("6a6a6a")
-const _PENDING_COLOUR := Color("c8c8c8")
-const _NEXT_COLOUR := Color("ffffff")
-const _HEADING_COLOUR := Color("ffd0b0")
+## Every colour is the Station colour language's (StationTheme): a reading, so
+## no Station's tint. Done is engaged green; the next step's Station is where
+## the crew aims, so cyan; the rest is white or legend grey.
+const _DONE_COLOUR := StationTheme.ENGAGED_COLOUR
+const _MISSED_COLOUR := StationTheme.LEGEND_COLOUR
+const _PENDING_COLOUR := StationTheme.NOW_COLOUR
+const _NEXT_COLOUR := StationTheme.NOW_COLOUR
+const _HEADING_COLOUR := StationTheme.NOW_COLOUR
+const _STATION_COLOUR := StationTheme.LEGEND_COLOUR
+const _NEXT_STATION_COLOUR := StationTheme.SELECTED_COLOUR
 
 ## The simulation read. Set before _ready.
 var sim: DiveSimulation
-## Each Station's name and colour, by the simulation's name: [title, Color].
+## Each Station's name, by the simulation's name.
 var stations := {}
 
 var _text := RichTextLabel.new()
@@ -28,7 +33,7 @@ var _text := RichTextLabel.new()
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var backing := StyleBoxFlat.new()
-	backing.bg_color = Color(0.02, 0.04, 0.05, 0.88)
+	backing.bg_color = StationTheme.faded(StationTheme.SCREEN_COLOUR, 0.88)
 	backing.set_content_margin_all(14)
 	add_theme_stylebox_override(&"panel", backing)
 	_text.bbcode_enabled = true
@@ -77,8 +82,7 @@ static func text_of(dive: DiveSimulation, station_names: Dictionary) -> String:
 static func _step_line(step: Dictionary, is_next: bool, station_names: Dictionary) -> String:
 	var where := ""
 	if station_names.has(step.station):
-		var named: Array = station_names[step.station]
-		where = "  [color=#%s]%s[/color]" % [named[1].to_html(false), named[0]]
+		where = "  " + _coloured(station_names[step.station], _NEXT_STATION_COLOUR if is_next else _STATION_COLOUR)
 	var key := ""
 	for action: StringName in [step.action, step.also]:
 		if action != &"":

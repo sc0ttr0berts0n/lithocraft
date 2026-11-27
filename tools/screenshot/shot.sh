@@ -3,6 +3,8 @@
 #
 #   GODOT_BIN=<Godot 4.7 console binary> tools/screenshot/shot.sh \
 #       --look <what> --time <seconds> [options]
+#   GODOT_BIN=... tools/screenshot/shot.sh --sheet <list file> [--out, --size,
+#       --tile, --columns]
 #
 #   --look <what>        a Station by the name on its screen (Reactor, Drive,
 #                        Navigation, Thermal, "Bore Station"), seen seated at
@@ -25,9 +27,20 @@
 #   --tilt <degrees>     tilt the look up from what it names (down if negative)
 #   --turn <degrees>     turn the look to the right (left if negative); with
 #                        --tilt, for a look along the Habitat's height
+#   --sheet <list file>  take every shot of a list in one run and tile them
+#                        into one PNG, each under a label with its name. The
+#                        list is plain text, a shot to a line, "<name>: <the
+#                        arguments above, without --out, --size or --sheet>";
+#                        blank lines and lines starting with # are skipped.
+#                        --out defaults to tools/screenshot/out/<list>-sheet.png
+#                        and --size is the size every shot is taken at
+#   --tile <width>       with --sheet: a tile's width on the sheet in pixels
+#                        (default 768; a shot is scaled down to it, never up)
+#   --columns <count>    with --sheet: tiles side by side (default 2)
 #
 # Prints the PNG's path and exits 0; on any failure prints why, leaves no PNG
-# at that path and exits 1. The window opens centred on the developer's second
+# at that path and exits 1; a sheet with a shot that fails is no sheet, and the reason names the
+# shot. The window opens centred on the developer's second
 # monitor (SHOT_MONITOR="<x>,<y>,<width>,<height>" names another); the run is
 # given up after SHOT_TIMEOUT seconds (default 300).
 # How it works and what it cannot show: docs/conventions/running-and-testing.md.
@@ -45,12 +58,13 @@ scenario="First dive"
 look=""
 time=""
 out=""
+sheet=""
 size="1152x648"
 pass=()
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
-    --out|--size|--scenario|--look|--time|--do|--tilt|--turn)
+    --out|--size|--scenario|--look|--time|--do|--tilt|--turn|--sheet|--tile|--columns)
       [ $# -ge 2 ] || fail "$1 needs a value (see --help)"
       case "$1" in
         --out) out="$2" ;;
@@ -58,7 +72,8 @@ while [ $# -gt 0 ]; do
         --scenario) scenario="$2"; pass+=("$1" "$2") ;;
         --look) look="$2"; pass+=("$1" "$2") ;;
         --time) time="$2"; pass+=("$1" "$2") ;;
-        --do|--tilt|--turn) pass+=("$1" "$2") ;;
+        --sheet) sheet="$2" ;;
+        --do|--tilt|--turn|--tile|--columns) pass+=("$1" "$2") ;;
       esac
       shift 2 ;;
     *) pass+=("$1"); shift ;;
@@ -72,6 +87,11 @@ height="${BASH_REMATCH[2]}"
 IFS=, read -r monitor_x monitor_y monitor_w monitor_h <<<"${SHOT_MONITOR:-3840,275,2560,1440}"
 position="$((monitor_x + (monitor_w - width) / 2)),$((monitor_y + (monitor_h - height) / 2))"
 
+if [ -n "$sheet" ]; then
+  [ -f "$sheet" ] || fail "no list of shots at $sheet"
+  [ -n "$out" ] || out="$root/tools/screenshot/out/$(slug "$(basename "${sheet%.*}")")-sheet.png"
+  pass+=(--sheet "$(native "$(cd "$(dirname "$sheet")" && pwd)/$(basename "$sheet")")")
+fi
 if [ -z "$out" ]; then
   out="$root/tools/screenshot/out/$(slug "$scenario")-$(slug "$look")-$(slug "$time").png"
 fi
