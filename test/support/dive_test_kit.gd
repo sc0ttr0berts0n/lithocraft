@@ -35,6 +35,50 @@ static func station_pivot(name: String) -> Vector3:
 	return _Habitat.pivot(station_place(name))
 
 
+## The simulation's name for the Station with this name on its screen
+## (DiveSimulation.STATION_*), or &"".
+static func station_sim_name(name: String) -> StringName:
+	var place := station_place(name)
+	return &"" if place < 0 else _Habitat.STATIONS[place][2]
+
+
+## A Habitat in the suite's tree, freed with the test, that steps only when
+## the test tells it (`habitat._physics_process(STEP)`): the staged Habitat
+## every Habitat-level test starts from. It plays `scenario`, or the First
+## dive.
+static func staged_habitat(suite: GdUnitTestSuite, scenario: Scenario = null) -> Node3D:
+	var habitat: Node3D = suite.auto_free((load("res://view/habitat.tscn") as PackedScene).instantiate())
+	if scenario != null:
+		habitat.scenario = scenario
+	suite.add_child(habitat)
+	habitat.set_physics_process(false)
+	return habitat
+
+
+## The Station of a Habitat with this name on its screen, or null.
+static func station(habitat: Node3D, name: String) -> GimballedStation:
+	for child in habitat.get_children():
+		if child is GimballedStation and (child as GimballedStation).station_name == name:
+			return child
+	return null
+
+
+## Every Station of a Habitat, the empty mount left out, in order round the
+## ring.
+static func stations(habitat: Node3D) -> Array[GimballedStation]:
+	var found: Array[GimballedStation] = []
+	for place in station_places():
+		found.append(station(habitat, station_name(place)))
+	return found
+
+
+## Waits until a screen's Containers have placed its readings: two frames.
+## Call with `await`.
+static func laid_out(suite: GdUnitTestSuite) -> void:
+	await suite.get_tree().process_frame
+	await suite.get_tree().process_frame
+
+
 ## Test values only: plain quartz rock. Defaults are strong enough that the
 ## grip waves never slip at full power.
 static func rock(hardness := 2.0, strength := 2.0, porosity := 0.05) -> Medium:

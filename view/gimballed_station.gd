@@ -351,8 +351,10 @@ static func pose_look() -> float:
 ## This Station's screen as the centre dot sees it (Habitat frame), with its
 ## readings: its header strip (the name first), each status line and the
 ## footer, top to bottom; then its displays if it shows any, left to right;
-## then each of a lone display's instruments, which lie over it (see
-## reading(), is_display(), display_index(), instrument()). An empty mount
+## then each of a lone display's instruments, which lie over it; then the
+## readings inside an instrument made of Controls
+## (StationScreen.instrument_readings()) (see reading(), is_display(),
+## display_index(), instrument()). An empty mount
 ## has no readings. The readings are where the screen's Containers laid them
 ## out, so they are placed only once the Station is in the tree and a frame
 ## has passed.
@@ -369,6 +371,8 @@ func face() -> Pointing.Face:
 		for share in _instrument_shares:
 			face.readings.append(_on_face(Rect2(picture.position + share.position * picture.size,
 					share.size * picture.size)))
+	for inside in _screen.instrument_readings():
+		face.readings.append(_on_face(inside.rect))
 	return face
 
 
@@ -403,13 +407,19 @@ func display_index(index: int) -> int:
 	return d if _screen and d >= 0 and d < _screen.picture_count() else -1
 
 
-## The name of the display's instrument at this index of face().readings
-## (as show_display() was given it), or &"" for anything else.
+## The name of the instrument reading at this index of face().readings: a
+## display's instrument (as show_display() was given it) or a reading inside
+## an instrument made of Controls (as its readings() names it), or &"" for
+## anything else.
 func instrument(index: int) -> StringName:
 	if _screen == null:
 		return &""
 	var i := index - _lines().size() - _screen.picture_count()
-	return _instrument_names[i] if i >= 0 and i < _instrument_names.size() else &""
+	if i >= 0 and i < _instrument_names.size():
+		return _instrument_names[i]
+	var inside := _screen.instrument_readings()
+	i -= _instrument_names.size()
+	return inside[i].name if i >= 0 and i < inside.size() else &""
 
 
 ## The screen's text readings, the header strip first; none on an empty mount.

@@ -27,6 +27,12 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 
+## What the crew can point at: the survey, the whole panel
+## (StationScreen.instrument_readings()).
+func readings() -> Dictionary:
+	return {&"survey": Rect2(Vector2.ZERO, size)}
+
+
 func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), StationTheme.SCREEN_COLOUR)
 	if sim == null:

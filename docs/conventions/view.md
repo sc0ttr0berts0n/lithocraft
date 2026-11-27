@@ -17,11 +17,14 @@
   Held, the Arm sets the pose each frame and the look is kept as a turn in the harness on top of it; while carried, the look eases to the new screen unless the mouse has moved during the carry.
   `CrewMember.view()` is where the eyes look, the centre dot along its -Z.
 - Pointing: `habitat.gd::under_dot()` returns the Station and the index of the reading under the centre dot (or -1 between readings, `{}` for no screen, and the Column in the Bore hides the screens across it).
-  The geometry is `Pointing.under()` over each Station's `GimballedStation.face()`, whose readings are its screen's text top to bottom (the header strip with the name first, each status line, the footer), then its displays left to right, then a lone display's instruments;
+  The geometry is `Pointing.under()` over each Station's `GimballedStation.face()`, whose readings are its screen's text top to bottom (the header strip with the name first, each status line, the footer), then its displays left to right, then a lone display's instruments, then the readings inside an instrument made of Controls;
   `reading(index)` gives a line's text, `is_display(index)` whether it is a display and `display_index(index)` which one, counting from the crew's left (Navigation shows two: the point cloud, then the moving map), `instrument(index)` an instrument's name.
   A display's instruments are passed to `show_display(texture, instruments)` as `{name: Rect2}` in shares of the picture (0 to 1, x across, y down), as `FlightDisplay.instrument_shares()` gives the Drive's.
   A later reading may lie over an earlier one, and the later is the one pointed at.
-  A new kind of reading on a screen (a widget, a gauge) adds its rectangle to `face()` in face coordinates (metres, x the crew's right, y up); `GimballedStation._on_face()` turns a Control's rectangle in the screen's pixels into them.
+  An instrument put in the body by `set_instrument()` names what the crew can point at on it with `readings() -> Dictionary`, `{name: Rect2}` in its own pixels (`ThermalGauge.readings()`, `PlasmaDisplay.readings()`, the Bore Station's two panels);
+  `StationScreen.instrument_readings()` finds every Control in the body that has one, `face()` adds them and `instrument(index)` gives their names, so a new gauge adds only its `readings()`.
+  `pointing_test.gd` seats the crew at each Station of a real Habitat and turns the look (`Habitat.look_onto(point)`) onto a reading inside its instrument.
+  Any other kind of reading adds its rectangle to `face()` in face coordinates (metres, x the crew's right, y up); `GimballedStation._on_face()` turns a rectangle in the screen's pixels into them.
 - Station places: `habitat.gd::STATIONS` is the order round the ring, `place_angle()` / `pivot()` where each hangs (half a place off straight down, so level no Station is straight below or above the Bore).
   Each gimbal hangs `STATION_HANG` in from the outer wall and settles upright with its screen turned to face the Bore (`GimballedStation.settled_cradle()`): the crew work every Station from the Bore side, looking out at it with the wall behind the screen and the Column behind them.
   Tests read this layout data (`preload("res://view/habitat.gd")`), never a copy of it.

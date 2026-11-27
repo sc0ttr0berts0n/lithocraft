@@ -163,6 +163,17 @@ func parts() -> Array[Rect2]:
 	return rects
 
 
+## What the crew can point at on the gauge, each a rectangle in its own
+## pixels (StationScreen.instrument_readings()): the hull's temperature (the
+## readout, the trend, the scale and its marks) and the heat split.
+func readings() -> Dictionary:
+	var rects := parts()
+	return {
+		&"hull_temperature": rects[0].merge(rects[3]),
+		&"heat_split": rects[4].merge(rects[6]),
+	}
+
+
 func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), StationTheme.SCREEN_COLOUR)
 	if sim == null:
