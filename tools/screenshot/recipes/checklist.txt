@@ -1,0 +1,22 @@
+# The Checklist panel (Tab, ChecklistPanel), opened over the look with --checklist, which does not read the
+# orders: its colours (#92), the "Turn and climb" phase's three steps (#73) and surface control's warning
+# that the turn for home deepens (#89), at the panel's foot.
+# From the repo root: tools/screenshot/shot.sh --sheet tools/screenshot/recipes/checklist.txt
+# Colours are the Station colour language's only: done green, the next step and its key white and bold with
+# its Station in cyan, the other steps white with their Station in legend grey, "coming down the link" grey.
+# Debug commands: debug_skip in the last tile (the climb begins some fifteen minutes into the turn).
+
+# Startup at the surface, the orders read and the Reactor's autopilot engaged: two steps done in green,
+# the next (Thermal's autopilot) bold with "Thermal" in cyan, the rest white with their Stations grey.
+startup, two steps done: --look Navigation --time 20 --checklist --do "0 read_orders" --do "1 set_autopilot reactor true"
+
+# In the sandstone above the granite, under way at full power, a climb plotted at 1 s: the Lithocraft is
+# still diving as it begins to come round, and the warning "Turning for home: you will deepen through the
+# turn." has come up the open tunnel to the foot of the panel.
+warned of the turn, still diving: --look Drive --time 30 --checklist --do "0 start_below 300" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "1 set_course 0 -90"
+
+# The same dive, the Reactor's autopilot left off, come round past level near 1000 s: "Turn and climb"
+# running with its three steps, the climb plotted done in green, the Reactor's autopilot for the climb
+# next with "Reactor" in cyan, the turn for home after it. (With the autopilot engaged all three tick at
+# once and the Checklist moves straight on to "Surface".)
+turn and climb, its three steps: --look Drive --time 1010 --checklist --do "0 start_below 300" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "1 set_course 0 -90" --do "2 debug_skip 1000"

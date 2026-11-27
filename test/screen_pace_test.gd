@@ -44,3 +44,86 @@ func test_a_hurry_makes_the_next_frame_due_unwatched() -> void:
 	pace.hurry()
 	assert_bool(pace.due(FRAME, false)).is_true()
 	assert_bool(pace.due(FRAME, false)).is_false()
+
+
+# --- Wired into the Habitat (ticket #136) ----------------------------------
+
+## The Station each paced screen of the Habitat is watched from, by its class.
+## A new paced screen is added here, or the test below fails naming it.
+const PACED_AT := {
+	"SurveyPanel": DiveSimulation.STATION_BORE,
+	"TunnelPanel": DiveSimulation.STATION_BORE,
+	"ThermalGauge": DiveSimulation.STATION_THERMAL,
+	"PlasmaDisplay": DiveSimulation.STATION_REACTOR,
+	"FlightDisplay": DiveSimulation.STATION_DRIVE,
+}
+
+
+## A ScreenPace that counts the frames it found due.
+class _CountingPace extends ScreenPace:
+	var due_frames := 0
+
+	func due(delta: float, watched: bool) -> bool:
+		var is_due := super(delta, watched)
+		if is_due:
+			due_frames += 1
+		return is_due
+
+
+static func _class_of(node: Node) -> String:
+	var script := node.get_script() as Script
+	while script != null:
+		if not script.get_global_name().is_empty():
+			return script.get_global_name()
+		script = script.get_base_script()
+	return ""
+
+
+## Every paced screen under `node`: {name, pace (the screen's own, swapped
+## for a counting one), processor (the node whose _process asks it, taken
+## off the engine's hands so only the test plays its frames), overlay (on the
+## debug overlay, which no Station watches: drawn every frame)}.
+static func _paced_screens(node: Node, found: Array[Dictionary] = [], overlay := false) -> Array[Dictionary]:
+	overlay = overlay or node is DiveView
+	if node.get(&"_pace") is ScreenPace:
+		var pace := _CountingPace.new()
+		node.set(&"_pace", pace)
+		# The Drive's display asks its pace from the canvas inside it.
+		var processor: Node = node.get(&"_canvas") if node is FlightDisplay else node
+		processor.set_process(false)
+		found.append({name = _class_of(node), pace = pace, processor = processor, overlay = overlay})
+	for child in node.get_children(true):
+		_paced_screens(child, found, overlay)
+	return found
+
+
+func test_in_the_habitat_each_screen_is_brought_up_every_frame_at_its_own_station_and_less_often_elsewhere() -> void:
+	var habitat := DiveTestKit.staged_habitat(self)
+	await DiveTestKit.laid_out(self)
+	var sim: DiveSimulation = habitat.simulation()
+	var screens := _paced_screens(habitat)
+	var names := screens.filter(func(s: Dictionary) -> bool: return not s.overlay) \
+			.map(func(s: Dictionary) -> String: return s.name)
+	for name: String in PACED_AT:
+		assert_array(names).override_failure_message("The Habitat has no paced %s" % name).contains([name])
+	for screen in screens:
+		assert_bool(PACED_AT.has(screen.name)).override_failure_message(
+				"%s is paced, but not listed in PACED_AT" % screen.name).is_true()
+	const FRAMES := 60
+	var most_unwatched := int(FRAMES * FRAME / ScreenPace.UNWATCHED_S) + 1
+	for at in DiveSimulation.STATIONS:
+		for station in DiveSimulation.STATIONS:
+			sim.set_attended(station, station == at)
+		for screen in screens:
+			screen.pace.due_frames = 0
+		for frame in FRAMES:
+			for screen in screens:
+				screen.processor._process(FRAME)
+		for screen in screens:
+			var due: int = screen.pace.due_frames
+			if screen.overlay or PACED_AT[screen.name] == at:
+				assert_int(due).override_failure_message("%s, watched from %s, was brought up %d of %d frames" % [
+						screen.name, at, due, FRAMES]).is_equal(FRAMES)
+			else:
+				assert_int(due).override_failure_message("%s, the crew at %s, was brought up %d of %d frames" % [
+						screen.name, at, due, FRAMES]).is_between(1, most_unwatched)

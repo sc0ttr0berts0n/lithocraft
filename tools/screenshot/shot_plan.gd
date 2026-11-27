@@ -45,6 +45,9 @@ var look := &""
 var commands: Array[Dictionary] = []
 var out := ""
 var overlay := false
+## Whether the Checklist panel is open over the look, as Tab opens it, without
+## reading the orders: the shot shows the dive as it is, its panel included.
+var checklist := false
 ## How far the look is turned from what it names, in degrees, the eyes staying
 ## where they are: tilted up (down if negative) and turned to the right (left
 ## if negative) about the view's own up. For a look along the room's height.
@@ -65,6 +68,9 @@ static func parse(arguments: PackedStringArray) -> ShotPlan:
 		i += 1
 		if flag == "--overlay":
 			plan.overlay = true
+			continue
+		if flag == "--checklist":
+			plan.checklist = true
 			continue
 		if not flag in ["--scenario", "--look", "--time", "--do", "--out", "--tilt", "--turn"]:
 			plan.error = "unknown argument '%s'" % flag
@@ -167,9 +173,13 @@ func _send(sim: DiveSimulation, command: Dictionary) -> String:
 ## already do; the Bore gets a camera of its own, and the Column one where
 ## the crew's eyes are at the Bore Station, turned from the screen to look
 ## square at the Bore's axis, up still the crew's up. A tilt or turn is taken
-## from there, by a camera of its own where that one's eyes are.
+## from there, by a camera of its own where that one's eyes are. The
+## Checklist panel, asked for, is opened on the overlay.
 func _frame(habitat: Node3D) -> void:
-	habitat.get_node("Overlay").visible = overlay
+	habitat.get_node("Overlay").visible = overlay or checklist
+	if checklist:
+		var panel: ChecklistPanel = habitat.get(&"_checklist")
+		panel.visible = true
 	if look == LOOK_COLUMN:
 		var eyes := habitat.get_viewport().get_camera_3d()
 		var eye := eyes.global_position

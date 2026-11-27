@@ -182,11 +182,9 @@ const OTHER_SENSES := {
 	},
 	"view/flight_display.gd": {
 		"primary": "the real instrument's name, a primary flight display; not the ACTIVE channel",
-		"indicator": "the real instrument's name, an attitude indicator; not a Caution lamp",
 	},
 	"view/flight_tape.gd": {
 		"primary": "the real instrument's name, a primary flight display; not the ACTIVE channel",
-		"indicator": "the real instrument's name, an attitude indicator; not a Caution lamp",
 	},
 	"view/habitat.gd": {
 		"primary": "the real instrument's name, a primary flight display; not the ACTIVE channel",

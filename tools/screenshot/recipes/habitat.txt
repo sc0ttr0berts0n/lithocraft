@@ -5,7 +5,8 @@
 # end floor is under the ring at the Head end, the Tail end cap over it at the Tail end, neither mid-slide.
 # The slide is a climb's: from 800 m down at full power, steering hard for straight up, the ring sets off
 # as the climb passes 45 degrees, near dive time 2498 s, and takes 6 s.
-# Debug commands: debug_skip in the last two tiles (the climb is forty minutes into the dive).
+# Debug commands: debug_skip in the ring's climb tiles (the climb is forty minutes into the dive), and
+# debug_wear_hull in the hull sparks tile (a hull near failing is far away at any honest pace).
 
 from the floor, in a dive: --look crew --time 5 --tilt 55 --do "0 set_power 0.5"
 from the Arm, at the Drive: --look Drive --time 5 --turn 180 --tilt 30 --do "0 set_power 0.5"
@@ -13,3 +14,9 @@ from the Arm, at the Drive: --look Drive --time 5 --turn 180 --tilt 30 --do "0 s
 ring at the Head end, in a dive: --look bore --time 5 --do "0 set_power 0.5"
 ring mid-slide, in a climb: --look bore --time 2501 --do "0 start_below 800" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "0 set_course 0 -90" --do "1 debug_skip 2400"
 ring at the Tail end, in a climb: --look bore --time 2506 --do "0 start_below 800" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "0 set_course 0 -90" --do "1 debug_skip 2400"
+
+# The hull at its worst (ticket #94): full power with all heat outward overheats the hull by 90 s; worn
+# then to fail within a minute, every spark emitter spits from the outer wall near the crew (all four,
+# checked headless) and the view shakes; turned round from where the dive starts the crew, two sprays and
+# their glow show on the wall behind the Reactor.
+hull sparks, the hull at its worst: --look crew --turn 180 --time 92 --do "0 set_power 1" --do "90 debug_wear_hull 0.97"

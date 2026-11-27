@@ -23,6 +23,11 @@ const _STRANDED_INTO_GRANITE_M := 200.0
 ## lost its plasma left it: worn enough that a relight is a gamble, not a sure
 ## thing. Tuned for play (ADR 0001).
 const _STRANDED_HEAD_WEAR := 0.8
+## Steering, 0 to 1, below which the Head counts as going straight for
+## turning_for_home(): a turn that has settled eases its steering toward
+## nothing but leaves a trace of rounding, never quite zero, and a trace is
+## not a turn. Tuned for play (ADR 0001).
+const _TURNING_STEERING := 0.01
 
 
 ## A goal of the Orders, achieved once its condition has held.
@@ -223,10 +228,13 @@ static func course_is_a_climb() -> Callable:
 ## is plotted and the Drive steers for one, and the Head, cutting below level
 ## and moving, is being steered round. Something the Lithocraft does: a climb
 ## plotted is not a turn until the vessel has begun to come round to it.
+## Steering left over from an earlier turn counts: the Head always bends
+## toward what the Drive steers for now, so it comes round to the climb at
+## once. The trace a settled turn leaves does not (_TURNING_STEERING).
 static func turning_for_home() -> Callable:
 	return when(func(sim: DiveSimulation) -> bool:
 		return sim.course_pitch() < 0.0 and sim.steered_pitch() < 0.0 \
-				and sim.pitch() > 0.0 and sim.speed() > 0.0 and sim.steering() > 0.0)
+				and sim.pitch() > 0.0 and sim.speed() > 0.0 and sim.steering() >= _TURNING_STEERING)
 
 
 # --- The Scenarios -----------------------------------------------------------

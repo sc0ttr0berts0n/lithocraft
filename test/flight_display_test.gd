@@ -83,3 +83,33 @@ func test_an_instrument_on_the_display_s_left_lies_on_the_crew_s_left() -> void:
 	# Face x is the crew's right; face y is up.
 	assert_float(place[&"speed"].get_center().x).is_less(place[&"depth"].get_center().x)
 	assert_float(place[&"heading"].get_center().y).is_less(place[&"attitude"].get_center().y)
+
+
+func test_the_ball_and_its_foot_lie_in_the_attitude_s_box_apart() -> void:
+	var box: Rect2 = FlightDisplay.INSTRUMENTS[&"attitude"]
+	var centre := FlightDisplay.ball_centre(box)
+	var radius := FlightDisplay.ball_radius(box)
+	var foot := FlightDisplay.foot(box)
+	var round_ball := Rect2(centre - Vector2(radius, radius), Vector2(radius, radius) * 2.0)
+
+	assert_bool(box.encloses(round_ball)).is_true()
+	assert_bool(box.encloses(foot)).is_true()
+	assert_float(round_ball.end.y).is_less_equal(foot.position.y)
+
+
+func test_the_deviation_reads_whole_in_the_foot_however_long() -> void:
+	# Issue #133: the flat display's foot cut "OFF COURSE 15 deg down, 3..." off.
+	var width := FlightDisplay.foot(FlightDisplay.INSTRUMENTS[&"attitude"]).size.x - 24.0
+	var font := ThemeDB.fallback_font
+	for words: String in [CourseDeviation.text(15.0, 30.0), CourseDeviation.text(-180.0, -180.0),
+			CourseDeviation.text(90.0, 135.0)]:
+		var size := FlightDisplay.fitting_size(words, width)
+
+		assert_float(font.get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x).is_less_equal(width)
+		assert_int(size).is_greater(FlightDisplay.FONT_LEAST)
+
+
+func test_a_short_deviation_is_written_at_full_size() -> void:
+	var width := FlightDisplay.foot(FlightDisplay.INSTRUMENTS[&"attitude"]).size.x - 24.0
+
+	assert_int(FlightDisplay.fitting_size(CourseDeviation.text(30.0, 0.0), width)).is_equal(FlightDisplay.FONT)

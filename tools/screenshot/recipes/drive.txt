@@ -1,19 +1,22 @@
-# The Drive's screen (FlightDisplay) following the Course and off it, as ticket #65 named, and the lean straight down (#91).
+# The Drive's screen (FlightDisplay) and its attitude ball (#119): following the Course and off it, as ticket #65 named, the lean straight down (#91), and a climb.
 # From the repo root: tools/screenshot/shot.sh --sheet tools/screenshot/recipes/drive.txt
 # Navigation's screen in the same two states is in navigation.txt: the Course and the deviation must match.
-# Debug commands: none.
+# Debug commands: debug_skip, only for the climb, which is otherwise a 2400 s turn away.
 
-# Course 090, 60 deg down, plotted at the start; the Drive turns toward it: "follows the Course" in green.
+# Course 090, 60 deg down, plotted at the start; the Drive turns toward it: the Course's cross on the vessel's mark at the ball's middle, PITCH +60 and COURSE +60 in the top corners, FOLLOWS THE COURSE in green in the foot.
 following the Course: --look Drive --time 30 --do "0 set_power 0.5" --do "0 set_course 90 60"
 
-# Two nudges up at 20 s: the hollow mark 30 deg above the Course's, OFF COURSE 30 deg up.
+# Two nudges up at 20 s: the hollow mark 30 deg above the Course's cross on the Head's meridian, and the foot reads OFF COURSE over 30 deg up.
 off the Course, 30 deg up: --look Drive --time 30 --do "0 set_power 0.5" --do "0 set_course 90 60" --do "20 nudge_pitch -1" --do "20 nudge_pitch -1"
 
-# A nudge down and two to the right: off in both pitch and heading.
+# A nudge down and two to the right: off in both, the hollow mark below and right of the cross, and the foot reads 15 deg down, 30 deg right whole.
 off the Course, down and right: --look Drive --time 30 --do "0 set_power 0.5" --do "0 set_course 90 60" --do "20 nudge_pitch 1" --do "20 nudge_heading 1" --do "20 nudge_heading 1"
 
-# The lean (#91): straight down, two nudges right at 20 s turn only the lean: hollow cyan pointer over the heading tape at 030 and LEAN 030; still Following the Course.
+# The lean (#91): straight down, two nudges right at 20 s turn only the lean: the rock's pole at the middle with the Course's cross on it, a hollow cyan arrow from it toward 030, LEAN 030 in the bottom left corner; still FOLLOWS THE COURSE.
 straight down, leant 030: --look Drive --time 30 --do "0 set_power 0.5" --do "20 nudge_heading 1" --do "20 nudge_heading 1"
 
-# The same lean, then two nudges up at 10 s: the Drive tilts toward 030 (the heading reads 030 once it tilts), OFF COURSE 30 deg up and no lean marker.
+# The same lean, then two nudges up at 10 s: the Drive tilts toward 030 (the heading reads 030 once it tilts), OFF COURSE over 30 deg up, the pole below the middle, no lean arrow.
 tilted toward the lean: --look Drive --time 30 --do "0 set_power 0.5" --do "10 nudge_heading 1" --do "10 nudge_heading 1" --do "10 nudge_pitch -1" --do "10 nudge_pitch -1"
+
+# A climb as habitat.txt reaches one: from 800 m down (start_below), Course 000, 45 deg up, both autopilots that keep the Head alive on, then debug_skip through the turn: the ball mostly the surface's blue, the horizon below the middle, PITCH -45, FOLLOWS THE COURSE.
+in a climb: --look Drive --time 2402 --do "0 start_below 800" --do "0 set_power 0.6" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "0 set_course 0 -45" --do "1 debug_skip 2400"

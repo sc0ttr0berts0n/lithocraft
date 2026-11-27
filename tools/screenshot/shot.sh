@@ -23,6 +23,9 @@
 #                        both ignore)
 #   --overlay            keep the screen-space layer the crew sees (the centre
 #                        notice); the debug overlay stays hidden either way
+#   --checklist          open the Checklist panel (Tab) over the look, with
+#                        surface control's messages at its foot, without
+#                        reading the orders
 #   --size <W>x<H>       the window's and the PNG's size (default 1152x648)
 #   --tilt <degrees>     tilt the look up from what it names (down if negative)
 #   --turn <degrees>     turn the look to the right (left if negative); with
