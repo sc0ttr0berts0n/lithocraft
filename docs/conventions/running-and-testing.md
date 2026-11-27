@@ -39,6 +39,8 @@ CI: `.github/workflows/ci.yml` runs on every push to `dev` and every pull reques
 It fetches the Linux Godot binary named by its `GODOT_VERSION` (cached between runs), then runs `./test.sh`, then `tools/ci/smoke.sh res://view/habitat.tscn`, then `tools/ci/smoke.sh` for the main scene; the first failure turns the job red.
 A pull request merges into `dev` only on a green job.
 
+Cost budget: `tools/cost/cost.sh`, no part of `./test.sh`; see `cost-budget.md`.
+
 Ad-hoc checks: prefer a headless check when a window isn't needed.
 For a look at the game, `tools/screenshot/shot.sh` takes one PNG of a Scenario run to a dive time; from Git Bash at the repo root, with `GODOT_BIN` set as for the tests:
 `tools/screenshot/shot.sh --scenario "First dive" --look Reactor --time 120 --out /c/tmp/reactor-120.png`.
