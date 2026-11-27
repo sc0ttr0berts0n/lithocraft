@@ -15,7 +15,7 @@ Grilled with the developer on 27 November 2026, following 16-glide-and-scan.md, 
   "Should it need to be flown manually with a need to keep it on target or you experience wear?"
   Real basis: a supercavitating body is unstable inside its bubble and must be steered the whole way; where it touches the bubble's wall it is slapped and damaged.
   Rock that is harder on one side pushes the vessel off its line; the Drive's crew holds it with nudges, and the Head and hull wear only while it is off.
-  Whether the Drive's autopilot may hold it, loosely, is the last open question.
+  The Drive's autopilot may hold it too, loosely, at the cost of a little wear, so a lone crew member can glide while working another Station (developer: yes).
 - **The Drive's attitude display becomes a ball** (developer: "Kerbal's nav ball likely understands what we're doing pretty well").
   It shows the Course, what the Drive steers for and the lean marker at the pole, with no dead spot when vertical; in a Glide it shows the line to hold.
 - **The time rate after a warning.**
@@ -38,3 +38,13 @@ Grilled with the developer on 27 November 2026, following 16-glide-and-scan.md, 
 - **Round 4 is built now and played with round 3 (developer).**
   "Let's fold these non-competing features together in the next playtest, no stop."
   The next checkpoint's play test covers rounds 3 and 4 together; the pick among the three scan views is made in that play test, so the Sweep is drawn in all three.
+- **The First dive keeps its shape and gains the loop; the Glide gets an early tutorial (developer).**
+  The survey is in the scan from the start, the Orders name one target in the granite, found with the Sweep and crawled through, and the climb home through rock already surveyed is a Glide.
+  "I wouldn't mind a glide scenario in an early tutorial": a short Glide drill sits early on the start menu.
+- **The scan says what kind of rock lies ahead, as far as sound can know (developer's question).**
+  "With all of the pulsing, there is no real visual or indication of rock type. What's that about? Any plan for that?"
+  There was none: the scan showed points by confidence and nothing of the rock.
+  Real basis: an echo's strength and polarity give the contrast in acoustic impedance across a Boundary, so a seismic survey tells harder from softer and denser from more porous rock, and never a mineral's name.
+  Each Inferred Boundary carries the scan's estimate of the rock beyond it relative to the rock before, as sure as its patch and wrong by an error that shrinks with confidence, shown in the space between Boundaries.
+  Surface control's survey names the rock it expects as a guess; only the Column confirms a name.
+- **The spec is #113; its tickets are #91 and #115 to #128.**
