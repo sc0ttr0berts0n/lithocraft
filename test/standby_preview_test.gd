@@ -101,6 +101,23 @@ func test_the_guess_drawn_is_its_true_component_summed_with_the_spurious_sines()
 	assert_float(sizes.max()).is_less_equal(guess.y + sim.wobble_ahead_spurious() + 1e-4)
 
 
+func test_a_channels_waves_at_once_are_its_waves_moment_by_moment_scanned_or_not() -> void:
+	for sim: DiveSimulation in [_unscanned(), _poorly_scanned()]:
+		DiveTestKit.tune(sim, ACTIVE, DiveTestKit.wobble(sim) * Vector2(1.1, 0.8))
+		sim.advance(0.1)
+		for channel: StringName in [ACTIVE, STANDBY]:
+			var waves := sim.waves(channel, 3.0, 12)
+			assert_int((waves.wobble as PackedFloat64Array).size()).is_equal(13)
+			for i in 13:
+				var t := -3.0 + i * 0.25
+				assert_float(waves.wobble[i]).is_equal_approx(sim.wobble_wave(channel, t), 1e-9)
+				assert_float(waves.counter[i]).is_equal_approx(sim.counter_wave(channel, t), 1e-9)
+				var residual := sim.residual_wave(channel, t)
+				assert_bool(is_nan(waves.residual[i])).is_equal(is_nan(residual))
+				if not is_nan(residual):
+					assert_float(waves.residual[i]).is_equal_approx(residual, 1e-9)
+
+
 func test_more_pulses_sharpen_the_guess() -> void:
 	var sim := _poorly_scanned()
 	var before := sim.wobble_ahead_confidence()

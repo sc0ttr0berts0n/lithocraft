@@ -15,6 +15,10 @@
   or `station.show_display(texture, instruments)` / `show_displays(textures)` for a picture drawn in its own `SubViewport` (a 3D display, or one not yet moved onto Controls), which keeps its shape, centred in the body.
   Size such a viewport from `StationScreen.body_size(lines)`, the body's pixels over that many status lines.
   A Station should come to look its own by its instrument; the name in the header is the fallback.
+- **A screen the crew is not at draws less** (`ScreenPace`, `view/screen_pace.gd`): an instrument that redraws itself does so every frame while the crew is at its Station (`attended()`), and every `ScreenPace.UNWATCHED_S` (0.1 s, to the frame) while they are not, so a changed reading is on a watched screen the next frame and on any other within that.
+  Each instrument asks `_pace.due_at(delta, sim, station)` in its `_process` and calls `_pace.hurry()` when it is resized, so a new size is drawn at once; a panel shown off any Station (the debug overlay's) names none and draws every frame.
+  The Reactor's, the Drive's, the Thermal's and the Bore Station's instruments are paced; Navigation's keep their own pace (`screen-navigation.md`) and the Column is no Station's.
+  A shot repeats byte for byte all the same: the simulation does not move while it is drawn, and the first frame always draws.
 - **Status lines** go through `station.show_lines(lines)` every frame from the Habitat's `_show_<station>()`: each line a String (white) or `[text, meaning]`, the meaning one of `StationTheme`'s.
   `show_reading(text)` is the same with every line white.
 - **Caution lamps** (`GLOSSARY.md`) are declared in `CautionLamps.of(sim, station)` (`view/caution_lamps.gd`): one line per lamp, its label and the simulation query that lights it.

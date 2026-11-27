@@ -1569,11 +1569,7 @@ func steadiness_causes() -> Array[StringName]:
 ## the scan's guess of the Wobble ahead, its true component summed with its
 ## spurious sines (those alone with no scan of the Boundary ahead).
 func wobble_wave(channel: StringName, seconds: float) -> float:
-	if channel == CHANNEL_ACTIVE:
-		return _plasma.wobble_wave(_wobble(), seconds)
-	var guess := _look.guess()
-	var spurious := guess.spurious_wave(_plasma.clock(seconds))
-	return spurious + (_plasma.wobble_wave(guess.wobble, seconds) if guess.has_wobble() else 0.0)
+	return _wobble_wave_at(channel, _wobble(), _look.guess(), seconds)
 
 
 ## A channel's Counter-wave as a wave, `seconds` from now, against its Wobble
@@ -1582,10 +1578,7 @@ func wobble_wave(channel: StringName, seconds: float) -> float:
 ## the guess's true component; with no scan of the Boundary ahead it has
 ## nothing to lock to and is a plain wave at its own frequency.
 func counter_wave(channel: StringName, seconds: float) -> float:
-	var wobble := _wobble_for(channel)
-	if is_nan(wobble.x):
-		return _plasma.counter_wave_alone(channel, seconds)
-	return _plasma.counter_wave_against(channel, wobble, seconds)
+	return _counter_wave_at(channel, _wobble_for(channel), seconds)
 
 
 ## A channel's Residual as a wave, `seconds` from now: its Wobble summed with
@@ -1597,6 +1590,50 @@ func residual_wave(channel: StringName, seconds: float) -> float:
 	if is_nan(_wobble_for(channel).x):
 		return NAN
 	return wobble_wave(channel, seconds) + counter_wave(channel, seconds)
+
+
+## A channel's three waves at once, as the Reactor screen draws them: at
+## `steps` + 1 moments evenly from `span_s` seconds ago to now, oldest first,
+## {wobble, counter, residual}, each a PackedFloat64Array of what
+## wobble_wave(), counter_wave() and residual_wave() give at that moment
+## (residual all NAN with no scan of the Boundary ahead). The Wobble and the
+## scan's guess are looked up once, so a call costs `steps` moments of a few
+## sines each (and the guess's spurious sines on STANDBY), however long the
+## dive.
+func waves(channel: StringName, span_s: float, steps: int) -> Dictionary:
+	var wobble := _wobble()
+	var guess := _look.guess()
+	var against := wobble if channel == CHANNEL_ACTIVE else guess.wobble
+	var wobbles := PackedFloat64Array()
+	var counters := PackedFloat64Array()
+	var residuals := PackedFloat64Array()
+	var count := maxi(steps, 1) + 1
+	wobbles.resize(count)
+	counters.resize(count)
+	residuals.resize(count)
+	for i in count:
+		var seconds := -span_s * (1.0 - float(i) / (count - 1))
+		var wave := _wobble_wave_at(channel, wobble, guess, seconds)
+		var counter := _counter_wave_at(channel, against, seconds)
+		wobbles[i] = wave
+		counters[i] = counter
+		residuals[i] = NAN if is_nan(against.x) else wave + counter
+	return {wobble = wobbles, counter = counters, residual = residuals}
+
+
+## wobble_wave(), given the Wobble now and the scan's guess.
+func _wobble_wave_at(channel: StringName, wobble: Vector2, guess: WobbleGuess, seconds: float) -> float:
+	if channel == CHANNEL_ACTIVE:
+		return _plasma.wobble_wave(wobble, seconds)
+	var spurious := guess.spurious_wave(_plasma.clock(seconds))
+	return spurious + (_plasma.wobble_wave(guess.wobble, seconds) if guess.has_wobble() else 0.0)
+
+
+## counter_wave(), given the Wobble the channel is read against.
+func _counter_wave_at(channel: StringName, against: Vector2, seconds: float) -> float:
+	if is_nan(against.x):
+		return _plasma.counter_wave_alone(channel, seconds)
+	return _plasma.counter_wave_against(channel, against, seconds)
 
 
 ## How hard the Head is running, 0 (idle, Quiet Ship) to 1 (running).
