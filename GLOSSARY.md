@@ -160,6 +160,10 @@ _Avoid_: AI, auto mode, unattended
 The short account of a reading opened by pointing at it: what it is, what it reads now, and what it asks of the crew.
 _Avoid_: Tooltip, help, manual
 
+**Master acknowledge**:
+The one key, anywhere, that silences every Station call now sounding; the call lights stay lit, and a call sounds again only if its reason changes or it grows more urgent.
+_Avoid_: Mute, dismiss, snooze
+
 **Caution lamp**:
 A labelled lamp on a Station's screen, lit while one cause is pulling its system down.
 _Avoid_: Flag, warning (for a caution), bulb, indicator

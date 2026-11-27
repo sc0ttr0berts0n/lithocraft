@@ -55,3 +55,12 @@ Grilled with the developer on 27 November 2026, following 16-glide-and-scan.md, 
   The climb's two Boundaries are taken by the Reactor's autopilot: one step in "Turn and climb", "Engage the Reactor's autopilot for the climb", ticked while it is engaged.
   That is an agent's choice (the orchestrator's, the developer away), until #128 makes the climb a Glide, which crosses Boundaries with no Shift.
   Measured by the follower, both ways surfaced and paid: on the autopilot the Head wore 7.6% and the dive paid 4804; with a pulse, pretune, Shift and tune step at each Boundary on the climb (eight steps, not built) it wore 0.9% and paid 4853.
+- **Calls as built (#115): agents' choices, the developer away.**
+  The master acknowledge is the / key, anywhere, beside the time keys (, and .); every letter is already a Station's, and an acknowledge followed by a raised rate is one movement of the hand.
+  It is the simulation's: `acknowledge_calls()` is a crew command, and each call is sounding or not (`call_sounding()`).
+  "Grows more urgent" is a rise of a quarter of the urgency scale since the acknowledge, so a call creeping along its range sounds again once at most (a Boundary near its crossing, a feature about to leave through the Tail) and one that worsens sharply sounds at once; a call that ends and comes back is a new call.
+  The only call that is not a warning is a feature in the Column; every other call drops the time rate when it sounds anew, as the developer listed.
+  The chime is one beat of the Bore Station's own tone when a feature's call begins; after it, and for any acknowledged call, the light stays lit, steady and silent, dimmer than a beat's flash.
+  While any call sounds, every screen's footer names the key.
+  The Boundary call's quiet reads STANDBY's predicted Residual against the Band and the Boundary countdown, both the scan's, so a misleading scan can hold it back.
+  The Checklist follower now keeps the normal time rate while its phase has a feature still to observe: at a raised rate the sand's feature came and went between two looks once its call stopped holding the clock. It never acknowledges, since no step says to; the warnings that held it at x1 before still do.

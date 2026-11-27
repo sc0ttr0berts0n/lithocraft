@@ -247,7 +247,8 @@ func test_the_sand_steps_tick_as_each_is_done() -> void:
 	assert_str(DiveTestKit.step_state(sim, &"quiet_off")).is_equal(DiveSimulation.STEP_DONE)
 
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"observe")
-	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return not s.features_in_column().is_empty(), 600.0, 0.5)).is_true()
+	# At the normal rate: a feature's call leaves the time rate alone (#115), so at a raised one it can pass between steps.
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return not s.features_in_column().is_empty(), 600.0, 0.5, false)).is_true()
 	assert_str(DiveTestKit.step_state(sim, &"observe")).is_equal(DiveSimulation.STEP_PENDING)
 	sim.set_observed_feature(sim.features_in_column()[0].id)
 	sim.advance(0.1)
@@ -265,7 +266,7 @@ func _through_the_sand() -> DiveSimulation:
 	sim.advance(0.1)
 	sim.set_quiet_ship(false)
 	sim.advance(0.1)
-	DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return not s.features_in_column().is_empty(), 600.0, 0.5)
+	DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return not s.features_in_column().is_empty(), 600.0, 0.5, false)
 	sim.set_observed_feature(sim.features_in_column()[0].id)
 	sim.advance(0.1)
 	return sim
