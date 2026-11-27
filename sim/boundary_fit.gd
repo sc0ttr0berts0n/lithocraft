@@ -51,8 +51,10 @@ const _AHEAD_SAME_M := 10.0
 ## confidence). Of the patches the line meets ahead, it is the nearest that
 ## is at least _AHEAD_SHARE as sure as the surest, with the like patches just
 ## beyond it: their mean distance, and the confidence of the surest of them.
-## Vector2(INF, 0) when the line meets none.
-static func ahead(patches: Array[BoundaryPatch], origin: Vector3, direction: Vector3) -> Vector2:
+## Vector2(INF, 0) when the line meets none. Patches nearer than `from` metres
+## along the line are left out, as those behind the origin are.
+static func ahead(patches: Array[BoundaryPatch], origin: Vector3, direction: Vector3,
+		from := 0.0) -> Vector2:
 	var hits: Array[Vector2] = []
 	var surest := 0.0
 	for patch in patches:
@@ -60,7 +62,7 @@ static func ahead(patches: Array[BoundaryPatch], origin: Vector3, direction: Vec
 		if is_zero_approx(closing):
 			continue
 		var metres := patch.normal.dot(patch.centre - origin) / closing
-		if metres < 0.0:
+		if metres < from:
 			continue
 		var off := origin + direction * metres - patch.centre
 		if absf(off.x) > patch.size.x * 0.5 + _AHEAD_REACH_M \

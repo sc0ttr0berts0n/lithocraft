@@ -1,4 +1,4 @@
-## The scan's guess of the Wobble in the Medium beyond the Boundary ahead:
+## The scan's guess of the Wobble in the rock beyond the Boundary ahead:
 ## what STANDBY's lane previews. A sum of sines: the true Wobble, placed off
 ## the truth in frequency and amplitude by an error, and spurious sines beside
 ## it. Both the error and the spurious sines shrink as the Inferred Boundary
@@ -11,7 +11,8 @@
 ## reinforces the coherent echo while incoherent ones cancel, so more and
 ## cleaner returns sharpen the estimate.
 ##
-## Plain data, made by of(); DiveSimulation holds one and answers for it.
+## Plain data, made by of(); the look-ahead (LookAhead) holds one and the
+## simulation answers for it.
 ## Which way a Boundary's guess errs, and its spurious sines, are fixed by
 ## the Boundary (`boundary_seed`), so a guess only ever sharpens or blurs
 ## with its confidence and never jitters.
@@ -81,6 +82,15 @@ static func _error(random: RandomNumberGenerator) -> float:
 ## True when the guess has a true component: the Boundary ahead is scanned.
 func has_wobble() -> bool:
 	return not is_nan(wobble.x)
+
+
+## The spurious sines summed as a wave at `time` seconds on the plasma's
+## clock.
+func spurious_wave(time: float) -> float:
+	var total := 0.0
+	for sine in spurious:
+		total += sine.y * sin(TAU * sine.x * time + sine.z)
+	return total
 
 
 ## The spurious sines' amplitudes summed: the most they add to the guess.

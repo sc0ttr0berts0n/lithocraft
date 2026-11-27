@@ -230,3 +230,94 @@ func test_stopped_the_boundary_is_never_reached() -> void:
 
 	assert_float(sim.speed()).is_equal(0.0)
 	assert_bool(is_inf(sim.boundary_countdown())).is_true()
+
+
+# --- The scan alone ---------------------------------------------------------------
+
+## Test values only: rock that sounds exactly like the soft rock (as hard and
+## as open, so the Boundary between them returns no echo) and cuts as fast,
+## but is stronger, so its Wobble is another.
+func _soft_twin() -> Medium:
+	return Medium.new(&"twin", 1.0, 5.0, 0.3, 300.0, 1.0, {&"quartz": 1.0}, 0.6)
+
+
+## Two dives given the same commands over ground that returns the same echoes:
+## soft rock down to hard rock at 140 m, and the same with a Boundary the scan
+## cannot see, into the soft rock's twin, at 60 m. Both scanned alike from the
+## same depth and under way again.
+func _alike_to_the_scan() -> Array[DiveSimulation]:
+	var dives: Array[DiveSimulation] = []
+	for layers in [[[0.0, _soft()], [140.0, _hard()]],
+			[[0.0, _soft()], [60.0, _soft_twin()], [140.0, _hard()]]]:
+		var sim := DiveSimulation.new(MediumLayout.layered(layers))
+		sim.set_power(0.5)
+		DiveTestKit.run(sim, 5.0, 0.1)
+		DiveTestKit.quiet_scan(sim, 6)
+		DiveTestKit.run(sim, 5.0, 0.1)
+		dives.append(sim)
+	return dives
+
+
+func test_the_same_points_give_the_same_confidence_and_countdown_whatever_the_ground_really_is() -> void:
+	var dives := _alike_to_the_scan()
+	var plain := dives[0]
+	var hidden := dives[1]
+	assert_int(hidden.point_count()).is_equal(plain.point_count())
+	assert_float(hidden.depth()).is_equal(plain.depth())
+
+	assert_float(plain.wobble_ahead_confidence()).is_greater(0.0)
+	assert_float(hidden.wobble_ahead_confidence()).is_equal(plain.wobble_ahead_confidence())
+	assert_bool(is_inf(plain.boundary_countdown())).is_false()
+	assert_float(hidden.boundary_countdown()).is_equal(plain.boundary_countdown())
+	assert_float(hidden.boundary_countdown_doubt()).is_equal(plain.boundary_countdown_doubt())
+
+
+func test_the_scan_can_mislead_an_inferred_boundary_far_from_the_next_real_one_is_still_counted_down_to() -> void:
+	var hidden := _alike_to_the_scan()[1]
+	var to_the_next_boundary := (60.0 - hidden.depth()) / hidden.speed()
+
+	# The countdown is to where the scan put a Boundary, well beyond the one
+	# the Head will meet first, and the guess is as sure as that scan.
+	assert_float(hidden.boundary_countdown()).is_greater(to_the_next_boundary * 1.5)
+	assert_bool(is_nan(hidden.wobble_ahead_frequency())).is_false()
+	# The Boundary nobody saw comes first all the same.
+	var crossed := DiveTestKit.run_until(hidden, &"boundary_crossed")
+	assert_str(String(crossed.to)).is_equal("twin")
+
+
+func test_the_countdown_does_not_wait_at_due_for_a_boundary_it_cannot_know_of() -> void:
+	# Two dives the scan cannot tell apart, run on side by side: until a
+	# crossing is felt in one of them, their countdowns stay the same.
+	var dives := _alike_to_the_scan()
+	var plain := dives[0]
+	var hidden := dives[1]
+
+	var steps := 0
+	while hidden.medium().name == &"soft" and steps < 6000:
+		assert_float(hidden.boundary_countdown()).is_equal(plain.boundary_countdown())
+		assert_float(hidden.wobble_ahead_confidence()).is_equal(plain.wobble_ahead_confidence())
+		plain.advance(0.1)
+		hidden.advance(0.1)
+		steps += 1
+
+	assert_str(String(hidden.medium().name)).is_equal("twin")
+
+
+func test_past_the_last_boundary_the_guess_never_has_a_wobble_of_no_frequency() -> void:
+	# A scan made in noise puts the Boundary a little off where it is; past
+	# it, with no Boundary left ahead, whatever the scan still shows ahead
+	# must never read as a confident Wobble of 0 Hz.
+	for pulses in range(1, 7):
+		var sim := _dive()
+		for i in pulses:
+			sim.pulse()
+			sim.advance(0.5)
+		assert_dict(DiveTestKit.run_until(sim, &"boundary_crossed")).is_not_empty()
+
+		for i in 600:
+			DiveTestKit.cancel_wobble(sim)
+			sim.advance(0.1)
+			var frequency := sim.wobble_ahead_frequency()
+			assert_bool(is_nan(frequency) or frequency > 0.0) \
+					.override_failure_message("a guess of %f Hz, confidence %f" % [frequency, sim.wobble_ahead_confidence()]) \
+					.is_true()
