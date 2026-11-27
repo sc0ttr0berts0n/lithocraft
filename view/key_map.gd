@@ -52,6 +52,8 @@ const BINDINGS: Array[Dictionary] = [
 	{where = DiveSimulation.STATION_NAVIGATION, keys = [KEY_J, KEY_L], does = "Course heading -/+15 deg", action = &"plot_heading_step"},
 	{where = DiveSimulation.STATION_NAVIGATION, keys = [KEY_P], does = "pulse", action = &"pulse"},
 	{where = DiveSimulation.STATION_NAVIGATION, keys = [KEY_Q], does = "Quiet Ship", action = &"quiet_ship"},
+	{where = DiveSimulation.STATION_NAVIGATION, keys = [KEY_B, KEY_N], does = "Beam wider / narrower", action = &"beam_width"},
+	{where = DiveSimulation.STATION_NAVIGATION, keys = [KEY_O], does = "Beam pulses by itself on / off", action = &"beam_pulsing"},
 	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_E], does = "autopilot on / off", action = &"autopilot_drive"},
 	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_T, KEY_G], does = "throttle +/-10%", action = &"power_step"},
 	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_Y, KEY_H], does = "steering effort +/-10%", action = &"effort_step"},

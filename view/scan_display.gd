@@ -3,12 +3,15 @@
 ## key until one is picked (DiveSimulation.scan_view(), the forward scope
 ## when a dive starts). Each shows the same things from the same queries: the
 ## vessel, the Course (dashed cyan), the projected path (solid cyan), the
-## points and the Inferred Boundaries.
+## Beam's cone at its width (faint cyan, out to its reach), the points and the
+## Inferred Boundaries; a label in the lower left names the Beam's width.
 ##
 ##   forward scope     the vessel's own vertical plane with ahead up the
 ##                     screen and range rings about the Head, as a
 ##                     forward-looking sonar's fan; a plumb line shows where
-##                     down is, and a turn bends the way it does on the map
+##                     down is, and a turn bends the way it does on the map;
+##                     its range steps (SCOPE_RANGES_M) to keep the nearest
+##                     Inferred Boundary ahead in view, only on a pulse
 ##   plan and section  a top-down view beside a side-on one, ahead to the
 ##                     right in both and at one scale; nothing in 3D
 ##   world-up 3D       the cloud seen from above the vessel's right side and
@@ -25,7 +28,9 @@
 ##
 ## Reads only the simulation: scan_view() and scan_views() for the candidate;
 ## points(), point_age() and pulses_sent() for the cloud; inferred_boundaries()
-## and patch_age() for the surfaces fitted to it; head_position(), heading()
+## and patch_age() for the surfaces fitted to it (and BoundaryFit.ahead() of
+## them for the scope's range); beam_width(), beam_half_angle() and
+## beam_reach() for the Beam's cone; head_position(), heading()
 ## and heading_degrees() for the vessel; course_direction() for the Course;
 ## projected_path() for where this turn takes the vessel.
 class_name ScanDisplay
@@ -58,8 +63,8 @@ const SURFACE_COLOUR := StationTheme.NOW_COLOUR
 const SURFACE_EDGE_ALPHA := 0.9
 const SURFACE_MOST_ALPHA := 0.3
 const SURFACE_LEAST_FACE_PX := 12.0
-## Range marks: a ring, a grid line or a tick of the plumb line every this
-## many metres.
+## Range marks: a grid line or a tick of the plumb line every this many
+## metres (the forward scope's rings go with its range, SCOPE_RANGES_M).
 const TICK_M := 50.0
 ## The Course line: how far out it reaches, metres, its dashes in pixels, and
 ## its colour (cyan: what the crew has selected, apart from the vessel's
@@ -77,10 +82,20 @@ const VESSEL_PX := 9.0
 const PROJECTED_PATH_FRAMES := 15
 const REDRAW_FRAMES := 2
 
-## The forward scope: the furthest range it shows ahead, metres, and how far
-## down the pane the vessel sits (a share), leaving a little room behind it.
-const SCOPE_RANGE_M := 260.0
+## The forward scope: the ranges it steps between, the furthest it shows
+## ahead, metres, each with its ring spacing, nearest first; the share of a
+## range the nearest Inferred Boundary ahead may lie at before the scope steps
+## out to the next; and how far down the pane the vessel sits (a share),
+## leaving a little room behind it. With no Boundary ahead it shows the
+## furthest. The vessel's heading line is a share of the range.
+const SCOPE_RANGES_M: Array[Vector2] = [Vector2(60.0, 10.0), Vector2(120.0, 25.0), Vector2(260.0, 50.0)]
+const SCOPE_KEEP_SHARE := 0.75
 const SCOPE_VESSEL_AT := 0.84
+const SCOPE_HEADING_SHARE := 0.12
+## The Beam's cone: drawn faint, what the crew has selected; its edges reach
+## to the Beam's reach.
+const BEAM_COLOUR := StationTheme.SELECTED_COLOUR
+const BEAM_ALPHA := 0.45
 ## The plan and section pair, side by side at one scale: the metres the
 ## section shows under the vessel, where the vessel sits across both and down
 ## the section (shares; in the plan it is half way down), and the plan's
@@ -115,6 +130,9 @@ var _over := Control.new()
 var _points: Array[ScanPoint] = []
 var _patches: Array[BoundaryPatch] = []
 var _pulses_shown := -1
+## The forward scope's range and ring spacing, metres (one of
+## SCOPE_RANGES_M), stepped only when a pulse changes the scan.
+var _scope := SCOPE_RANGES_M[-1]
 var _projected := PackedVector3Array()
 var _frames_to_projection := 0
 var _frames_to_redraw := 0
@@ -151,6 +169,7 @@ func _process(_delta: float) -> void:
 		_pulses_shown = sim.pulses_sent()
 		_points = sim.points()
 		_patches = sim.inferred_boundaries()
+		_scope = scope_range(BoundaryFit.ahead(_patches, sim.head_position(), sim.heading()).x)
 	_frames_to_redraw -= 1
 	if _frames_to_redraw > 0:
 		return
@@ -172,6 +191,40 @@ func caption() -> String:
 	var views := sim.scan_views()
 	return "%s  %d/%d  %s next" % [title(sim.scan_view()), views.find(sim.scan_view()) + 1,
 			views.size(), KeyMap.label(&"scan_view")]
+
+
+## The Beam's width and cone, written in the display's lower left corner over
+## every view: "BEAM NARROW 30 deg".
+func beam_label() -> String:
+	return "BEAM %s %d deg" % [String(sim.beam_width()).to_upper(), roundi(2.0 * sim.beam_half_angle())]
+
+
+## The forward scope's range for an Inferred Boundary this many metres ahead
+## along the heading (INF for none): the nearest of SCOPE_RANGES_M that holds
+## it within SCOPE_KEEP_SHARE of its reach, or the furthest. Vector2(range,
+## ring spacing), metres.
+static func scope_range(boundary_ahead_m: float) -> Vector2:
+	for scope in SCOPE_RANGES_M:
+		if boundary_ahead_m <= scope.x * SCOPE_KEEP_SHARE:
+			return scope
+	return SCOPE_RANGES_M[-1]
+
+
+## The forward scope's range shown now and its ring spacing, metres: changed
+## only when a pulse changes the scan, never between pulses.
+func scope_shown() -> Vector2:
+	return _scope
+
+
+## Pixels per metre on the forward scope, in a pane this big, at this range.
+static func scope_scale(pane: Vector2, range_m: float) -> float:
+	return (pane.y * SCOPE_VESSEL_AT - 22.0) / range_m
+
+
+## The size of the pane a single-pane view (the forward scope, world-up) is
+## drawn in: the whole display under the caption.
+func single_pane() -> Vector2:
+	return Vector2(size.x, size.y - CAPTION_PX)
 
 
 # --- Where a place in the world lies on the screen ---------------------------
@@ -246,11 +299,13 @@ func _lay_out_panes() -> void:
 		(_panes[i].get_child(0) as Control).size = rects[i].size
 
 
-## The caption, and a rule round each pane.
+## The caption, the Beam's width, and a rule round each pane.
 func _draw_over() -> void:
 	var font := ThemeDB.fallback_font
 	_over.draw_string(font, Vector2(6.0, CAPTION_PX - 8.0), caption(), HORIZONTAL_ALIGNMENT_LEFT,
 			size.x - 12.0, FONT_SIZE, StationTheme.LEGEND_COLOUR)
+	_over.draw_string(font, Vector2(8.0, size.y - 8.0), beam_label(), HORIZONTAL_ALIGNMENT_LEFT,
+			size.x - 16.0, FONT_SIZE, StationTheme.SELECTED_COLOUR)
 	for pane in _panes:
 		if pane.visible:
 			_over.draw_rect(Rect2(pane.position, pane.size).grow(-1.0), StationTheme.RULE_COLOUR, false, 2.0)
@@ -266,11 +321,11 @@ func _draw_pane(canvas: Control, index: int) -> void:
 	match sim.scan_view():
 		DiveSimulation.SCAN_VIEW_FORWARD_SCOPE:
 			var vessel := Vector2(area.x * 0.5, area.y * SCOPE_VESSEL_AT)
-			var scale := (vessel.y - 22.0) / SCOPE_RANGE_M
+			var scale := scope_scale(area, _scope.x)
 			var place := func(offset: Vector3) -> Vector2:
 				return vessel + scope_place(offset, heading, bearing) * scale
 			_draw_scope_marks(canvas, vessel, scale, place)
-			_draw_scan(canvas, place)
+			_draw_scan(canvas, place, _scope.x * SCOPE_HEADING_SHARE)
 		DiveSimulation.SCAN_VIEW_PLAN_AND_SECTION:
 			var scale := area.y * (1.0 - PAIR_VESSEL_AT.y) / PAIR_BELOW_M
 			if index == 0:
@@ -299,9 +354,11 @@ func _draw_pane(canvas: Control, index: int) -> void:
 ## What every view shows, through its own `place` (a place from the Head, in
 ## metres, to the pane's pixels): the Inferred Boundaries, the points, the
 ## Course, the projected path and the vessel, in that order, so the vessel
-## and what the crew has selected are never under the rock.
-func _draw_scan(canvas: Control, place: Callable) -> void:
+## and what the crew has selected are never under the rock; the Beam's cone
+## first, under everything. The vessel's heading line is `heading_m` long.
+func _draw_scan(canvas: Control, place: Callable, heading_m := HEADING_M) -> void:
 	var head := sim.head_position()
+	_draw_beam(canvas, place)
 	for patch in _patches:
 		var sureness := patch.confidence * exp(-sim.patch_age(patch) / FADE_S)
 		var corners := PackedVector2Array()
@@ -331,7 +388,27 @@ func _draw_scan(canvas: Control, place: Callable) -> void:
 		coming.append(place.call(step - head))
 	if coming.size() > 1:
 		canvas.draw_polyline(coming, StationTheme.PROJECTED_PATH_COLOUR, 2.5)
-	_draw_vessel(canvas, vessel, place.call(sim.heading() * HEADING_M))
+	_draw_vessel(canvas, vessel, place.call(sim.heading() * heading_m))
+
+
+## The Beam's cone at its width, as two fans from the Head out to its reach:
+## one in the vessel's vertical plane (the scope's and the section's), one
+## square across it (the plan's), each its two edges and the arc between.
+## Every view draws both through its own `place`; one seen edge-on is a line
+## along the heading.
+func _draw_beam(canvas: Control, place: Callable) -> void:
+	var heading := sim.heading()
+	var right := _right(sim.heading_degrees())
+	var half := deg_to_rad(sim.beam_half_angle())
+	var reach := sim.beam_reach()
+	var colour := StationTheme.faded(BEAM_COLOUR, BEAM_ALPHA)
+	for square: Vector3 in [right.cross(heading).normalized(), right]:
+		var fan := PackedVector2Array([place.call(Vector3.ZERO)])
+		for i in 17:
+			var angle := lerpf(-half, half, i / 16.0)
+			fan.append(place.call((heading * cos(angle) + square * sin(angle)) * reach))
+		fan.append(fan[0])
+		canvas.draw_polyline(fan, colour, 1.5)
 
 
 ## The vessel: its heading line and an arrowhead along it; seen end-on (the
@@ -350,11 +427,13 @@ func _draw_vessel(canvas: Control, vessel: Vector2, heading_end: Vector2) -> voi
 			vessel - facing * VESSEL_PX * 0.6 - side * VESSEL_PX * 0.6]), VESSEL_COLOUR)
 
 
-## The forward scope's marks: range rings about the Head, each with its
-## range, the fan's centre line, and a plumb line to where down is.
+## The forward scope's marks: range rings about the Head at the range's ring
+## spacing, each second one with its range, the fan's centre line, and a
+## plumb line to where down is.
 func _draw_scope_marks(canvas: Control, vessel: Vector2, scale: float, place: Callable) -> void:
-	for ring in range(1, ceili(canvas.size.length() / (TICK_M * scale))):
-		var range_m := ring * TICK_M
+	var tick_m := _scope.y
+	for ring in range(1, ceili(canvas.size.length() / (tick_m * scale))):
+		var range_m := ring * tick_m
 		canvas.draw_arc(vessel, range_m * scale, 0.0, TAU, 96, StationTheme.RULE_COLOUR, 1.5)
 		if ring % 2 == 0 and vessel.x + range_m * scale < canvas.size.x:
 			_label(canvas, vessel + Vector2(range_m * scale - 40.0, FONT_SIZE), "%d" % roundi(range_m))
@@ -364,12 +443,12 @@ func _draw_scope_marks(canvas: Control, vessel: Vector2, scale: float, place: Ca
 	var down: Vector2 = (place.call(Vector3.DOWN) as Vector2) - vessel
 	if down.length() > 0.0:
 		down = down.normalized()
-		var reach := (SCOPE_RANGE_M - TICK_M * 0.5) * scale
+		var reach := (_scope.x - tick_m * 0.5) * scale
 		canvas.draw_line(vessel, vessel + down * reach, StationTheme.LEGEND_COLOUR, 1.0)
 		var square := Vector2(-down.y, down.x)
-		for tick in range(1, floori(reach / (TICK_M * scale)) + 1):
-			canvas.draw_line(vessel + down * tick * TICK_M * scale - square * 5.0,
-					vessel + down * tick * TICK_M * scale + square * 5.0, StationTheme.LEGEND_COLOUR, 1.5)
+		for tick in range(1, floori(reach / (tick_m * scale)) + 1):
+			canvas.draw_line(vessel + down * tick * tick_m * scale - square * 5.0,
+					vessel + down * tick * tick_m * scale + square * 5.0, StationTheme.LEGEND_COLOUR, 1.5)
 		var label_at := vessel + down * reach + Vector2(-66.0, 6.0)
 		label_at.x = clampf(label_at.x, 6.0, canvas.size.x - 64.0)
 		label_at.y = clampf(label_at.y, 2.0 * FONT_SIZE + 6.0, canvas.size.y - 6.0)

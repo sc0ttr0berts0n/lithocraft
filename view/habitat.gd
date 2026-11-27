@@ -101,7 +101,7 @@ const UPLOAD_PRIORITIES: Array[StringName] = [
 const BORE_PANEL_ZOOM := 1.7
 ## The status lines each Station's screen usually shows under its instrument:
 ## what its pictures' viewports are sized for (StationScreen.body_size()).
-const NAVIGATION_LINES := 4
+const NAVIGATION_LINES := 5
 ## The debug menu's steps: wear per press (hull or Head), and time skipped.
 const DEBUG_WEAR_STEP := 0.1
 const DEBUG_SKIP_S := 300.0
@@ -454,6 +454,19 @@ func _key_quiet_ship(_index: int) -> void:
 	_sim.set_quiet_ship(not _sim.quiet_ship())
 
 
+## Navigation: the Beam one width wider (B) / narrower (N), stopping at the
+## widest and the narrowest.
+func _key_beam_width(index: int) -> void:
+	var widths := DiveSimulation.BEAM_WIDTHS
+	var at := clampi(widths.find(_sim.beam_width()) + int(_minus_plus(index)), 0, widths.size() - 1)
+	_sim.set_beam_width(widths[at])
+
+
+## Navigation: the switch that pulses the Beam by itself as the vessel moves.
+func _key_beam_pulsing(_index: int) -> void:
+	_sim.set_beam_pulsing(not _sim.beam_pulsing())
+
+
 ## Drive: power up (T) / down (G).
 func _key_power_step(index: int) -> void:
 	_set_power(_power_setting - _minus_plus(index) * POWER_STEP)
@@ -737,7 +750,8 @@ func _course_line() -> Array:
 ## Navigation's status lines, under its point cloud and moving map (which
 ## show the Course): the Course plotted, whether the Drive follows it or how
 ## far off it steers (the Drive's own words, CourseDeviation), how quiet the
-## vessel is, the points heard and its power.
+## vessel is and the points heard, the Beam's width, reach and switch, and its
+## power.
 func _show_navigation() -> void:
 	_navigation.show_lines([
 		_course_line(),
@@ -745,8 +759,17 @@ func _show_navigation() -> void:
 				if _sim.overriding() else ["Drive follows the Course", StationTheme.ENGAGED],
 		"%s  noise %d%%  %d points" % ["QUIET SHIP" if _sim.quiet_ship() else "under way",
 			roundi(_sim.noise() * 100.0), _sim.point_count()],
+		[_beam_line(_sim), StationTheme.SELECTED],
 		_power_line(_sim.navigation_request(), _sim.navigation_draw()),
 	])
+
+
+## Navigation's line for the Beam: its width and cone, how far it reaches in
+## the rock the Head is in, and whether it pulses by itself or by hand.
+static func _beam_line(sim: DiveSimulation) -> String:
+	return "Beam %s  %d deg  reach %d m  %s" % [String(sim.beam_width()).to_upper(),
+			roundi(2.0 * sim.beam_half_angle()), roundi(sim.beam_reach()),
+			"pulses as it goes" if sim.beam_pulsing() else "by hand only"]
 
 
 ## A Station's power as a status line: set against actual, as shares of the

@@ -39,6 +39,8 @@ The files are numbered in the order their sections were decided; each line gives
 - [design/16-glide-and-scan.md](design/16-glide-and-scan.md): The Glide, Calls and the time rate, The scan, Triage of round 3's design questions. Read for the Glide and its costs, which calls hold the time rate, the master acknowledge, the Beam and the Sweep, the surface's survey, targets, or how #89 to #93 were decided.
 - [design/17-glide-and-scan-round-3.md](design/17-glide-and-scan-round-3.md): How the Glide is flown, the Sweep's shape, and when it is built. Read for the Glide as a straight run flown by hand, the ball display, the spiral Sweep and the aimed Beam, the time rate after a warning, the Checklist's pulse and trim steps, or why round 4 is played with round 3; Boundaries as wavy surfaces, as built (#116). Add round 4's decisions here.
 
+- [design/18-round-4-as-built.md](design/18-round-4-as-built.md): Round 4, as built. Read for the agent's choices in round 4's tickets: the Beam's three widths, its pulsing by ground, its keys, how its width shows and the forward scope's stepped ranges (#117). Add round 4's as-built bullets here.
+
 ## Open
 
 - [design/not-yet-designed.md](design/not-yet-designed.md): Not yet designed. Read before designing anything new, and add to it whatever a decision parks.
