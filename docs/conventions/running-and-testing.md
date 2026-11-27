@@ -15,6 +15,12 @@ Scene smoke check: `"$GODOT_BIN" --headless --path . res://view/habitat.tscn --q
 Success prints nothing after the engine's version line.
 Any script error is a real failure.
 The same without the scene path runs the main scene, the start menu, which should print nothing.
+`tools/ci/smoke.sh [scene]` runs either one and exits 1 if Godot exits non-zero or prints an error; Godot itself exits 0 after a script or parse error, so the exit code alone proves nothing.
+A warning, such as leaked ObjectDB instances at exit, passes.
+
+CI: `.github/workflows/ci.yml` runs on every push to `dev` and every pull request into `dev`.
+It fetches the Linux Godot binary named by its `GODOT_VERSION` (cached between runs), then runs `./test.sh`, then `tools/ci/smoke.sh res://view/habitat.tscn`, then `tools/ci/smoke.sh` for the main scene; the first failure turns the job red.
+A pull request merges into `dev` only on a green job.
 
 Ad-hoc checks: prefer a headless check when a window isn't needed.
 For a look at the game, `tools/screenshot/shot.sh` takes one PNG of a Scenario run to a dive time; from Git Bash at the repo root, with `GODOT_BIN` set as for the tests:

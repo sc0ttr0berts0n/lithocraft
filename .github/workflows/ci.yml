@@ -1,0 +1,61 @@
+name: CI
+
+# The guardrail on dev: the whole suite, then the two scene smoke checks.
+# See "Running" in docs/conventions/running-and-testing.md.
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: 4.7.2-stable
+
+jobs:
+  check:
+    name: Suite and scene smoke checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache the Godot binary
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-${{ env.GODOT_VERSION }}-linux.x86_64
+
+      - name: Fetch Godot
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot
+          curl -fsSL -o /tmp/godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d ~/godot
+
+      - name: Point GODOT_BIN at it
+        run: |
+          bin="$HOME/godot/Godot_v${GODOT_VERSION}_linux.x86_64"
+          chmod +x "$bin"
+          "$bin" --version
+          echo "GODOT_BIN=$bin" >> "$GITHUB_ENV"
+
+      # Checks that need no Godot run (a lint, the docs check) go here, before the suite.
+
+      - name: Suite
+        run: ./test.sh
+
+      - name: Smoke check, the Habitat scene
+        run: tools/ci/smoke.sh res://view/habitat.tscn
+
+      - name: Smoke check, the main scene
+        run: tools/ci/smoke.sh
