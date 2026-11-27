@@ -166,6 +166,14 @@ static func standby_pretuned() -> Callable:
 		return sim.residual(DiveSimulation.CHANNEL_STANDBY) <= sim.band())
 
 
+## Holds while the scan shows the Boundary ahead: there is an Inferred
+## Boundary along the Head's direction, and so a guess of the Wobble beyond
+## it for STANDBY to be pretuned against. What the simulation sees, however
+## many pulses it took.
+static func scan_shows_boundary_ahead() -> Callable:
+	return when(func(sim: DiveSimulation) -> bool: return not is_nan(sim.wobble_ahead_frequency()))
+
+
 ## Holds while the Head is in a Medium of this name.
 static func in_medium(medium_name: StringName) -> Callable:
 	return when(func(sim: DiveSimulation) -> bool: return sim.medium().name == medium_name)
@@ -285,10 +293,12 @@ static func first_dive() -> Scenario:
 
 	var first_boundary := Phase.new("The first Boundary", on_event(&"boundary_approaching"))
 	first_boundary.steps = [
+		_pulse_for_the_boundary(&"pulse_boundary"),
 		Step.new(&"pretune_standby", "Pretune standby for the %s" % middle.name, DiveSimulation.STATION_REACTOR,
 				&"tune_frequency", standby_pretuned()).and_also(&"tune_amplitude"),
 		Step.new(&"shift", "Shift as the Head crosses", DiveSimulation.STATION_REACTOR,
 				&"shift", shift_in(middle.name)),
+		_tune_active(&"tune_active", middle.name),
 	]
 
 	var sandstone := Phase.new(String(middle.name).capitalize(), settled_in(middle.name))
@@ -298,10 +308,12 @@ static func first_dive() -> Scenario:
 		Step.new(&"upload", "Send everything aboard up the link before the %s seals the tunnel" % bottom.name,
 				DiveSimulation.STATION_BORE, &"link", when(func(sim: DiveSimulation) -> bool:
 					return sim.uploading() and not sim.tunnel_sealed() and sim.unsold_survey().is_empty())),
+		_pulse_for_the_boundary(&"pulse_boundary_granite"),
 		Step.new(&"pretune_standby_granite", "Pretune standby for the %s" % bottom.name, DiveSimulation.STATION_REACTOR,
 				&"tune_frequency", standby_pretuned()).and_also(&"tune_amplitude"),
 		Step.new(&"shift_granite", "Shift into the %s" % bottom.name, DiveSimulation.STATION_REACTOR,
 				&"shift", shift_in(bottom.name)),
+		_tune_active(&"tune_active_granite", bottom.name),
 	]
 
 	var granite := Phase.new(String(bottom.name).capitalize(), settled_in(bottom.name))
@@ -317,6 +329,11 @@ static func first_dive() -> Scenario:
 	turn.steps = [
 		Step.new(&"plot_climb", "Plot the Course: climb. The Lithocraft goes forward only, so the way home is a turn",
 				DiveSimulation.STATION_NAVIGATION, &"plot_pitch", course_is_a_climb()),
+		# The Shifts down let the Reactor's autopilot go, and the climb crosses
+		# both Boundaries again with no Shift asked: engaged, it tunes ACTIVE
+		# through them, at some wear of the Head.
+		Step.new(&"reactor_autopilot_climb", "Engage the Reactor's autopilot for the climb: it tunes active through the Boundaries above",
+				DiveSimulation.STATION_REACTOR, &"autopilot_reactor", _autopilot_on(DiveSimulation.STATION_REACTOR)),
 		Step.new(&"climbing", "Turn for home: the Drive follows the Course round, and deepens through the turn before it rises",
 				DiveSimulation.STATION_DRIVE, &"", climbing()),
 	]
@@ -381,6 +398,7 @@ static func shift_drill() -> Scenario:
 				&"tune_frequency", standby_pretuned()).and_also(&"tune_amplitude"),
 		Step.new(&"shift", "Shift as the Head crosses", DiveSimulation.STATION_REACTOR,
 				&"shift", shift_in(below.name)),
+		_tune_active(&"tune_active", below.name),
 	]
 	s.phases = [reactor]
 
@@ -488,6 +506,24 @@ static func stranded_in_the_granite() -> Scenario:
 static func _relight(lit: bool) -> Callable:
 	return on_event(&"relight_result", func(event: Dictionary, _sim: DiveSimulation) -> bool:
 		return (event.outcome == &"lit") == lit)
+
+
+## The step before a pretune: pulse until the scan shows the Boundary ahead,
+## so STANDBY has a guess of the Wobble beyond it. It ticks on what the scan
+## shows, not on a count of pulses: at once if an earlier scan already does.
+static func _pulse_for_the_boundary(id: StringName) -> Step:
+	return Step.new(id, "Pulse until Navigation shows the Boundary ahead", DiveSimulation.STATION_NAVIGATION,
+			&"pulse", scan_shows_boundary_ahead())
+
+
+## The step after a Shift into the Medium of this name: STANDBY was pretuned
+## against a guess, so the Shift may leave the Residual outside the Band, and
+## a Shift lets the Reactor's autopilot go; the crew tunes ACTIVE until the
+## Residual is inside the Band there. It ticks at once after a Shift that
+## already left it inside.
+static func _tune_active(id: StringName, medium_name: StringName) -> Step:
+	return Step.new(id, "Select active and tune it until the Residual is inside the Band",
+			DiveSimulation.STATION_REACTOR, &"tune_frequency", settled_in(medium_name)).and_also(&"tune_amplitude")
 
 
 static func _autopilot_on(station: StringName) -> Callable:

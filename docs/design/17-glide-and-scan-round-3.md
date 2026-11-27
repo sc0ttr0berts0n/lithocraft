@@ -48,3 +48,10 @@ Grilled with the developer on 27 November 2026, following 16-glide-and-scan.md, 
   Each Inferred Boundary carries the scan's estimate of the rock beyond it relative to the rock before, as sure as its patch and wrong by an error that shrinks with confidence, shown in the space between Boundaries.
   Surface control's survey names the rock it expects as a guess; only the Column confirms a name.
 - **The spec is #113; its tickets are #91 and #115 to #128.**
+- **The First dive's Checklist through its Boundaries, as built (#73).**
+  The Checklist follower (`test/checklist_follower_test.gd`) plays the First dive from the Checklist alone, and first lost the plasma 13 m into the granite: no step asked for a scan before "Pretune standby for the granite", and the first Shift had let the Reactor's autopilot go.
+  Developer, 27 November 2026: before each pretune, "Pulse until Navigation shows the Boundary ahead", ticked when the scan has a guess of the Wobble ahead; after each Shift, "Select active and tune it until the Residual is inside the Band", ticked when it is, in the Medium entered.
+  Both are built for the First dive's two Boundaries down; the Shift drill has the tuning step only, since its start state sends the pulse.
+  The climb's two Boundaries are taken by the Reactor's autopilot: one step in "Turn and climb", "Engage the Reactor's autopilot for the climb", ticked while it is engaged.
+  That is an agent's choice (the orchestrator's, the developer away), until #128 makes the climb a Glide, which crosses Boundaries with no Shift.
+  Measured by the follower, both ways surfaced and paid: on the autopilot the Head wore 7.6% and the dive paid 4804; with a pulse, pretune, Shift and tune step at each Boundary on the climb (eight steps, not built) it wore 0.9% and paid 4853.

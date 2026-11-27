@@ -49,6 +49,26 @@ func test_every_pretune_step_names_both_of_the_reactors_tuning_controls() -> voi
 	assert_int(pretunes).is_greater(3)
 
 
+func test_the_first_dive_asks_for_a_scan_before_each_pretune_and_for_active_tuned_after_each_shift() -> void:
+	var scenario := Scenario.first_dive()
+	var shifts := 0
+	for phase in scenario.phases:
+		for i in phase.steps.size():
+			if phase.steps[i].action != &"shift":
+				continue
+			shifts += 1
+			# Pulse until the scan shows the Boundary, pretune, Shift, tune ACTIVE.
+			assert_str(phase.steps[i - 2].action).override_failure_message("no pulse step before the pretune of %s" % phase.steps[i].id).is_equal(&"pulse")
+			assert_str(phase.steps[i - 2].station).is_equal(DiveSimulation.STATION_NAVIGATION)
+			assert_str(String(phase.steps[i - 1].id)).starts_with("pretune_standby")
+			var after: Scenario.Step = phase.steps[i + 1]
+			assert_str(String(after.id)).starts_with("tune_active")
+			assert_str(after.station).is_equal(DiveSimulation.STATION_REACTOR)
+			assert_array([after.action, after.also]).contains_exactly_in_any_order([&"tune_frequency", &"tune_amplitude"])
+	# One Shift for each Boundary the Orders take the dive down through.
+	assert_int(shifts).is_equal(scenario.layout.boundary_depths().filter(func(depth: float) -> bool: return depth <= scenario.orders[0].target_depth).size())
+
+
 ## Public commands of DiveSimulation that are not the crew stating an
 ## intention, each with why. Every other public command is sent by
 ## _state_every_intention(), which finds them by reflection, so a new crew
@@ -336,6 +356,16 @@ func test_a_shift_drill_shift_that_leaves_the_residual_outside_the_band_is_not_c
 	DiveTestKit.shift_to(sim, DiveTestKit.wobble(sim) * Vector2(1.5, 1.0))
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"shift")).is_equal(DiveSimulation.STEP_DONE)
+	assert_bool(DiveTestKit.achieved(sim, &"clean_shift")).is_false()
+	# The Shift let the Reactor's autopilot go, so the Checklist asks the crew
+	# to tune ACTIVE until the Residual is inside the Band.
+	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"tune_active")
+	sim.advance(1.0)
+	assert_str(DiveTestKit.step_state(sim, &"tune_active")).is_equal(DiveSimulation.STEP_PENDING)
+	DiveTestKit.cancel_wobble(sim)
+	sim.advance(0.1)
+	assert_str(DiveTestKit.step_state(sim, &"tune_active")).is_equal(DiveSimulation.STEP_DONE)
+	# Tuning ACTIVE afterwards does not make the Shift a clean one.
 	assert_bool(DiveTestKit.achieved(sim, &"clean_shift")).is_false()
 
 
