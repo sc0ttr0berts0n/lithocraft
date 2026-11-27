@@ -93,9 +93,9 @@ static func sentence(outcome: Dictionary) -> String:
 static func _plasma_lost(by: StringName) -> String:
 	match by:
 		&"disrupted":
-			return "a rough Shift on a worn Head disrupted the plasma"
+			return "a Residual far outside the Band disrupted the plasma on a worn Head"
 		&"worn_through":
-			return "a poor Shift wore the Head through and lost the plasma"
+			return "a Residual outside the Band wore the Head through and lost the plasma"
 		&"scenario":
 			return "a worn Head had lost its plasma"
 		&"debug":

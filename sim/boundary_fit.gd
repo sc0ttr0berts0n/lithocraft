@@ -32,6 +32,61 @@ const _LEVEL_PULL_M2 := 2.0
 ## The narrowest a patch is drawn across the ground, metres, so a patch of
 ## points in a line still shows. ADR 0001: tuned.
 const _MIN_SIDE_M := 2.0
+## How far past a patch's edge, across the ground, a line still counts as
+## meeting it, metres (ahead()): patches cover only the ground their points
+## span, so neighbours leave gaps. ADR 0001: tuned, half a cell.
+const _AHEAD_REACH_M := 8.0
+## The share of the surest patch's confidence that a nearer patch on the line
+## needs to be taken for the Boundary ahead (ahead()): a few stray echoes
+## short of a well-supported surface are not it. ADR 0001: tuned.
+const _AHEAD_SHARE := 0.5
+## Patches the line meets within this many metres beyond the nearest are
+## taken for the same surface (ahead()). ADR 0001: tuned; wider than a
+## tilted patch's error at its edge, narrower than the Media's layers.
+const _AHEAD_SAME_M := 10.0
+
+
+## The Inferred Boundary ahead of `origin` along `direction` (a unit vector),
+## from these patches alone: Vector2(metres to it along the line, its
+## confidence). Of the patches the line meets ahead, it is the nearest that
+## is at least _AHEAD_SHARE as sure as the surest, with the like patches just
+## beyond it: their mean distance, and the confidence of the surest of them.
+## Vector2(INF, 0) when the line meets none. Patches nearer than `from` metres
+## along the line are left out, as those behind the origin are.
+static func ahead(patches: Array[BoundaryPatch], origin: Vector3, direction: Vector3,
+		from := 0.0) -> Vector2:
+	var hits: Array[Vector2] = []
+	var surest := 0.0
+	for patch in patches:
+		var closing := patch.normal.dot(direction)
+		if is_zero_approx(closing):
+			continue
+		var metres := patch.normal.dot(patch.centre - origin) / closing
+		if metres < from:
+			continue
+		var off := origin + direction * metres - patch.centre
+		if absf(off.x) > patch.size.x * 0.5 + _AHEAD_REACH_M \
+				or absf(off.z) > patch.size.y * 0.5 + _AHEAD_REACH_M:
+			continue
+		hits.append(Vector2(metres, patch.confidence))
+		surest = maxf(surest, patch.confidence)
+	var nearest := INF
+	for hit in hits:
+		if hit.y >= surest * _AHEAD_SHARE:
+			nearest = minf(nearest, hit.x)
+	if is_inf(nearest):
+		return Vector2(INF, 0.0)
+	# Neighbouring patches of the one surface each put it a little
+	# differently: their mean, weighted by confidence, is the better figure.
+	var weight := 0.0
+	var metres := 0.0
+	var confidence := 0.0
+	for hit in hits:
+		if hit.y >= surest * _AHEAD_SHARE and hit.x - nearest <= _AHEAD_SAME_M:
+			weight += hit.y
+			metres += hit.x * hit.y
+			confidence = maxf(confidence, hit.y)
+	return Vector2(metres / weight, confidence)
 
 
 ## The patches the points imply, in no order. No points, no patches.

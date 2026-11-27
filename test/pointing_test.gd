@@ -146,25 +146,32 @@ func test_the_column_in_the_bore_hides_the_screens_across_it() -> void:
 	assert_int(with_no_column.get("face", -1)).is_equal(3)
 
 
-## A Station built outside the tree, its screen and text made as in the
-## Habitat (_ready builds them; nothing here needs the tree).
+func _picture() -> Texture2D:
+	return ImageTexture.create_from_image(Image.create(8, 4, false, Image.FORMAT_RGB8))
+
+
+## A Station in the tree, its screen made as in the Habitat and laid out
+## (its readings are placed by the screen's Containers).
 func _station(display: bool) -> GimballedStation:
 	var station: GimballedStation = auto_free(GimballedStation.new())
 	station.station_name = "Test"
-	station._ready()
+	add_child(station)
 	if display:
-		station.show_display(ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGB8)))
+		station.show_display(_picture())
 	station.show_reading("first\nsecond")
+	await DiveTestKit.laid_out(self)
 	return station
 
 
 func test_a_screens_readings_are_its_lines_top_to_bottom_then_its_display() -> void:
 	for display in [false, true]:
-		var station := _station(display)
+		var station := await _station(display)
 
-		var readings := station.face().readings
+		var face := station.face()
+		var readings := face.readings
 
-		# The first line is the name, with the autopilot's caption beside it.
+		# The first line is the header strip: the name, with the autopilot's
+		# caption beside it.
 		var lines := ["Test", "first", "second"]
 		assert_int(readings.size()).is_equal(lines.size() + (1 if display else 0))
 		for i in lines.size():
@@ -173,21 +180,27 @@ func test_a_screens_readings_are_its_lines_top_to_bottom_then_its_display() -> v
 			else:
 				assert_str(station.reading(i)).is_equal(lines[i])
 			assert_bool(station.is_display(i)).is_false()
+			assert_bool(face.bounds.grow(0.001).encloses(readings[i])).is_true()
 			if i > 0:
 				assert_float(readings[i].end.y).is_less_equal(readings[i - 1].position.y + 0.0001)
 		if display:
+			# The display is the Station's instrument: in the body of the
+			# frame, under the header strip and over the status lines.
+			var picture := readings[lines.size()]
 			assert_bool(station.is_display(lines.size())).is_true()
-			assert_float(readings[lines.size()].end.y).is_less_equal(readings[lines.size() - 1].position.y + 0.0001)
+			assert_bool(face.bounds.grow(0.001).encloses(picture)).is_true()
+			assert_float(picture.end.y).is_less_equal(readings[0].position.y + 0.0001)
+			assert_float(picture.position.y).is_greater_equal(readings[1].end.y - 0.0001)
 
 
 func test_displays_side_by_side_are_each_a_reading_pointed_at_left_to_right() -> void:
 	var station: GimballedStation = auto_free(GimballedStation.new())
 	station.station_name = "Test"
-	station._ready()
-	var picture := ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGB8))
-	var pictures: Array[Texture2D] = [picture, picture]
+	add_child(station)
+	var pictures: Array[Texture2D] = [_picture(), _picture()]
 	station.show_displays(pictures)
 	station.show_reading("first")
+	await DiveTestKit.laid_out(self)
 	var face := station.face()
 	var faces: Array[Pointing.Face] = [face]
 	var eye := station.pose().origin
@@ -205,8 +218,60 @@ func test_displays_side_by_side_are_each_a_reading_pointed_at_left_to_right() ->
 	assert_bool(face.readings[lines].intersects(face.readings[lines + 1])).is_false()
 
 
+## The index in a Station's face().readings of its instrument's reading with
+## this name, or -1.
+func _instrument_reading(station: GimballedStation, name: StringName) -> int:
+	for i in station.face().readings.size():
+		if station.instrument(i) == name:
+			return i
+	return -1
+
+
+func test_in_the_habitat_the_centre_dot_names_a_reading_inside_every_stations_instrument() -> void:
+	var habitat := DiveTestKit.staged_habitat(self)
+	habitat.simulation().set_power(0.5)
+	# Seated at each Station in turn, the look turned onto a reading inside
+	# its instrument: the Reactor's Head wear, the Drive's speed, Thermal's
+	# hull temperature and the Bore Station's survey are readings by name,
+	# Navigation's point cloud a display.
+	for wanted: Array in [["Reactor", &"head_wear"], ["Reactor", &"standby"], ["Drive", &"speed"],
+			["Thermal", &"hull_temperature"], ["Thermal", &"heat_split"],
+			["Bore Station", &"survey"], ["Bore Station", &"tunnel"], ["Navigation", &""]]:
+		var station := DiveTestKit.station(habitat, wanted[0])
+		habitat.seat_at(DiveTestKit.station_sim_name(wanted[0]))
+		for i in 3:
+			habitat._physics_process(1.0 / 60.0)
+		await DiveTestKit.laid_out(self)
+		var face := station.face()
+		var index := _instrument_reading(station, wanted[1]) if wanted[1] != &"" \
+				else _first_display(station)
+		assert_int(index).override_failure_message("%s has no reading %s" % wanted).is_greater_equal(0)
+		if index < 0:
+			continue
+		var centre := face.readings[index].get_center()
+
+		habitat.look_onto(face.transform * Vector3(centre.x, centre.y, 0.0))
+		var under: Dictionary = habitat.under_dot()
+
+		assert_object(under.get("station")).is_same(station)
+		assert_int(under.get("reading", -1)).is_equal(index)
+		assert_bool(face.bounds.grow(0.001).encloses(face.readings[index])).is_true()
+		if wanted[1] == &"":
+			assert_bool(station.is_display(under.reading)).is_true()
+		else:
+			assert_str(String(station.instrument(under.reading))).is_equal(String(wanted[1]))
+
+
+## The index in a Station's face().readings of its first display, or -1.
+func _first_display(station: GimballedStation) -> int:
+	for i in station.face().readings.size():
+		if station.is_display(i):
+			return i
+	return -1
+
+
 func test_each_line_of_text_is_pointed_at_from_the_working_pose() -> void:
-	var station := _station(true)
+	var station := await _station(true)
 	var face := station.face()
 	var faces: Array[Pointing.Face] = [face]
 	var eye := station.pose().origin
@@ -214,3 +279,19 @@ func test_each_line_of_text_is_pointed_at_from_the_working_pose() -> void:
 		var under := Pointing.under(eye, _toward(eye, face, face.readings[i].get_center()), faces, BORE_RADIUS)
 
 		assert_int(under.reading).is_equal(i)
+
+
+func test_no_reading_floats_off_the_screen_whatever_a_station_shows() -> void:
+	var station := await _station(true)
+	var lines := PackedStringArray()
+	for i in 14:
+		lines.append("A line of a Station's reading, long enough to run wide %d" % i)
+	station.footer = "Time x1"
+	station.show_reading("\n".join(lines))
+	await DiveTestKit.laid_out(self)
+
+	var face := station.face()
+
+	assert_int(face.readings.size()).is_equal(14 + 3)
+	for reading in face.readings:
+		assert_bool(face.bounds.grow(0.001).encloses(reading)).is_true()

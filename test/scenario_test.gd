@@ -35,6 +35,74 @@ func test_every_scenario_has_orders_and_a_checklist_of_distinct_steps() -> void:
 				ids.append(step.id)
 
 
+func test_every_pretune_step_names_both_of_the_reactors_tuning_controls() -> void:
+	var pretunes := 0
+	for scenario in Scenario.all():
+		for phase in scenario.phases:
+			for step in phase.steps:
+				if not String(step.id).begins_with("pretune_standby"):
+					continue
+				pretunes += 1
+				assert_array([step.action, step.also]).override_failure_message(
+						"%s: %s names %s and %s" % [scenario.title, step.id, step.action, step.also]
+				).contains_exactly_in_any_order([&"tune_frequency", &"tune_amplitude"])
+	assert_int(pretunes).is_greater(3)
+
+
+## Every command that states what the crew intends and by itself moves
+## nothing, sent to this dive.
+static func _state_every_intention(sim: DiveSimulation) -> void:
+	sim.read_orders()
+	sim.set_course(0.0, 90.0)
+	sim.set_course(0.0, 0.0)
+	sim.set_course(0.0, -90.0)
+	sim.nudge_pitch(1.0)
+	sim.nudge_heading(1.0)
+	sim.set_power(1.0)
+	sim.set_steering_effort(1.0)
+	sim.set_heat_split(0.5)
+	sim.set_uploading(true)
+	sim.set_quiet_ship(true)
+	sim.pulse()
+	# The Reactor's selector and its two controls, on STANDBY: nothing of the
+	# plasma moves until a swap.
+	sim.select_channel(DiveSimulation.CHANNEL_ACTIVE)
+	sim.select_channel(DiveSimulation.CHANNEL_STANDBY)
+	sim.tune_frequency(sim.wobble_frequency() * 1.5)
+	sim.tune_amplitude(sim.wobble_amplitude() * 0.5)
+	sim.set_upload_priority(DiveSimulation.UPLOAD_MOST_VALUABLE_FIRST)
+	for station in DiveSimulation.STATIONS:
+		sim.set_autopilot(station, true)
+
+
+func test_no_phase_begins_early_on_what_the_crew_only_intends() -> void:
+	# Lists every early trigger of every Scenario (ticket #59). Each is tried
+	# against the crew's intentions alone, the dive not yet run: a trigger
+	# must be something the simulation reports the dive doing.
+	var triggers := {}
+	for scenario in Scenario.all():
+		var sim := scenario.start()
+		sim.take_events()
+		_state_every_intention(sim)
+		var intentions := sim.take_events()
+		assert_array(DiveTestKit.types(intentions)).contains([&"course_plotted", &"orders_read"])
+		var titles := []
+		for phase in scenario.phases:
+			if not phase.begins_when.is_valid():
+				continue
+			titles.append(phase.title)
+			assert_bool(phase.begins_when.call(sim, intentions)) \
+				.override_failure_message("%s: \"%s\" begins on an intention, not on what the Lithocraft does" % [scenario.title, phase.title]) \
+				.is_false()
+		triggers[scenario.title] = titles
+	# A new early trigger is added here, and so read against the rule.
+	assert_dict(triggers).is_equal({
+		"First dive": ["Sand", "The first Boundary", "Sandstone", "Granite", "Turn and climb", "Surface"],
+		"Shift drill": [],
+		"Stranded in the granite": ["Still dark", "Relit", "Home"],
+	})
+
+
 func test_every_scenario_opens_with_its_orders_from_surface_control() -> void:
 	for scenario in Scenario.all():
 		var sim := scenario.start()
@@ -50,9 +118,9 @@ func test_starting_below_puts_the_head_that_deep_in_its_own_medium_tuned_to_it()
 	sim.start_below(deep)
 	assert_float(sim.depth()).is_equal_approx(deep, 0.01)
 	assert_str(sim.medium().name).is_equal(layout.medium_at(deep).name)
-	# Cut with a clean Shift at every Boundary: none is due, and the Head is
-	# as fresh as at the surface.
-	assert_bool(sim.shift_due()).is_false()
+	# Cut with the Residual inside the Band all the way: it is flat now, and
+	# the Head is as fresh as at the surface.
+	assert_bool(sim.out_of_band()).is_false()
 	assert_float(sim.head_wear()).is_equal(0.0)
 	assert_float(sim.plasma_stability()).is_equal(DiveSimulation.new(layout).plasma_stability())
 	# The hull at the rock's temperature: no warmer than the rock round it.
@@ -139,7 +207,7 @@ func test_the_shift_drill_starts_in_the_sand_a_short_way_above_the_sandstone() -
 	# Nearer the Boundary than the surface.
 	assert_float(boundary - sim.depth()).is_less(sim.depth())
 	assert_bool(sim.plasma_lost()).is_false()
-	assert_bool(sim.shift_due()).is_false()
+	assert_bool(sim.out_of_band()).is_false()
 
 
 func test_the_shift_drill_leaves_the_crew_only_the_reactor() -> void:
@@ -165,6 +233,7 @@ func test_the_shift_drill_is_under_way_and_reaches_the_boundary_with_no_crew_com
 func test_the_shift_drills_checklist_and_orders_tick_as_the_shift_is_made() -> void:
 	var scenario := Scenario.shift_drill()
 	var below := scenario.layout.medium_at(scenario.layout.boundary_depths()[0] + 0.01)
+	var below_wobble := DiveTestKit.wobble_in(below)
 	var sim := scenario.start()
 	sim.read_orders()
 	sim.advance(0.1)
@@ -172,7 +241,14 @@ func test_the_shift_drills_checklist_and_orders_tick_as_the_shift_is_made() -> v
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"pretune_standby")
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 600.0, [], 0.5)).is_not_empty()
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_PENDING)
-	sim.set_standby_tuning(DiveTestKit.wobble_in(below))
+	# The drill began with a pulse: there is a guess to pretune against.
+	# It is of the rock below, off the truth as a poor scan's is, and nearer
+	# it than no guess at all would be: STANDBY as it began, tuned for the
+	# rock the Head is in.
+	var guess := sim.wobble_ahead_frequency()
+	assert_bool(is_nan(guess)).is_false()
+	assert_float(absf(guess - below_wobble.x)).is_less(absf(sim.wobble_frequency() - below_wobble.x))
+	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_ahead(sim))
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_DONE)
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_crossed", 600.0, [], 0.1)).is_not_empty()
@@ -183,14 +259,14 @@ func test_the_shift_drills_checklist_and_orders_tick_as_the_shift_is_made() -> v
 	assert_bool(DiveTestKit.achieved(sim, &"clean_shift")).is_true()
 
 
-func test_a_shift_drill_shift_well_wide_of_the_wobble_is_not_clean() -> void:
+func test_a_shift_drill_shift_that_leaves_the_residual_outside_the_band_is_not_clean() -> void:
 	var scenario := Scenario.shift_drill()
 	var sim := scenario.start()
 	sim.read_orders()
-	sim.set_standby_tuning(DiveTestKit.wobble_in(scenario.layout.medium_at(scenario.layout.boundary_depths()[0] + 0.01)))
+	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(scenario.layout.medium_at(scenario.layout.boundary_depths()[0] + 0.01)))
 	DiveTestKit.run_until(sim, &"boundary_crossed", 600.0, [], 0.5)
-	# STANDBY was pretuned, but the Shift is made well wide of it.
-	DiveTestKit.shift_to(sim, sim.plasma_frequency() * 1.5)
+	# STANDBY was pretuned, but the Shift is made with it well wide of the Wobble.
+	DiveTestKit.shift_to(sim, DiveTestKit.wobble(sim) * Vector2(1.5, 1.0))
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"shift")).is_equal(DiveSimulation.STEP_DONE)
 	assert_bool(DiveTestKit.achieved(sim, &"clean_shift")).is_false()
@@ -308,7 +384,12 @@ func test_a_relight_that_lights_leads_to_the_climb_home_shifting_by_hand() -> vo
 		var above := scenario.layout.medium_at(boundaries[b] - 0.01)
 		assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 40000.0, [], 1.0,
 				func() -> void: sim.set_time_rate(sim.max_time_rate()))).is_not_empty()
-		sim.set_standby_tuning(DiveTestKit.wobble_in(above))
+		# With no scan of the Boundary above there is nothing to pretune against.
+		assert_str(DiveTestKit.next_step_id(sim)).is_equal(StringName("pulse_%s" % above.name))
+		DiveTestKit.quiet_scan(sim, 6)
+		sim.set_time_rate(1.0)
+		assert_str(DiveTestKit.step_state(sim, StringName("pulse_%s" % above.name))).is_equal(DiveSimulation.STEP_DONE)
+		DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_ahead(sim))
 		sim.advance(0.1)
 		assert_str(DiveTestKit.step_state(sim, StringName("pretune_standby_%s" % above.name))).is_equal(DiveSimulation.STEP_DONE)
 		assert_dict(DiveTestKit.run_until(sim, &"boundary_crossed", 4000.0, [], 0.1)).is_not_empty()

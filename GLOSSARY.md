@@ -84,6 +84,18 @@ _Avoid_: Silent running, scan mode
 The heading and pitch Navigation plots for the Lithocraft to follow; the Drive steers toward it.
 _Avoid_: Route, waypoint, path, heading (for the plotted target)
 
+**Nudge**:
+One small fixed step by which the Drive moves the pitch or heading it steers for off the Course; the only way the Drive leaves the Course.
+_Avoid_: Override preset, trim, adjustment
+
+**Deviation**:
+How far what the Drive steers for is off the Course, in pitch and in heading; nothing while the Drive follows the Course.
+_Avoid_: Error, offset, drift, override (for the amount)
+
+**Projected path**:
+Where the Lithocraft goes from here if nothing changes: through its turn toward what the Drive steers for, then straight on; Navigation draws it.
+_Avoid_: Trend, trajectory, prediction, flight plan (a dive plan of legs is a later idea)
+
 **Emergency store**:
 The one store of energy the Lithocraft falls back on once the Head's plasma is lost; the link, a relight and cooling all draw on it.
 _Avoid_: Battery, backup, reserve
@@ -135,7 +147,7 @@ _Avoid_: Flag, warning (for a caution), bulb, indicator
 ## Stations
 
 **Station**:
-A fixed place in the Habitat where a crew member controls one of the Lithocraft's systems.
+A place on the ring round the Habitat's wall where a crew member controls one of the Lithocraft's systems; the ring slides to whichever end of the Habitat is the floor.
 _Avoid_: Console, panel, terminal, seat
 
 **Reactor**:

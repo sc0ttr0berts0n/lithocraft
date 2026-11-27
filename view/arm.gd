@@ -1,6 +1,9 @@
 ## The Arm: a carriage on a rail round the Bore with a chain-arm and a claw.
-## Pressed once it reaches out, catches the crew member by the harness
-## between their shoulders and carries them to the nearest Station; left and
+## The rail itself slides along the Bore: it keeps level with the ring of
+## Stations (slide_to()), and pressed once it first runs along the Bore to the
+## crew member wherever they are along its length, then reaches out, catches
+## them by the harness between their shoulders and carries them to the
+## nearest Station, the rail running back to the ring with them; left and
 ## right carry them on to the next Station that side; pressed again it lets
 ## go. Works whatever "down" is, because it is told only where the crew
 ## member's eyes are and where each Station is worked from.
@@ -14,13 +17,19 @@ extends RefCounted
 
 enum State { PARKED, REACHING, HOLDING, RETURNING }
 
-## Seconds to reach out and catch, and to swing back to the rail.
+## Seconds to reach out and catch once the rail is level with the crew
+## member, and to swing back to the rail.
 const REACH_TIME := 0.9
 const RETURN_TIME := 0.6
 ## Carrying speed, metres of path per second.
 const CARRY_SPEED := 1.6
 ## How fast the carriage runs round the rail, radians per second.
 const RAIL_SPEED := 4.0
+## How fast the rail runs along the Bore, metres per second: faster than the
+## ring of Stations ever slides, so it keeps up with them.
+const RUN_SPEED := 4.0
+## The rail counts as level with the crew member within this, metres.
+const LEVEL_WITH := 0.02
 ## Where the harness is from the eyes: down the back and behind.
 const HARNESS_BELOW_EYES := 0.45
 const HARNESS_BEHIND := 0.3
@@ -31,7 +40,14 @@ const CHAIN_LINKS := 18
 ## Metres: two neighbours closer than this to the same side count as level.
 const SIDE_TIE := 0.1
 
+## The rail: its radius round the Bore's axis, its place along it now (z),
+## where the ring of Stations is, which it keeps level with unless it is
+## away fetching the crew member, and the ends of its run along the Bore.
 var _rail_radius: float
+var _rail_z: float
+var _ring_z: float
+var _run_from: float
+var _run_to: float
 var _state := State.PARKED
 var _rail_angle := -PI / 2.0
 var _t := 0.0
@@ -54,8 +70,14 @@ var _came_from := -1
 var _last_round := 0
 
 
-func _init(rail_radius: float) -> void:
+## rail_z: where the ring of Stations is, and the rail with it, to begin
+## with. run_from, run_to: how far along the Bore the rail can run (z).
+func _init(rail_radius: float, rail_z := 0.0, run_from := -INF, run_to := INF) -> void:
 	_rail_radius = rail_radius
+	_rail_z = rail_z
+	_ring_z = rail_z
+	_run_from = run_from
+	_run_to = run_to
 	_hand = _parked_hand()
 
 
@@ -74,11 +96,37 @@ func press() -> void:
 	_hand_from = _hand
 
 
+## The ring of Stations is here along the Bore now (z): the rail keeps level
+## with it, sliding as it slides, except while it is away fetching the crew
+## member. Told every step the ring may have moved.
+func slide_to(ring_z: float) -> void:
+	_ring_z = ring_z
+
+
 ## Carry on to the next Station on the crew member's right (side > 0) or
 ## left (side < 0). Ignored unless holding.
 func shift(side: int) -> void:
 	if is_holding():
 		_shift = signi(side)
+
+
+## Holds the crew member seated at this Station at once, with no reach and no
+## carry: `station` indexes the Stations step() is given, `pose` is where that
+## one is worked from now. For a start already at a Station (the screenshot
+## tool); left, right and the button work from there as after any carry.
+func seat(station: int, pose: Transform3D) -> void:
+	_state = State.HOLDING
+	_to = station
+	_from = pose
+	_held = pose
+	_body = pose
+	_u = 1.0
+	_hand = _harness(pose)
+	_rail_angle = _angle_of(pose.origin)
+	_rail_z = _ring_z
+	_shift = 0
+	_last_side = 0
+	_came_from = -1
 
 
 func _take_shift(stations: Array[Transform3D]) -> void:
@@ -128,6 +176,10 @@ func step(dt: float, eye: Transform3D, stations: Array[Transform3D]) -> void:
 		State.REACHING:
 			_body = eye
 			_turn_carriage_toward(_angle_of(eye.origin), dt)
+			# Along the Bore to the crew member first; the claw goes with the
+			# rail, and reaches out only once it is level with them.
+			if _run_rail_toward(eye.origin.z, dt) > LEVEL_WITH and _t <= 0.0:
+				return
 			_t = minf(1.0, _t + dt / REACH_TIME)
 			var e := _ease(_t)
 			# Swing round behind and above them on the way in, out of sight.
@@ -141,15 +193,21 @@ func step(dt: float, eye: Transform3D, stations: Array[Transform3D]) -> void:
 				_u = 0.0
 		State.HOLDING:
 			_take_shift(stations)
-			_carry(dt, stations[_to])
+			var to := stations[_to]
+			_carry(dt, to)
+			# The rail runs back to the ring as the crew member nears their
+			# Station, and rides with the ring once they are there.
+			_run_rail_toward(_ring_z + _held.origin.z - to.origin.z, dt)
 			_body = _held
 			_hand = _harness(_held)
 		State.RETURNING:
+			_run_rail_toward(_ring_z, dt)
 			_t = minf(1.0, _t + dt / RETURN_TIME)
 			_hand = _hand_from.lerp(_parked_hand(), _ease(_t))
 			if _t >= 1.0:
 				_state = State.PARKED
 		_:
+			_run_rail_toward(_ring_z, dt)
 			_hand = _parked_hand()
 
 
@@ -173,6 +231,11 @@ func held_eye() -> Transform3D:
 ## The Station the Arm is carrying to or holding at, or -1.
 func station() -> int:
 	return _to if _state == State.HOLDING else -1
+
+
+## Where along the Bore the rail is now (Habitat frame, z).
+func rail_z() -> float:
+	return _rail_z
 
 
 ## The carriage on the rail (Habitat frame).
@@ -253,11 +316,24 @@ func _harness(eye: Transform3D) -> Vector3:
 
 
 func _rail_point() -> Vector3:
-	return Vector3(cos(_rail_angle), sin(_rail_angle), 0) * _rail_radius
+	return Vector3(cos(_rail_angle), sin(_rail_angle), 0) * _rail_radius + Vector3(0, 0, _rail_z)
 
 
 func _parked_hand() -> Vector3:
-	return _rail_point() * (_rail_radius + PARKED_REACH) / _rail_radius
+	return _rail_point() + Vector3(cos(_rail_angle), sin(_rail_angle), 0) * PARKED_REACH
+
+
+## Runs the rail along the Bore toward z, as far as its run goes, the claw
+## going with it while it is not out on the harness. Returns how far it still
+## is from where it is going, metres.
+func _run_rail_toward(z: float, dt: float) -> float:
+	var target := clampf(z, _run_from, _run_to)
+	var before := _rail_z
+	_rail_z = move_toward(_rail_z, target, RUN_SPEED * dt)
+	if _state != State.HOLDING:
+		_hand.z += _rail_z - before
+		_hand_from.z += _rail_z - before
+	return absf(target - _rail_z)
 
 
 func _turn_carriage_toward(angle: float, dt: float) -> void:

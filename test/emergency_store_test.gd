@@ -37,9 +37,8 @@ func _strand(sim: DiveSimulation, uploading: bool, gently := false, deep := fals
 	sim.take_events()
 
 
-## Shifts only a little wide of the wobble, each just poor enough to wear the
-## Head a little, never rough enough to disrupt the plasma, until the Head is
-## worn through and the plasma lost with it.
+## A Residual held just outside the Band, never far enough out to disrupt
+## the plasma, until the Head is worn through and the plasma lost with it.
 func _wear_through(sim: DiveSimulation) -> void:
 	DiveTestKit.wear_head_gently(sim, 1.0)
 	assert_bool(sim.stranded()).is_true()
@@ -247,11 +246,7 @@ func test_a_failed_relight_spends_the_energy_and_leaves_the_crew_stranded() -> v
 func test_a_healthy_head_relights_more_reliably_than_a_worn_one() -> void:
 	var fresh := DiveSimulation.new(MediumLayout.uniform(_dense()))
 	var worn := DiveSimulation.new(MediumLayout.uniform(_dense()))
-	var on := worn.plasma_frequency()
-	DiveTestKit.shift_to(worn, on * 1.5)
-	worn.advance(0.1)
-	DiveTestKit.shift_to(worn, on)
-	worn.advance(0.1)
+	DiveTestKit.wear_head_gently(worn, 0.2)
 	var disrupted := _stranded(false)
 	var worn_through := _stranded(false, true)
 	assert_float(fresh.head_wear()).is_less(worn.head_wear())
@@ -291,7 +286,7 @@ func test_a_plasma_lost_on_a_worn_head_relights_more_often_than_one_worn_through
 	assert_int(worn_through).is_greater(0)
 
 
-func test_a_rough_shift_on_a_worn_head_loses_the_plasma_short_of_wearing_it_through() -> void:
+func test_a_residual_far_outside_the_band_on_a_worn_head_loses_the_plasma_short_of_wearing_it_through() -> void:
 	var sim := _stranded(false)
 
 	assert_bool(sim.plasma_lost()).is_true()
@@ -305,13 +300,13 @@ func test_wearing_the_head_through_loses_the_plasma() -> void:
 	assert_float(sim.head_wear()).is_equal(1.0)
 
 
-func test_a_relit_head_worn_through_holds_through_a_clean_shift() -> void:
+func test_a_relit_head_worn_through_holds_while_its_residual_stays_inside_the_band() -> void:
 	var sim := _stranded(false, true)
 	_relight_until(sim, &"lit", true)
 	assert_float(sim.head_wear()).is_equal(1.0)
 
-	DiveTestKit.shift_to(sim, sim.plasma_frequency())
-	DiveTestKit.run(sim, 1.0, 0.25)
+	DiveTestKit.shift_to(sim, DiveTestKit.wobble(sim))
+	DiveTestKit.run(sim, 60.0, 0.25)
 
 	assert_bool(sim.plasma_lost()).is_false()
 

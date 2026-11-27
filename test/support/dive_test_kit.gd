@@ -30,10 +30,85 @@ static func station_place(name: String) -> int:
 	return -1
 
 
+## Where the gimbal of the Station with this name pivots (Habitat frame).
+static func station_pivot(name: String) -> Vector3:
+	return _Habitat.pivot(station_place(name))
+
+
+## The simulation's name for the Station with this name on its screen
+## (DiveSimulation.STATION_*), or &"".
+static func station_sim_name(name: String) -> StringName:
+	var place := station_place(name)
+	return &"" if place < 0 else _Habitat.STATIONS[place][2]
+
+
+## A Habitat in the suite's tree, freed with the test, that steps only when
+## the test tells it (`habitat._physics_process(STEP)`): the staged Habitat
+## every Habitat-level test starts from. It plays `scenario`, or the First
+## dive.
+static func staged_habitat(suite: GdUnitTestSuite, scenario: Scenario = null) -> Node3D:
+	var habitat: Node3D = suite.auto_free((load("res://view/habitat.tscn") as PackedScene).instantiate())
+	if scenario != null:
+		habitat.scenario = scenario
+	suite.add_child(habitat)
+	habitat.set_physics_process(false)
+	return habitat
+
+
+## A Habitat staged as the screenshot tool stages one for these arguments
+## (ShotPlan: `["--look", "Drive", "--time", "3", "--out", "unused.png"]`),
+## in the suite's tree and freed with the test. Fails the test if the plan
+## or its staging does.
+static func staged_shot(suite: GdUnitTestSuite, arguments: Array) -> Node3D:
+	var plan := ShotPlan.parse(PackedStringArray(arguments))
+	suite.assert_str(plan.error).is_empty()
+	var habitat: Node3D = suite.auto_free(plan.make_habitat())
+	suite.add_child(habitat)
+	suite.assert_str(plan.stage(habitat)).is_empty()
+	return habitat
+
+
+## The Station of a Habitat with this name on its screen, or null.
+static func station(habitat: Node3D, name: String) -> GimballedStation:
+	for child in habitat.get_children():
+		if child is GimballedStation and (child as GimballedStation).station_name == name:
+			return child
+	return null
+
+
+## Every Station of a Habitat, the empty mount left out, in order round the
+## ring.
+static func stations(habitat: Node3D) -> Array[GimballedStation]:
+	var found: Array[GimballedStation] = []
+	for place in station_places():
+		found.append(station(habitat, station_name(place)))
+	return found
+
+
+## Waits until a screen's Containers have placed its readings: two frames.
+## Call with `await`.
+static func laid_out(suite: GdUnitTestSuite) -> void:
+	await suite.get_tree().process_frame
+	await suite.get_tree().process_frame
+
+
 ## Test values only: plain quartz rock. Defaults are strong enough that the
 ## grip waves never slip at full power.
 static func rock(hardness := 2.0, strength := 2.0, porosity := 0.05) -> Medium:
 	return Medium.new(&"rock", hardness, strength, porosity, 300.0, 1.0, {&"quartz": 1.0}, 0.5)
+
+
+## Test values only: soft, weaker rock, for layouts of soft rock over hard
+## (hard()): both strong enough never to slip, and unlike enough that the
+## Boundary between them returns a clear echo and changes the Wobble well
+## outside a fresh Head's Band.
+static func soft(sound_carrying := 0.5) -> Medium:
+	return Medium.new(&"soft", 1.0, 3.0, 0.3, 300.0, 1.0, {&"quartz": 1.0}, sound_carrying)
+
+
+## Test values only: hard, stronger rock (see soft()).
+static func hard(sound_carrying := 0.5) -> Medium:
+	return Medium.new(&"hard", 4.0, 6.0, 0.3, 300.0, 1.0, {&"feldspar": 1.0}, sound_carrying)
 
 
 ## Test values only: basalt, a pyroxene and plagioclase rock that carries
@@ -73,49 +148,89 @@ static func types(events: Array) -> Array:
 	return events.map(func(e: Dictionary) -> StringName: return e.type)
 
 
-## A Shift straight to `frequency` hertz: STANDBY pretuned to it, then the
-## swap, made on the next step.
-static func shift_to(sim: DiveSimulation, frequency: float) -> void:
-	sim.set_standby_tuning(frequency)
+## Sets a channel's Counter-wave (DiveSimulation.CHANNEL_ACTIVE or
+## CHANNEL_STANDBY) to `wave`, Vector2(frequency in hertz, amplitude), as the
+## crew does: select the channel, tune it, and select back what was selected.
+static func tune(sim: DiveSimulation, channel: StringName, wave: Vector2) -> void:
+	var selected := sim.selected_channel()
+	sim.select_channel(channel)
+	sim.tune_frequency(wave.x)
+	sim.tune_amplitude(wave.y)
+	sim.select_channel(selected)
+
+
+## The Wobble on the plasma now, as Vector2(frequency in hertz, amplitude).
+static func wobble(sim: DiveSimulation) -> Vector2:
+	return Vector2(sim.wobble_frequency(), sim.wobble_amplitude())
+
+
+## A channel's Counter-wave, as Vector2(frequency in hertz, amplitude).
+static func counter_wave(sim: DiveSimulation, channel: StringName) -> Vector2:
+	return Vector2(sim.counter_wave_frequency(channel), sim.counter_wave_amplitude(channel))
+
+
+## A Shift straight to the Counter-wave `wave`: STANDBY prepared with it, then
+## the swap, made on the next step.
+static func shift_to(sim: DiveSimulation, wave: Vector2) -> void:
+	tune(sim, DiveSimulation.CHANNEL_STANDBY, wave)
 	sim.shift()
 
 
-## Gentle Shifts, each a little wide of the wobble, until the Head's wear
-## reaches `wear` or the plasma is lost: each Shift wears the Head a little,
-## never roughly enough to disrupt the plasma.
+## ACTIVE's Counter-wave set to cancel the Wobble now exactly, as a crew
+## tuning ACTIVE by hand would in the end: a flat Residual from the next step.
+static func cancel_wobble(sim: DiveSimulation) -> void:
+	tune(sim, DiveSimulation.CHANNEL_ACTIVE, wobble(sim))
+
+
+## Holds ACTIVE's amplitude a little too big, its steady Residual just
+## outside the Band (never far enough out to disrupt the plasma), until the
+## Head's wear reaches `wear` or the plasma is lost; then cancels the Wobble
+## again. Run with the vessel at rest or in one Medium.
 static func wear_head_gently(sim: DiveSimulation, wear: float) -> void:
-	var on := sim.plasma_frequency()
-	var off := 0.01
-	for i in 2000:
+	for i in 20000:
 		if sim.plasma_lost() or sim.head_wear() >= wear:
-			return
-		shift_to(sim, on * (1.0 + off))
+			break
+		tune(sim, DiveSimulation.CHANNEL_ACTIVE, wobble(sim) + Vector2(0.0, 2.0 * sim.band()))
+		sim.advance(5.0)
+	if not sim.plasma_lost():
+		cancel_wobble(sim)
 		sim.advance(0.1)
-		var results := sim.take_events().filter(
-				func(e: Dictionary) -> bool: return e.type == &"shift_result")
-		# Keep each Shift's wear small: wider while clean or barely worn,
-		# closer once it wears more.
-		if results[0].wear < 0.02:
-			off *= 1.1
-		elif results[0].wear > 0.05:
-			off *= 0.9
+	sim.take_events()
 
 
 ## Stops the Drive, lets the hull cool, wears the Head gently to a little more
-## than half, then makes Shifts well wide of the wobble until one disrupts the
-## plasma on the worn Head, short of wearing it through. Sealed in, that
-## strands the Lithocraft where it stands. The hull is let cool first, since a
-## hot hull makes each Shift wear the Head harder.
+## than half, then drives ACTIVE's Counter-wave far too big, a Residual far
+## outside the Band, which disrupts the plasma on the worn Head, short of
+## wearing it through. Sealed in, that strands the Lithocraft where it stands.
 static func lose_plasma(sim: DiveSimulation) -> void:
 	sim.set_power(0.0)
 	run(sim, 600.0, 1.0)
 	wear_head_gently(sim, 0.51)
-	var on := sim.plasma_frequency()
-	for i in 20:
+	tune(sim, DiveSimulation.CHANNEL_ACTIVE, wobble(sim) + Vector2(0.0, 10.0))
+	for i in 600:
 		if sim.plasma_lost():
 			return
-		shift_to(sim, on * 1.5)
 		sim.advance(0.1)
+
+
+## Runs the dive on until the tunnel has sealed behind, then loses the plasma
+## (lose_plasma()): stranded where it stands. For a layout whose rock fills
+## the tunnel in; in one that leaves it open the Lithocraft is brought home.
+static func strand(sim: DiveSimulation) -> void:
+	for i in 6000:
+		if sim.tunnel_sealed():
+			break
+		sim.advance(1.0)
+	lose_plasma(sim)
+
+
+## A dive in plain rock (rock()) with the Drive at this power and this share
+## of the heat sent into the Column: for tests of the hull's heat.
+static func heating(power: float, to_column := 0.0) -> DiveSimulation:
+	var sim := DiveSimulation.new(MediumLayout.uniform(rock()))
+	sim.set_power(power)
+	sim.set_heat_split(to_column)
+	return sim
 
 
 ## The state of the Checklist step with this id: DONE, PENDING or MISSED, or
@@ -161,6 +276,51 @@ static func fly_until(sim: DiveSimulation, done: Callable, seconds := 3000.0,
 	return done.call(sim)
 
 
-## The frequency the plasma wobbles at in this Medium, read from a dive in it.
-static func wobble_in(medium: Medium) -> float:
-	return DiveSimulation.new(MediumLayout.uniform(medium)).plasma_frequency()
+## Nudges an attended Drive until it steers this many degrees off where it
+## steers now (as near as whole nudges come): heading + to the right, pitch +
+## steeper down.
+static func nudge(sim: DiveSimulation, heading_degrees: float, pitch_degrees: float) -> void:
+	for i in roundi(absf(pitch_degrees) / sim.nudge_degrees()):
+		sim.nudge_pitch(pitch_degrees)
+	for i in roundi(absf(heading_degrees) / sim.nudge_degrees()):
+		sim.nudge_heading(heading_degrees)
+
+
+## The Wobble this Medium puts on the plasma, as Vector2(frequency in hertz,
+## amplitude), read from a dive in it.
+static func wobble_in(medium: Medium) -> Vector2:
+	return wobble(DiveSimulation.new(MediumLayout.uniform(medium)))
+
+
+## The fullest size the wave `wave(seconds)` reaches in each of `count`
+## stretches of `stretch` seconds, one after another from now: steady when
+## they are all alike, beating when they swell and fade.
+static func swells(wave: Callable, stretch: float, count: int) -> Array[float]:
+	var sizes: Array[float] = []
+	for i in count:
+		var size := 0.0
+		for j in 40:
+			size = maxf(size, absf(wave.call((i + j / 40.0) * stretch)))
+		sizes.append(size)
+	return sizes
+
+
+## A Quiet Ship scan as a crew makes one: Quiet Ship on, wait until the
+## vessel is still and silent, `pulses` pulses, Quiet Ship off again.
+static func quiet_scan(sim: DiveSimulation, pulses := 3) -> void:
+	sim.set_quiet_ship(true)
+	for i in 600:
+		sim.advance(0.1)
+		if sim.speed() == 0.0 and sim.noise() == 0.0:
+			break
+	for i in pulses:
+		sim.pulse()
+		sim.advance(0.1)
+	sim.set_quiet_ship(false)
+	sim.advance(0.1)
+
+
+## The scan's guess of the Wobble ahead (DiveSimulation.wobble_ahead_*), as
+## Vector2(frequency in hertz, amplitude); NAN in both with no scan of it.
+static func wobble_ahead(sim: DiveSimulation) -> Vector2:
+	return Vector2(sim.wobble_ahead_frequency(), sim.wobble_ahead_amplitude())

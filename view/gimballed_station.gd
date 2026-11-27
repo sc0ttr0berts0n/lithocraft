@@ -12,37 +12,32 @@ const SWING_RATE := 3.0
 ## the axis across "up" is too short to face along: the axis is straight
 ## above or below.
 const FACING_FREE := 0.05
-## Middle of the screen, in the cradle's frame.
-const SCREEN_CENTRE := Vector3(0, 0.2, 0)
+## Middle of the screen, in the cradle's frame: its foot stands just clear of
+## the gimbal's bob, and its top stays inside the outer wall wherever the
+## Station hangs.
+const SCREEN_CENTRE := Vector3(0, 0.42, 0)
 ## Eyes of a crew member working the Station, in the cradle's frame: in front
-## of the screen and at standing eye height (1.65 m) above a floor 1.1 m
-## below the pivot.
+## of the screen and a little above its middle. The Arm holds them here; the
+## floor is the ring's working height below the pivot (the Habitat's
+## RING_ABOVE_HEAD_FLOOR), so the hold is some 0.2 m above standing eye height
+## (1.65 m) and the feet hang clear of it.
 const POSE_EYE := Vector3(0, 0.55, -0.85)
-## The screen's size and colour; the key panel beside it matches.
-const SCREEN_SIZE := Vector2(0.8, 0.4)
-const SCREEN_COLOUR := Color(0.04, 0.07, 0.09)
-## Share of the screen the text may fill, leaving a margin round it, and the
-## text's size in metres per font pixel.
-const SCREEN_TEXT_FILL := 0.94
-const SCREEN_TEXT_PIXEL := 0.0015
-## The live pictures' room on the screen (show_display(), show_displays()),
-## and the gap between pictures side by side.
-const DISPLAY_SIZE := Vector2(0.76, 0.36)
-const DISPLAY_GAP := 0.01
-## The key panel: its gap from the screen, its width, one row's height, a key
-## prompt's size, and the size of what each key does.
-const KEYS_GAP := 0.02
-const KEYS_WIDTH := 0.64
-const KEY_ROW_M := 0.058
-const KEY_SIZE_M := 0.052
-const KEY_TEXT_PIXEL := 0.001
-const KEY_FONT_SIZE := 32
+## The screen's size, the shape of StationScreen.SIZE: large enough that from
+## the working pose the whole of it is in view and its text reads. The casing
+## round it and round the key panel is this much wider, and this colour.
+const SCREEN_SIZE := Vector2(1.2, 0.72)
+const CASING := 0.015
+const CASING_COLOUR := Color(0.04, 0.07, 0.09)
+## The key panel beside the screen, on the crew's right: its gap from the
+## screen and its width, the shape of KeyList.SIZE at the screen's scale. It
+## is as tall as the screen.
+const KEYS_GAP := 0.03
+const KEYS_WIDTH := 0.48
 
 var station_name := ""
+## The Station's own colour, for its call light and the bob on its gimbal.
+## Nothing on its screen is drawn in it: a screen's colours are StationTheme's.
 var hue := Color.WHITE
-## Font size of the screen's text; smaller fits more lines on the screen. A
-## reading too big for the screen at this size is shrunk until it fits.
-var screen_font_size := 48
 
 ## Seconds between call beats at the least and the most urgent, and the call
 ## light's brightest energy (on each beat; it fades between them).
@@ -62,8 +57,13 @@ const _PIP_GAP_S := 0.06
 ## comes from the Station that let go. After it the screen's AUTOPILOT OFF
 ## flashes for a while, blinking at this rate. Real basis: an airliner's
 ## autopilot disconnect is a distinct aural warning with a flashing caption.
-const DISENGAGE_NOTES: Array[float] = [1175.0, 880.0, 659.0]
-const _DISENGAGE_NOTE_S := 0.11
+## Soft, since it sounds every time the crew takes a Station back: no note
+## above the Stations' own call tones, each swelling and dying away with no
+## edge, and quieter than a call (DISENGAGE_LEVEL against CALL_LEVEL).
+const DISENGAGE_NOTES: Array[float] = [523.0, 415.0, 330.0]
+const _DISENGAGE_NOTE_S := 0.16
+const DISENGAGE_LEVEL := 0.25
+const CALL_LEVEL := 0.6
 const DISENGAGE_FLASH_S := 3.0
 const DISENGAGE_BLINK_S := 0.25
 
@@ -78,14 +78,17 @@ var _cradle := Node3D.new()
 ## False until the first follow_up(), which settles the cradle at once
 ## rather than swinging it in from where it was built.
 var _settled := false
-var _screen_text: Label3D
-## The live pictures on the screen, left to right as the crew see them, if
-## show_display() or show_displays() put any there; and a lone picture's
-## instruments' names and places on the face, in the order show_display()
-## had them.
-var _displays: Array[MeshInstance3D] = []
+## The screen's frame (its header strip, the Station's instrument, its
+## status lines) and the key list beside it, each drawn in its own viewport
+## and shown on a panel; null on an empty mount.
+var _screen: StationScreen
+var _screen_material: StandardMaterial3D
+var _keys: KeyList
+var _keys_material: StandardMaterial3D
+## A lone picture's instruments, in the order show_display() had them: their
+## names, and each one's place as shares of the picture.
 var _instrument_names: Array[StringName] = []
-var _instrument_places: Array[Rect2] = []
+var _instrument_shares: Array[Rect2] = []
 var _call_light: OmniLight3D
 var _call_sound: AudioStreamPlayer3D
 var _disengage_sound: AudioStreamPlayer3D
@@ -99,60 +102,48 @@ var _until_beat := 0.0
 ## Share of the power it asks for the Station is getting, 0 to 1. Below 1 its
 ## screen browns out: dimmer the less it gets, and flickering.
 var _supplied := 1.0
+## The flicker's own chance, seeded by the Station's name: the same flicker
+## every run, whatever else draws on the global generator.
 var _flicker := RandomNumberGenerator.new()
-## The key panel's prompts and words, each with its own colour, so they dim
-## with the screen: [node, colour].
-var _key_parts: Array = []
 
 
 func _ready() -> void:
+	_flicker.seed = hash(station_name)
 	add_child(_cradle)
 	_add_yoke()
 	if station_name.is_empty():
 		return
 	var desk := MeshInstance3D.new()
 	var desk_mesh := BoxMesh.new()
-	desk_mesh.size = Vector3(0.9, 0.04, 0.5)
+	desk_mesh.size = Vector3(SCREEN_SIZE.x + 0.1, 0.04, 0.5)
 	desk.mesh = desk_mesh
 	desk.material_override = _material(Color(0.29, 0.34, 0.37))
 	desk.position = Vector3(0, -0.08, 0)
 	_cradle.add_child(desk)
 
-	var screen := MeshInstance3D.new()
-	var screen_mesh := BoxMesh.new()
-	screen_mesh.size = Vector3(SCREEN_SIZE.x, SCREEN_SIZE.y, 0.02)
-	screen.mesh = screen_mesh
-	screen.material_override = _material(SCREEN_COLOUR)
-	screen.position = SCREEN_CENTRE
-	_cradle.add_child(screen)
-
 	# The screen faces the cradle's -z, out from the Bore; the crew work it
 	# from that side.
-	_screen_text = Label3D.new()
-	_screen_text.text = station_name
-	_screen_text.modulate = hue
-	_screen_text.pixel_size = SCREEN_TEXT_PIXEL
-	_screen_text.font_size = screen_font_size
-	_screen_text.position = SCREEN_CENTRE + Vector3(0, 0, -0.015)
-	_screen_text.rotation = Vector3(0, PI, 0)
-	_cradle.add_child(_screen_text)
+	_screen = StationScreen.new()
+	_screen.set_station_name(station_name)
+	add_child(_screen)
+	_screen_material = _panel(_screen.get_texture(), SCREEN_SIZE, 0.0)
 
 	# The Station's own light, dark until it calls for attention.
 	_call_light = OmniLight3D.new()
 	_call_light.light_color = hue
 	_call_light.light_energy = 0.0
 	_call_light.omni_range = 2.5
-	_call_light.position = Vector3(0, 0.5, -0.3)
+	_call_light.position = Vector3(0, SCREEN_SIZE.y + 0.1, -0.3)
 	_cradle.add_child(_call_light)
 
 	# Its own tone, from where it hangs, so the ring tells the ear which way.
 	_call_sound = AudioStreamPlayer3D.new()
-	_call_sound.stream = _call_tone()
+	_call_sound.stream = call_tone(call_tone_hz, call_pips)
 	_call_sound.unit_size = 2.0
 	_call_sound.position = SCREEN_CENTRE
 	_cradle.add_child(_call_sound)
 	_disengage_sound = AudioStreamPlayer3D.new()
-	_disengage_sound.stream = _disengage_tone()
+	_disengage_sound.stream = disengage_tone()
 	_disengage_sound.unit_size = 2.0
 	_disengage_sound.position = SCREEN_CENTRE
 	_cradle.add_child(_disengage_sound)
@@ -165,9 +156,10 @@ func _process(delta: float) -> void:
 	var dim := 1.0
 	if _supplied < 1.0:
 		dim = lerpf(0.25, 0.8, _supplied) * _flicker.randf_range(0.6, 1.0)
-	_screen_text.modulate = Color(hue * dim, 1.0)
-	for part in _key_parts:
-		part[0].modulate = Color(part[1] * dim, 1.0)
+	_screen_material.albedo_color = Color(dim, dim, dim)
+	if _keys_material:
+		_keys_material.albedo_color = Color(dim, dim, dim)
+	_show_header()
 	_call_light.light_energy *= exp(-delta / CALL_LIGHT_FADE_S)
 	if _urgency <= 0.0:
 		_until_beat = 0.0
@@ -199,7 +191,7 @@ func autopilot_off() -> void:
 		_disengage_sound.play()
 
 
-## The autopilot's word on the screen's top line: AUTOPILOT while engaged,
+## The autopilot's word in the screen's header strip: AUTOPILOT while engaged,
 ## AUTOPILOT OFF while not, blinking for DISENGAGE_FLASH_S after it let go
 ## (blank in the blink's off half).
 static func autopilot_caption(engaged: bool, since_disengaged: float) -> String:
@@ -209,6 +201,15 @@ static func autopilot_caption(engaged: bool, since_disengaged: float) -> String:
 			and fmod(since_disengaged, 2.0 * DISENGAGE_BLINK_S) >= DISENGAGE_BLINK_S:
 		return ""
 	return "AUTOPILOT OFF"
+
+
+## What the autopilot's word means, for its colour (StationTheme): engaged
+## and working; a caution while it flashes, having just let go; else simply
+## how things are.
+static func autopilot_meaning(engaged: bool, since_disengaged: float) -> StringName:
+	if engaged:
+		return StationTheme.ENGAGED
+	return StationTheme.CAUTION if since_disengaged < DISENGAGE_FLASH_S else StationTheme.NOW
 
 
 ## Seconds between beats of a call this urgent.
@@ -221,12 +222,13 @@ static func pitch_scale(urgency: float) -> float:
 	return 1.0 + CALL_PITCH_RISE * clampf(urgency, 0.0, 1.0)
 
 
-## One beat of the call: call_pips short pips of the Station's tone, with a
-## little of its octave so it carries, each faded in and out to avoid clicks.
-func _call_tone() -> AudioStreamWAV:
+## One beat of a call: `pips` short pips of a Station's tone (`tone_hz`),
+## with a little of its octave so it carries, each faded in and out to avoid
+## clicks.
+static func call_tone(tone_hz: float, pips: int) -> AudioStreamWAV:
 	var pip := int(_PIP_S * _TONE_RATE)
 	var gap := int(_PIP_GAP_S * _TONE_RATE)
-	var frames := call_pips * (pip + gap)
+	var frames := pips * (pip + gap)
 	var data := PackedByteArray()
 	data.resize(frames * 2)
 	for i in frames:
@@ -235,8 +237,8 @@ func _call_tone() -> AudioStreamWAV:
 		if in_pip < pip:
 			var t := float(i) / _TONE_RATE
 			var envelope := minf(1.0, minf(in_pip, pip - in_pip) / (0.01 * _TONE_RATE))
-			value = envelope * (0.8 * sin(TAU * call_tone_hz * t) + 0.2 * sin(TAU * 2.0 * call_tone_hz * t))
-		data.encode_s16(i * 2, int(value * 0.6 * 32767.0))
+			value = envelope * (0.8 * sin(TAU * tone_hz * t) + 0.2 * sin(TAU * 2.0 * tone_hz * t))
+		data.encode_s16(i * 2, int(value * CALL_LEVEL * 32767.0))
 	var wav := AudioStreamWAV.new()
 	wav.format = AudioStreamWAV.FORMAT_16_BITS
 	wav.mix_rate = _TONE_RATE
@@ -245,18 +247,19 @@ func _call_tone() -> AudioStreamWAV:
 	return wav
 
 
-## The disconnect warning: DISENGAGE_NOTES one after another, each faded in
-## and out to avoid clicks.
-static func _disengage_tone() -> AudioStreamWAV:
+## The disconnect warning: DISENGAGE_NOTES one after another, each a pure
+## tone swelling and dying away over its whole length (a raised cosine), so
+## it has no hard edge.
+static func disengage_tone() -> AudioStreamWAV:
 	var note := int(_DISENGAGE_NOTE_S * _TONE_RATE)
 	var data := PackedByteArray()
 	data.resize(DISENGAGE_NOTES.size() * note * 2)
 	for n in DISENGAGE_NOTES.size():
 		for i in note:
 			var t := float(i) / _TONE_RATE
-			var envelope := minf(1.0, minf(i, note - i) / (0.01 * _TONE_RATE))
+			var envelope := 0.5 - 0.5 * cos(TAU * float(i) / note)
 			var value := envelope * sin(TAU * DISENGAGE_NOTES[n] * t)
-			data.encode_s16((n * note + i) * 2, int(value * 0.6 * 32767.0))
+			data.encode_s16((n * note + i) * 2, int(value * DISENGAGE_LEVEL * 32767.0))
 	var wav := AudioStreamWAV.new()
 	wav.format = AudioStreamWAV.FORMAT_16_BITS
 	wav.mix_rate = _TONE_RATE
@@ -275,41 +278,46 @@ func is_starved() -> bool:
 	return _supplied < 1.0
 
 
-## Text shown on the Station's screen, under its name and its autopilot's
-## caption. On a text screen (no display) the font shrinks as needed so every
-## line fits on the screen.
+## The Station's screen: its frame, where a Station puts its own instrument
+## (screen().set_instrument(), or show_display() for a live picture) and its
+## Caution lamps (show_lamps()). Null on an empty mount.
+func screen() -> StationScreen:
+	return _screen
+
+
+## The Station's key list beside its screen; null until show_keys().
+func key_list() -> KeyList:
+	return _keys
+
+
+## Text shown on the Station's screen as its status lines, all in white; see
+## show_lines() for lines in the colours of what they mean.
 func show_reading(text: String) -> void:
-	if not _screen_text:
+	show_lines(Array(text.split("\n")))
+
+
+## The Station's status lines, on its screen under its instrument: each a
+## String (white: what is happening now) or [text, meaning] with a meaning
+## of StationTheme. The text shrinks as needed so every line is whole.
+func show_lines(lines: Array) -> void:
+	if _screen == null:
 		return
-	_screen_text.text = "%s   %s\n%s%s" % [station_name,
-			autopilot_caption(autopilot, _since_disengaged), text,
-			"" if footer.is_empty() else "\n" + footer]
-	if _displays.is_empty():
-		_screen_text.font_size = fitting_font_size(_screen_text.text, _screen_font(),
-				screen_font_size, _text_box())
+	_show_header()
+	_screen.show_lines(lines)
 
 
-## The largest font size, up to largest, at which text (centred lines) fits
-## inside box, in font pixels. Never below 1.
-static func fitting_font_size(text: String, font: Font, largest: int, box: Vector2) -> int:
-	var size := largest
-	while size > 1:
-		var block := font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, size)
-		if block.x <= box.x and block.y <= box.y:
-			break
-		size -= 1
-	return size
+## The Station's Caution lamps in its header strip: each {label, lit}, as
+## CautionLamps.of() gives them.
+func show_lamps(lamps: Array[Dictionary]) -> void:
+	if _screen:
+		_screen.show_lamps(lamps)
 
 
-func _screen_font() -> Font:
-	return _screen_text.font if _screen_text.font else ThemeDB.fallback_font
-
-
-## The room for text on the screen in font pixels, less a margin and the
-## text's outline.
-func _text_box() -> Vector2:
-	var outline := 2.0 * _screen_text.outline_size
-	return SCREEN_SIZE * SCREEN_TEXT_FILL / SCREEN_TEXT_PIXEL - Vector2(outline, outline)
+## The header strip's autopilot word and the footer, as they stand now.
+func _show_header() -> void:
+	_screen.set_autopilot(autopilot_caption(autopilot, _since_disengaged),
+			autopilot_meaning(autopilot, _since_disengaged))
+	_screen.set_footer(footer)
 
 
 ## Where a crew member's eyes are held to work this Station, Habitat frame:
@@ -341,43 +349,45 @@ static func pose_look() -> float:
 
 
 ## This Station's screen as the centre dot sees it (Habitat frame), with its
-## readings: one per line of its screen text, the name first, then its
-## displays if it shows any, left to right, then each of a lone display's
-## instruments, which lie over it (see reading(), is_display(),
-## display_index(), instrument()). An empty mount has no readings.
+## readings: its header strip (the name first), each status line and the
+## footer, top to bottom; then its displays if it shows any, left to right;
+## then each of a lone display's instruments, which lie over it; then the
+## readings inside an instrument made of Controls
+## (StationScreen.instrument_readings()) (see reading(), is_display(),
+## display_index(), instrument()). An empty mount
+## has no readings. The readings are where the screen's Containers laid them
+## out, so they are placed only once the Station is in the tree and a frame
+## has passed.
 func face() -> Pointing.Face:
-	var screen := face_for(position, _cradle.basis)
-	if _screen_text == null:
-		return screen
-	var font := _screen_text.font if _screen_text.font else ThemeDB.fallback_font
-	var line_m := (font.get_height(_screen_text.font_size) + _screen_text.line_spacing) \
-			* _screen_text.pixel_size
-	var lines := _lines()
-	# The text's top edge, in face coordinates: centred on its place, or
-	# standing on it when set above a display.
-	var top := _screen_text.position.y - SCREEN_CENTRE.y
-	if _screen_text.vertical_alignment == VERTICAL_ALIGNMENT_CENTER:
-		top += line_m * lines.size() / 2.0
-	elif _screen_text.vertical_alignment == VERTICAL_ALIGNMENT_BOTTOM:
-		top += line_m * lines.size()
-	for i in lines.size():
-		screen.readings.append(Rect2(-SCREEN_SIZE.x / 2.0, top - line_m * (i + 1), SCREEN_SIZE.x, line_m))
-	for d in _displays.size():
-		screen.readings.append(display_rect(d, _displays.size()))
-	screen.readings.append_array(_instrument_places)
-	return screen
+	var face := face_for(position, _cradle.basis)
+	if _screen == null:
+		return face
+	for rect in _screen.text_rects():
+		face.readings.append(_on_face(rect))
+	for d in _screen.picture_count():
+		face.readings.append(_on_face(_screen.picture_rect(d)))
+	if _screen.picture_count() == 1:
+		var picture := _screen.picture_rect(0)
+		for share in _instrument_shares:
+			face.readings.append(_on_face(Rect2(picture.position + share.position * picture.size,
+					share.size * picture.size)))
+	for inside in _screen.instrument_readings():
+		face.readings.append(_on_face(inside.rect))
+	return face
 
 
-## The place of display `index` of `count` side by side, in face
-## coordinates: sharing DISPLAY_SIZE equally, the first on the crew's left.
-static func display_rect(index: int, count: int) -> Rect2:
-	var width := (DISPLAY_SIZE.x - DISPLAY_GAP * (count - 1)) / count
-	return Rect2(-DISPLAY_SIZE.x / 2.0 + index * (width + DISPLAY_GAP), -DISPLAY_SIZE.y / 2.0,
-			width, DISPLAY_SIZE.y)
+## A rectangle of the screen's own pixels (StationScreen: x across, y down
+## from the top left) in face coordinates (metres: x the crew's right, y up,
+## origin at the middle).
+static func _on_face(pixels: Rect2) -> Rect2:
+	var metres := SCREEN_SIZE / Vector2(StationScreen.SIZE)
+	return Rect2(pixels.position.x * metres.x - SCREEN_SIZE.x / 2.0,
+			SCREEN_SIZE.y / 2.0 - pixels.end.y * metres.y, pixels.size.x * metres.x, pixels.size.y * metres.y)
 
 
-## What the reading at this index of face().readings shows: its line of
-## screen text, or "" for a display.
+## What the reading at this index of face().readings shows: its text (the
+## header strip's name and autopilot word, a status line, the footer), or ""
+## for a display.
 func reading(index: int) -> String:
 	var lines := _lines()
 	return lines[index] if index >= 0 and index < lines.size() else ""
@@ -394,19 +404,27 @@ func is_display(index: int) -> bool:
 ## line of text or nothing.
 func display_index(index: int) -> int:
 	var d := index - _lines().size()
-	return d if d >= 0 and d < _displays.size() else -1
+	return d if _screen and d >= 0 and d < _screen.picture_count() else -1
 
 
-## The name of the display's instrument at this index of face().readings
-## (as show_display() was given it), or &"" for anything else.
+## The name of the instrument reading at this index of face().readings: a
+## display's instrument (as show_display() was given it) or a reading inside
+## an instrument made of Controls (as its readings() names it), or &"" for
+## anything else.
 func instrument(index: int) -> StringName:
-	var i := index - _lines().size() - _displays.size()
-	return _instrument_names[i] if i >= 0 and i < _instrument_names.size() else &""
+	if _screen == null:
+		return &""
+	var i := index - _lines().size() - _screen.picture_count()
+	if i >= 0 and i < _instrument_names.size():
+		return _instrument_names[i]
+	var inside := _screen.instrument_readings()
+	i -= _instrument_names.size()
+	return inside[i].name if i >= 0 and i < inside.size() else &""
 
 
-## The screen text's lines, the name first; none on an empty mount.
+## The screen's text readings, the header strip first; none on an empty mount.
 func _lines() -> PackedStringArray:
-	return _screen_text.text.split("\n") if _screen_text else PackedStringArray()
+	return _screen.texts() if _screen else PackedStringArray()
 
 
 ## The screen of a Station pivoting at pivot with its cradle at cradle, as a
@@ -420,104 +438,71 @@ static func face_for(pivot: Vector3, cradle: Basis) -> Pointing.Face:
 	return screen
 
 
-## Show a live picture (e.g. a SubViewport's texture) filling the Station's
-## screen. The name and reading move above the screen. instruments names the
-## picture's instruments, each a reading of its own: {name: its place as
-## shares of the picture, 0 to 1 across from the left and down from the top}.
+## Show a live picture (e.g. a SubViewport's texture) as the Station's
+## instrument, in the body of its screen's frame, keeping its shape.
+## instruments names the picture's instruments, each a reading of its own:
+## {name: its place as shares of the picture, 0 to 1 across from the left and
+## down from the top}.
 func show_display(texture: Texture2D, instruments: Dictionary = {}) -> void:
-	if _screen_text == null:
+	if _screen == null:
 		return
-	_instrument_names = []
-	_instrument_places = []
-	for name: StringName in instruments:
-		var share: Rect2 = instruments[name]
-		# Face coordinates: x the crew's right, y up, origin at the middle.
-		var place := Rect2(Vector2(share.position.x - 0.5, 0.5 - share.end.y) * DISPLAY_SIZE,
-				share.size * DISPLAY_SIZE)
-		_instrument_names.append(name)
-		_instrument_places.append(place)
 	var textures: Array[Texture2D] = [texture]
 	show_displays(textures)
+	for name: StringName in instruments:
+		_instrument_names.append(name)
+		_instrument_shares.append(instruments[name])
 
 
-## Show live pictures side by side on the Station's screen, the first on the
-## crew's left, sharing it equally (display_rect()); each is its own reading.
-## Their textures should match that shape. The name and reading move above
-## the screen. Once only, as the Station is built.
+## Show live pictures side by side as the Station's instrument, the first on
+## the crew's left, sharing the body of its screen's frame equally; each
+## keeps its shape and is its own reading. No instruments.
 func show_displays(textures: Array[Texture2D]) -> void:
-	if _screen_text == null:
+	if _screen == null:
 		return
-	for d in textures.size():
-		var rect := display_rect(d, textures.size())
-		var display := MeshInstance3D.new()
-		_displays.append(display)
-		var quad := QuadMesh.new()
-		quad.size = rect.size
-		display.mesh = quad
-		var material := StandardMaterial3D.new()
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		material.albedo_texture = textures[d]
-		display.material_override = material
-		# Faces the crew, like the text; turned to face them, the crew's
-		# right is the cradle's -x.
-		display.position = SCREEN_CENTRE + Vector3(-rect.get_center().x, rect.get_center().y, -0.012)
-		display.rotation = Vector3(0, PI, 0)
-		_cradle.add_child(display)
-	_screen_text.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	_screen_text.position.y = 0.42
+	_instrument_names = []
+	_instrument_shares = []
+	_screen.show_pictures(textures)
 
 
 ## Show the Station's keys on a panel beside its screen, on the crew's right
 ## as they work it: each binding's key prompts, then what it does. Pass
 ## KeyMap.bindings_at(<this Station>), so the panel is the key map.
 func show_keys(bindings: Array[Dictionary]) -> void:
-	if _screen_text == null:
+	if _screen == null:
 		return
-	# The screen text is turned to face the cradle's -z, so the crew's right
-	# is -x.
-	var right_edge := -KEYS_GAP - SCREEN_SIZE.x / 2.0
-	var board := MeshInstance3D.new()
-	var board_mesh := BoxMesh.new()
-	board_mesh.size = Vector3(KEYS_WIDTH, SCREEN_SIZE.y, 0.02)
-	board.mesh = board_mesh
-	board.material_override = _material(SCREEN_COLOUR)
-	board.position = SCREEN_CENTRE + Vector3(right_edge - KEYS_WIDTH / 2.0, 0, 0)
-	_cradle.add_child(board)
-	var left := right_edge - KEY_ROW_M / 2.0
-	var y := SCREEN_CENTRE.y + SCREEN_SIZE.y / 2.0 - KEY_ROW_M * 0.8
-	for binding in bindings:
-		var x := left
-		for code: int in KeyPrompt.distinct(binding.keys):
-			var key := Sprite3D.new()
-			key.texture = KeyPrompt.texture(code)
-			key.pixel_size = KEY_SIZE_M / key.texture.get_width()
-			key.position = Vector3(x - KEY_SIZE_M / 2.0, y, -0.012)
-			key.rotation = Vector3(0, PI, 0)
-			_cradle.add_child(key)
-			_key_parts.append([key, Color.WHITE])
-			var glyph := KeyPrompt.glyph(code)
-			if not glyph.is_empty():
-				var mark := _key_text(glyph, Color.BLACK)
-				mark.position = key.position + Vector3(0, 0, -0.001)
-				_cradle.add_child(mark)
-			x -= KEY_SIZE_M * 1.08
-		var does := _key_text(binding.does, hue)
-		does.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		does.position = Vector3(x - 0.01, y, -0.012)
-		_cradle.add_child(does)
-		_key_parts.append([does, hue])
-		y -= KEY_ROW_M
+	if _keys == null:
+		_keys = KeyList.new()
+		add_child(_keys)
+		# The screen faces the cradle's -z, so the crew's right is -x.
+		_keys_material = _panel(_keys.get_texture(), Vector2(KEYS_WIDTH, SCREEN_SIZE.y),
+				-(SCREEN_SIZE.x / 2.0 + KEYS_GAP + KEYS_WIDTH / 2.0))
+	_keys.show_keys(bindings)
 
 
-func _key_text(text: String, colour: Color) -> Label3D:
-	var label := Label3D.new()
-	label.text = text
-	label.modulate = colour
-	label.outline_size = 0
-	label.pixel_size = KEY_TEXT_PIXEL
-	label.font_size = KEY_FONT_SIZE
-	label.rotation = Vector3(0, PI, 0)
-	return label
+## A panel in the cradle showing a viewport's texture, lit by itself, in a
+## dark casing: `panel_size` in metres, its middle `x` along the cradle's x
+## from the screen's. Returns its material, which dims it.
+func _panel(texture: Texture2D, panel_size: Vector2, x: float) -> StandardMaterial3D:
+	var casing := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(panel_size.x + 2.0 * CASING, panel_size.y + 2.0 * CASING, 0.02)
+	casing.mesh = box
+	casing.material_override = _material(CASING_COLOUR)
+	casing.position = SCREEN_CENTRE + Vector3(x, 0, 0)
+	_cradle.add_child(casing)
+	var face := MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = panel_size
+	face.mesh = quad
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_texture = texture
+	face.material_override = material
+	# Turned to face the crew, on the cradle's -z side.
+	face.position = SCREEN_CENTRE + Vector3(x, 0, -0.012)
+	face.rotation = Vector3(0, PI, 0)
+	_cradle.add_child(face)
+	return material
 
 
 ## Swing toward the given "up" (Habitat frame, unit length), turning to

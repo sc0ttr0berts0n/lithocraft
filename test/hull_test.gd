@@ -93,6 +93,9 @@ func test_deeper_down_the_same_heat_creeps_the_hull_faster() -> void:
 			1.0)
 	while deep.depth() < 400.0:
 		deep.advance(1.0)
+	# A Boundary this stark is beyond the Reactor's autopilot: the crew
+	# cancels the hard rock's Wobble by hand.
+	DiveTestKit.cancel_wobble(deep)
 	deep.set_heat_split(0.0)
 	DiveTestKit.run(shallow, 1200.0)
 	DiveTestKit.run(deep, 1200.0)

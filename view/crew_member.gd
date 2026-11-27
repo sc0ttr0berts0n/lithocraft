@@ -63,6 +63,15 @@ func look(relative: Vector2) -> void:
 	_camera.rotation = Vector3(_look, 0, 0)
 
 
+## Turns the look onto a point (Habitat frame) by the mouse travel that would
+## do it, so the centre dot lies on it: for a tool or a test that points.
+func look_onto(point: Vector3) -> void:
+	var toward := eye().affine_inverse() * point
+	var turn := atan2(-toward.x, -toward.z)
+	var raised := atan2(toward.y, Vector2(toward.x, toward.z).length())
+	look(Vector2(-turn, _look - raised) / MOUSE_SENSITIVITY)
+
+
 ## One physics step. felt is the felt acceleration in the Habitat frame.
 func step(felt: Vector3, dt: float) -> void:
 	_held = false
@@ -82,7 +91,7 @@ func step(felt: Vector3, dt: float) -> void:
 
 
 ## Shakes the view by up to this many metres this frame (a jolt the body
-## feels, e.g. a poor Shift's lurch); 0 holds it still.
+## feels, e.g. the Head's shudder); 0 holds it still.
 func shake(metres: float) -> void:
 	_camera.h_offset = randf_range(-metres, metres)
 	_camera.v_offset = randf_range(-metres, metres)

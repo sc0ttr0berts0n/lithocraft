@@ -1,5 +1,6 @@
-## Draws the Arm: the rail round the Bore, the carriage on it, the chain
-## and the claw. Reads an Arm each frame; changes nothing in it.
+## Draws the Arm: the rail round the Bore, where the Arm says it is along
+## it (Arm.rail_z()), the carriage on it, the chain and the claw. Reads an
+## Arm each frame; changes nothing in it.
 class_name ArmView
 extends Node3D
 
@@ -9,6 +10,7 @@ const RAIL_COLOUR := Color(0.78, 0.82, 0.85)
 var arm: Arm
 var rail_radius := 0.95
 
+var _rail := MeshInstance3D.new()
 var _carriage := MeshInstance3D.new()
 var _links: Array[MeshInstance3D] = []
 var _claw := Node3D.new()
@@ -16,14 +18,13 @@ var _fingers: Array[MeshInstance3D] = []
 
 
 func _ready() -> void:
-	var rail := MeshInstance3D.new()
 	var torus := TorusMesh.new()
 	torus.inner_radius = rail_radius - 0.03
 	torus.outer_radius = rail_radius + 0.03
-	rail.mesh = torus
-	rail.material_override = _material(RAIL_COLOUR)
-	rail.basis = Basis(Vector3.RIGHT, PI / 2.0)  # tori stand on Y; the Bore is Z
-	add_child(rail)
+	_rail.mesh = torus
+	_rail.material_override = _material(RAIL_COLOUR)
+	_rail.basis = Basis(Vector3.RIGHT, PI / 2.0)  # tori stand on Y; the Bore is Z
+	add_child(_rail)
 
 	var box := BoxMesh.new()
 	box.size = Vector3(0.18, 0.12, 0.24)
@@ -59,6 +60,7 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if arm == null:
 		return
+	_rail.position.z = arm.rail_z()
 	var c := arm.carriage()
 	_carriage.position = c
 	_carriage.basis = _basis_with_up(Vector3(c.x, c.y, 0).normalized())

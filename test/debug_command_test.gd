@@ -54,20 +54,24 @@ func test_the_hull_brought_to_the_brink_still_holds_but_fails_soonest() -> void:
 	assert_float(worn.stranding_clock()).is_less(whole.stranding_clock())
 
 
-func test_head_wear_raised_and_lowered_narrows_and_widens_the_shift() -> void:
+func test_head_wear_raised_and_lowered_narrows_and_widens_the_band() -> void:
 	var sim := _under_way()
-	var fresh_window := sim.shift_window_length()
+	sim.set_power(0.0)
+	DiveTestKit.run(sim, 600.0)  # At rest, so only the wear moves the Band.
+	var fresh_band := sim.band()
 
 	sim.debug_wear_head(0.6)
+	sim.advance(0.1)
 	var worn := sim.head_wear()
-	var worn_window := sim.shift_window_length()
+	var worn_band := sim.band()
 	sim.debug_wear_head(-0.4)
+	sim.advance(0.1)
 
 	assert_float(worn).is_greater(0.0)
-	assert_float(worn_window).is_less(fresh_window)
+	assert_float(worn_band).is_less(fresh_band)
 	assert_float(sim.head_wear()).is_less(worn)
 	assert_float(sim.head_wear()).is_greater(0.0)
-	assert_float(sim.shift_window_length()).is_greater(worn_window)
+	assert_float(sim.band()).is_greater(worn_band)
 	assert_bool(sim.plasma_lost()).is_false()
 
 
@@ -158,6 +162,7 @@ func test_a_debug_command_that_acts_gives_no_reason_and_one_that_cannot_says_why
 	var sim := _under_way()
 	var at_surface := DiveSimulation.new(MediumLayout.first_dive())
 	var level := _under_way()
+	level.set_autopilot(DiveSimulation.STATION_REACTOR, true)  # It crosses a Boundary on the way round.
 	level.set_attended(DiveSimulation.STATION_DRIVE, true)
 	level.set_power(0.3)
 	level.set_course(0.0, 0.0)
@@ -174,7 +179,7 @@ func test_a_debug_command_that_acts_gives_no_reason_and_one_that_cannot_says_why
 	assert_str(String(sim.debug_strand())).is_empty()
 	assert_str(String(sim.debug_strand())).is_not_empty()  # Already stranded.
 	assert_str(String(sim.debug_lose_plasma())).is_not_empty()  # Already lost.
-	assert_str(String(sim.debug_shift_due())).is_not_empty()  # No plasma to Shift.
+	assert_str(String(sim.debug_detune())).is_not_empty()  # No plasma to detune.
 	assert_str(String(sim.debug_self_destruct())).is_empty()
 	assert_str(String(sim.debug_self_destruct())).is_not_empty()  # Already running.
 
@@ -184,7 +189,7 @@ func test_every_debug_command_says_why_once_the_dive_is_over() -> void:
 	sim.debug_surface()
 	var reasons := [sim.debug_wear_hull(0.1), sim.debug_hull_to_brink(), sim.debug_wear_head(0.1),
 			sim.debug_lose_plasma(), sim.debug_strand(), sim.debug_refill_store(), sim.debug_surface(),
-			sim.debug_skip(10.0), sim.debug_self_destruct(), sim.debug_shift_due(),
+			sim.debug_skip(10.0), sim.debug_self_destruct(), sim.debug_detune(),
 			sim.debug_next_boundary()]
 
 	for reason in reasons:
@@ -229,19 +234,20 @@ func test_self_destruct_now_starts_it_without_the_hold() -> void:
 	assert_bool(sim.self_destructing()).is_false()
 
 
-func test_a_shift_due_now_mistunes_the_reactor() -> void:
+func test_detuning_active_now_puts_the_residual_outside_the_band() -> void:
 	var sim := _under_way()
 	sim.set_attended(DiveSimulation.STATION_REACTOR, true)
-	DiveTestKit.shift_to(sim, sim.plasma_frequency())
+	DiveTestKit.cancel_wobble(sim)
 	sim.advance(0.1)
-	assert_bool(sim.shift_due()).is_false()
+	assert_bool(sim.out_of_band()).is_false()
 
-	sim.debug_shift_due()
+	sim.debug_detune()
 
-	assert_bool(sim.shift_due()).is_true()
-	assert_float(sim.shift_window()).is_greater(0.0)
+	assert_bool(sim.out_of_band()).is_true()
+	# In frequency: the Residual beats.
+	assert_float(sim.residual_beat(DiveSimulation.CHANNEL_ACTIVE)).is_greater(0.0)
 	sim.advance(0.1)
-	assert_str(String(sim.call_reason(DiveSimulation.STATION_REACTOR))).is_equal("shift_due")
+	assert_str(String(sim.call_reason(DiveSimulation.STATION_REACTOR))).is_equal("out_of_band")
 
 
 func test_jumping_to_the_next_boundary_crosses_it_and_stops_short_of_the_one_after() -> void:
@@ -320,10 +326,13 @@ func test_debug_commands_do_nothing_once_the_dive_is_over() -> void:
 	assert_array(sim.take_events()).is_empty()
 
 
-## A dive at full power until the tunnel behind is sealed.
+## A dive at full power until the tunnel behind is sealed, the Reactor and
+## Thermal left to their autopilots.
 func _sealed_in() -> DiveSimulation:
 	var sim := DiveSimulation.new(MediumLayout.first_dive())
 	sim.set_power(1.0)
+	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
+	sim.set_autopilot(DiveSimulation.STATION_THERMAL, true)
 	for i in 3000:
 		if sim.tunnel_sealed():
 			break
@@ -331,3 +340,30 @@ func _sealed_in() -> DiveSimulation:
 	assert_bool(sim.tunnel_sealed()).is_true()
 	sim.take_events()
 	return sim
+
+func test_the_scan_view_starts_on_the_first_candidate_and_cycles_through_them_all() -> void:
+	var sim := _under_way()
+	var candidates := sim.scan_views()
+	var seen: Array[StringName] = [sim.scan_view()]
+
+	for i in candidates.size() - 1:
+		assert_str(sim.debug_next_scan_view()).is_equal(&"")
+		seen.append(sim.scan_view())
+	sim.debug_next_scan_view()
+
+	assert_int(candidates.size()).is_equal(3)
+	assert_str(seen[0]).is_equal(candidates[0])
+	assert_array(seen).contains_exactly_in_any_order(candidates)
+	assert_str(sim.scan_view()).is_equal(candidates[0])
+
+
+func test_changing_the_scan_view_changes_nothing_of_the_dive() -> void:
+	var plain := _under_way()
+	var flipped := _under_way()
+
+	flipped.debug_next_scan_view()
+	DiveTestKit.run(plain, 20.0)
+	DiveTestKit.run(flipped, 20.0)
+
+	assert_float(flipped.depth()).is_equal(plain.depth())
+	assert_array(flipped.take_events()).is_equal(plain.take_events())

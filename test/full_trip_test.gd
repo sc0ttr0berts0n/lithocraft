@@ -17,17 +17,21 @@ var _cooked := {}
 
 
 ## Flies the first dive the way a solo player at the Reactor and Thermal
-## Stations would: Drive at `power`, heat split `to_column`, a Shift on the
-## plasma's frequency whenever one is due, time run fast between calls, the
+## Stations would: Drive at `power`, heat split `to_column`, STANDBY prepared
+## for each Boundary and swapped in as the Head crosses (a Shift onto the new
+## Wobble the moment the Residual leaves the Band), time run fast between calls, the
 ## Drive eased off to what the wall grips whenever it slips. A player who
 ## `heeds` the heat warning eases the Drive off while it lasts, sparing the
 ## hull at the cost of speed; one who does not runs on. The Course is
 ## straight down until TURN_AT_M, when Navigation plots it straight up; the
 ## Drive, set to steer gently, follows it round a wide arc until the
-## Lithocraft surfaces. No autopilot is engaged: the player flies it all. Stops at the payment, or at death. Returns {sim,
+## Lithocraft surfaces. No autopilot is engaged: the player flies it all,
+## unless the Reactor is `left_to_its_autopilot`, when the crew never touches
+## it. Stops at the payment, or at death. Returns {sim,
 ## events, deepest, speed_at_turn}.
-func _full_trip(to_column := 0.0, power := 1.0, heeds := true) -> Dictionary:
+func _full_trip(to_column := 0.0, power := 1.0, heeds := true, left_to_its_autopilot := false) -> Dictionary:
 	var sim := DiveSimulation.new(MediumLayout.first_dive())
+	sim.set_autopilot(DiveSimulation.STATION_REACTOR, left_to_its_autopilot)
 	sim.set_attended(DiveSimulation.STATION_REACTOR, true)
 	sim.set_attended(DiveSimulation.STATION_THERMAL, true)
 	sim.set_power(power)
@@ -46,8 +50,8 @@ func _full_trip(to_column := 0.0, power := 1.0, heeds := true) -> Dictionary:
 		if sim.depth() >= TURN_AT_M and sim.course_pitch() > -90.0:
 			speed_at_turn = sim.speed()
 			sim.set_course(sim.course_heading(), -90.0)
-		if sim.shift_due():
-			DiveTestKit.shift_to(sim, sim.plasma_frequency())
+		if sim.out_of_band() and not left_to_its_autopilot:
+			DiveTestKit.shift_to(sim, DiveTestKit.wobble(sim))
 		if sim.slip() > 0.0:
 			sim.set_power(sim.power() * (1.0 - sim.slip()))
 		if heeds:
@@ -140,6 +144,47 @@ func test_a_full_dive_goes_down_through_both_boundaries_and_back_and_is_paid() -
 	assert_float(paid.carried_home).is_greater(0.0)
 	assert_float(sim.paid()).is_greater_equal(paid.amount)
 	assert_float(sim.unsold_value()).is_equal(0.0)
+
+
+func test_left_to_the_reactors_autopilot_a_whole_first_dive_still_comes_home() -> void:
+	var trip := _full_trip(0.0, 1.0, true, true)
+	var sim: DiveSimulation = trip.sim
+	var careful: DiveSimulation = _careful_trip().sim
+
+	# Down through both Boundaries and back up through them, no Shift made.
+	var story := _of_types(trip.events, [&"boundary_crossed", &"surfaced", &"paid"])
+	assert_array(DiveTestKit.types(story)).is_equal(
+			DiveTestKit.types(_of_types(_careful_trip().events, [&"boundary_crossed", &"surfaced", &"paid"])))
+	assert_array(_of_types(trip.events, [&"shift_result"])).is_empty()
+	assert_float(trip.deepest).is_greater_equal(TURN_AT_M)
+	assert_bool(sim.surfaced()).is_true()
+	assert_bool(sim.plasma_lost()).is_false()
+	assert_bool(sim.autopilot(DiveSimulation.STATION_REACTOR)).is_true()
+	# It wore the Head through each Boundary, where the crew's Shifts did not.
+	assert_float(careful.head_wear()).is_equal(0.0)
+	assert_float(sim.head_wear()).is_greater(0.0)
+	assert_float(_first(trip.events, &"paid").head_repair).is_greater(
+			_first(_careful_trip().events, &"paid").head_repair)
+
+
+func test_left_to_every_autopilot_a_whole_first_dive_still_comes_home() -> void:
+	var sim := DiveSimulation.new(MediumLayout.first_dive())
+	for station in [DiveSimulation.STATION_REACTOR, DiveSimulation.STATION_THERMAL]:
+		sim.set_autopilot(station, true)
+	sim.set_course(0.0, 90.0)
+	sim.set_autopilot(DiveSimulation.STATION_DRIVE, true)
+
+	# The crew only plots the Course: down, then up past the turn.
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.depth() >= TURN_AT_M or s.dead() or s.plasma_lost(), GIVE_UP_S)).is_true()
+	sim.set_course(sim.course_heading(), -90.0)
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.surfaced() or s.dead() or s.plasma_lost(), GIVE_UP_S)).is_true()
+
+	assert_bool(sim.surfaced()).is_true()
+	assert_bool(sim.plasma_lost()).is_false()
+	assert_bool(sim.dead()).is_false()
+	assert_float(sim.head_wear()).is_greater(0.0)
+	for station in [DiveSimulation.STATION_REACTOR, DiveSimulation.STATION_THERMAL, DiveSimulation.STATION_DRIVE]:
+		assert_bool(sim.autopilot(station)).is_true()
 
 
 func test_protecting_the_column_at_full_power_wears_the_hull_through() -> void:

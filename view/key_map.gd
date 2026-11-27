@@ -28,8 +28,8 @@ const MOUSE := -1
 ##   reads `KeyMap.held(action)` each frame. A key that acts on its press and
 ##   also while held (K, self-destruct) is a press binding whose handler
 ##   starts the hold, and reads `KeyMap.held(action)` for the release.
-## A key may be bound in several places (the Course keys at Navigation and at
-## the Drive); a press runs the first binding, in this order, that applies
+## A key may be bound in several places (Z / X and J / L plot the Course at
+## Navigation and nudge off it at the Drive); a press runs the first binding, in this order, that applies
 ## where the crew stands.
 const BINDINGS: Array[Dictionary] = [
 	{where = ANYWHERE, keys = [MOUSE], does = "capture the mouse to look", action = &"capture_mouse"},
@@ -44,6 +44,7 @@ const BINDINGS: Array[Dictionary] = [
 	{where = ANYWHERE, keys = [KEY_TAB], does = "the checklist: orders, next step, surface control", action = &"toggle_checklist"},
 	{where = ANYWHERE, keys = [KEY_F3], does = "debug overlay", action = &"toggle_debug"},
 	{where = ANYWHERE, keys = [KEY_KP_SUBTRACT], does = "debug menu", action = &"debug_menu"},
+	{where = ANYWHERE, keys = [KEY_F4], does = "debug: Navigation's next scan view", action = &"scan_view"},
 	# E at every Station: its autopilot's switch (DiveSimulation.set_autopilot()).
 	{where = DiveSimulation.STATION_NAVIGATION, keys = [KEY_E], does = "autopilot on / off", action = &"autopilot_navigation"},
 	{where = DiveSimulation.STATION_NAVIGATION, keys = [KEY_1, KEY_2, KEY_3], does = "Course dive / level / climb", action = &"plot_pitch"},
@@ -54,9 +55,8 @@ const BINDINGS: Array[Dictionary] = [
 	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_E], does = "autopilot on / off", action = &"autopilot_drive"},
 	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_T, KEY_G], does = "throttle +/-10%", action = &"power_step"},
 	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_Y, KEY_H], does = "steering effort +/-10%", action = &"effort_step"},
-	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_1, KEY_2, KEY_3], does = "override: dive / level / climb", action = &"override_pitch"},
-	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_Z, KEY_X], does = "override pitch -/+15 deg", action = &"override_pitch_step"},
-	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_J, KEY_L], does = "override heading -/+15 deg", action = &"override_heading_step"},
+	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_Z, KEY_X], does = "nudge off the Course: up / down", action = &"nudge_pitch"},
+	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_J, KEY_L], does = "nudge off the Course: left / right", action = &"nudge_heading"},
 	{where = DiveSimulation.STATION_DRIVE, keys = [KEY_O], does = "back to the Course", action = &"end_override"},
 	{where = DiveSimulation.STATION_BORE, keys = [KEY_E], does = "autopilot on / off", action = &"autopilot_bore"},
 	{where = DiveSimulation.STATION_BORE, keys = [KEY_F], does = "observe the next feature", action = &"observe"},
@@ -66,7 +66,9 @@ const BINDINGS: Array[Dictionary] = [
 	{where = DiveSimulation.STATION_THERMAL, keys = [KEY_C, KEY_V], does = "heat out / into the Column", action = &"heat_split"},
 	{where = DiveSimulation.STATION_THERMAL, keys = [KEY_K], does = "hold: self-destruct; again: cancel", action = &"self_destruct"},
 	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_E], does = "autopilot on / off", action = &"autopilot_reactor"},
-	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_N, KEY_M], does = "STANDBY down / up", action = &"tune_standby"},
+	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_C], does = "tune STANDBY / ACTIVE", action = &"select_channel"},
+	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_N, KEY_M], does = "Counter-wave frequency down / up", action = &"tune_frequency"},
+	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_J, KEY_K], does = "Counter-wave amplitude down / up", action = &"tune_amplitude"},
 	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_R], does = "swap STANDBY in: the Shift", action = &"shift"},
 	{where = DiveSimulation.STATION_REACTOR, keys = [KEY_I], does = "stranded: relight the Head", action = &"relight"},
 	# The numpad debug menu, laid out as the numpad: one key each, so the
@@ -79,7 +81,7 @@ const BINDINGS: Array[Dictionary] = [
 	{where = DEBUG, keys = [KEY_KP_1], does = "hull to the brink", action = &"debug_hull_brink"},
 	{where = DEBUG, keys = [KEY_KP_8], does = "Head wear +10%", action = &"debug_head_wear_up"},
 	{where = DEBUG, keys = [KEY_KP_5], does = "Head wear -10%", action = &"debug_head_wear_down"},
-	{where = DEBUG, keys = [KEY_KP_2], does = "a Shift due now", action = &"debug_shift_due"},
+	{where = DEBUG, keys = [KEY_KP_2], does = "detune ACTIVE now", action = &"debug_detune"},
 	{where = DEBUG, keys = [KEY_KP_9], does = "to the next Boundary", action = &"debug_next_boundary"},
 	{where = DEBUG, keys = [KEY_KP_6], does = "strand now", action = &"debug_strand"},
 	{where = DEBUG, keys = [KEY_KP_3], does = "lose the plasma", action = &"debug_lose_plasma"},

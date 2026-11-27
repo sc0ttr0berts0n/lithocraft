@@ -87,14 +87,14 @@ static func surroundings(medium: Medium, depth: float) -> float:
 
 
 ## One step of dt seconds. Every system that draws power makes heat
-## (`power_drawn`), plus `spike`, extra heat per second such as a poor Shift's
-## grinding. Heat reaches the Column only as far as Thermal's pumps are
+## (`power_drawn`), plus `grind_heat`, the extra heat per second of the Head's
+## grinding (its Residual outside the Band). Heat reaches the Column only as far as Thermal's pumps are
 ## powered (`split` times `thermal_supplied`); the rest goes out through the
 ## hull into surroundings at `surroundings_k`. The overheated hull creeps
 ## faster at greater `depth`, under the rock's pressure.
-func step(power_drawn: float, spike: float, split: float, thermal_supplied: float,
+func step(power_drawn: float, grind_heat: float, split: float, thermal_supplied: float,
 		surroundings_k: float, depth: float, dt: float) -> void:
-	_produced = power_drawn * _HEAT_PER_POWER + spike
+	_produced = power_drawn * _HEAT_PER_POWER + grind_heat
 	_to_column = _produced * split * thermal_supplied
 	_shed_outward(_produced - _to_column, surroundings_k, dt)
 	_creep(depth, dt)

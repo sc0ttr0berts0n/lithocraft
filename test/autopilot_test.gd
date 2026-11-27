@@ -28,12 +28,13 @@ func _setting_commands() -> Array:
 	return [
 		[DiveSimulation.STATION_DRIVE, func(s: DiveSimulation) -> void: s.set_power(0.6)],
 		[DiveSimulation.STATION_DRIVE, func(s: DiveSimulation) -> void: s.set_steering_effort(0.5)],
-		[DiveSimulation.STATION_DRIVE, func(s: DiveSimulation) -> void: s.override_course(90.0, 0.0)],
+		[DiveSimulation.STATION_DRIVE, func(s: DiveSimulation) -> void: s.nudge_pitch(-1.0)],
+		[DiveSimulation.STATION_DRIVE, func(s: DiveSimulation) -> void: s.nudge_heading(1.0)],
 		[DiveSimulation.STATION_DRIVE, func(s: DiveSimulation) -> void: s.end_override()],
 		[DiveSimulation.STATION_NAVIGATION, func(s: DiveSimulation) -> void: s.set_course(90.0, 0.0)],
 		[DiveSimulation.STATION_NAVIGATION, func(s: DiveSimulation) -> void: s.set_quiet_ship(true)],
 		[DiveSimulation.STATION_THERMAL, func(s: DiveSimulation) -> void: s.set_heat_split(0.5)],
-		[DiveSimulation.STATION_REACTOR, func(s: DiveSimulation) -> void: DiveTestKit.shift_to(s, s.plasma_frequency())],
+		[DiveSimulation.STATION_REACTOR, func(s: DiveSimulation) -> void: s.shift()],
 		[DiveSimulation.STATION_BORE, func(s: DiveSimulation) -> void: s.set_upload_priority(DiveSimulation.UPLOAD_NEWEST_FIRST)],
 		[DiveSimulation.STATION_BORE, func(s: DiveSimulation) -> void: s.set_uploading(false)],
 	]
@@ -76,7 +77,7 @@ func test_switching_off_an_autopilot_that_is_off_raises_nothing() -> void:
 func test_a_setting_command_disengages_its_stations_autopilot_and_says_so() -> void:
 	for command in _setting_commands():
 		var sim := _sim()
-		sim.set_attended(command[0], true)  # The Drive's override needs the crew there.
+		sim.set_attended(command[0], true)  # The Drive's nudges need the crew there.
 		for station in DiveSimulation.STATIONS:
 			sim.set_autopilot(station, true)
 		sim.take_events()
@@ -209,8 +210,7 @@ func test_the_drives_autopilot_backs_its_power_off_to_what_the_wall_can_grip_and
 
 
 ## Crosses one Boundary with the Reactor's autopilot engaged or off, and the
-## crew at the Reactor either way; the crew makes no Shift. Returns the Shift
-## result, if any came.
+## crew at the Reactor either way; the crew does nothing there.
 func _boundary_crossed(engaged: bool) -> DiveSimulation:
 	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, _soft()], [20.0, _hard()]]))
 	sim.set_power(0.5)
@@ -220,44 +220,50 @@ func _boundary_crossed(engaged: bool) -> DiveSimulation:
 	return sim
 
 
-func test_with_the_reactors_autopilot_off_a_due_shift_waits_for_the_crew() -> void:
+func test_with_the_reactors_autopilot_off_a_residual_outside_the_band_waits_for_the_crew() -> void:
 	var sim := _boundary_crossed(false)
+	var left_by_the_crew := DiveTestKit.counter_wave(sim, DiveSimulation.CHANNEL_ACTIVE)
 
-	assert_dict(DiveTestKit.run_until(sim, &"shift_result", 300.0)).is_empty()
-	assert_bool(sim.shift_due()).is_true()
+	DiveTestKit.run(sim, 30.0)
+
+	assert_bool(sim.out_of_band()).is_true()
+	assert_vector(DiveTestKit.counter_wave(sim, DiveSimulation.CHANNEL_ACTIVE)).is_equal(left_by_the_crew)
 
 
-func test_the_reactors_autopilot_shifts_late_and_poorly_even_with_the_crew_watching() -> void:
+func test_the_reactors_autopilot_tunes_active_slowly_even_with_the_crew_watching() -> void:
 	var sim := _boundary_crossed(true)
 	var crewed := _boundary_crossed(false)
-	crewed.advance(2.0)
-	DiveTestKit.shift_to(crewed, crewed.plasma_frequency())
+	DiveTestKit.run(crewed, 2.0, 0.1)
+	DiveTestKit.cancel_wobble(crewed)
+	DiveTestKit.run(crewed, 1.0, 0.1)
+	DiveTestKit.run(sim, 3.0, 0.1)
 
-	var by_autopilot := DiveTestKit.run_until(sim, &"shift_result")
-	var by_crew := DiveTestKit.run_until(crewed, &"shift_result")
+	# The crew is back inside the Band in the time the autopilot is still
+	# on its way; in the end the autopilot gets there, having worn the Head
+	# more.
+	assert_bool(crewed.out_of_band()).is_false()
+	assert_bool(sim.out_of_band()).is_true()
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return not s.out_of_band(), 600.0, 0.5, false)).is_true()
+	assert_float(sim.head_wear()).is_greater(crewed.head_wear())
+	assert_bool(sim.autopilot(DiveSimulation.STATION_REACTOR)).is_true()
 
-	assert_bool(by_autopilot.autopilot).is_true()
-	assert_bool(by_autopilot.clean).is_false()
-	assert_bool(by_crew.autopilot).is_false()
-	assert_float(by_autopilot.grade).is_less(by_crew.grade)
 
-
-func test_switching_the_reactors_autopilot_on_with_a_shift_overdue_lets_it_make_it() -> void:
+func test_switching_the_reactors_autopilot_on_with_the_residual_long_outside_the_band_lets_it_tune() -> void:
 	var sim := _boundary_crossed(false)
-	DiveTestKit.run(sim, 120.0)
-	assert_bool(sim.shift_due()).is_true()
+	DiveTestKit.run(sim, 20.0)
+	assert_bool(sim.out_of_band()).is_true()
 
 	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
-	var result := DiveTestKit.run_until(sim, &"shift_result", 5.0)
 
-	assert_bool(result.autopilot).is_true()
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return not s.out_of_band(), 600.0, 0.5, false)).is_true()
+	assert_bool(sim.plasma_lost()).is_false()
 
 
 func test_calls_still_come_with_the_autopilots_off() -> void:
 	var sim := _boundary_crossed(false)
 	DiveTestKit.run(sim, 5.0)
 
-	assert_str(String(sim.call_reason(DiveSimulation.STATION_REACTOR))).is_equal("shift_due")
+	assert_str(String(sim.call_reason(DiveSimulation.STATION_REACTOR))).is_equal("out_of_band")
 
 
 # --- The Drive's autopilot follows the Course ------------------------------
@@ -306,7 +312,7 @@ func test_the_drives_autopilot_turns_more_gently_than_a_crew_steering_hard() -> 
 func test_engaging_the_drives_autopilot_ends_an_override() -> void:
 	var sim := _sim()
 	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
-	sim.override_course(90.0, 0.0)
+	sim.nudge_pitch(-1.0)
 	assert_bool(sim.overriding()).is_true()
 
 	sim.set_autopilot(DiveSimulation.STATION_DRIVE, true)
@@ -317,7 +323,7 @@ func test_engaging_the_drives_autopilot_ends_an_override() -> void:
 func test_an_override_holds_after_the_crew_walks_away_from_the_drive() -> void:
 	var sim := _sim()
 	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
-	sim.override_course(90.0, 0.0)
+	sim.nudge_pitch(-1.0)
 
 	sim.set_attended(DiveSimulation.STATION_DRIVE, false)
 	sim.advance(1.0)

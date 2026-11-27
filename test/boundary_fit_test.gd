@@ -138,6 +138,52 @@ func test_a_surface_is_as_old_as_its_points() -> void:
 		assert_float(patch.returned_at).is_equal_approx(5.0, 0.001)
 
 
+# --- The Inferred Boundary ahead ------------------------------------------------
+
+## A level patch of ground `depth` metres down, centred under the origin.
+func _level_patch(depth: float, confidence: float, centre_x := 0.0) -> BoundaryPatch:
+	return BoundaryPatch.new(Vector3(centre_x, -depth, 0.0), Vector3.UP, Vector2(12.0, 12.0), 10,
+			confidence, 0.0)
+
+
+func test_the_boundary_ahead_is_found_along_the_line_and_only_ahead() -> void:
+	var patches: Array[BoundaryPatch] = [_level_patch(50.0, 0.6)]
+
+	var down := BoundaryFit.ahead(patches, Vector3.ZERO, Vector3.DOWN)
+	var slanted := BoundaryFit.ahead(patches, Vector3.ZERO, Vector3(0.1, -1.0, 0.0).normalized())
+
+	assert_float(down.x).is_equal_approx(50.0, 1e-4)
+	assert_float(down.y).is_equal_approx(0.6, 1e-6)
+	assert_float(slanted.x).is_greater(down.x)
+	# Behind the Head, or well off to the side of the line: no Boundary ahead.
+	assert_bool(is_inf(BoundaryFit.ahead(patches, Vector3.ZERO, Vector3.UP).x)).is_true()
+	assert_bool(is_inf(BoundaryFit.ahead(patches, Vector3(200.0, 0.0, 0.0), Vector3.DOWN).x)).is_true()
+	assert_float(BoundaryFit.ahead(patches, Vector3.ZERO, Vector3.UP).y).is_equal(0.0)
+	assert_bool(is_inf(BoundaryFit.ahead([] as Array[BoundaryPatch], Vector3.ZERO, Vector3.DOWN).x)).is_true()
+
+
+func test_a_few_stray_echoes_short_of_a_well_supported_surface_are_not_the_boundary_ahead() -> void:
+	var stray := _level_patch(30.0, 0.1)
+	var surface := _level_patch(60.0, 0.8)
+
+	var found := BoundaryFit.ahead([stray, surface] as Array[BoundaryPatch], Vector3.ZERO, Vector3.DOWN)
+
+	assert_float(found.x).is_equal_approx(60.0, 1e-4)
+	assert_float(found.y).is_equal_approx(0.8, 1e-6)
+	# A nearer surface about as sure is the one ahead.
+	var nearer := BoundaryFit.ahead([_level_patch(30.0, 0.7), surface] as Array[BoundaryPatch],
+			Vector3.ZERO, Vector3.DOWN)
+	assert_float(nearer.x).is_equal_approx(30.0, 1e-4)
+
+
+func test_neighbouring_patches_of_one_surface_are_read_together() -> void:
+	var patches: Array[BoundaryPatch] = [_level_patch(58.0, 0.5, -5.0), _level_patch(62.0, 0.5, 5.0)]
+
+	var found := BoundaryFit.ahead(patches, Vector3.ZERO, Vector3.DOWN)
+
+	assert_float(found.x).is_equal_approx(60.0, 1e-4)
+
+
 func test_the_fit_never_reads_the_layout() -> void:
 	# The fit is given points and nothing else: no Medium, no layout, no
 	# simulation is named anywhere in it.

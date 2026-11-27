@@ -1,7 +1,7 @@
 ## A Scenario's progress through one dive: which goals of its Orders are
 ## achieved, which Checklist steps are done, missed or still to do, and surface
 ## control's messages on their way down the link. Owned by DiveSimulation,
-## which tends it after every step; see docs/conventions.md, "Scenarios".
+## which tends it after every step; see docs/conventions/scenarios-and-checklist.md.
 ##
 ## Unlike the other subsystems it is handed the simulation itself on each
 ## tend(), because a Scenario's conditions read the simulation's public
@@ -148,7 +148,7 @@ func next_step() -> Dictionary:
 	if index < 0:
 		return {}
 	var step: Scenario.Step = _scenario.phases[_phase].steps[index]
-	return {id = step.id, text = step.text, station = step.station, action = step.action,
+	return {id = step.id, text = step.text, station = step.station, action = step.action, also = step.also,
 			state = PENDING, phase = _phase, step = index}
 
 
@@ -176,7 +176,7 @@ func phases() -> Array[Dictionary]:
 		for s in phase.steps.size():
 			var step: Scenario.Step = phase.steps[s]
 			steps.append({id = step.id, text = step.text, station = step.station,
-					action = step.action, state = _states[p][s]})
+					action = step.action, also = step.also, state = _states[p][s]})
 		result.append({title = phase.title, steps = steps})
 	return result
 

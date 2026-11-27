@@ -7,44 +7,59 @@ extends RefCounted
 ## Colour of the marks the Bore Station puts round a feature.
 const OBSERVING_COLOUR := Color(0.45, 0.95, 1.0)
 const RECORDED_COLOUR := Color(0.72, 1.0, 0.42)
-## How wide each kind is across the Column, in metres.
-const ACROSS_M := {
-	&"fulgurite": 0.08,
-	&"petrified_wood": 0.3,
-	&"iron_concretions": 0.35,
-	&"quartz_vein": 0.0, # A sheet: right round the Column.
-	&"pegmatite": 0.55,
+## The look of each kind of feature: how wide it is across the Column, in
+## metres (0 for a sheet that goes right round it), and the function below
+## that paints it. A kind a layout holds must be here: feature_look_test
+## fails on one that is not. Sizes are tuned to be seen from across the
+## Habitat (ADR 0001).
+const LOOKS := {
+	&"fulgurite": {across = 0.3, paint = &"_fulgurite"},
+	&"petrified_wood": {across = 0.5, paint = &"_petrified_wood"},
+	&"iron_concretions": {across = 0.8, paint = &"_concretions"},
+	&"quartz_vein": {across = 0.0, paint = &"_quartz_vein"},
+	&"pegmatite": {across = 0.6, paint = &"_pegmatite"},
 }
+## How wide a kind with no look is drawn, so a missing one is plain to see.
+const UNKNOWN_ACROSS_M := 0.3
 
 
-## Where round the Column a feature sits, 0..1 of the strip's width. Fixed
-## per feature so it never jumps.
+## True when this kind of feature has a look of its own in the Column.
+static func has_look(kind: StringName) -> bool:
+	return LOOKS.has(kind) and FeatureLook.new().has_method(LOOKS[kind].paint)
+
+
+## Where round the Column a feature sits when nothing says which side it
+## faces, 0..1 of the strip's width. Fixed per feature so it never jumps.
 static func across_fraction(feature: ColumnFeature) -> float:
 	return fposmod(hash(feature.id * 7919 + 13) / 1000.0, 1.0)
 
 
 ## The rectangle a feature covers on a strip: centre_y is the pixel row of its
-## middle, ppm the strip's pixels per metre.
-static func bounds(feature: ColumnFeature, width: float, centre_y: float, ppm: float) -> Rect2:
-	var across: float = ACROSS_M.get(feature.kind, 0.3) * ppm
+## middle, ppm the strip's pixels per metre. `facing` is where round the
+## Column its middle lies, 0..1 of the strip's width; the box may then hang
+## over an edge of the strip, which is the same line round the Column as the
+## other edge. Left out, each feature keeps a place of its own inside the strip.
+static func bounds(feature: ColumnFeature, width: float, centre_y: float, ppm: float,
+		facing := -1.0) -> Rect2:
+	var across_m: float = LOOKS[feature.kind].across if LOOKS.has(feature.kind) else UNKNOWN_ACROSS_M
+	var across := across_m * ppm
 	var along := feature.size_m * ppm
 	if across <= 0.0:
 		return Rect2(0.0, centre_y - along * 2.0, width, along * 4.0)
 	var x := across_fraction(feature) * maxf(width - across, 0.0)
+	if facing >= 0.0:
+		x = fposmod(facing, 1.0) * width - across / 2.0
 	return Rect2(x, centre_y - along / 2.0, across, along)
 
 
 ## Draws the feature into its bounds on the canvas.
 static func draw(canvas: CanvasItem, feature: ColumnFeature, box: Rect2, ppm: float) -> void:
+	if not has_look(feature.kind):
+		canvas.draw_rect(box, Color(1, 0, 1))
+		return
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(feature.id)
-	match feature.kind:
-		&"fulgurite": _fulgurite(canvas, box, ppm, rng)
-		&"petrified_wood": _petrified_wood(canvas, box, ppm, rng)
-		&"iron_concretions": _concretions(canvas, box, ppm, rng)
-		&"quartz_vein": _quartz_vein(canvas, box, ppm, rng)
-		&"pegmatite": _pegmatite(canvas, box, ppm, rng)
-		_: canvas.draw_rect(box, Color(1, 0, 1))
+	FeatureLook.new().call(LOOKS[feature.kind].paint, canvas, box, ppm, rng)
 
 
 ## The Bore Station's marks round a feature: corner brackets while observing,
@@ -74,47 +89,86 @@ static func draw_marks(canvas: CanvasItem, feature: ColumnFeature, box: Rect2,
 
 # --- Kinds ----------------------------------------------------------------
 
-## A glassy tube wandering along the path, dark with a pale rim.
+## A glassy tube wandering along the path: a pale sleeve of sintered sand
+## round a dark glass core, with a side branch or two.
 static func _fulgurite(canvas: CanvasItem, box: Rect2, ppm: float, rng: RandomNumberGenerator) -> void:
 	var points := PackedVector2Array()
 	var steps := 12
 	for i in steps + 1:
 		var y := box.position.y + box.size.y * i / steps
-		var x := box.get_center().x + rng.randf_range(-0.5, 0.5) * box.size.x
+		var x := box.get_center().x + rng.randf_range(-0.3, 0.3) * box.size.x
 		points.append(Vector2(x, y))
-	var thick := maxf(0.04 * ppm, 2.0)
-	canvas.draw_polyline(points, Color(0.85, 0.88, 0.8), thick * 1.6)
-	canvas.draw_polyline(points, Color(0.2, 0.25, 0.22), thick)
-	# A side branch or two.
+	var core := maxf(0.05 * ppm, 2.0)
+	var glass := Color(0.1, 0.16, 0.15)
+	var sleeve := Color(0.93, 0.95, 0.9)
+	var branches: Array[PackedVector2Array] = []
 	for b in 2:
 		var from := points[rng.randi_range(2, steps - 2)]
-		var to := from + Vector2(rng.randf_range(-1.0, 1.0) * 0.12 * ppm, rng.randf_range(0.04, 0.1) * ppm)
-		canvas.draw_line(from, to, Color(0.2, 0.25, 0.22), thick * 0.6)
+		var side := -1.0 if b == 0 else 1.0
+		branches.append(PackedVector2Array([from, from + Vector2(
+				side * rng.randf_range(0.08, 0.14) * ppm, rng.randf_range(0.06, 0.12) * ppm)]))
+	for branch in branches:
+		canvas.draw_polyline(branch, sleeve, core * 1.6)
+	canvas.draw_polyline(points, sleeve, core * 2.4)
+	for branch in branches:
+		canvas.draw_polyline(branch, glass, core * 0.6)
+	canvas.draw_polyline(points, glass, core)
+	canvas.draw_polyline(points, Color(0.45, 0.62, 0.58), maxf(core * 0.25, 1.0))
 
 
-## A log turned to stone: banded brown and red along its length, knots across.
+## A fossil trunk the Column cuts across at a slant, so its section is a
+## tall oval: growth rings in agate reds and creams round an off-centre
+## heart, inside a rind of bark, with pale quartz in the cracks that ran out
+## from the heart as it dried.
 static func _petrified_wood(canvas: CanvasItem, box: Rect2, ppm: float, rng: RandomNumberGenerator) -> void:
-	canvas.draw_rect(box, Color(0.42, 0.24, 0.16))
-	var bands := 7
-	for i in bands:
-		var x := box.position.x + box.size.x * (i + 0.5) / bands
-		var shade := Color(0.62, 0.32, 0.2) if i % 2 == 0 else Color(0.5, 0.42, 0.36)
-		canvas.draw_line(Vector2(x, box.position.y), Vector2(x + rng.randf_range(-2.0, 2.0), box.end.y),
-				shade, maxf(box.size.x / bands * 0.5, 1.0))
-	for k in 2:
-		var at := Vector2(box.get_center().x, box.position.y + box.size.y * rng.randf_range(0.2, 0.8))
-		canvas.draw_circle(at, box.size.x * 0.18, Color(0.3, 0.16, 0.1))
-		canvas.draw_circle(at, box.size.x * 0.08, Color(0.7, 0.45, 0.3))
-	canvas.draw_rect(box, Color(0.25, 0.13, 0.08), false, 2.0)
+	var radii := box.size / 2.0
+	var bark := Color(0.5, 0.24, 0.12)
+	_oval(canvas, box.get_center(), radii, bark)
+	var shades := [Color(0.82, 0.38, 0.16), Color(0.93, 0.76, 0.52), Color(0.66, 0.2, 0.1)]
+	var heart := box.get_center() + Vector2(rng.randf_range(-0.12, 0.12), rng.randf_range(-0.12, 0.12)) * box.size
+	var rings := 6
+	for i in rings:
+		# From the bark inward, each ring a little nearer the heart.
+		var inward := float(i) / rings
+		var share := 0.88 * (1.0 - inward)
+		_oval(canvas, box.get_center().lerp(heart, inward), radii * share, shades[i % shades.size()])
+	for crack in 3:
+		var along := Vector2.from_angle(rng.randf() * TAU)
+		canvas.draw_line(heart, heart + along * radii * rng.randf_range(0.5, 0.8),
+				Color(0.97, 0.95, 0.9), maxf(0.012 * ppm, 1.5))
+	_oval(canvas, heart, radii * 0.06, bark)
 
 
-## Iron oxide marbles: dark rusty balls with a pale highlight.
+## A filled oval.
+static func _oval(canvas: CanvasItem, centre: Vector2, radii: Vector2, colour: Color) -> void:
+	var rim := PackedVector2Array()
+	for s in 32:
+		var a := TAU * s / 32.0
+		rim.append(centre + Vector2(cos(a), sin(a)) * radii)
+	canvas.draw_colored_polygon(rim, colour)
+
+
+## Iron oxide marbles: rusty balls, each with a dark shell and a glint, in a
+## patch of sandstone bleached pale where its iron was drawn off to make them.
 static func _concretions(canvas: CanvasItem, box: Rect2, ppm: float, rng: RandomNumberGenerator) -> void:
-	for i in 9:
-		var r := rng.randf_range(0.02, 0.045) * ppm
-		var at := box.position + Vector2(rng.randf() * box.size.x, rng.randf() * box.size.y)
-		canvas.draw_circle(at, r, Color(0.28, 0.1, 0.05))
-		canvas.draw_circle(at - Vector2(r, r) * 0.3, r * 0.35, Color(0.62, 0.3, 0.16))
+	var patch := PackedVector2Array()
+	for s in 20:
+		var a := TAU * s / 20.0
+		patch.append(box.get_center() + Vector2(cos(a), sin(a)) * box.size / 2.0
+				* rng.randf_range(0.88, 1.0))
+	canvas.draw_colored_polygon(patch, Color(0.96, 0.93, 0.85))
+	# Marbles on a loose grid, so they spread over the patch without piling up.
+	var columns := 4
+	var rows := 2
+	for i in columns * rows:
+		var middle := Vector2((i % columns + 0.5) / columns, (i / columns + 0.5) / rows)
+		var jitter := Vector2(rng.randf_range(-0.2, 0.2) / columns, rng.randf_range(-0.2, 0.2) / rows)
+		# Pulled in toward the middle, to keep inside the rounded patch.
+		var at := box.get_center() + (middle + jitter - Vector2(0.5, 0.5)) * box.size * 0.72
+		var r := rng.randf_range(0.04, 0.075) * ppm
+		canvas.draw_circle(at, r, Color(0.3, 0.1, 0.05))
+		canvas.draw_circle(at, r * 0.8, Color(0.62, 0.2, 0.07))
+		canvas.draw_circle(at - Vector2(r, r) * 0.28, r * 0.25, Color(0.95, 0.62, 0.36))
 
 
 ## A sheet of white quartz crossing the Column at a slant: unwrapped round the
@@ -163,4 +217,5 @@ static func _pegmatite(canvas: CanvasItem, box: Rect2, ppm: float, rng: RandomNu
 	for g in 4:
 		var at := box.get_center() + Vector2(rng.randf_range(-0.35, 0.35) * box.size.x,
 				rng.randf_range(-0.35, 0.35) * box.size.y)
-		canvas.draw_circle(at, maxf(0.03 * ppm, 1.5), Color(0.5, 0.04, 0.1))
+		var r := maxf(0.03 * ppm, 1.5)
+		canvas.draw_circle(at, r, Color(0.5, 0.04, 0.1))
