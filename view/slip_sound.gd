@@ -18,7 +18,7 @@ var _judder_phase := 0.0
 
 func _ready() -> void:
 	# With no sound device (headless: the tests, a server) nothing is played.
-	# A playing generator freed there can crash the engine: three Habitats
+	# A playing generator freed there can crash Godot: three Habitats
 	# alive at once and then freed, as screenshot_test stages them, corrupted
 	# memory and segfaulted a little later, most runs.
 	if AudioServer.get_driver_name() == "Dummy":

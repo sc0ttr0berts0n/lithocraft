@@ -604,8 +604,9 @@ func _physics_process(delta: float) -> void:
 		_crew.step(felt, delta)
 	# The Head's shudder, the grip waves slipping on the wall, and heat
 	# wearing the hull are felt. Once the dive is over only its end lurch is,
-	# settling to still before the outcome shows.
-	_hull_feel.step(delta, felt)
+	# settling to still before the outcome shows. The sparks and groans
+	# keep to the wall near the crew, wherever along the Bore they are.
+	_hull_feel.step(delta, felt, _crew.position.z)
 	if _sim.surfaced() or _sim.dead():
 		_shake_m = _outcome_screen.step(delta)
 		if _outcome_screen.still() and not _outcome_lines.is_empty():
@@ -1233,7 +1234,8 @@ func _build_room() -> void:
 	outer.flip_faces = true
 	_add_along_axis(outer, _surface(Color(0.17, 0.2, 0.22)), 0.0)
 
-	# The Bore: glass round the Column, which stays in view from anywhere.
+	# The Bore: glass round the Column, which stays in view from anywhere. The
+	# glass is clear over the Column (BoreGlass), so its colours are as painted.
 	var column := MeshInstance3D.new()
 	column.mesh = _column_tube()
 	column.material_override = _column_material()
@@ -1244,10 +1246,7 @@ func _build_room() -> void:
 	glass.height = LENGTH
 	glass.cap_top = false
 	glass.cap_bottom = false
-	var glass_material := _surface(Color(0.62, 0.85, 1.0, 0.15))
-	glass_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	glass_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_add_along_axis(glass, glass_material, 0.0)
+	_add_along_axis(glass, BoreGlass.material(COLUMN_RADIUS, BORE_RADIUS), 0.0)
 	var ring := TorusMesh.new()
 	ring.inner_radius = BORE_RADIUS + 0.005
 	ring.outer_radius = BORE_RADIUS + 0.035

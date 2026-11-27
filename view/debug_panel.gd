@@ -38,8 +38,8 @@ const LAYOUT: Array[Dictionary] = [
 ]
 ## The numpad's three middle columns each work one thing, so their words are
 ## tinted to match the status line: the hull, the Head, where the dive is.
-const COLUMN_INKS := [Color("ff9a8a"), Color("ffc070"), Color("8ccfff")]
-const INK := Color("e8e8e8")
+const COLUMN_TINTS := [Color("ff9a8a"), Color("ffc070"), Color("8ccfff")]
+const WORDS_COLOUR := Color("e8e8e8")
 const ACCENT := Color("c890ff")
 ## How long a pressed key's cell stays lit, and a refused command's reason
 ## shows, in seconds.
@@ -82,7 +82,7 @@ func _ready() -> void:
 	add_child(rows)
 	rows.add_child(_title())
 	rows.add_child(_numpad())
-	_status = _words("", STATUS_SIZE, INK)
+	_status = _words("", STATUS_SIZE, WORDS_COLOUR)
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.custom_minimum_size.x = CELL.x * 4
 	rows.add_child(_status)
@@ -119,10 +119,10 @@ func _title() -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(_words("DEBUG", TITLE_SIZE, ACCENT))
-	var note := _words("  for testing a dive by hand, not crew controls", FONT_SIZE, INK.darkened(0.3))
+	var note := _words("  for testing a dive by hand, not crew controls", FONT_SIZE, WORDS_COLOUR.darkened(0.3))
 	note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(note)
-	row.add_child(_words("%s close" % KeyMap.label(&"debug_menu"), FONT_SIZE, INK.darkened(0.3)))
+	row.add_child(_words("%s close" % KeyMap.label(&"debug_menu"), FONT_SIZE, WORDS_COLOUR.darkened(0.3)))
 	return row
 
 
@@ -158,9 +158,9 @@ func _cell(code: int, at: Vector2, span: Vector2) -> Control:
 	if binding.is_empty():
 		cell.modulate.a = 0.35
 		return cell
-	var ink: Color = COLUMN_INKS[int(at.x)] if binding.where == KeyMap.DEBUG \
-			and at.y >= 1.0 and at.y <= 3.0 and at.x < COLUMN_INKS.size() else INK
-	var words := _words(binding.does, FONT_SIZE, ink)
+	var colour: Color = COLUMN_TINTS[int(at.x)] if binding.where == KeyMap.DEBUG \
+			and at.y >= 1.0 and at.y <= 3.0 and at.x < COLUMN_TINTS.size() else WORDS_COLOUR
+	var words := _words(binding.does, FONT_SIZE, colour)
 	words.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	words.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	words.position = Vector2(KEY_PX + 10, 0)
@@ -199,10 +199,10 @@ static func _cell_colour(glow: float) -> Color:
 	return Color(0.1, 0.09, 0.14, 0.9).lerp(Color(0.45, 0.3, 0.7, 0.95), glow)
 
 
-static func _words(text: String, font_size: int, ink: Color) -> Label:
+static func _words(text: String, font_size: int, colour: Color) -> Label:
 	var label := Label.new()
 	label.text = text
 	label.add_theme_font_size_override(&"font_size", font_size)
-	label.add_theme_color_override(&"font_color", ink)
+	label.add_theme_color_override(&"font_color", colour)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return label
