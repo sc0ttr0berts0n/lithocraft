@@ -62,7 +62,9 @@ func tend(sim: DiveSimulation, events: Array, dt: float, out: Array[Dictionary])
 				_sent.erase(i)
 		elif message.sent_when.call(sim, events):
 			_sent[i] = true
-			_on_the_way.append(i)
+			# A copy still coming down the link says it already.
+			if not _on_the_way.has(i):
+				_on_the_way.append(i)
 	_deliver(sim.link_capacity() * _CHARACTERS_PER_SURVEY_METRE * dt, out)
 
 
