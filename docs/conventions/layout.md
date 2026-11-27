@@ -17,7 +17,7 @@
 - `test/`: GdUnit4 suites, `*_test.gd`, `extends GdUnitTestSuite`, `func test_...`.
   Shared helpers in `test/support/dive_test_kit.gd`.
 - `tools/`: what the developer and agents run beside the game, none of it loaded by the game.
-  `tools/screenshot/` is GDScript and reads `view/` and `sim/` (`ShotPlan`, tested in `test/screenshot_test.gd`); `tools/docs/` and `tools/playtest/` are Python.
+  `tools/screenshot/` is GDScript and reads `view/` and `sim/` (`ShotPlan`, tested in `test/screenshot_test.gd`); `tools/docs/`, `tools/lint/` and `tools/playtest/` are Python.
   `tools/cost/` is GDScript too, the cost budget (`CostBudget`, `CostProbe`, tested in `test/cost_budget_test.gd`; see `cost-budget.md`).
 - Names and comments in `sim/` and `view/` use `GLOSSARY.md`'s terms and none of the words it says to avoid.
   A test enforces it: `test_no_avoided_glossary_term_is_used_in_the_simulation_or_the_view` (`test/convention_test.gd`) reads the glossary's `_Avoid_` lines and fails on an avoided word in an identifier, a comment or a string, whole words only (identifiers split at underscores and capitals, a final "s" dropped).
