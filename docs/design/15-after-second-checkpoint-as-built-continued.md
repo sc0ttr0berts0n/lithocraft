@@ -62,3 +62,6 @@ Continues `14-after-second-checkpoint-as-built.md`, which is full.
   The countdown's track runs two minutes from NOW; the screen no longer says "BOUNDARY AHEAD" from the Boundary-approaching event, which knew the layout: what the Reactor knows of the Boundary ahead is the scan's alone.
   Head wear moved from a status line into the instrument, amber while HEAD WORN is lit; the emergency store reads on the supply's line, so the lanes have the room of two status lines.
   Not done, for the developer to weigh: the screen does not say which control is off (frequency or amplitude), only shows the two looks; and ACTIVE's Wobble is drawn but not given as numbers, as before.
+- **Hull feel near the crew (ticket #94, agent's choice).**
+  The four spark emitters and the groans keep to 2.4 m of outer wall about the crew (the whole Habitat when the feel was tuned), so the taller Habitat does not thin them and nothing more is drawn.
+  The whole hull wears; the view shows and sounds only the stretch the crew are in.

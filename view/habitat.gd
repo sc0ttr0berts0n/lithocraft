@@ -604,8 +604,9 @@ func _physics_process(delta: float) -> void:
 		_crew.step(felt, delta)
 	# The Head's shudder, the grip waves slipping on the wall, and heat
 	# wearing the hull are felt. Once the dive is over only its end lurch is,
-	# settling to still before the outcome shows.
-	_hull_feel.step(delta, felt)
+	# settling to still before the outcome shows. The sparks and groans
+	# keep to the wall near the crew, wherever along the Bore they are.
+	_hull_feel.step(delta, felt, _crew.position.z)
 	if _sim.surfaced() or _sim.dead():
 		_shake_m = _outcome_screen.step(delta)
 		if _outcome_screen.still() and not _outcome_lines.is_empty():
