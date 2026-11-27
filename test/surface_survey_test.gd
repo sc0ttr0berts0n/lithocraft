@@ -76,8 +76,10 @@ func test_a_surveyed_dive_starts_with_points_and_a_faint_guess_before_any_pulse(
 	assert_int(plain.point_count()).is_equal(0)
 	assert_bool(is_nan(plain.wobble_ahead_frequency())).is_true()
 	# Surface control's points are in the scan, marked as the survey's...
-	assert_int(sim.point_count()).is_greater(0)
-	assert_int(_survey(sim.points()).size()).is_equal(sim.point_count())
+	assert_int(sim.survey_point_count()).is_greater(0)
+	assert_int(sim.point_count()).is_equal(0)
+	assert_int(_survey(sim.points()).size()).is_equal(sim.survey_point_count())
+	assert_int(sim.points().size()).is_equal(sim.survey_point_count())
 	assert_int(sim.inferred_boundaries().size()).is_greater(0)
 	# ...and STANDBY has a guess from them, with a countdown, but a faint one.
 	assert_bool(is_nan(sim.wobble_ahead_frequency())).is_false()
@@ -88,14 +90,14 @@ func test_a_surveyed_dive_starts_with_points_and_a_faint_guess_before_any_pulse(
 
 func test_the_survey_is_made_once_and_only_as_the_dive_begins() -> void:
 	var sim := _surveyed()
-	var held := sim.point_count()
+	var held := sim.survey_point_count()
 	sim.start_surveyed()
-	assert_int(sim.point_count()).is_equal(held)
+	assert_int(sim.survey_point_count()).is_equal(held)
 
 	var late := DiveSimulation.new(MediumLayout.first_dive())
 	late.advance(1.0)
 	late.start_surveyed()
-	assert_int(late.point_count()).is_equal(0)
+	assert_int(late.survey_point_count()).is_equal(0)
 
 
 func test_the_surveys_inferred_boundaries_are_less_sure_than_the_vessels_own_over_the_same_rock() -> void:
@@ -189,6 +191,8 @@ func test_a_long_dives_own_points_fill_the_cloud_beside_the_survey_which_stays_w
 	# The survey never crowds out the vessel's own points: they fill the cloud
 	# to its bound...
 	assert_int(most_own).is_equal(sim.point_capacity())
+	assert_int(sim.point_count()).is_equal(sim.point_capacity())
+	assert_int(sim.points().size()).is_equal(sim.point_count() + sim.survey_point_count())
 	# ...and the oldest of them gave way, not the survey, which is held where
 	# the vessel has not heard the rock itself.
 	var survey_left := _survey(sim.points()).size()

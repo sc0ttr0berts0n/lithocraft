@@ -9,8 +9,10 @@ An echo comes from where its ray meets a Boundary's surface (`_echoes_along()`, 
 
 **Surface control's survey.**
 A Scenario that begins surveyed calls the Scenario start command `start_surveyed()` in `prepare` (all three do); the simulation, which owns the layout, makes the survey's points then, once, and nothing on the scan side ever sees the layout for it.
-They are ordinary `ScanPoint`s marked `surveyed` (`pulse` -1), soundings of every Boundary on a square grid over the ground about the Head, half the fit's cell apart so every cell is fitted: flat at the Boundary's mean depth, off it by a share of that depth the same all across, scattered a little, and of a confidence below any ordinary echo's, so their patches and STANDBY's guess from them are faint.
-They are held in `_soundings`, apart from `point_capacity()` (which bounds the vessel's own points alone), so the oldest-first eviction never takes them and they never crowd out a long dive's own points; `points()` gives them first, then the vessel's.
+They are ordinary `ScanPoint`s marked `surveyed` (`pulse` -1), soundings of every Boundary on a square grid over the ground about the Head, half the fit's cell apart so every cell is fitted.
+Each Boundary is flat at its mean depth, off it by a share of that depth the same all across, scattered a little, and of a confidence below any ordinary echo's, so their patches and STANDBY's guess from them are faint.
+They are held in `_soundings`, apart from `point_capacity()` (which bounds the vessel's own points alone), so the oldest-first eviction never takes them and they never crowd out a long dive's own points.
+`points()` gives them first, then the vessel's; `point_count()` counts the vessel's own (the points heard, which Navigation's status line shows) and `survey_point_count()` the survey's.
 They go only by being outheard: `_add_point()` hands each of the vessel's echoes to `_outhear_soundings()`, which adds its confidence to every sounding near it (`_sounding_cells`, squares of the grid's spacing, nine looked in) and takes out each whose heard total reaches `_SURVEY_GIVES_WAY_AT`; `_send_pulse()` sweeps them out with the replaced points.
 So a clean scan replaces the survey under its cone, and a faint echo here and there leaves it standing (`surface_survey_test.gd`).
 The fit, the look-ahead, the countdown and the guess take the survey as any other points: there is no second path.

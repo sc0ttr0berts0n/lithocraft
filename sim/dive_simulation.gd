@@ -1854,16 +1854,26 @@ func navigation_supplied() -> float:
 ## point_capacity(), the oldest giving way first, and a return within
 ## point_resolution() of a point an earlier pulse returned replaces it; the
 ## survey is held beside them, giving way only to the vessel's own echoes
-## near it. A copy; changing it does not change the cloud.
+## near it. A copy; changing it does not change the cloud. Its cost is the
+## copy: at most point_capacity() points and the survey's, fixed as the dive
+## begins.
 func points() -> Array[ScanPoint]:
 	var cloud: Array[ScanPoint] = _soundings.duplicate()
 	cloud.append_array(_points)
 	return cloud
 
 
-## How many points the cloud holds, the survey's included.
+## How many of the vessel's own points the cloud holds, at most
+## point_capacity(): the points heard, the survey's left out.
 func point_count() -> int:
-	return _soundings.size() + _points.size()
+	return _points.size()
+
+
+## How many of surface control's survey points the cloud still holds: never
+## more than start_surveyed() made, fewer as the vessel's own echoes replace
+## them. points() holds this many and point_count() more.
+func survey_point_count() -> int:
+	return _soundings.size()
 
 
 ## How many pulses have been sent this dive. The cloud changes only when this
