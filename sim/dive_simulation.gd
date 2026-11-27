@@ -131,8 +131,6 @@ const _SCAN_NOISE_FLOOR := 0.15
 ## How far an uncertain point strays from its echo, per metre of range at zero
 ## confidence. Tuned for play (ADR 0001).
 const _SCAN_SCATTER := 0.08
-## Step for finding Boundaries along the depth a pulse can reach, metres.
-const _BOUNDARY_SEARCH_STEP_M := 1.0
 ## The point cloud holds at most this many points; past it the oldest give way.
 ## Tuned for play (ADR 0001); tests read point_capacity().
 const _SCAN_POINT_CAPACITY := 2000
@@ -141,8 +139,9 @@ const _SCAN_POINT_CAPACITY := 2000
 ## tests read point_resolution().
 const _SCAN_RESOLUTION_M := 1.0
 
-## Boundaries. A Boundary this many metres of depth ahead is announced, so the
-## Reactor Station can prepare for the Shift. Tuned for play (ADR 0001).
+## Boundaries. A Boundary this many metres of depth ahead along the Head's
+## line is announced, so the Reactor Station can prepare for the Shift. Tuned
+## for play (ADR 0001).
 const _BOUNDARY_APPROACH_M := 30.0
 
 ## A Checklist step's state, as checklist() gives it: still to do, done, or
@@ -253,6 +252,12 @@ var _course_heading := 0.0
 var _overriding := false
 var _override_heading := 0.0
 var _override_pitch := 0.0
+## The lean: the compass heading, degrees, a pitch nudge tilts the Drive
+## toward while it steers straight up or down, where a compass heading means
+## nothing (the vessel's own gyro reference, a ball attitude display's pole).
+## Read it through lean(): off vertical the lean is the heading the Drive
+## steers for, and this only what it was when a command last snapshotted it.
+var _lean := 0.0
 ## The last compass heading the vessel had while not pointing straight up or
 ## down, where heading has no meaning. Degrees, 0 along -Z, 90 along +X.
 var _bearing := 0.0
@@ -260,9 +265,9 @@ var _bearing := 0.0
 var _steering := 0.0
 ## The Drive's call: the hardest it will steer toward the Course, 0 to 1.
 var _steering_effort := 1.0
-## The path so far as (distance along it, depth) points, for the Column.
+## The path so far as (distance along it, world place) points, for the Column.
 var _path_distances := PackedFloat64Array([0.0])
-var _path_depths := PackedFloat64Array([0.0])
+var _path_places := PackedVector3Array([Vector3.ZERO])
 var _speed := 0.0
 var _slip := 0.0
 ## Thermal: the share of heat sent into the Column; the rest goes outward.
@@ -357,9 +362,11 @@ var _scan_random := RandomNumberGenerator.new()
 ## Which of SCAN_VIEWS Navigation's scan display draws: a debug setting
 ## (debug_next_scan_view()), nothing of the dive.
 var _scan_view := 0
-## Depth of the Boundary last announced as approaching, or NAN for none (from
-## its crossing).
+## Depth at which the Head's line meets the Boundary last announced as
+## approaching, or NAN for none (from its crossing), and which Boundary that is
+## (an index of the layout's, -1 for none).
 var _announced_boundary := NAN
+var _announced_index := -1
 ## The look-ahead (sim/look_ahead.gd): the Inferred Boundary ahead along the
 ## Head's direction, the countdown to it, and the scan's guess of the Wobble
 ## beyond it, which STANDBY previews. It is handed the patches and the Head's
@@ -450,6 +457,7 @@ func set_course(heading_degrees: float, pitch_degrees: float) -> void:
 	if _off_the_crew():
 		return
 	_disengage_on_command(STATION_NAVIGATION)
+	_lean = lean()
 	_course_heading = fposmod(heading_degrees, 360.0)
 	_course_pitch = clampf(pitch_degrees, -90.0, 90.0)
 	_settle_override()
@@ -481,8 +489,10 @@ func nudge_pitch(direction: float) -> void:
 
 ## Drive: nudges the compass heading it steers for one step of
 ## nudge_degrees(), right (clockwise from above) for a positive `direction`,
-## left for a negative one; otherwise as nudge_pitch(). Does nothing while
-## the Drive steers straight up or down, where heading means nothing.
+## left for a negative one; otherwise as nudge_pitch(). While the Drive
+## steers straight up or down, where heading means nothing, it turns the lean
+## (lean()) instead and nothing else: the Drive steers for what it did, and
+## the next pitch nudge tilts toward the lean.
 func nudge_heading(direction: float) -> void:
 	_nudge(signf(direction) * _NUDGE_DEG, 0.0)
 
@@ -493,7 +503,13 @@ func _nudge(heading_degrees: float, pitch_degrees: float) -> void:
 	if not attended(STATION_DRIVE):
 		return
 	_disengage_on_command(STATION_DRIVE)
-	_override_heading = fposmod(steered_heading() + heading_degrees, 360.0)
+	_lean = lean()
+	if steers_straight_up_or_down() and not is_zero_approx(heading_degrees):
+		_lean = fposmod(_lean + heading_degrees, 360.0)
+		return
+	# Off vertical the lean is the heading steered for; from vertical, the
+	# way a pitch nudge tilts.
+	_override_heading = fposmod(_lean + heading_degrees, 360.0)
 	_override_pitch = clampf(steered_pitch() + pitch_degrees, -90.0, 90.0)
 	_overriding = true
 	_settle_override()
@@ -511,6 +527,7 @@ func end_override() -> void:
 	if _off_the_crew():
 		return
 	_disengage_on_command(STATION_DRIVE)
+	_lean = lean()
 	_overriding = false
 
 
@@ -605,6 +622,7 @@ func set_autopilot(station: StringName, engaged: bool) -> void:
 		return
 	_autopilot[station] = true
 	if station == STATION_DRIVE:
+		_lean = lean()
 		_overriding = false
 		_power = _AUTOPILOT_DRIVE_POWER
 
@@ -714,11 +732,12 @@ func start_below(metres: float) -> void:
 	while left > 0.0:
 		var piece := minf(left, _START_PIECE_M)
 		left -= piece
-		var depth_before := depth()
+		var place_before := _position
 		_position += _direction * piece
-		_follow_the_head(depth_before, piece, 0.0)
+		_follow_the_head(place_before, piece, 0.0)
 	_events.resize(raised)
 	_announced_boundary = NAN  # A Boundary just ahead is announced on the first step.
+	_announced_index = -1
 	_plasma = Plasma.new(_wobble())
 	_look = LookAhead.new()
 	_look_ahead()
@@ -1011,8 +1030,8 @@ func debug_detune() -> StringName:
 	return &""
 
 
-## Debug: the Head jumps along the way it points to just past the next
-## Boundary ahead (deeper diving, shallower climbing), as if it had cut there
+## Debug: the Head jumps along the way it points to just past where its line
+## meets the next Boundary ahead, as if it had cut there
 ## in no time: the Column it passed is recorded, its features found, the
 ## tunnel behind made (and sealed in dense rock), the Boundary crossed (the
 ## Wobble changes), but no heat is made and no survey goes up the link.
@@ -1025,24 +1044,18 @@ func debug_next_boundary() -> StringName:
 	var down := -_direction.y
 	if absf(down) < _DEBUG_LEAST_DESCENT:
 		return &"level"
-	var target := NAN
-	for b in _layout.boundary_depths():
-		if down > 0.0 and b > depth():
-			target = b
-			break
-		if down < 0.0 and b < depth():
-			target = b
-	if is_nan(target):
+	var met := _boundary_ahead()
+	if met.is_empty():
 		return &"no_boundary_ahead"
-	var beyond := target + signf(down) * _DEBUG_PAST_BOUNDARY_M
-	var left := (beyond - depth()) / down
+	# Past where the Head's line meets the surface, by a little depth.
+	var left: float = met[0] + _DEBUG_PAST_BOUNDARY_M / absf(down)
 	# In short pieces, each moved as a step moves the Head but taking no time.
 	while left > 0.0:
 		var piece := minf(left, _DEBUG_TRAVEL_PIECE_M)
 		left -= piece
-		var depth_before := depth()
+		var place_before := _position
 		_position += _direction * piece
-		_follow_the_head(depth_before, piece, 0.0)
+		_follow_the_head(place_before, piece, 0.0)
 	return &""
 
 
@@ -1119,7 +1132,7 @@ func _step(dt: float) -> void:
 	# Steering heats one side of the Head harder; that share of the Drive's
 	# draw goes into heat, not into pushing.
 	var power := _drive_draw / (1.0 + _STEER_HEAT * _steering)
-	var medium := _layout.medium_at(depth())
+	var medium := _medium_here()
 	# The grip waves can only push as hard as the wall holds; the rest slips.
 	var gripped_power := _gripped(power, medium)
 	_slip = 0.0 if power <= 0.0 else (power - gripped_power) / power
@@ -1134,10 +1147,11 @@ func _step(dt: float) -> void:
 			surroundings_temperature(), depth(), dt)
 	_hull_warming = (_heat.vessel_temperature() - hull_before) / dt
 	_noise = _head_activity * _HEAD_HUM + _DRIVE_NOISE * power * (1.0 + _slip)
+	var place_before := _position
 	var depth_before := depth()
 	# The Head moves along its arc, turning toward the Drive's settings.
 	_steer(_speed, dt)
-	_follow_the_head(depth_before, _speed * dt, dt)
+	_follow_the_head(place_before, _speed * dt, dt)
 	_upload(link_rate() * dt)
 	# A hull that fails on the step the Head surfaces is death all the same
 	# (_check_stranded() below), not a surfacing.
@@ -1173,23 +1187,23 @@ static func _speed_on(gripped_power: float, medium: Medium) -> float:
 func _speed_while_steering(steering: float) -> float:
 	var asked := _power * _head_activity
 	var power := minf(asked, _drive_supply / (1.0 + _STEER_HEAT * steering))
-	var medium := _layout.medium_at(depth())
+	var medium := _medium_here()
 	return _speed_on(_gripped(power, medium), medium)
 
 
 ## What follows the Head having moved `travelled` metres along the path from
-## `depth_before`, over `dt` seconds: the Column it passed recorded (and the
+## `place_before`, over `dt` seconds: the Column it passed recorded (and the
 ## observed feature, for the time it spent), the features it cut past found,
 ## the path remembered, Boundaries crossed or coming, and the tunnel behind.
 ## The one movement sequence, for a step (_step()) and a debug jump
 ## (debug_next_boundary(), taking no time).
-func _follow_the_head(depth_before: float, travelled: float, dt: float) -> void:
+func _follow_the_head(place_before: Vector3, travelled: float, dt: float) -> void:
 	_record_survey(_distance, _distance + travelled)
 	_record_observed_feature(dt, travelled)
-	_find_features(depth_before, depth(), travelled)
+	_find_features(-place_before.y, depth(), travelled)
 	_distance += travelled
 	_remember_path()
-	_watch_boundaries(depth_before)
+	_watch_boundaries(place_before)
 	_look_ahead()
 	_update_tunnel()
 
@@ -1294,12 +1308,30 @@ func deviation_pitch() -> float:
 ## The deviation in heading: how far what the Drive steers for is off the
 ## Course round the compass, the short way, in degrees: positive to the right
 ## (clockwise from above), negative to the left. Zero while the Drive follows
-## the Course, and while it steers straight up or down, where heading means
-## nothing.
+## the Course, and while either it or the Course points straight up or down,
+## where heading means nothing: tilted off a Course straight down, the whole
+## deviation is the pitch.
 func deviation_heading() -> float:
-	if not _overriding or absf(_override_pitch) >= 90.0:
+	if not _overriding or absf(_override_pitch) >= 90.0 or absf(_course_pitch) >= 90.0:
 		return 0.0
 	return wrapf(_override_heading - _course_heading, -180.0, 180.0)
+
+
+## The lean: the compass heading, degrees 0 to 360, the Drive tilts toward
+## when a pitch nudge takes it off straight up or down. While it steers
+## straight up or down (steers_straight_up_or_down()) heading nudges turn it
+## and nothing else; otherwise it is the heading the Drive steers for
+## (steered_heading()), so steered back to vertical it keeps the way it came.
+## A Course plotted off vertical so sets it to the Course's heading. Constant
+## work.
+func lean() -> float:
+	return _lean if steers_straight_up_or_down() else steered_heading()
+
+
+## True while what the Drive steers for (steered_pitch()) is straight up or
+## down, where heading nudges turn the lean (lean()). Constant work.
+func steers_straight_up_or_down() -> bool:
+	return absf(steered_pitch()) >= 90.0
 
 
 ## How far one nudge at the Drive moves what it steers for, in degrees; see
@@ -1390,7 +1422,13 @@ func slip() -> float:
 
 ## The Medium the Lithocraft is in now.
 func medium() -> Medium:
-	return _layout.medium_at(depth())
+	return _medium_here()
+
+
+## The Medium at the Head's place: where a wavy Boundary lies depends on
+## where the Head is, not on its depth alone.
+func _medium_here() -> Medium:
+	return _layout.medium_at_point(_position)
 
 
 ## Metres travelled along the path since the dive began.
@@ -1445,7 +1483,7 @@ func plasma_stability() -> float:
 ## The Wobble the Medium being cut puts on the Head's plasma now, as
 ## Vector2(frequency in hertz, amplitude).
 func _wobble() -> Vector2:
-	return Plasma.wobble_in(_layout.medium_at(depth()))
+	return Plasma.wobble_in(_medium_here())
 
 
 ## The frequency, in hertz, of the Wobble the Medium puts on the Head's plasma
@@ -1789,7 +1827,7 @@ func remembered_path() -> PackedVector2Array:
 	var path := PackedVector2Array()
 	path.resize(_path_distances.size())
 	for i in _path_distances.size():
-		path[i] = Vector2(_path_distances[i], _path_depths[i])
+		path[i] = Vector2(_path_distances[i], -_path_places[i].y)
 	return path
 
 
@@ -2290,7 +2328,7 @@ func hull_warming_rate() -> float:
 ## temperature plus the planet's warming with depth, so it rises even within
 ## one Medium and the hull has less room to shed heat the deeper it goes.
 func surroundings_temperature() -> float:
-	return Heat.surroundings(_layout.medium_at(depth()), depth())
+	return Heat.surroundings(_medium_here(), depth())
 
 
 ## Damage heat has done to the vessel so far, 0 (none) to 1. It only grows
@@ -2403,7 +2441,8 @@ func _turning() -> ProjectedPath.Turning:
 
 
 ## Adds the Head's place to the remembered path, merging short or straight
-## pieces so a long dive stays small.
+## pieces so a long dive stays small. The place is kept whole, not only its
+## depth: a wavy Boundary lies at a depth that depends on where it is crossed.
 func _remember_path() -> void:
 	var last := _path_distances.size() - 1
 	var piece := _distance - _path_distances[last]
@@ -2412,29 +2451,29 @@ func _remember_path() -> void:
 	var mergeable := false
 	if last > 0:
 		var previous := _path_distances[last] - _path_distances[last - 1]
-		var previous_slope := (_path_depths[last] - _path_depths[last - 1]) / previous
-		var slope := (depth() - _path_depths[last]) / piece
-		mergeable = previous < _PATH_SAMPLE_M or absf(slope - previous_slope) < 1e-9
+		var previous_way := (_path_places[last] - _path_places[last - 1]) / previous
+		var way := (_position - _path_places[last]) / piece
+		mergeable = previous < _PATH_SAMPLE_M or previous_way.distance_to(way) < 1e-6
 	if mergeable:
 		_path_distances[last] = _distance
-		_path_depths[last] = depth()
+		_path_places[last] = _position
 	else:
 		_path_distances.append(_distance)
-		_path_depths.append(depth())
+		_path_places.append(_position)
 
 
-## Depth of the path at a distance along it. Behind the start of the dive the
-## path is taken as straight down from the surface.
-func _depth_at_distance(along_path: float) -> float:
+## The world place of the path at a distance along it. Behind the start of the
+## dive the path is taken as straight down from the surface.
+func _place_at_distance(along_path: float) -> Vector3:
 	if along_path <= 0.0:
-		return along_path
+		return _path_places[0] + Vector3.UP * -along_path
 	var last := _path_distances.size() - 1
 	if along_path >= _path_distances[last]:
-		return _path_depths[last]
+		return _path_places[last]
 	var i := _path_distances.bsearch(along_path, false)
 	var d0 := _path_distances[i - 1]
 	var d1 := _path_distances[i]
-	return lerpf(_path_depths[i - 1], _path_depths[i], (along_path - d0) / (d1 - d0))
+	return _path_places[i - 1].lerp(_path_places[i], (along_path - d0) / (d1 - d0))
 
 
 # --- Power ----------------------------------------------------------------
@@ -2522,30 +2561,34 @@ func _in_column(feature: ColumnFeature) -> bool:
 
 # --- Boundaries -----------------------------------------------------------
 
-## Raises boundary_crossed when this step took the Head into another Medium,
-## and boundary_approaching once for each Boundary that comes within reach
-## ahead in the direction the Head's depth is changing.
-func _watch_boundaries(depth_before: float) -> void:
-	var before := _layout.medium_at(depth_before)
-	var after := _layout.medium_at(depth())
+## Raises boundary_crossed when this step took the Head from `place_before`
+## into another Medium, and boundary_approaching once for each Boundary the
+## Head's line meets within reach ahead, reach counted in depth along that
+## line (where it meets the surface, not the Boundary's mean depth).
+func _watch_boundaries(place_before: Vector3) -> void:
+	var before := _layout.medium_at_point(place_before)
+	var after := _medium_here()
 	if after != before:
 		_announced_boundary = NAN
+		_announced_index = -1
 		_look.felt_crossing(_distance)
 		_events.append({type = &"boundary_crossed", from = before.name, to = after.name,
 				depth = depth(), distance = _distance})
 		_on_boundary_crossed(before, after)
-	if is_equal_approx(depth(), depth_before):
+	var down := -_direction.y
+	if is_equal_approx(depth(), -place_before.y) or absf(down) < 1e-6:
 		return
-	var downward := depth() > depth_before
-	var ahead := NAN
-	for b in _layout.boundary_depths():
-		var gap := b - depth() if downward else depth() - b
-		if gap > 0.0 and gap <= _BOUNDARY_APPROACH_M and (is_nan(ahead) or gap < absf(ahead - depth())):
-			ahead = b
-	if is_nan(ahead) or ahead == _announced_boundary:
+	var met := _layout.meets(_position, _position + _direction * _BOUNDARY_APPROACH_M / absf(down))
+	met = met.filter(func(m: Array) -> bool: return m[0] > 0.0)
+	if met.is_empty():
 		return
+	var ahead: float = depth() + down * met[0][0]
+	if met[0][1] == _announced_index:
+		_announced_boundary = ahead  # The same Boundary, met a little elsewhere.
+		return
+	_announced_index = met[0][1]
 	_announced_boundary = ahead
-	var beyond := _layout.medium_at(ahead + (0.01 if downward else -0.01))
+	var beyond: Medium = met[0][3]
 	_events.append({type = &"boundary_approaching", from = after.name, to = beyond.name,
 			depth = ahead, depth_to_go = absf(ahead - depth())})
 
@@ -2564,31 +2607,29 @@ func _look_ahead() -> void:
 			return
 		_look.settle()
 	var boundary := _boundary_ahead()
+	# The guess's errors are fixed by which Boundary it is (its mean depth),
+	# never by where the line meets it, so a guess never jitters as it moves.
+	var which: float = NAN if boundary.is_empty() else _layout.boundary_depths()[boundary[1]]
 	_look.look(_inferred, _position, _direction, _distance, _wobble_beyond(boundary),
-			hash(boundary))
+			hash(which))
 
 
-## Depth of the next Boundary in the way the Head's depth is changing, NAN
-## for none (or while it runs level). For what the echoes carry
-## (_wobble_beyond()) only: nothing the crew reads of where or when a
-## Boundary comes is taken from it.
-func _boundary_ahead() -> float:
-	var downward := signf(-_direction.y)
-	var boundary := NAN
-	for b in _layout.boundary_depths():
-		var gap := (b - depth()) * downward
-		if gap > 0.0 and (is_nan(boundary) or gap < absf(boundary - depth())):
-			boundary = b
-	return boundary
+## The next Boundary the Head's line meets, as MediumLayout.next_meet() gives
+## it ([metres, index, Medium before, Medium after]), or [] for none. For what
+## the echoes carry (_wobble_beyond()) only: nothing the crew reads of where
+## or when a Boundary comes is taken from it.
+func _boundary_ahead() -> Array:
+	return _layout.next_meet(_position, _direction)
 
 
 ## The Wobble the echoes carry, which the scan's guess degrades by its doubt:
-## that of the Medium beyond the Boundary at this depth (_boundary_ahead()),
-## or, with no Boundary ahead, of the Medium the Head is in and stays in.
-func _wobble_beyond(boundary: float) -> Vector2:
-	if is_nan(boundary):
+## that of the Medium beyond the Boundary the Head's line meets next
+## (_boundary_ahead()), or, with no Boundary ahead, of the Medium the Head is
+## in and stays in.
+func _wobble_beyond(boundary: Array) -> Vector2:
+	if boundary.is_empty():
 		return _wobble()
-	return Plasma.wobble_in(_layout.medium_at(boundary + 0.01 * signf(-_direction.y)))
+	return Plasma.wobble_in(boundary[3])
 
 
 ## A Boundary crossed. The Wobble has changed (the plasma is handed the new
@@ -3097,9 +3138,9 @@ func _recording_quality() -> float:
 
 
 ## The Medium of the Column at a distance along the path: the Medium at the
-## depth the path had there.
+## place the path had there.
 func _medium_at_distance(along_path: float) -> Medium:
-	return _layout.medium_at(_depth_at_distance(along_path))
+	return _layout.medium_at_point(_place_at_distance(along_path))
 
 
 # --- Scan -----------------------------------------------------------------
@@ -3115,7 +3156,9 @@ func _send_pulse() -> void:
 	var ahead := heading()
 	var side := ahead.cross(Vector3.RIGHT if absf(ahead.x) < 0.9 else Vector3.UP).normalized()
 	var other_side := ahead.cross(side)
-	var boundaries := _boundaries_near(depth())
+	# No echo returns from further than the cutoff allows in a Medium that
+	# carries sound perfectly.
+	var reach := -log(_ECHO_CUTOFF) * _SCAN_REACH_M / 2.0
 	var min_cos := cos(deg_to_rad(_PULSE_CONE_DEG))
 	var replaced := {}
 	for ray in _PULSE_RAYS:
@@ -3123,7 +3166,7 @@ func _send_pulse() -> void:
 		var s := sqrt(1.0 - c * c)
 		var turn := _scan_random.randf() * TAU
 		var direction := ahead * c + (side * cos(turn) + other_side * sin(turn)) * s
-		for echo in _echoes_along(direction, boundaries):
+		for echo in _echoes_along(origin, direction, reach):
 			var r: float = echo[0]
 			# A starved scanner listens less keenly: its echoes come back weaker.
 			var strength: float = echo[1] * navigation_supplied()
@@ -3195,27 +3238,22 @@ func _scan_cell(position: Vector3) -> Vector3i:
 	return Vector3i((position / (2.0 * _SCAN_RESOLUTION_M)).floor())
 
 
-## The echoes one ray returns: [range m, strength] for each Boundary it
-## crosses in reach, nearest first. Strength falls with the sound lost to each
-## Medium on the way out and back, and with what earlier Boundaries reflected.
-func _echoes_along(direction: Vector3, boundaries: Array) -> Array:
-	var down := -direction.y
-	if absf(down) < 0.0001:
-		return []
-	var crossings := []
-	for b in boundaries:
-		var r: float = (b - depth()) / down
-		if r > 0.0:
-			crossings.append(r)
-	crossings.sort()
+## The echoes one ray from `origin` along `direction` returns: [range m,
+## strength] for each time it passes through a Boundary within `reach`
+## metres, nearest first, where the ray meets the surface (a wavy one at the
+## depth it has there). Strength falls with the sound lost to each Medium on
+## the way out and back, and with what earlier Boundaries reflected.
+func _echoes_along(origin: Vector3, direction: Vector3, reach: float) -> Array:
 	var echoes := []
 	var faded := 0.0
 	var passed := 1.0
 	var travelled := 0.0
-	for r in crossings:
-		var depth_at: float = depth() + down * r
-		var before := _layout.medium_at(depth_at - signf(down) * 0.01)
-		var after := _layout.medium_at(depth_at + signf(down) * 0.01)
+	for met in _layout.meets(origin, origin + direction * reach):
+		var r: float = met[0]
+		if r <= 0.0:
+			continue
+		var before: Medium = met[2]
+		var after: Medium = met[3]
 		faded += 2.0 * (r - travelled) / (before.sound_carrying * _SCAN_REACH_M)
 		travelled = r
 		var strength := exp(-faded)
@@ -3227,32 +3265,6 @@ func _echoes_along(direction: Vector3, boundaries: Array) -> Array:
 		echoes.append([r, passed * reflected * strength])
 		passed *= 1.0 - reflected * reflected
 	return echoes
-
-
-## Depths of the Boundaries a pulse sent from this depth could reach.
-func _boundaries_near(depth: float) -> Array:
-	# No echo returns from further than the cutoff allows in a Medium that
-	# carries sound perfectly.
-	var reach := -log(_ECHO_CUTOFF) * _SCAN_REACH_M / 2.0
-	var found := []
-	var d := depth - reach
-	var above := _layout.medium_at(d)
-	while d < depth + reach:
-		var below := _layout.medium_at(d + _BOUNDARY_SEARCH_STEP_M)
-		if below != above:
-			# Narrow it down to a centimetre.
-			var lo := d
-			var hi := d + _BOUNDARY_SEARCH_STEP_M
-			while hi - lo > 0.01:
-				var mid := (lo + hi) * 0.5
-				if _layout.medium_at(mid) == above:
-					lo = mid
-				else:
-					hi = mid
-			found.append(hi)
-		above = below
-		d += _BOUNDARY_SEARCH_STEP_M
-	return found
 
 
 ## Share of sound a Boundary reflects, from the contrast in acoustic impedance

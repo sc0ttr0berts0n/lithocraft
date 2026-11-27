@@ -7,7 +7,7 @@ Plan tests, screenshots and long-running processes as the work goes, but run the
 - While iterating: the one test being written, and the suites for the code being changed (`./test.sh heat scan`).
 - Once, at hand-back or before the push: the whole suite (`./test.sh`), the docs check (`python tools/docs/check_docs.py`), the lint (`python tools/lint/lint.py`), and the ticket's screenshots.
 - At the push: CI repeats it, so do not rerun a green whole suite to be sure.
-  CI runs the suite and the smoke checks; the lint and the docs check join it with ticket #87.
+  CI runs the lint, docs check, suite and smoke checks.
 - An orchestrator merging several tickets runs the whole suite once per merge that had conflicts and once before review, and puts this policy in each agent's brief.
 - An orchestrator names a model for every agent it starts: a ticket's implementer runs on Opus, a docs-only or mechanical ticket on a smaller model, and the largest model is kept for work that is mostly hard reasoning, which a ticket rarely is (the developer's rule, 27 November 2026).
 
@@ -36,7 +36,7 @@ The same without the scene path runs the main scene, the start menu, which shoul
 A warning (leaked ObjectDB instances at exit) passes.
 
 CI: `.github/workflows/ci.yml` runs on each push to `dev` and pull request into it.
-It fetches the Linux Godot of its `GODOT_VERSION` (cached), runs `./test.sh`, then `tools/ci/smoke.sh` on the Habitat and the main scene; any failure fails the job.
+In order: the lint, the docs check, then the Linux Godot of its `GODOT_VERSION` (cached), `./test.sh`, and `tools/ci/smoke.sh` on the Habitat and the main scene; any failure fails the job.
 Agents merge into `dev` only on a green job, a rule: `dev` is unprotected.
 
 Cost budget: `tools/cost/cost.sh`, no part of `./test.sh`; see `cost-budget.md`.
