@@ -16,6 +16,9 @@ Success prints nothing after the engine's version line.
 Any script error is a real failure.
 The same without the scene path runs the main scene, the start menu, which should print nothing.
 
+Cost budget: `tools/cost/cost.sh` plays the Shift drill headless with every Station's screen live and times the simulation's step, every screen's update and every query; `COST OK` and exit 0, or `COST OVER BUDGET` and exit 1, in about half a minute.
+It is no part of `./test.sh`; what it measures and when to run it are in `cost-budget.md`.
+
 Ad-hoc checks: prefer a headless check when a window isn't needed.
 For a look at the game, `tools/screenshot/shot.sh` takes one PNG of a Scenario run to a dive time; from Git Bash at the repo root, with `GODOT_BIN` set as for the tests:
 `tools/screenshot/shot.sh --scenario "First dive" --look Reactor --time 120 --out /c/tmp/reactor-120.png`.

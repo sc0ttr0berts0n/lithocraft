@@ -18,6 +18,7 @@
   Shared helpers in `test/support/dive_test_kit.gd`.
 - `tools/`: what the developer and agents run beside the game, none of it loaded by the game.
   `tools/screenshot/` is GDScript and reads `view/` and `sim/` (`ShotPlan`, tested in `test/screenshot_test.gd`); `tools/docs/` and `tools/playtest/` are Python.
+  `tools/cost/` is GDScript too, the cost budget (`CostBudget`, `CostProbe`, tested in `test/cost_budget_test.gd`; see `cost-budget.md`).
 - Commit the `*.gd.uid` files Godot generates beside each script.
 - Files are LF.
   On Windows, write files from Python with `newline=''`, or they come back CRLF.
