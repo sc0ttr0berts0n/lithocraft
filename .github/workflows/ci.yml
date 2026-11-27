@@ -1,6 +1,6 @@
 name: CI
 
-# The guardrail on dev: the whole suite, then the two scene smoke checks.
+# The guardrail on dev: the lint, the docs check, the whole suite, then the two scene smoke checks.
 # See "Running" in docs/conventions/running-and-testing.md.
 
 on:
@@ -22,11 +22,26 @@ env:
 
 jobs:
   check:
-    name: Suite and scene smoke checks
+    name: Lint, docs check, suite and scene smoke checks
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+
+      # The cheap checks first, so a finding fails the job before Godot is fetched.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/lint/requirements.txt
+
+      - name: Lint
+        run: |
+          python -m pip install -r tools/lint/requirements.txt
+          python tools/lint/lint.py
+
+      - name: Docs check
+        run: python tools/docs/check_docs.py
 
       - name: Cache the Godot binary
         id: godot-cache
@@ -49,8 +64,6 @@ jobs:
           chmod +x "$bin"
           "$bin" --version
           echo "GODOT_BIN=$bin" >> "$GITHUB_ENV"
-
-      # Checks that need no Godot run (a lint, the docs check) go here, before the suite.
 
       - name: Suite
         run: bash ./test.sh  # test.sh is not marked executable in git
