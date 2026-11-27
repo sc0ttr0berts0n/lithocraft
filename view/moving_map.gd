@@ -40,14 +40,10 @@ const MARGIN_BOTTOM := 6.0
 const FONT_SIZE := 19
 const DASH_PX := 6.0
 
-## StationTheme's colours: the sky a backdrop, the surface and the depth
-## scale legends, the target depth what the crew aims for (cyan, as the
-## Course is), the path and the vessel what is happening (white).
-const BACKGROUND := StationTheme.SCREEN_COLOUR
-const SKY := StationTheme.SURFACEWARD_COLOUR
-const SURFACE_COLOUR := StationTheme.LEGEND_COLOUR
-const TICK_COLOUR := StationTheme.LEGEND_COLOUR
-const TARGET_COLOUR := StationTheme.SELECTED_COLOUR
+# Its colours are StationTheme's, by the Theme's own names: the sky a
+# backdrop, the surface and the depth scale legends, the target depth and the
+# projected path what the crew aims for (cyan, as the Course is), the path
+# behind and the vessel what is happening (white).
 
 var sim: DiveSimulation
 
@@ -147,8 +143,8 @@ func _draw_map() -> void:
 	var whole := Vector2(size)
 	var area := Rect2(MARGIN_LEFT, MARGIN_TOP, whole.x - MARGIN_LEFT - MARGIN_RIGHT,
 			whole.y - MARGIN_TOP - MARGIN_BOTTOM)
-	_canvas.draw_rect(Rect2(Vector2.ZERO, whole), BACKGROUND)
-	_canvas.draw_rect(Rect2(0.0, 0.0, whole.x, MARGIN_TOP), SKY)
+	_canvas.draw_rect(Rect2(Vector2.ZERO, whole), StationTheme.SCREEN_COLOUR)
+	_canvas.draw_rect(Rect2(0.0, 0.0, whole.x, MARGIN_TOP), StationTheme.SURFACEWARD_COLOUR)
 
 	var path := profile(sim.remembered_path())
 	var head_across := path[path.size() - 1].x
@@ -184,21 +180,21 @@ func _draw_map() -> void:
 	_draw_ticks(area, span, scale)
 	var font := ThemeDB.fallback_font
 	_canvas.draw_line(Vector2(area.position.x, area.position.y), Vector2(area.end.x, area.position.y),
-			SURFACE_COLOUR, 2.0)
+			StationTheme.LEGEND_COLOUR, 2.0)
 	_canvas.draw_string(font, Vector2(area.end.x - 100.0, area.position.y - 6.0), "surface",
-			HORIZONTAL_ALIGNMENT_RIGHT, 100.0, FONT_SIZE, SURFACE_COLOUR)
+			HORIZONTAL_ALIGNMENT_RIGHT, 100.0, FONT_SIZE, StationTheme.LEGEND_COLOUR)
 
 	if not is_nan(target):
 		var y: float = at.call(0.0, target).y
-		_dashes(Vector2(area.position.x, y), Vector2(area.end.x, y), TARGET_COLOUR)
+		_dashes(Vector2(area.position.x, y), Vector2(area.end.x, y), StationTheme.SELECTED_COLOUR)
 		_canvas.draw_string(font, Vector2(area.end.x - 200.0, y - 5.0), "target %d m" % roundi(target),
-				HORIZONTAL_ALIGNMENT_RIGHT, 200.0, FONT_SIZE, TARGET_COLOUR)
+				HORIZONTAL_ALIGNMENT_RIGHT, 200.0, FONT_SIZE, StationTheme.SELECTED_COLOUR)
 
 	# Over the target: a Boundary heard at the target depth shows. As sure
 	# as its patch; the map keeps what was heard, so it does not fade.
 	for i in patches.size():
 		var sureness := patches[i].confidence
-		var colour := ScanDisplay.DOUBTFUL.lerp(ScanDisplay.CERTAIN, sureness)
+		var colour := StationTheme.LEGEND_COLOUR.lerp(StationTheme.NOW_COLOUR, sureness)
 		colour.a = lerpf(0.3, 1.0, sureness)
 		var from: Vector2 = at.call(sides[i][0].x, sides[i][0].y)
 		var to: Vector2 = at.call(sides[i][1].x, sides[i][1].y)
@@ -208,7 +204,7 @@ func _draw_map() -> void:
 	for p in path:
 		drawn.append(at.call(p.x, p.y))
 	if drawn.size() > 1:
-		_canvas.draw_polyline(drawn, ScanDisplay.VESSEL_COLOUR, 2.0)
+		_canvas.draw_polyline(drawn, StationTheme.NOW_COLOUR, 2.0)
 
 	var vessel: Vector2 = drawn[drawn.size() - 1]
 	# Where this turn takes it: solid, beside the Course's dashes.
@@ -216,12 +212,12 @@ func _draw_map() -> void:
 	for p in projected:
 		coming.append(at.call(p.x, p.y))
 	if coming.size() > 1:
-		_canvas.draw_polyline(coming, ScanDisplay.PROJECTED_PATH_COLOUR, 2.0)
-	_dashes(vessel, _to_edge(vessel, _side_on(sim.course_direction()), area), ScanDisplay.COURSE_COLOUR)
+		_canvas.draw_polyline(coming, StationTheme.PROJECTED_PATH_COLOUR, 2.0)
+	_dashes(vessel, _to_edge(vessel, _side_on(sim.course_direction()), area), StationTheme.SELECTED_COLOUR)
 	var facing := _side_on(sim.heading())
 	var side := Vector2(-facing.y, facing.x)
 	_canvas.draw_colored_polygon(PackedVector2Array([vessel + facing * 7.0,
-			vessel - facing * 4.0 + side * 4.0, vessel - facing * 4.0 - side * 4.0]), ScanDisplay.VESSEL_COLOUR)
+			vessel - facing * 4.0 + side * 4.0, vessel - facing * 4.0 - side * 4.0]), StationTheme.NOW_COLOUR)
 
 
 ## A world direction as the map draws it, unit length: across by its run
@@ -240,10 +236,10 @@ func _draw_ticks(area: Rect2, span: float, scale: float) -> void:
 	var depth := step
 	while depth < span:
 		var y := area.position.y + depth * scale
-		_canvas.draw_line(Vector2(area.position.x - 4.0, y), Vector2(area.position.x, y), TICK_COLOUR, 1.0)
-		_canvas.draw_line(Vector2(area.position.x, y), Vector2(area.end.x, y), StationTheme.faded(TICK_COLOUR, 0.2), 1.0)
+		_canvas.draw_line(Vector2(area.position.x - 4.0, y), Vector2(area.position.x, y), StationTheme.LEGEND_COLOUR, 1.0)
+		_canvas.draw_line(Vector2(area.position.x, y), Vector2(area.end.x, y), StationTheme.faded(StationTheme.LEGEND_COLOUR, 0.2), 1.0)
 		_canvas.draw_string(font, Vector2(0.0, y + FONT_SIZE * 0.35), "%d m" % roundi(depth),
-				HORIZONTAL_ALIGNMENT_RIGHT, area.position.x - 6.0, FONT_SIZE, TICK_COLOUR)
+				HORIZONTAL_ALIGNMENT_RIGHT, area.position.x - 6.0, FONT_SIZE, StationTheme.LEGEND_COLOUR)
 		depth += step
 
 

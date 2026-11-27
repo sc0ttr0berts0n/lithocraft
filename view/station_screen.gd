@@ -253,6 +253,26 @@ func picture_rect(index: int) -> Rect2:
 	return Rect2(room.position + (room.size - drawn) / 2.0, drawn)
 
 
+## The readings inside the Station's instrument, in the order its Controls
+## come: each {name, rect}, the rectangle in the screen's pixels. An
+## instrument put in the body by set_instrument(), or any Control inside it,
+## names its readings with a method `readings() -> Dictionary`,
+## {name: Rect2 in its own pixels}: one for each thing on it the crew can
+## point at (ThermalGauge.readings() is the example). Laid out by the
+## Containers, so only once the screen is in the tree and a frame has passed.
+func instrument_readings() -> Array[Dictionary]:
+	var found: Array[Dictionary] = []
+	for control: Control in _body.find_children("*", "Control", true, false):
+		if not control.has_method(&"readings") or not control.is_visible_in_tree():
+			continue
+		var named: Dictionary = control.call(&"readings")
+		var from := control.get_global_rect().position
+		for reading: StringName in named:
+			var rect: Rect2 = named[reading]
+			found.append({name = reading, rect = Rect2(from + rect.position, rect.size)})
+	return found
+
+
 ## The body's place on the screen, in its pixels: an instrument's room.
 func body_rect() -> Rect2:
 	return _body.get_global_rect()

@@ -35,10 +35,80 @@ static func station_pivot(name: String) -> Vector3:
 	return _Habitat.pivot(station_place(name))
 
 
+## The simulation's name for the Station with this name on its screen
+## (DiveSimulation.STATION_*), or &"".
+static func station_sim_name(name: String) -> StringName:
+	var place := station_place(name)
+	return &"" if place < 0 else _Habitat.STATIONS[place][2]
+
+
+## A Habitat in the suite's tree, freed with the test, that steps only when
+## the test tells it (`habitat._physics_process(STEP)`): the staged Habitat
+## every Habitat-level test starts from. It plays `scenario`, or the First
+## dive.
+static func staged_habitat(suite: GdUnitTestSuite, scenario: Scenario = null) -> Node3D:
+	var habitat: Node3D = suite.auto_free((load("res://view/habitat.tscn") as PackedScene).instantiate())
+	if scenario != null:
+		habitat.scenario = scenario
+	suite.add_child(habitat)
+	habitat.set_physics_process(false)
+	return habitat
+
+
+## A Habitat staged as the screenshot tool stages one for these arguments
+## (ShotPlan: `["--look", "Drive", "--time", "3", "--out", "unused.png"]`),
+## in the suite's tree and freed with the test. Fails the test if the plan
+## or its staging does.
+static func staged_shot(suite: GdUnitTestSuite, arguments: Array) -> Node3D:
+	var plan := ShotPlan.parse(PackedStringArray(arguments))
+	suite.assert_str(plan.error).is_empty()
+	var habitat: Node3D = suite.auto_free(plan.make_habitat())
+	suite.add_child(habitat)
+	suite.assert_str(plan.stage(habitat)).is_empty()
+	return habitat
+
+
+## The Station of a Habitat with this name on its screen, or null.
+static func station(habitat: Node3D, name: String) -> GimballedStation:
+	for child in habitat.get_children():
+		if child is GimballedStation and (child as GimballedStation).station_name == name:
+			return child
+	return null
+
+
+## Every Station of a Habitat, the empty mount left out, in order round the
+## ring.
+static func stations(habitat: Node3D) -> Array[GimballedStation]:
+	var found: Array[GimballedStation] = []
+	for place in station_places():
+		found.append(station(habitat, station_name(place)))
+	return found
+
+
+## Waits until a screen's Containers have placed its readings: two frames.
+## Call with `await`.
+static func laid_out(suite: GdUnitTestSuite) -> void:
+	await suite.get_tree().process_frame
+	await suite.get_tree().process_frame
+
+
 ## Test values only: plain quartz rock. Defaults are strong enough that the
 ## grip waves never slip at full power.
 static func rock(hardness := 2.0, strength := 2.0, porosity := 0.05) -> Medium:
 	return Medium.new(&"rock", hardness, strength, porosity, 300.0, 1.0, {&"quartz": 1.0}, 0.5)
+
+
+## Test values only: soft, weaker rock, for layouts of soft rock over hard
+## (hard()): both strong enough never to slip, and unlike enough that the
+## Boundary between them returns a clear echo and changes the Wobble well
+## outside a fresh Head's Band.
+static func soft(sound_carrying := 0.5) -> Medium:
+	return Medium.new(&"soft", 1.0, 3.0, 0.3, 300.0, 1.0, {&"quartz": 1.0}, sound_carrying)
+
+
+## Test values only: hard, stronger rock (see soft()).
+static func hard(sound_carrying := 0.5) -> Medium:
+	return Medium.new(&"hard", 4.0, 6.0, 0.3, 300.0, 1.0, {&"feldspar": 1.0}, sound_carrying)
 
 
 ## Test values only: basalt, a pyroxene and plagioclase rock that carries
@@ -141,6 +211,26 @@ static func lose_plasma(sim: DiveSimulation) -> void:
 		if sim.plasma_lost():
 			return
 		sim.advance(0.1)
+
+
+## Runs the dive on until the tunnel has sealed behind, then loses the plasma
+## (lose_plasma()): stranded where it stands. For a layout whose rock fills
+## the tunnel in; in one that leaves it open the Lithocraft is brought home.
+static func strand(sim: DiveSimulation) -> void:
+	for i in 6000:
+		if sim.tunnel_sealed():
+			break
+		sim.advance(1.0)
+	lose_plasma(sim)
+
+
+## A dive in plain rock (rock()) with the Drive at this power and this share
+## of the heat sent into the Column: for tests of the hull's heat.
+static func heating(power: float, to_column := 0.0) -> DiveSimulation:
+	var sim := DiveSimulation.new(MediumLayout.uniform(rock()))
+	sim.set_power(power)
+	sim.set_heat_split(to_column)
+	return sim
 
 
 ## The state of the Checklist step with this id: DONE, PENDING or MISSED, or

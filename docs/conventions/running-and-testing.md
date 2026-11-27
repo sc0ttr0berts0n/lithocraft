@@ -41,6 +41,10 @@ It prints the PNG's path and exits 0; on any failure it prints why, leaves no PN
   Build test Media from test values (`DiveTestKit.rock()`, `.basalt()`) and test layouts with `MediumLayout.uniform()` / `.layered()`.
 - Use `DiveTestKit` (static): `run(sim, seconds, step)`, `run_until(sim, type, seconds, seen, step, before)` (keeps every event of the step that raised the one wanted), `types(events)`.
   Add shared helpers there rather than copying them into suites.
+  Test Media there too: `rock()`, `basalt()`, and `soft()` over `hard()` for a layout with one clear Boundary; `heating(power, to_column)` is a dive for tests of the hull's heat.
+- A Habitat-level test starts from `DiveTestKit.staged_habitat(self, scenario)`: in the tree, freed with the test, stepped only by `habitat._physics_process(step)`.
+  `station(habitat, name)` / `stations(habitat)` find its Stations, `await DiveTestKit.laid_out(self)` waits for a screen's Containers before its readings are read, and `staged_shot(self, arguments)` stages one as the screenshot tool does.
+- No test of the game calls a `debug_*` command (see `debug-commands.md`): wear the Head with `wear_head_gently()`, lose the plasma with `lose_plasma()`, strand with `strand()`, and end a dive by losing the plasma with the tunnel open (brought home) or by flying it.
 - Read expected sequences from the layout (`MediumLayout.first_dive().boundary_depths()` and `medium_at()`), never a hand-written list of depths.
 - Every autopilot starts off, so a setting holds with no help.
   Engage the autopilot of a Station the test wants to steady itself: the Reactor's for any dive that crosses a Boundary with nobody at the Reactor (`survey_test`, `stranding_test`, `repair_test`; left alone, the Residual outside the Band loses the plasma within minutes), Thermal's to keep the hull whole at full power (`steering_test`, `habitat_down_test`).

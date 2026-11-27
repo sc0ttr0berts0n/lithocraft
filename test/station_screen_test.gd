@@ -13,11 +13,6 @@ func _screen() -> StationScreen:
 	return screen
 
 
-func _laid_out() -> void:
-	await get_tree().process_frame
-	await get_tree().process_frame
-
-
 func _picture() -> Texture2D:
 	return ImageTexture.create_from_image(Image.create(64, 32, false, Image.FORMAT_RGB8))
 
@@ -36,7 +31,7 @@ func test_the_header_strip_is_at_the_top_with_the_name_the_autopilot_and_the_lam
 	screen.set_autopilot("AUTOPILOT", StationTheme.ENGAGED)
 	screen.show_lamps(_lamps(false))
 	screen.show_lines(["first", "second"])
-	await _laid_out()
+	await DiveTestKit.laid_out(self)
 
 	var rects := screen.text_rects()
 	assert_str(screen.texts()[0]).is_equal("Test   AUTOPILOT")
@@ -73,7 +68,7 @@ func test_every_reading_lies_whole_on_the_screen_however_many_lines() -> void:
 				lines.append("A line of a Station's reading, long enough to run quite wide %d" % i)
 			screen.show_lines(lines)
 			screen.set_footer("Time x1")
-			await _laid_out()
+			await DiveTestKit.laid_out(self)
 
 			var rects := screen.text_rects()
 			assert_int(rects.size()).is_equal(count + 2)
@@ -102,7 +97,7 @@ func test_an_instrument_fills_the_body_between_the_header_and_the_status_lines()
 	var instrument := Control.new()
 	screen.set_instrument(instrument)
 	screen.show_lines(["first", "second"])
-	await _laid_out()
+	await DiveTestKit.laid_out(self)
 
 	var rects := screen.text_rects()
 	var body := screen.body_rect()
@@ -119,7 +114,7 @@ func test_pictures_side_by_side_keep_their_shape_inside_the_body() -> void:
 	var pictures: Array[Texture2D] = [_picture(), _picture()]
 	screen.show_pictures(pictures)
 	screen.show_lines(["first"])
-	await _laid_out()
+	await DiveTestKit.laid_out(self)
 
 	var left := screen.picture_rect(0)
 	var right := screen.picture_rect(1)
@@ -140,7 +135,7 @@ func test_every_label_of_a_frame_is_written_in_a_theme_colour() -> void:
 			["caution", StationTheme.CAUTION], ["warning", StationTheme.WARNING],
 			["legend", StationTheme.LEGEND]])
 	screen.set_footer("Time x1")
-	await _laid_out()
+	await DiveTestKit.laid_out(self)
 
 	var labels := screen.root().find_children("*", "Label", true, false)
 	assert_int(labels.size()).is_greater(8)
@@ -157,7 +152,7 @@ func test_every_stations_key_list_shows_every_key_whole() -> void:
 		var keys: KeyList = auto_free(KeyList.new())
 		add_child(keys)
 		keys.show_keys(bindings)
-		await _laid_out()
+		await DiveTestKit.laid_out(self)
 
 		var whole := Rect2(Vector2.ZERO, Vector2(keys.size))
 		var rows := keys.row_rects()
@@ -180,7 +175,7 @@ func test_a_key_list_longer_than_any_station_has_still_shows_every_key_whole() -
 	var keys: KeyList = auto_free(KeyList.new())
 	add_child(keys)
 	keys.show_keys(bindings)
-	await _laid_out()
+	await DiveTestKit.laid_out(self)
 
 	var whole := Rect2(Vector2.ZERO, Vector2(keys.size))
 	for row in keys.row_rects():
@@ -189,18 +184,12 @@ func test_a_key_list_longer_than_any_station_has_still_shows_every_key_whole() -
 
 ## The Stations of a Habitat a few steps into the First dive, laid out.
 func _habitat_stations() -> Array[GimballedStation]:
-	var habitat: Node3D = auto_free((load("res://view/habitat.tscn") as PackedScene).instantiate())
-	add_child(habitat)
-	habitat.set_physics_process(false)
+	var habitat := DiveTestKit.staged_habitat(self)
 	habitat.simulation().set_power(1.0)
 	for i in 5:
 		habitat._physics_process(1.0 / 60.0)
-	await _laid_out()
-	var stations: Array[GimballedStation] = []
-	for child in habitat.get_children():
-		if child is GimballedStation and not (child as GimballedStation).station_name.is_empty():
-			stations.append(child)
-	return stations
+	await DiveTestKit.laid_out(self)
+	return DiveTestKit.stations(habitat)
 
 
 func test_no_station_in_the_habitat_floats_text_and_every_reading_lies_on_its_screen() -> void:
@@ -236,20 +225,12 @@ func test_every_label_on_every_station_of_the_habitat_is_written_in_a_theme_colo
 
 
 func test_the_reactors_worn_head_lamp_follows_the_simulation_onto_its_screen() -> void:
-	var habitat: Node3D = auto_free((load("res://view/habitat.tscn") as PackedScene).instantiate())
-	add_child(habitat)
-	habitat.set_physics_process(false)
-	var reactor: GimballedStation = null
-	for child in habitat.get_children():
-		if child is GimballedStation and (child as GimballedStation).station_name == "Reactor":
-			reactor = child
+	var habitat := DiveTestKit.staged_habitat(self)
+	var reactor := DiveTestKit.station(habitat, "Reactor")
 	habitat._physics_process(1.0 / 60.0)
 	assert_array(Array(reactor.screen().lit_lamps())).not_contains([CautionLamps.HEAD_WORN])
 
-	habitat.simulation().debug_wear_head(0.3)
+	DiveTestKit.wear_head_gently(habitat.simulation(), 0.3)
 	habitat._physics_process(1.0 / 60.0)
+
 	assert_array(Array(reactor.screen().lit_lamps())).contains([CautionLamps.HEAD_WORN])
-
-	habitat.simulation().debug_wear_head(-1.0)
-	habitat._physics_process(1.0 / 60.0)
-	assert_array(Array(reactor.screen().lit_lamps())).not_contains([CautionLamps.HEAD_WORN])

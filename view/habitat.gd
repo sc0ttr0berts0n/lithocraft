@@ -273,6 +273,13 @@ func seat_at(station: StringName) -> void:
 			_crew.hold(pose, GimballedStation.pose_look(), 1.0)
 
 
+## Turns the crew member's look onto a point (Habitat frame), as the mouse
+## would, so the centre dot lies on it. For a tool or a test that points at a
+## reading; the crew's own way is the mouse.
+func look_onto(point: Vector3) -> void:
+	_crew.look_onto(point)
+
+
 ## Every key goes through the key map: a press runs `_key_<action>(index)` of
 ## the first binding that applies where the crew stands, so what each screen
 ## shows is what the key does.
@@ -1063,10 +1070,12 @@ func _cycle_upload_priority() -> void:
 func _bore_instrument() -> Control:
 	var row := HBoxContainer.new()
 	var survey := SurveyPanel.new()
+	survey.sim = _sim
+	survey.zoom = BORE_PANEL_ZOOM
 	var tunnel := TunnelPanel.new()
+	tunnel.sim = _sim
+	tunnel.zoom = BORE_PANEL_ZOOM
 	for panel: Control in [survey, tunnel]:
-		panel.set(&"sim", _sim)
-		panel.set(&"zoom", BORE_PANEL_ZOOM)
 		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		row.add_child(panel)

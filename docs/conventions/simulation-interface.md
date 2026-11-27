@@ -37,8 +37,9 @@ The shape is in the class's header comment; copy it.
 
 ## Subsystems
 
-Heat, the plasma and stranding each live in their own plain class in `sim/`, owned by `DiveSimulation` (`_heat`, `_plasma`, `_stranding`).
+Heat, the plasma, stranding and the look-ahead each live in their own plain class in `sim/`, owned by `DiveSimulation` (`_heat`, `_plasma`, `_stranding`, `_look`).
 They are not seams: tests never build or read them, only `DiveSimulation`'s interface.
+The one exception is the look-ahead, which is also tested on patches alone (`look_ahead_test.gd`), as `BoundaryFit` is on points alone: a scan that shows a Boundary where none is cannot be made through a layout.
 The rules:
 
 - `DiveSimulation` keeps every command, query and event; a subsystem's state reaches the outside only through a `DiveSimulation` query that delegates to it.

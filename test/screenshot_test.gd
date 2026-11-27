@@ -12,12 +12,7 @@ func _plan(args: Array) -> ShotPlan:
 
 ## The Habitat of the shot these arguments ask for, staged and in the tree.
 func _staged(args: Array) -> Node:
-	var plan := _plan(args)
-	assert_str(plan.error).is_empty()
-	var habitat: Node = auto_free(plan.make_habitat())
-	add_child(habitat)
-	assert_str(plan.stage(habitat)).is_empty()
-	return habitat
+	return DiveTestKit.staged_shot(self, args + ["--out", "unused.png"])
 
 
 func test_a_shot_runs_the_named_scenario_to_its_time_with_the_crew_at_the_station() -> void:

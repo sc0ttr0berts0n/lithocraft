@@ -22,4 +22,5 @@ Intentions tick steps, so a phase that needs one asks for it in a step: "Turn an
 `test_no_phase_begins_early_on_what_the_crew_only_intends` (`test/scenario_test.gd`) lists every Scenario's early triggers and tries each against every intention command on a dive that has not run; a new trigger is added to its list, and a new intention command to `_state_every_intention()`.
 A new dive starts the Checklist afresh (`_scenario` is kept between dives).
 Step texts name no keys: a step's `action` names the key-map action that does it, and the panel writes `KeyMap.label(action)`.
+A step that may take a second control names it with `Step.and_also(action)` (`also` in the step's dictionary), and the panel writes both: every "Pretune standby" step names `tune_frequency` and `tune_amplitude`.
 Events a Scenario's conditions need that the simulation did not raise are added to it as ordinary events (`&"course_plotted"`, `&"pulse_sent"`, `&"orders_read"`).

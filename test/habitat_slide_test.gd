@@ -14,11 +14,7 @@ const DEEP_M := 1500.0
 
 ## A Habitat on the First dive, in the tree, stepped only by the test.
 func _habitat() -> Node3D:
-	var habitat: Node3D = auto_free((load("res://view/habitat.tscn") as PackedScene).instantiate())
-	habitat.scenario = Scenario.first_dive()
-	add_child(habitat)
-	habitat.set_physics_process(false)
-	return habitat
+	return DiveTestKit.staged_habitat(self, Scenario.first_dive())
 
 
 ## Turns the Habitat's dive from deep and straight down toward a climb, as

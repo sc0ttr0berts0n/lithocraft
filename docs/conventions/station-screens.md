@@ -52,7 +52,7 @@
   STANDBY's is a prediction: its number is beside a plus-or-minus, `wobble_ahead_spurious()`, the ripple the drawn line keeps, and while that could reach outside the Band the verdict is "IN BAND IF THE SCAN IS RIGHT".
   Under the lanes: the Boundary countdown on a track toward NOW, giving way to "BOUNDARY CROSSED" and the swap's key while `settling_in()`; the Band beside its widest; the Head's wear.
   It keeps no state; its writing is `Label`s, never drawn strings, tested not to overlap, and its waves run on the dive's clock.
-- The Drive's screen is a primary flight display (`FlightDisplay`, `view/flight_display.gd`), drawn on a `SubViewport` like the Reactor's: attitude (pitch ladder), speed and depth tapes, heading tape, power, grip and steering, each read from the simulation's queries every frame;
+- The Drive's screen is a primary flight display (`FlightDisplay`, `view/flight_display.gd`), a picture drawn in its own `SubViewport`: attitude (pitch ladder), speed and depth tapes, heading tape, power, grip and steering, each read from the simulation's queries every frame;
   its status lines are the Course, written as Navigation's screen writes it (`habitat.gd::_course_line()`), then whether the Drive follows it or how far off it steers (or how the dive ended).
   A tape's scale is a `FlightTape`: the reading stays at its middle, a value's place is `place(value, reading)` (the short way round on the compass), and a bug off the tape is `pinned()` to its nearer end.
   On the attitude indicator a mark lies aside by `FlightTape.sideways()`, the true angle off the vessel's vertical plane, not the bare heading difference, which means nothing in a steep dive.

@@ -249,6 +249,20 @@ func labels() -> Array[Label]:
 	return all
 
 
+## What the crew can point at on the instrument, each a rectangle in its own
+## pixels (StationScreen.instrument_readings()): each channel's lane, then
+## the foot's three parts.
+func readings() -> Dictionary:
+	var foot := _foot_parts()
+	return {
+		&"active": lane_rect(_index(DiveSimulation.CHANNEL_ACTIVE)),
+		&"standby": lane_rect(_index(DiveSimulation.CHANNEL_STANDBY)),
+		&"boundary_countdown": foot[0],
+		&"band": foot[1],
+		&"head_wear": foot[2],
+	}
+
+
 ## Brings the writing up to the simulation; done every frame.
 func refresh() -> void:
 	if sim == null or _lanes.is_empty():

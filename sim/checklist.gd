@@ -148,7 +148,7 @@ func next_step() -> Dictionary:
 	if index < 0:
 		return {}
 	var step: Scenario.Step = _scenario.phases[_phase].steps[index]
-	return {id = step.id, text = step.text, station = step.station, action = step.action,
+	return {id = step.id, text = step.text, station = step.station, action = step.action, also = step.also,
 			state = PENDING, phase = _phase, step = index}
 
 
@@ -176,7 +176,7 @@ func phases() -> Array[Dictionary]:
 		for s in phase.steps.size():
 			var step: Scenario.Step = phase.steps[s]
 			steps.append({id = step.id, text = step.text, station = step.station,
-					action = step.action, state = _states[p][s]})
+					action = step.action, also = step.also, state = _states[p][s]})
 		result.append({title = phase.title, steps = steps})
 	return result
 

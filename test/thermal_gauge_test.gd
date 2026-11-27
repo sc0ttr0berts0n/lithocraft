@@ -4,13 +4,6 @@
 extends GdUnitTestSuite
 
 
-func _sim(power: float, to_column := 0.0) -> DiveSimulation:
-	var sim := DiveSimulation.new(MediumLayout.uniform(DiveTestKit.rock()))
-	sim.set_power(power)
-	sim.set_heat_split(to_column)
-	return sim
-
-
 func _gauge(sim: DiveSimulation) -> ThermalGauge:
 	var gauge: ThermalGauge = auto_free(ThermalGauge.new())
 	gauge.sim = sim
@@ -19,7 +12,7 @@ func _gauge(sim: DiveSimulation) -> ThermalGauge:
 
 ## Runs at full power, all heat outward, until the hull is at least this hot.
 func _heated_to(kelvin: float) -> DiveSimulation:
-	var sim := _sim(1.0)
+	var sim := DiveTestKit.heating(1.0)
 	for i in 3000:
 		if sim.vessel_temperature() >= kelvin:
 			break
@@ -29,9 +22,9 @@ func _heated_to(kelvin: float) -> DiveSimulation:
 
 
 func test_a_hotter_hull_stands_further_along_the_scale() -> void:
-	var cool := _gauge(_sim(0.0))
-	var warm := _gauge(DiveTestKit.run(_sim(1.0), 30.0))
-	var hot := _gauge(DiveTestKit.run(_sim(1.0), 90.0))
+	var cool := _gauge(DiveTestKit.heating(0.0))
+	var warm := _gauge(DiveTestKit.run(DiveTestKit.heating(1.0), 30.0))
+	var hot := _gauge(DiveTestKit.run(DiveTestKit.heating(1.0), 90.0))
 
 	assert_float(cool.needle()).is_between(0.0, 1.0)
 	assert_float(warm.needle()).is_greater(cool.needle())
@@ -39,7 +32,7 @@ func test_a_hotter_hull_stands_further_along_the_scale() -> void:
 
 
 func test_the_needle_is_the_simulations_hull_temperature_on_the_scale() -> void:
-	var sim := DiveTestKit.run(_sim(1.0), 30.0)
+	var sim := DiveTestKit.run(DiveTestKit.heating(1.0), 30.0)
 	var gauge := _gauge(sim)
 
 	assert_float(gauge.needle()).is_equal_approx(gauge.place(sim.vessel_temperature()), 0.0001)
@@ -47,7 +40,7 @@ func test_the_needle_is_the_simulations_hull_temperature_on_the_scale() -> void:
 
 
 func test_the_amber_and_red_ranges_start_at_the_simulations_own_thresholds() -> void:
-	var sim := _sim(0.0)
+	var sim := DiveTestKit.heating(0.0)
 	var gauge := _gauge(sim)
 
 	assert_float(gauge.caution_from()).is_equal_approx(gauge.place(sim.hull_warning_temperature()), 0.0001)
@@ -59,7 +52,7 @@ func test_the_amber_and_red_ranges_start_at_the_simulations_own_thresholds() -> 
 
 
 func test_the_hull_reads_in_the_colour_of_the_range_it_is_in() -> void:
-	var probe := _sim(0.0)
+	var probe := DiveTestKit.heating(0.0)
 	var cool := _gauge(probe)
 	var caution := _gauge(_heated_to(probe.hull_warning_temperature()))
 	var warning := _gauge(_heated_to(probe.hull_damage_temperature() + 1.0))
@@ -72,18 +65,18 @@ func test_the_hull_reads_in_the_colour_of_the_range_it_is_in() -> void:
 
 
 func test_a_hull_past_the_end_of_the_scale_is_pinned_there() -> void:
-	var gauge := _gauge(_sim(0.0))
+	var gauge := _gauge(DiveTestKit.heating(0.0))
 
 	assert_float(gauge.place(gauge.scale_to() + 500.0)).is_equal(1.0)
 	assert_float(gauge.place(gauge.scale_from() - 500.0)).is_equal(0.0)
 
 
 func test_a_rising_and_a_falling_hull_are_told_apart() -> void:
-	var rising := _gauge(DiveTestKit.run(_sim(1.0), 30.0))
-	var falling_sim := DiveTestKit.run(_sim(1.0), 60.0)
+	var rising := _gauge(DiveTestKit.run(DiveTestKit.heating(1.0), 30.0))
+	var falling_sim := DiveTestKit.run(DiveTestKit.heating(1.0), 60.0)
 	falling_sim.set_power(0.0)
 	var falling := _gauge(DiveTestKit.run(falling_sim, 5.0))
-	var steady := _gauge(DiveTestKit.run(_sim(0.0), 1200.0))
+	var steady := _gauge(DiveTestKit.run(DiveTestKit.heating(0.0), 1200.0))
 
 	assert_int(rising.trend()).is_equal(1)
 	assert_int(falling.trend()).is_equal(-1)
@@ -95,16 +88,16 @@ func test_a_rising_and_a_falling_hull_are_told_apart() -> void:
 
 
 func test_a_faster_warming_hull_has_a_longer_trend_mark() -> void:
-	var gentle := _gauge(DiveTestKit.run(_sim(0.4), 20.0))
-	var hard := _gauge(DiveTestKit.run(_sim(1.0), 20.0))
+	var gentle := _gauge(DiveTestKit.run(DiveTestKit.heating(0.4), 20.0))
+	var hard := _gauge(DiveTestKit.run(DiveTestKit.heating(1.0), 20.0))
 
 	assert_float(hard.trend_place() - hard.needle()).is_greater(gentle.trend_place() - gentle.needle())
 
 
 func test_the_split_shows_where_the_heat_goes_against_the_crews_setting() -> void:
-	var out := _gauge(DiveTestKit.run(_sim(0.5, 0.0), 5.0))
-	var some := _gauge(DiveTestKit.run(_sim(0.5, 0.3), 5.0))
-	var most := _gauge(DiveTestKit.run(_sim(0.5, 0.8), 5.0))
+	var out := _gauge(DiveTestKit.run(DiveTestKit.heating(0.5, 0.0), 5.0))
+	var some := _gauge(DiveTestKit.run(DiveTestKit.heating(0.5, 0.3), 5.0))
+	var most := _gauge(DiveTestKit.run(DiveTestKit.heating(0.5, 0.8), 5.0))
 
 	assert_float(out.column_share()).is_equal(0.0)
 	assert_float(some.column_share()).is_greater(0.0)
@@ -117,7 +110,7 @@ func test_the_split_shows_where_the_heat_goes_against_the_crews_setting() -> voi
 
 
 func test_the_gauge_lies_whole_in_a_screens_body_cool_and_hot() -> void:
-	var probe := _sim(0.0)
+	var probe := DiveTestKit.heating(0.0)
 	for sim: DiveSimulation in [probe, _heated_to(probe.hull_damage_temperature() + 1.0)]:
 		var screen: StationScreen = auto_free(StationScreen.new())
 		add_child(screen)
@@ -136,17 +129,11 @@ func test_the_gauge_lies_whole_in_a_screens_body_cool_and_hot() -> void:
 
 
 func test_the_thermal_station_shows_the_gauge_as_its_instrument() -> void:
-	var habitat: Node3D = auto_free((load("res://view/habitat.tscn") as PackedScene).instantiate())
-	add_child(habitat)
-	habitat.set_physics_process(false)
+	var habitat := DiveTestKit.staged_habitat(self)
 	habitat._physics_process(1.0 / 60.0)
-	await get_tree().process_frame
-	await get_tree().process_frame
+	await DiveTestKit.laid_out(self)
 
-	var thermal: GimballedStation = null
-	for child in habitat.get_children():
-		if child is GimballedStation and (child as GimballedStation).station_name == "Thermal":
-			thermal = child
+	var thermal := DiveTestKit.station(habitat, "Thermal")
 	var gauges := thermal.screen().root().find_children("*", "ThermalGauge", true, false)
 	assert_int(gauges.size()).is_equal(1)
 	assert_object((gauges[0] as ThermalGauge).sim).is_same(habitat.simulation())

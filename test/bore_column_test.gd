@@ -13,10 +13,7 @@ const DEEP_M := 700.0
 ## A Habitat on the First dive, in the tree, stepped only by the test, with
 ## the Head a metre above the layout's first feature and under way.
 func _habitat_nearing_a_feature() -> Node3D:
-	var habitat: Node3D = auto_free((load("res://view/habitat.tscn") as PackedScene).instantiate())
-	habitat.scenario = Scenario.first_dive()
-	add_child(habitat)
-	habitat.set_physics_process(false)
+	var habitat := DiveTestKit.staged_habitat(self, Scenario.first_dive())
 	var sim: DiveSimulation = habitat.simulation()
 	sim.start_below(Scenario.first_dive().layout.features()[0][0] - 1.0)
 	sim.set_power(0.5)
@@ -103,10 +100,7 @@ func _nearing_a_feature_with_the_ring_by_the_tail(habitat: Node3D) -> int:
 
 
 func test_with_the_ring_by_the_tail_a_feature_still_passes_the_bore_station_when_the_simulation_says() -> void:
-	var habitat: Node3D = auto_free((load("res://view/habitat.tscn") as PackedScene).instantiate())
-	habitat.scenario = Scenario.first_dive()
-	add_child(habitat)
-	habitat.set_physics_process(false)
+	var habitat := DiveTestKit.staged_habitat(self, Scenario.first_dive())
 	var already := _nearing_a_feature_with_the_ring_by_the_tail(habitat)
 
 	var passed := _passing_the_bore_station(habitat, already)

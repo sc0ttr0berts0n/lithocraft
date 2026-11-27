@@ -21,7 +21,7 @@ The panel, F1 and the dispatch follow with no other change.
 - **The debug menu** is the place `KeyMap.DEBUG`: its keys run only while the menu shows (`_wheres()` adds it then), and numpad minus (an ANYWHERE binding, `debug_menu`) opens and closes it.
   Each debug binding has one key, so the menu can write its `does` beside it; `DebugPanel.LAYOUT` places each numpad key (`key`, `at`, `span`; Num Lock, which does nothing, is left out), and a key with no debug binding shows what it does anywhere, or is dimmed.
   Its handlers pass what `DiveSimulation.debug_*` returns to `DebugPanel.report()`, so a refusal shows on the status line (or, for the overlay, toggle the view); they are not crew controls and F1 does not list them.
-  A new debug key: a binding with `where = DEBUG` on a free numpad key, its `_key_debug_<name>` handler, and its `debug_*` command with a test (see Extension points).
+  A new debug key: a binding with `where = DEBUG` on a free numpad key, its `_key_debug_<name>` handler, and its `debug_*` command with a test (see `debug-commands.md`).
   The numpad's own prompts: the main keys' pictures for digits, + - and *; Xelu's "Slash" is a backslash, so `/` and `.` are blank keys with glyphs; the tall + and Enter use the pack's `_Tall_` pictures (`KeyPrompt.texture(code, true)`).
 
 | Where | Keys |

@@ -146,7 +146,9 @@ func test_a_nudge_is_one_small_step_whatever_is_sent() -> void:
 	assert_float(shoved.steered_pitch()).is_equal(gentle.steered_pitch())
 	assert_float(shoved.steered_heading()).is_equal(gentle.steered_heading())
 	assert_float(absf(gentle.deviation_pitch())).is_equal_approx(gentle.nudge_degrees(), 0.001)
-	assert_float(gentle.nudge_degrees()).is_less(45.0)
+	# One nudge up from level still steers nearer level than a climb.
+	assert_float(absf(gentle.steered_pitch() - gentle.course_pitch())) \
+			.is_less(absf(gentle.steered_pitch() - -90.0))
 
 
 func test_no_drive_command_sets_what_it_steers_for_outright() -> void:

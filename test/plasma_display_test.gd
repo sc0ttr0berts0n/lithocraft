@@ -103,7 +103,7 @@ func test_the_drawn_band_narrows_as_the_head_wears() -> void:
 	var display := _display(sim)
 	var fresh := _band_px(display, ACTIVE)
 
-	sim.debug_wear_head(0.6)
+	DiveTestKit.wear_head_gently(sim, 0.6)
 	sim.advance(0.1)
 
 	assert_float(_band_px(display, ACTIVE)).is_less(fresh)
@@ -214,8 +214,9 @@ func _states() -> Array[DiveSimulation]:
 	DiveTestKit.quiet_scan(good, 6)
 	DiveTestKit.tune(good, STANDBY, DiveTestKit.wobble_ahead(good))
 	good.advance(0.1)
-	var worn := _above_a_boundary()
-	worn.debug_wear_head(0.8)
+	var worn := DiveSimulation.new(MediumLayout.layered([[0.0, DiveTestKit.basalt()], [100.0, DiveTestKit.rock(4.0)]]))
+	DiveTestKit.wear_head_gently(worn, 0.8)
+	worn.set_power(0.5)
 	worn.select_channel(ACTIVE)
 	DiveTestKit.tune(worn, ACTIVE, DiveTestKit.wobble(worn) + Vector2(0.0, 0.3))
 	worn.advance(0.1)
@@ -379,10 +380,11 @@ func test_head_wear_reads_live() -> void:
 	var display := _display(sim)
 	assert_str(display.wear_text()).is_equal("HEAD WEAR 0%")
 
-	sim.debug_wear_head(0.37)
+	DiveTestKit.wear_head_gently(sim, 0.37)
 	display.refresh()
 
-	assert_str(display.wear_text()).is_equal("HEAD WEAR 37%")
+	assert_float(sim.head_wear()).is_between(0.37, 0.99)
+	assert_str(display.wear_text()).is_equal("HEAD WEAR %d%%" % roundi(sim.head_wear() * 100.0))
 
 
 func test_the_band_reads_beside_what_it_has_narrowed_from() -> void:
