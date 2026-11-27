@@ -96,6 +96,26 @@ _Avoid_: Error, offset, drift, override (for the amount)
 Where the Lithocraft goes from here if nothing changes: through its turn toward what the Drive steers for, then straight on; Navigation draws it.
 _Avoid_: Trend, trajectory, prediction, flight plan (a dive plan of legs is a later idea)
 
+**Crawl**:
+The Lithocraft's ordinary way through rock: grippers clamp the tunnel wall and the Head cuts a ring, leaving the Column to slide through the Bore.
+_Avoid_: Worm drive (outside the design record), drilling, normal mode
+
+**Glide**:
+The Lithocraft's fast way through rock, in full the Vapor Glide: the Head melts the whole face and the melt jets through the Bore as thrust, with no Column, no Wobble and no scan while it lasts.
+_Avoid_: Fast travel, boost, jet mode, warp (which is travel between planets)
+
+**Beam**:
+Navigation's scan of the way ahead: a cone of sound pulses, reaching further the narrower it is set.
+_Avoid_: Forward scanner, ping, sonar, radar
+
+**Sweep**:
+Navigation's prospecting scan: a narrow beam turned through a full circle to draw one slice, then tilted to draw the next, building a volume slice by slice.
+_Avoid_: General scanner, all-round, ultrasound (for the tool), radar
+
+**Target**:
+A place the Orders send the Lithocraft to: an anomaly surface control's survey has seen and cannot identify.
+_Avoid_: Waypoint, point of interest, objective, feature of interest (which is a thing seen in the Column)
+
 **Emergency store**:
 The one store of energy the Lithocraft falls back on once the Head's plasma is lost; the link, a relight and cooling all draw on it.
 _Avoid_: Battery, backup, reserve

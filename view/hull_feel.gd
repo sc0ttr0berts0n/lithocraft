@@ -6,8 +6,21 @@
 ## sound: nothing is drawn over the crew's view (story 52). Reads only the
 ## simulation. The Habitat calls step() each physics frame after advance() and
 ## adds shake_metres() to the crew's shake.
+##
+## The whole hull wears, but only the stretch of wall near the crew is shown
+## and heard: the emitters and voices are all placed within TUNED_IN_M of wall
+## about where the crew are, so the feel is the same however long the Habitat
+## is and wherever in it they stand, and costs the same.
 class_name HullFeel
 extends Node3D
+
+## A groan started from this point on the outer wall (Habitat frame).
+signal groaned(at: Vector3)
+
+## The length of outer wall, along the Bore, that the sparks and groans are
+## spread over: the Habitat's whole length when the feel was tuned (the second
+## play test), and the stretch near the crew now it is longer.
+const TUNED_IN_M := 2.4
 
 ## Sparks and shake are at their fullest once the hull's creep would fail it
 ## within this many seconds. Tuned for feel.
@@ -35,7 +48,7 @@ const MIX_RATE := 22050
 var sim: DiveSimulation
 ## The room's outer wall (the hull side) and its length, set before _ready.
 var ring_radius := 3.3
-var length := 2.4
+var length := TUNED_IN_M
 
 var _groans := HullGroans.new()
 var _sparks: Array[CPUParticles3D] = []
@@ -45,6 +58,8 @@ var _voices: Array[AudioStreamPlayer3D] = []
 var _next_voice := 0
 var _groan_streams: Array[AudioStreamWAV] = []
 var _shake := 0.0
+## Where the crew are along the Bore (Habitat frame), as of the last step.
+var _crew_z := 0.0
 
 
 func _ready() -> void:
@@ -71,8 +86,10 @@ func _ready() -> void:
 
 ## One physics frame: sparks and shake while the hull is taking damage, groans
 ## as it creeps. `felt` is the felt acceleration in the Habitat frame, which
-## the sparks fall along.
-func step(delta: float, felt: Vector3) -> void:
+## the sparks fall along; `crew_z` is where the crew are along the Bore
+## (Habitat frame), which the sparks and groans keep near.
+func step(delta: float, felt: Vector3, crew_z := 0.0) -> void:
+	_crew_z = crew_z
 	var damaging := sim.hull_taking_damage()
 	var severity := how_severe(sim.hull_creep_rate(), sim.hull_integrity()) if damaging else 0.0
 	_shake = lerpf(SHAKE_LEAST_M, SHAKE_MOST_M, severity) if damaging else 0.0
@@ -84,6 +101,26 @@ func step(delta: float, felt: Vector3) -> void:
 	for groan in _groans.step(delta, damaging, sim.vessel_wear(), sim.hull_stress(),
 			sim.self_destruct_hold()):
 		_groan(groan.angle, groan.loudness)
+
+
+## The stretch of outer wall the sparks and groans come from now, along the
+## Bore (Habitat frame): x where it starts, y where it ends. TUNED_IN_M long
+## about the crew, pushed back inside the room at either end; the whole room
+## if that is shorter.
+func near_crew() -> Vector2:
+	var half := minf(length, TUNED_IN_M) / 2.0
+	var middle := clampf(_crew_z, -length / 2.0 + half, length / 2.0 - half)
+	return Vector2(middle - half, middle + half)
+
+
+## Where each emitter that is spitting sparks now sits on the outer wall
+## (Habitat frame).
+func spark_spots() -> Array[Vector3]:
+	var spots: Array[Vector3] = []
+	for sparks in _sparks:
+		if sparks.emitting:
+			spots.append(sparks.position)
+	return spots
 
 
 ## How far the view should shake this frame, metres; 0 while no damage.
@@ -118,7 +155,11 @@ func _spark(i: int, on: bool, severity: float, felt: Vector3, delta: float) -> v
 	if _spark_move_in[i] <= 0.0:
 		_spark_move_in[i] = randf_range(SPARK_MOVE_S.x, SPARK_MOVE_S.y) / (0.5 + severity)
 		var angle := randf() * TAU
-		sparks.position = _on_wall(angle, randf_range(-length / 2.4, length / 2.4))
+		# Kept a little in from the ends of the stretch, as it was from the
+		# end caps of the room it was tuned in.
+		var near := near_crew()
+		var inset := (near.y - near.x) / 12.0
+		sparks.position = _on_wall(angle, randf_range(near.x + inset, near.y - inset))
 		sparks.direction = Vector3(-cos(angle), -sin(angle), 0.0)
 		flash.position = sparks.position * 0.95
 	sparks.gravity = felt
@@ -128,11 +169,13 @@ func _spark(i: int, on: bool, severity: float, felt: Vector3, delta: float) -> v
 func _groan(angle: float, loudness: float) -> void:
 	var voice := _voices[_next_voice]
 	_next_voice = (_next_voice + 1) % _voices.size()
-	voice.position = _on_wall(angle, randf_range(-length / 2.0, length / 2.0))
+	var near := near_crew()
+	voice.position = _on_wall(angle, randf_range(near.x, near.y))
 	voice.stream = _groan_streams[randi() % _groan_streams.size()]
 	voice.volume_db = lerpf(GROAN_QUIET_DB, GROAN_LOUD_DB, loudness)
 	voice.pitch_scale = randf_range(0.8, 1.15)
 	voice.play()
+	groaned.emit(voice.position)
 
 
 func _make_sparks() -> CPUParticles3D:

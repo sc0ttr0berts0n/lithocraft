@@ -49,30 +49,97 @@ func test_every_pretune_step_names_both_of_the_reactors_tuning_controls() -> voi
 	assert_int(pretunes).is_greater(3)
 
 
-## Every command that states what the crew intends and by itself moves
-## nothing, sent to this dive.
-static func _state_every_intention(sim: DiveSimulation) -> void:
-	sim.read_orders()
-	sim.set_course(0.0, 90.0)
-	sim.set_course(0.0, 0.0)
-	sim.set_course(0.0, -90.0)
-	sim.nudge_pitch(1.0)
-	sim.nudge_heading(1.0)
-	sim.set_power(1.0)
-	sim.set_steering_effort(1.0)
-	sim.set_heat_split(0.5)
-	sim.set_uploading(true)
-	sim.set_quiet_ship(true)
-	sim.pulse()
-	# The Reactor's selector and its two controls, on STANDBY: nothing of the
-	# plasma moves until a swap.
-	sim.select_channel(DiveSimulation.CHANNEL_ACTIVE)
-	sim.select_channel(DiveSimulation.CHANNEL_STANDBY)
-	sim.tune_frequency(sim.wobble_frequency() * 1.5)
-	sim.tune_amplitude(sim.wobble_amplitude() * 0.5)
-	sim.set_upload_priority(DiveSimulation.UPLOAD_MOST_VALUABLE_FIRST)
-	for station in DiveSimulation.STATIONS:
-		sim.set_autopilot(station, true)
+## Public commands of DiveSimulation that are not the crew stating an
+## intention, each with why. Every other public command is sent by
+## _state_every_intention(), which finds them by reflection, so a new crew
+## command is tried against every early trigger without being listed anywhere.
+const NOT_AN_INTENTION := {
+	&"advance": "the time step: the one thing that makes the dive do anything",
+	&"new_dive": "starts another dive, and only once this one has ended",
+	&"set_scenario": "puts a Scenario on the simulation and starts its Checklist afresh",
+	&"start_below": "Scenario start: places the Head as the dive begins; not a crew command",
+	&"start_dark": "Scenario start: loses the plasma as the dive begins; not a crew command",
+}
+
+
+## What to send a command whose arguments cannot be made up from their types
+## alone, or that is worth stating more than one way: each entry one call's
+## arguments.
+static func _intention_arguments(sim: DiveSimulation) -> Dictionary:
+	var every_station := DiveSimulation.STATIONS.map(func(station: StringName) -> Array: return [station, true])
+	return {
+		&"set_attended": every_station,
+		&"set_autopilot": every_station,
+		&"set_course": [[0.0, 90.0], [0.0, 0.0], [0.0, -90.0]],
+		# The Reactor's selector and its two controls, on ACTIVE and on STANDBY.
+		&"select_channel": [[DiveSimulation.CHANNEL_ACTIVE], [DiveSimulation.CHANNEL_STANDBY]],
+		&"tune_frequency": [[sim.wobble_frequency() * 1.5]],
+		&"tune_amplitude": [[sim.wobble_amplitude() * 0.5]],
+		&"set_upload_priority": [[DiveSimulation.UPLOAD_MOST_VALUABLE_FIRST]],
+	}
+
+
+## The simulation's public commands: its methods that return nothing (the
+## debug commands return why they refused, so they are not among them), in
+## the order the script declares them.
+static func _public_commands() -> Array[StringName]:
+	var commands: Array[StringName] = []
+	for method in (DiveSimulation as Script).get_script_method_list():
+		if not String(method.name).begins_with("_") and method["return"].type == TYPE_NIL:
+			commands.append(StringName(method.name))
+	return commands
+
+
+## Every command by which the crew states what it intends, sent to this dive:
+## every public command but NOT_AN_INTENTION, the crew at every Station first
+## so none is ignored for want of them. None by itself moves the Lithocraft;
+## only a time step does. Returns the commands sent: one whose arguments could
+## not be made up is not sent, and wants an entry in _intention_arguments().
+static func _state_every_intention(sim: DiveSimulation) -> Array[StringName]:
+	var arguments := _intention_arguments(sim)
+	var sent: Array[StringName] = []
+	for method in (DiveSimulation as Script).get_script_method_list():
+		var command := StringName(method.name)
+		if not command in _public_commands() or NOT_AN_INTENTION.has(command):
+			continue
+		var calls: Array = arguments.get(command, [(method.args as Array).map(_made_up)])
+		if calls.any(func(call: Array) -> bool: return null in call):
+			continue
+		if command != &"set_attended":
+			for call: Array in arguments[&"set_attended"]:
+				sim.callv(&"set_attended", call)
+		for call: Array in calls:
+			sim.callv(command, call)
+		sent.append(command)
+	# The autopilots once more, last: other commands disengaged some.
+	for call: Array in arguments[&"set_autopilot"]:
+		sim.callv(&"set_autopilot", call)
+	return sent
+
+
+## An argument made up from its type alone, or null when it cannot be.
+static func _made_up(argument: Dictionary) -> Variant:
+	match argument.type:
+		TYPE_FLOAT: return 1.0
+		TYPE_INT: return 0
+		TYPE_BOOL: return true
+	return null
+
+
+func test_every_public_command_is_an_intention_or_listed_as_not_one() -> void:
+	# The intention list is derived (ticket #80): a new command is sent by
+	# _state_every_intention() unless NOT_AN_INTENTION says why not.
+	var commands := _public_commands()
+	var sent := _state_every_intention(Scenario.first_dive().start())
+
+	assert_array(commands).contains(NOT_AN_INTENTION.keys())
+	assert_array(sent + NOT_AN_INTENTION.keys()).override_failure_message(
+			"A public command is neither sent as an intention nor in NOT_AN_INTENTION; give it arguments in _intention_arguments()"
+			).contains_exactly_in_any_order(commands)
+	# Some it must find, the Reactor's among them; never a debug command.
+	assert_array(sent).contains([&"set_course", &"nudge_pitch", &"pulse", &"read_orders",
+			&"select_channel", &"tune_frequency", &"tune_amplitude", &"shift", &"relight", &"set_autopilot"])
+	assert_array(sent.filter(func(command: StringName) -> bool: return command.begins_with("debug_"))).is_empty()
 
 
 func test_no_phase_begins_early_on_what_the_crew_only_intends() -> void:

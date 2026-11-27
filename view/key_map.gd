@@ -1,6 +1,6 @@
 ## The key map: every key the crew can press, where it works and what it does.
 ## The one source for the Habitat's input, each Station's key panel, the key
-## hints in its readings and notices, and the F1 controls, so none of them can
+## prompts in its readings and notices, and the F1 controls, so none of them can
 ## disagree with another. Stand-in keys until the Stations get their own
 ## widgets, levers and knobs.
 class_name KeyMap

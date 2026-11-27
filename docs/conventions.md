@@ -12,8 +12,9 @@ The old "Extension points" and "Subsystems" sections are spread by topic; their 
 ## Always
 
 - [conventions/layout.md](conventions/layout.md): Layout. Read when adding, moving or looking for a file: what lives in `sim/`, `view/`, `assets/` and `test/`, and how files are written.
-- [conventions/running-and-testing.md](conventions/running-and-testing.md): Running (the suite, the scene smoke check, Ad-hoc checks), Testing, Gotchas. Read before running the suite, the scene smoke check or an ad-hoc check, and before writing any test.
+- [conventions/running-and-testing.md](conventions/running-and-testing.md): What runs when, Running (the suite, the scene smoke check, Ad-hoc checks), Testing, Gotchas. Read before running the suite, the scene smoke check or an ad-hoc check, and before writing any test.
 - [conventions/simulation-interface.md](conventions/simulation-interface.md): The simulation's interface, Frames and units, the rules of Subsystems. Read before adding or changing any command, query, event, per-step work or tuned constant on `DiveSimulation`, or any class in `sim/`.
+- [conventions/cost-budget.md](conventions/cost-budget.md): The cost budget. Read before adding a simulation query a screen polls, changing what one costs or how often a screen asks, or adding per-frame work to a screen: what `tools/cost/cost.sh` measures, its budget, and how to read its report.
 - [conventions/review.md](conventions/review.md): Review standards. Read when reviewing a ticket's diff, in place of the other topic files, and before handing a ticket over for review: the judgement calls no test can make, and what counts as a finding.
 
 ## The simulation, by area (the old Extension points and Subsystems)

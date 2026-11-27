@@ -1,12 +1,23 @@
 # Running and testing
 
+## What runs when
+
+Plan tests, screenshots and long-running processes as the work goes, but run the slow ones near review, not on every round.
+
+- While iterating: the one test being written, and the suites for the code being changed (`./test.sh heat scan`).
+- Once, at hand-back or before the push: the whole suite (`./test.sh`), the docs check (`python tools/docs/check_docs.py`), the lint (when ticket #79 has given it a command), and the ticket's screenshots.
+- At the push: CI repeats it, so do not rerun a green whole suite to be sure.
+  CI runs the whole suite and the scene smoke checks today; the lint and the docs check join it with ticket #87.
+- An orchestrator merging several tickets runs the whole suite once per merge that had conflicts and once before review, and puts this policy in each agent's brief.
+- An orchestrator names a model for every agent it starts: a ticket's implementer runs on Opus, a docs-only or mechanical ticket on a smaller model, and the largest model is kept for work that is mostly hard reasoning, which a ticket rarely is (the developer's rule, 27 November 2026).
+
 ## Running
 
 Tests: set `GODOT_BIN` to a Godot 4.7 binary (on Windows the `_console.exe` build), then `./test.sh` or `test.cmd`.
 Exit 0 is a pass, 100 a test failure, 105 a script or parse error.
 
 - While iterating, run only the suites for the code being changed: `./test.sh heat scan` runs `test/heat_test.gd` and `test/scan_test.gd` in seconds (`heat`, `heat_test`, `heat_test.gd` and `test/heat_test.gd` all name the same suite).
-  With no suite named, every suite runs, which takes minutes: do that once, before the push.
+  With no suite named, every suite runs, which takes minutes.
 - A run ends with one plain line, `PASSED: 8 test cases, 0 errors, 0 failures, ... (exit 0)`.
   A failing run first prints `FAILED <suite> > <test>` with what was expected and the line, for each failing test; a script or parse error prints the engine's error lines.
   The run's full output is in `reports/last_run.log`; `--verbose` prints it as it comes instead, colours and all.
@@ -27,6 +38,8 @@ A warning, such as leaked ObjectDB instances at exit, passes.
 CI: `.github/workflows/ci.yml` runs on every push to `dev` and every pull request into `dev`.
 It fetches the Linux Godot binary named by its `GODOT_VERSION` (cached between runs), then runs `./test.sh`, then `tools/ci/smoke.sh res://view/habitat.tscn`, then `tools/ci/smoke.sh` for the main scene; the first failure turns the job red.
 A pull request merges into `dev` only on a green job.
+
+Cost budget: `tools/cost/cost.sh`, no part of `./test.sh`; see `cost-budget.md`.
 
 Ad-hoc checks: prefer a headless check when a window isn't needed.
 For a look at the game, `tools/screenshot/shot.sh` takes one PNG of a Scenario run to a dive time; from Git Bash at the repo root, with `GODOT_BIN` set as for the tests:
@@ -70,6 +83,7 @@ It prints the PNG's path and exits 0; on any failure it prints why, leaves no PN
 - A Habitat-level test starts from `DiveTestKit.staged_habitat(self, scenario)`: in the tree, freed with the test, stepped only by `habitat._physics_process(step)`.
   `station(habitat, name)` / `stations(habitat)` find its Stations, `await DiveTestKit.laid_out(self)` waits for a screen's Containers before its readings are read, and `staged_shot(self, arguments)` stages one as the screenshot tool does.
 - No test of the game calls a `debug_*` command (see `debug-commands.md`): wear the Head with `wear_head_gently()`, lose the plasma with `lose_plasma()`, strand with `strand()`, and end a dive by losing the plasma with the tunnel open (brought home) or by flying it.
+- Convention checks that read the source live in `test/convention_test.gd`, their allow-lists and reasons with them: fix the code before adding an entry.
 - Read expected sequences from the layout (`MediumLayout.first_dive().boundary_depths()` and `medium_at()`), never a hand-written list of depths.
 - Every autopilot starts off, so a setting holds with no help.
   Engage the autopilot of a Station the test wants to steady itself: the Reactor's for any dive that crosses a Boundary with nobody at the Reactor (`survey_test`, `stranding_test`, `repair_test`; left alone, the Residual outside the Band loses the plasma within minutes), Thermal's to keep the hull whole at full power (`steering_test`, `habitat_down_test`).

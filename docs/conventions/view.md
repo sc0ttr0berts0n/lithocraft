@@ -40,10 +40,12 @@
   Never integrate speed in the view.
   The Bore's Column uses its own tube mesh with explicit UVs, because `CylinderMesh` shares its texture with its caps.
   `ColumnStrip` builds each band's grains once, as one mesh it keeps while the band is in the strip, and each frame only moves it: the Bore's strip holds some twelve thousand grains, too many to place and draw one by one every frame.
+  The Bore's glass (`BoreGlass`, `view/bore_glass.gd`) covers nothing where a sight line meets the Column and shows only toward the tube's edges, so a colour painted on the Column is the colour seen in the Bore.
+  Never lay a see-through tint over the Column: it adds its own lit colour, which is all that shows on anything near-black (#95).
   `Habitat.column_z(behind_head)` (and `behind_head_at(z)`, its inverse) is the one account of where the Habitat sits along the vessel: place anything in the Bore from the simulation's distance behind the Head through it, never from the Habitat's length.
 - A feature of interest is drawn by `FeatureLook` (`view/feature_look.gd`) on the Column strip, in metres, at the row of its `ColumnFeature.at` (`ColumnStrip.feature_box()`).
   A new kind adds its line to `FeatureLook.LOOKS` (how wide across the Column, and its paint function); `feature_look_test` fails on a kind any Scenario's layout holds that has none.
-  A look must read from across the Habitat against the grain speckle: a backing or a rim, pieces several grains wide, and no near-black, which shows green in the Bore.
+  A look must read from across the Habitat against the grain speckle: a backing or a rim, pieces several grains wide.
   In the Bore every feature is turned to the Bore Station (`ColumnStrip.features_face`, set each step from `bore_station_place()`), so the crew turn from its screen and find it; the flat overlay strip leaves it at -1 and each feature keeps a place of its own.
 - Controls that sit over the Habitat set `mouse_filter = 2` so clicks reach the mouse capture.
   An `HSlider` sets `focus_mode = 0` so arrow keys reach `_unhandled_input`.
@@ -55,7 +57,9 @@
   Both endings' handlers (`_on_hull_failed`, `_on_paid`) hand their breakdown lines to `_end_dive()`; a new ending's breakdown does the same.
 - Hull damage is felt, never drawn (`view/hull_feel.gd`, `HullFeel`): while `hull_taking_damage()` sparks spit from the outer wall (more emitters the faster it creeps) and `shake_metres()` adds to the crew's shake;
   groans come from points round the ring as `AudioStreamPlayer3D`s, timed and sized by `HullGroans` from wear and `hull_stress()`, and rising with `self_destruct_hold()` while the crew holds K.
-  The Habitat calls `HullFeel.step(delta, felt)` after `advance`.
+  The Habitat calls `HullFeel.step(delta, felt, crew_z)` after `advance`.
+  Sparks and groans keep to the `TUNED_IN_M` of wall about the crew (`HullFeel.near_crew()`), never the Habitat's whole length: a longer room must not thin them, and a denser feel is a retune there, not more emitters.
+  `hull_feel_test` holds the density per metre of wall near the crew to a room `TUNED_IN_M` long.
   Shake from any source sums into the one `_crew.shake()` call.
 - Chance that shows in the picture is repeatable, so two screenshots of one moment match: drawn in the Habitat's physics step from the global generator, which the screenshot tool seeds (the crew's shake, where the sparks spit), or from a generator of the node's own with a fixed seed (a starved screen's flicker).
   Never from the global generator in `_process`, where the sounds draw on it by the clock, nor from one seeded with `randomize()`.
