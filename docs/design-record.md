@@ -36,7 +36,8 @@ The files are numbered in the order their sections were decided; each line gives
 
 ## Round 4
 
-- [design/16-glide-and-scan.md](design/16-glide-and-scan.md): The Glide, Calls and the time rate, The scan, Triage of round 3's design questions. Read for the Glide and its costs, which calls hold the time rate, the master acknowledge, the Beam and the Sweep, the surface's survey, targets, or how #89 to #93 were decided. Add round 4's decisions here.
+- [design/16-glide-and-scan.md](design/16-glide-and-scan.md): The Glide, Calls and the time rate, The scan, Triage of round 3's design questions. Read for the Glide and its costs, which calls hold the time rate, the master acknowledge, the Beam and the Sweep, the surface's survey, targets, or how #89 to #93 were decided.
+- [design/17-glide-and-scan-round-3.md](design/17-glide-and-scan-round-3.md): How the Glide is flown, the Sweep's shape, and when it is built. Read for the Glide as a straight run flown by hand, the ball display, the spiral Sweep and the aimed Beam, the time rate after a warning, the Checklist's pulse and trim steps, or why round 4 is played with round 3. Add round 4's decisions here.
 
 ## Open
 
