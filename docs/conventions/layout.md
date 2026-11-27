@@ -3,7 +3,7 @@
 - `sim/`: the simulation.
   Every class is `RefCounted` with a `class_name`; nothing here touches the scene tree, `Input` or rendering.
   `DiveSimulation` is the one seam; `Medium`, `MediumLayout`, `SurveyStretch`, `ColumnFeature` and `ScanPoint` are data it reads or hands out.
-  `Heat`, `Plasma` and `Stranding` are subsystems it owns (see Subsystems).
+  `Heat`, `Plasma`, `Stranding`, `LookAhead`, `ProjectedPath` and `RingSlide` are subsystems it owns (see Subsystems).
   `Scenario` is the data of a Scenario and `Checklist` the dive's progress through it (see Scenarios).
 - `view/`: scenes and view logic.
   `view/start_menu.tscn` (`StartMenu`) is the main scene; it starts `view/habitat.tscn` with the chosen Scenario.
