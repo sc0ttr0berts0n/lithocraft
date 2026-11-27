@@ -36,7 +36,7 @@ The files are numbered in the order their sections were decided; each line gives
 
 ## Round 4
 
-- [design/16-glide-and-scan.md](design/16-glide-and-scan.md): The Glide, Calls and the time rate, Triage of round 3's design questions. Read for the Glide and its costs, which calls hold the time rate, the Boundary call's timing, or how #89 to #93 were decided. Add round 4's decisions here.
+- [design/16-glide-and-scan.md](design/16-glide-and-scan.md): The Glide, Calls and the time rate, The scan, Triage of round 3's design questions. Read for the Glide and its costs, which calls hold the time rate, the master acknowledge, the Beam and the Sweep, the surface's survey, targets, or how #89 to #93 were decided. Add round 4's decisions here.
 
 ## Open
 

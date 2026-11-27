@@ -2,7 +2,7 @@
 
 Grilled with the developer on 27 November 2026, after round 3 (spec #71) merged to `dev`.
 Nothing here is built; tickets follow once the grilling is done.
-Round 2's questions (leaving the Glide, its tunnel, the master acknowledge, the two scan tools, the surface's survey, targets, the words) are still open and are added below as they settle.
+Rounds 1 and 2 are recorded; round 3's questions are added as they settle.
 
 ## The Glide
 
@@ -29,10 +29,26 @@ Round 2's questions (leaving the Glide, its tunnel, the master acknowledge, the 
   Nearly straight: the turning circle grows with speed.
   Heat rises modestly: the jet carries most of it out, as a rocket's exhaust does, but the Column is gone as a sink.
 - **It needs no fourth impossible thing** so long as those relationships hold.
-- **Not sealing behind (developer).**
+- **Its tunnel (developer).**
   "I think it would look a bit like a tunnel of raw aluminum.
   Like lobe-like and lumpy."
-  How that squares with dense rock, where the melt has nowhere to go, is open in round 2.
+  In porous rock the Glide leaves that open, lumpy tunnel.
+  Rough walls scatter light, so the link runs at a reduced rate through a glided stretch (the developer's "80% quality vs 100% glass perfection", tuned in play), and a little less with each glided stretch behind.
+  In dense rock the Glide seals the tunnel as the Crawl does: the melt has to go somewhere (ADR 0001), and the developer agreed.
+- **Leaving it: the Head comes out at idle (developer).**
+  "I would prefer to need to cold boot the head after a glide.
+  The head can be on some low energy state after it comes out, like an idle engine.
+  Then you use standby to set up the next correct wobble."
+  Leaving the Glide lands the vessel halted with the Head at idle, the idle of Quiet Ship.
+  It is not a Relight: no gamble and nothing drawn from the emergency store.
+  The crew tunes STANDBY to the rock now round them, then R spins the Head up into the Crawl.
+  Halted and idle is also the moment for a clean scan, and going back into the Glide needs no tuning.
+  This overtakes round 1's "the Wobble is back at once".
+- **Plan the Glide, do the Glide (developer: "that's a fun mechanic").**
+  The crew can drop out at any time, and the Glide ends by itself at the edge of what the scan has shown; the Drive's screen shows the range left.
+  A better scan before setting off buys a longer Glide, so the rhythm is scan, glide, stop, scan, then tune and crawl or glide again.
+- **The words.**
+  The long name is the Vapor Glide ("sounds cool, is kind of true"); tooling and the glossary say Glide, and the gripper drive is the Crawl.
 
 ## Calls and the time rate
 
@@ -44,6 +60,34 @@ Round 2's questions (leaving the Glide, its tunnel, the master acknowledge, the 
   "Boundary approaching is way too early if I'm tuned ahead; if I'm tuned into the band I only need a 30 second window."
   With STANDBY inside the Band against the scan's guess, the call stays quiet until about 30 seconds before the crossing; untuned, it calls early as before.
 
+- **A master acknowledge (developer: "all alarms need a master acknowledge lol. So annoying after a time").**
+  One key, anywhere, silences every call now sounding; the call lights stay lit, and an acknowledged call sounds again only if its reason changes or it grows more urgent.
+  Real basis: an airliner's master caution reset.
+  Any warning still drops the time rate to 1 ("don't change that").
+
+## The scan: two tools, a survey to start from, and targets
+
+- **Two tools at Navigation, overtaking round 1's three patterns.**
+  The developer: "the tighter the forward cone, the further it can go? Or maybe you have two tools: a general scanner and a forward scanner?"
+  The Beam is for the way ahead, in three widths: wide and short, middle, narrow and long.
+  Real basis: a phased sonar array; the same energy over a smaller angle travels further.
+  A switch pulses the Beam on a steady interval (developer: "I would like the pulse to periodically auto pulse"); pulses under way stay noisy, so Quiet Ship remains the skilled act.
+- **The Sweep is for prospecting (developer).**
+  "Make it function like the forward in a 360 slice sweep, that then changes the orientation and does another 360 slice sweep.
+  I eventually need to prospect and it needs to seem like an ultrasound."
+  A narrow beam turns a full circle to draw one slice, the slice tilts, and it draws the next, building a volume slice by slice; slow, shown as slices, best at Quiet Ship.
+  Real basis: medical ultrasound and sector-scanning sonar build a picture from one steered beam.
+- **Everything is three-dimensional (developer: "this will ultimately be 3d, so always consider that with all these scans").**
+  Slices, targets and Boundaries have a place in space, never only a depth.
+- **Boundaries are flat but a little wavy (developer).**
+  Real basis: bedding planes are laid down flat and then gently folded and tilted.
+- **The dive starts with surface control's survey in the scan.**
+  The large Boundaries at rough depths, faint and low in confidence, drawn apart from the vessel's own points; the dive sharpens it, and it gives the Glide its first range.
+  Real basis: nobody drills blind; seismic and gravity surveys from the surface come first.
+- **The Orders name targets.**
+  The surface's survey sees an anomaly it cannot identify and gives its place with a wide error; the Sweep narrows it, and passing it through the Bore as Column identifies it and pays.
+  The loop: glide toward the target, stop, sweep, crawl through it.
+
 ## Triage of round 3's design questions
 
 - **#89:** surface control says the turn for home deepens before it rises, when the vessel starts turning toward a plotted climb while still diving.
@@ -51,4 +95,5 @@ Round 2's questions (leaving the Glide, its tunnel, the master acknowledge, the 
 - **#92:** a Station's tint stays on its call light and gimbal bob, objects in the room, and leaves the Checklist's Station names, which are readings.
 - **#93:** the forward scope's range steps to the nearest Inferred Boundary ahead, changing only on a pulse; world-up is left as it is so the pick is fair.
   The developer added that a tighter forward cone should reach further, or that there be two tools, a general scanner and a forward one (round 2).
-- **#91:** the developer sees a use for a heading while vertical: "it's the way you will go when you start a tilt" (round 2).
+- **#91:** a heading while vertical is the way the vessel leans when it starts to tilt (developer: "it's the way you will go when you start a tilt"; "Kerbal's nav ball likely understands what we're doing pretty well").
+  While vertical, J and L turn a lean marker and the next pitch nudge tilts toward it; the vessel keeps its own gyro reference where a compass heading means nothing, as a ball attitude display shows at its pole.
