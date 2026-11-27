@@ -68,3 +68,8 @@ Agent's choices within round 3's design (spec #71), one bullet per ticket.
   All three are flat drawings through one function each from a place in the world to a place on the screen, so none can turn on its own, and the points stream past at the simulation's speed.
   The scope's range is fixed (rings to 250 m), so a Boundary a few tens of metres ahead sits close to the vessel's marker; a range that follows the nearest return is left for whichever view is picked.
   Points are white as they are certain and grey as they are a guess (the colour language's "now"), larger the surer, and never fade out altogether: #62 had left them faint.
+- **The Bore's glass is clear over the Column (ticket #95, agent's choice).**
+  Near-black on the Column (pores, mica, a feature's dark pieces) showed dark blue-green in the Bore, and #70 kept near-black out of the features' looks to work round it.
+  The cause was the glass: a tube tinted pale blue and 15% opaque all over, lit by the room, so it laid 15% of its own lit colour over everything behind it; on a pale grain that is nothing, on a near-black one it is all there is to see.
+  The Column's texture, its colour space and its unshaded material were sound: with the glass made clear the Bore showed the painted colours to the value.
+  The glass now covers nothing where a line of sight meets the Column and thickens toward the tube's edges, where a real tube of glass shows because the eye looks along its wall; looks may use near-black again.

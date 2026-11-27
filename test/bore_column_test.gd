@@ -151,3 +151,16 @@ func test_a_feature_faces_the_bore_station() -> void:
 	var toward_station := Vector2(station.x, station.y).normalized()
 
 	assert_float(toward_feature.dot(toward_station)).is_greater(0.999)
+
+
+func test_the_bores_glass_is_clear_over_the_whole_column() -> void:
+	# A sight line passing the axis nearer than the Column's radius meets the
+	# Column, and the glass covers nothing there: its cover starts at the
+	# Column's edge and not inside it, whatever the two radii are.
+	var glass := BoreGlass.material(Habitat.COLUMN_RADIUS, Habitat.BORE_RADIUS)
+	var clear_within: float = glass.get_shader_parameter(&"clear_within")
+
+	assert_float(clear_within * Habitat.BORE_RADIUS).is_equal_approx(Habitat.COLUMN_RADIUS, 0.0001)
+	assert_float(clear_within).is_less(1.0)
+	# A wider Column in the same glass is clear further out.
+	assert_float(BoreGlass.clear_within(Habitat.COLUMN_RADIUS * 1.05, Habitat.BORE_RADIUS)).is_greater(clear_within)
