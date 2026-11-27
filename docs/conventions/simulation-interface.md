@@ -37,7 +37,8 @@ The shape is in the class's header comment; copy it.
 
 ## Subsystems
 
-Heat, the plasma, stranding and the look-ahead each live in their own plain class in `sim/`, owned by `DiveSimulation` (`_heat`, `_plasma`, `_stranding`, `_look`).
+Heat, the plasma, stranding, the look-ahead and the ring of Stations' slide each live in their own plain class in `sim/`, owned by `DiveSimulation` (`_heat`, `_plasma`, `_stranding`, `_look`, `_ring`: `Heat`, `Plasma`, `Stranding`, `LookAhead`, `RingSlide`).
+The turning rule and the projected path are a sixth, `ProjectedPath` (`sim/projected_path.gd`): it keeps no state, so it is static functions and the simulation owns no instance; the Head's place, direction, bearing and steering stay the simulation's, handed over as a `ProjectedPath.Turning`.
 They are not seams: tests never build or read them, only `DiveSimulation`'s interface.
 The one exception is the look-ahead, which is also tested on patches alone (`look_ahead_test.gd`), as `BoundaryFit` is on points alone: a scan that shows a Boundary where none is cannot be made through a layout.
 The rules:
@@ -47,4 +48,5 @@ The rules:
 - A subsystem knows nothing of the layout, the path, the Stations or the survey, and holds no reference back to the simulation (a new dive swaps it for a fresh one).
   Whatever it needs (depth, the Wobble, the surroundings' temperature, whether the Reactor's autopilot is engaged) is passed in on each call.
   Its tuned constants are its own `const _NAME`.
+  Where it needs an answer that depends on its own working (the projected path asks the speed at each steering it reaches), it is passed a `Callable` for that one call and does not keep it.
 - Events a subsystem raises are appended to the `events` array the simulation passes it (`Plasma.tend()`), so `take_events()`'s catalogue still lists them all.
