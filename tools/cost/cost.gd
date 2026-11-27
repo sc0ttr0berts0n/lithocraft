@@ -9,7 +9,10 @@ extends SceneTree
 ## time: the commands that set it up, and (the full point cloud) whether the
 ## cloud is filled first and how many frames lie between the pulses sent while
 ## it is played, and (the last) the Station the crew is seated at instead of
-## Navigation, so the screen they watch is timed as well as those they do not.
+## Navigation, so the screen they watch is timed as well as those they do not,
+## and (the hull at its worst) whether the hull is first heated until it takes
+## damage and worn until it would fail within HULL_WORST_S, so every spark
+## emitter spits and the groans come thick.
 ## The Course is turned well off the way the drill dives, so the projected
 ## path is a turn under every one after the first.
 const CONDITIONS := [
@@ -20,7 +23,17 @@ const CONDITIONS := [
 	{name = "low power", send = [[&"set_steering_effort", [1.0]], [&"set_power", [0.05]]]},
 	{name = "a full point cloud", send = [[&"set_power", [0.5]]], fill = true, pulse_every = 30},
 	{name = "seated at the Reactor", send = [], seat = DiveSimulation.STATION_REACTOR},
+	{name = "the hull at its worst", send = [[&"set_autopilot", [DiveSimulation.STATION_THERMAL, false]],
+			[&"set_heat_split", [0.0]], [&"set_power", [1.0]]], hull_worst = true},
 ]
+## The hull at its worst would fail this many seconds after it is worn: well
+## inside the time HullFeel shows the fullest sparks for, and long after the
+## condition is played.
+const HULL_WORST_S := 60.0
+## Dive time skipped at a go (debug_skip) while the hull heats, and the most
+## skipped in all, seconds.
+const HEAT_SKIP_S := 5.0
+const HEAT_MOST_S := 600.0
 ## Dive time each condition is played for unless --seconds says, seconds.
 const SECONDS := 4.0
 ## Frames played before the first that counts: the screens' first layout.
@@ -76,6 +89,18 @@ func _initialize() -> void:
 				_probe.send(&"pulse")
 				await _frame()
 				pulses += 1
+		if condition.get("hull_worst", false):
+			var skipped := 0.0
+			while not _sim.hull_taking_damage() and skipped < HEAT_MOST_S:
+				_probe.send(&"debug_skip", [HEAT_SKIP_S])
+				await _frame()
+				skipped += HEAT_SKIP_S
+			if not _sim.hull_taking_damage():
+				_fail("the hull never took damage in %d s at full power" % roundi(skipped))
+				return
+			var wear := _sim.hull_integrity() - _sim.hull_creep_rate() * HULL_WORST_S
+			if wear > 0.0:
+				_probe.send(&"debug_wear_hull", [wear])
 		for frame in frames:
 			if condition.has("pulse_every") and frame % int(condition.pulse_every) == 0:
 				_probe.send(&"pulse")
@@ -91,6 +116,9 @@ func _initialize() -> void:
 				_sim.projected_path().size()])
 		if _sim.plasma_lost() or _sim.dead() or _sim.surfaced() or _sim.speed() <= 0.0:
 			_fail("the dive stopped in \"%s\": nothing left to measure" % condition.name)
+			return
+		if condition.get("hull_worst", false) and HullFeel.how_severe(_sim.hull_creep_rate(), _sim.hull_integrity()) < 1.0:
+			_fail("the hull was not at its worst at the end of \"%s\": its sparks short of their fullest" % condition.name)
 			return
 		if condition.get("fill", false) and _sim.point_count() < _sim.point_capacity():
 			_fail("the point cloud never filled: %d of %d points" % [_sim.point_count(), _sim.point_capacity()])
@@ -108,8 +136,8 @@ func _initialize() -> void:
 	print("each condition as it ended:")
 	for state in states:
 		print(state)
-	print("%d queries timed alone, one call each every %d frames, on a twin simulation no screen reads; those that take an argument are timed only inside the frame" % [
-			CostProbe.queries().size(), QUERY_EVERY])
+	print("%d queries timed alone, %d of them with representative arguments, one call each every %d frames, on a twin simulation no screen reads" % [
+			CostProbe.queries().size() + CostProbe.argued_queries().size(), CostProbe.argued_queries().size(), QUERY_EVERY])
 	for line in budget.report():
 		print(line)
 	_probe = null

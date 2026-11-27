@@ -150,6 +150,35 @@ func test_the_queries_timed_are_the_simulation_s_readings_and_none_of_its_comman
 	var probe := CostProbe.new(habitat)
 	await probe.frame()
 	var before: float = habitat.simulation().dive_time()
-	assert_array(probe.time_queries().keys()).contains_exactly_in_any_order(Array(queries))
+	var timed := probe.time_queries().keys()
+	for query in queries:
+		assert_array(timed).contains([query])
 	assert_float(habitat.simulation().dive_time()).is_equal(before)
+	assert_float(probe.twin_drift()).is_equal(0.0)
+
+
+func test_the_queries_that_take_arguments_are_timed_with_representative_ones() -> void:
+	var argued := CostProbe.argued_queries()
+	# The Reactor's screen polls waves() every frame it is brought up.
+	for polled: String in ["waves", "residual", "column_at", "point_age"]:
+		assert_bool(polled in argued).override_failure_message("%s is not timed" % polled).is_true()
+	for command: String in ["set_power", "nudge_pitch", "set_course"]:
+		assert_bool(command in argued).override_failure_message("%s would be called" % command).is_false()
+
+	# Once the scan has points and surfaces, every one of them has its arguments.
+	var habitat := DiveTestKit.staged_habitat(self, Scenario.shift_drill())
+	var probe := CostProbe.new(habitat)
+	var sim: DiveSimulation = habitat.simulation()
+	for i in 4:
+		probe.send(&"pulse")
+		probe.send(&"debug_skip", [2.0])
+	await probe.frame()
+	assert_array(sim.points()).is_not_empty()
+	assert_array(sim.inferred_boundaries()).is_not_empty()
+	var arguments := CostProbe.argued(sim)
+	for query in argued:
+		assert_bool(arguments.has(query)).override_failure_message(
+				"%s takes arguments and CostProbe.argued() gives it none" % query).is_true()
+	assert_array(probe.time_queries().keys()).contains_exactly_in_any_order(
+			Array(CostProbe.queries()) + Array(argued))
 	assert_float(probe.twin_drift()).is_equal(0.0)

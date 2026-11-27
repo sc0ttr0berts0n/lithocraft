@@ -123,28 +123,72 @@ func frame() -> Dictionary:
 ## DiveSimulation that takes nothing and answers, the commands that answer
 ## (debug commands, take_events()) left out.
 static func queries() -> PackedStringArray:
+	return _readings(false)
+
+
+## The simulation's queries that take arguments, found as queries() are; each
+## is timed with the arguments argued() gives it.
+static func argued_queries() -> PackedStringArray:
+	return _readings(true)
+
+
+static func _readings(argued: bool) -> PackedStringArray:
 	var names := PackedStringArray()
 	for method in (DiveSimulation as Script).get_script_method_list():
 		var name: String = method.name
 		var answers: bool = method.return.type != TYPE_NIL \
 				or (method.return.usage & PROPERTY_USAGE_NIL_IS_VARIANT) != 0
-		if answers and (method.args as Array).is_empty() and not name.begins_with("_") \
+		if answers and (method.args as Array).is_empty() != argued and not name.begins_with("_") \
 				and not name.begins_with("debug_") and not name.begins_with("take_") \
 				and not name in names:
 			names.append(name)
 	return names
 
 
-## Calls each of queries() once and returns what each call cost, {name:
-## milliseconds}. They are asked of the twin, which no screen reads: a query
-## that keeps its answer until the simulation changes is timed working it out,
-## and the Habitat's frames are left as they were.
+## Representative arguments for each of argued_queries(), read from `sim`:
+## {name: arguments}, as the screens pass them (the Reactor's screen's waves,
+## STANDBY's channel, which reads the scan's guess, the oldest of the scan's
+## points and surfaces). A query whose argument the dive has none of yet (no
+## point scanned) is left out until it has.
+static func argued(sim: DiveSimulation) -> Dictionary:
+	var station := DiveSimulation.STATION_REACTOR
+	var channel := DiveSimulation.CHANNEL_STANDBY
+	var now := sim.dive_time()
+	var arguments := {
+		"attended": [station], "autopilot": [station], "call_urgency": [station], "call_reason": [station],
+		"column_at": [sim.distance() / 2.0],
+		"counter_wave_frequency": [channel], "counter_wave_amplitude": [channel],
+		"residual_steady": [channel], "residual_beat": [channel], "residual_beat_frequency": [channel],
+		"residual": [channel],
+		"wobble_wave": [channel, now], "counter_wave": [channel, now], "residual_wave": [channel, now],
+		"waves": [channel, PlasmaDisplay.SPAN_S, PlasmaDisplay._STEPS],
+	}
+	var points := sim.points()
+	if not points.is_empty():
+		arguments["point_age"] = [points[0]]
+	var patches := sim.inferred_boundaries()
+	if not patches.is_empty():
+		arguments["patch_age"] = [patches[0]]
+	return arguments
+
+
+## Calls each of queries(), and each of argued_queries() with argued(), once
+## and returns what each call cost, {name: milliseconds}. They are asked of the
+## twin, which no screen reads: a query that keeps its answer until the
+## simulation changes is timed working it out, and the Habitat's frames are
+## left as they were.
 func time_queries() -> Dictionary:
 	var cost := {}
 	for query in queries():
 		var before := Time.get_ticks_usec()
 		_twin.call(query)
 		cost[query] = (Time.get_ticks_usec() - before) / 1000.0
+	var arguments := argued(_twin)
+	for query in argued_queries():
+		if arguments.has(query):
+			var before := Time.get_ticks_usec()
+			_twin.callv(query, arguments[query])
+			cost[query] = (Time.get_ticks_usec() - before) / 1000.0
 	return cost
 
 
