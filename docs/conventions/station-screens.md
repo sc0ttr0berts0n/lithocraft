@@ -34,7 +34,7 @@
   `station_theme_test.gd` fails any script in `view/` that writes a colour (`Color(...)`, `Color.NAME`), unless it is listed there as drawing nothing on a Station screen; a new screen script is checked without being listed.
 - **The key list** beside each screen (`KeyList`, `view/key_list.gd`, on the crew's right) is built the same way from `show_keys(KeyMap.bindings_at(station))`: what a key does wraps, and the whole list shrinks until every row is on the panel, so it is never cut off (`station_screen_test.gd`).
 - **Read from the Arm's hold.**
-  The screen (`GimballedStation.SCREEN_SIZE`) and key panel are sized so both are whole in the view from the working pose at 1152x648; check a change with a screenshot per Station (`tools/screenshot/shot.sh --look <Station>`).
+  The screen (`GimballedStation.SCREEN_SIZE`) and key panel are sized so both are whole in the view from the working pose at 1152x648; check a change with the sheet of every Station (`tools/screenshot/shot.sh --sheet tools/screenshot/recipes/stations.txt`).
   A Control's place is known only once its Station is in the tree and a frame has passed, so a test of `face()` adds the Station as a child and awaits two frames.
 - `GimballedStation` besides: `set_supplied(share)` dims a starved screen and its key list, `set_call(urgency)` beats the Station's tone and flashes its light.
   Set `call_tone_hz` / `call_pips` before `_ready`.

@@ -1,0 +1,22 @@
+# Features of interest in the Column (FeatureLook), as ticket #70 named: each kind the First dive holds,
+# seen as the crew see it turning round from the Bore Station's screen.
+# From the repo root: tools/screenshot/shot.sh --sheet tools/screenshot/recipes/column.txt
+# Each dive begins (the Scenario start command start_below) with the Head 4.7 m past a feature, which puts
+# the feature at the seated crew's eye height, and stands still there: the Drive's power starts at 0.
+# Depths are the First dive layout's (MediumLayout.first_dive(), fixed by its seed).
+# Debug commands: none.
+
+fulgurite, in the sand: --look column --time 1 --do "0 start_below 29.7"
+iron concretions, in the sandstone: --look column --time 1 --do "0 start_below 127.8"
+petrified wood, in the sandstone: --look column --time 1 --do "0 start_below 294.65"
+quartz vein, in the granite: --look column --time 1 --do "0 start_below 651.8"
+pegmatite, in the granite: --look column --time 1 --do "0 start_below 775.45"
+
+# The Bore Station observing the iron concretions (the second feature found, id 1): the ring round it,
+# then the ring once it is all recorded.
+iron concretions, being observed: --look column --time 2 --do "0 start_below 127.8" --do "0 set_observed_feature 1"
+iron concretions, recorded: --look column --time 30 --do "0 start_below 127.8" --do "0 set_observed_feature 1"
+
+# The same feature from the outer wall, and on the Bore Station's screen.
+iron concretions, into the Bore: --look bore --time 2 --do "0 start_below 127.8" --do "0 set_observed_feature 1"
+iron concretions, the Bore Station's screen: --look "Bore Station" --time 2 --do "0 start_below 127.8" --do "0 set_observed_feature 1"

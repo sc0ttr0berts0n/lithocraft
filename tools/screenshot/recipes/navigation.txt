@@ -1,0 +1,21 @@
+# Navigation's screen: each candidate scan view (ScanDisplay) diving and mid-turn, as ticket #67 named,
+# then its Course lines with the Drive following the Course and off it, as ticket #65 named.
+# From the repo root: tools/screenshot/shot.sh --sheet tools/screenshot/recipes/navigation.txt
+# Diving: the Shift drill, straight down 34 m above the sandstone, three pulses sent.
+# Mid-turn: the First dive at full power, steering hard from straight down toward level on heading 090,
+# about 20 deg into the turn, the sandstone some 15 m below, three pulses sent.
+# Debug commands: debug_next_scan_view, once or twice, for the second and third candidate view
+# (the crew has no control for it; its key is the debug key F4).
+
+forward scope, diving: --scenario "Shift drill" --look Navigation --time 10 --do "4 pulse" --do "8 pulse"
+forward scope, mid-turn: --look Navigation --time 85 --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_course 90 0" --do "75 pulse" --do "80 pulse" --do "84 pulse"
+
+plan and section, diving: --scenario "Shift drill" --look Navigation --time 10 --do "0 debug_next_scan_view" --do "4 pulse" --do "8 pulse"
+plan and section, mid-turn: --look Navigation --time 85 --do "0 debug_next_scan_view" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_course 90 0" --do "75 pulse" --do "80 pulse" --do "84 pulse"
+
+world-up 3D, diving: --scenario "Shift drill" --look Navigation --time 10 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "4 pulse" --do "8 pulse"
+world-up 3D, mid-turn: --look Navigation --time 85 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_course 90 0" --do "75 pulse" --do "80 pulse" --do "84 pulse"
+
+# The same two dives as drive.txt's first two tiles; the Drive is attended for the moment of its nudges.
+Drive follows the Course: --look Navigation --time 30 --do "0 set_power 0.5" --do "0 set_course 90 60"
+Drive off the Course, 30 deg up: --look Navigation --time 30 --do "0 set_power 0.5" --do "0 set_course 90 60" --do "20 set_attended drive true" --do "20 nudge_pitch -1" --do "20 nudge_pitch -1"
