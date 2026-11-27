@@ -34,6 +34,11 @@ The files are numbered in the order their sections were decided; each line gives
 - [design/14-after-second-checkpoint-as-built.md](design/14-after-second-checkpoint-as-built.md): After the second checkpoint, as built. Read for the agent's choices in round 3's tickets: how features of interest look in the Column and which way they face (#70); how the Drive's nudges, the override and the deviation behave (#65); the Thermal gauge's scale, trend arrow and split bar (#64); the point cloud's three candidate views awaiting the developer's pick (#67).
 - [design/15-after-second-checkpoint-as-built-continued.md](design/15-after-second-checkpoint-as-built-continued.md): After the second checkpoint, as built, continued. Read for the agent's choices in round 3's later tickets: how the Wobble, Counter-wave, Residual and Band were built (#60), STANDBY's guess and the Boundary countdown (#61), the sliding ring of Stations and the Arm's run along the Bore (#69), the Reactor screen's composition (#63). Add new as-built bullets here.
 
+## Round 4
+
+- [design/16-glide-and-scan.md](design/16-glide-and-scan.md): The Glide, Calls and the time rate, The scan, Triage of round 3's design questions. Read for the Glide and its costs, which calls hold the time rate, the master acknowledge, the Beam and the Sweep, the surface's survey, targets, or how #89 to #93 were decided.
+- [design/17-glide-and-scan-round-3.md](design/17-glide-and-scan-round-3.md): How the Glide is flown, the Sweep's shape, and when it is built. Read for the Glide as a straight run flown by hand, the ball display, the spiral Sweep and the aimed Beam, the time rate after a warning, the Checklist's pulse and trim steps, or why round 4 is played with round 3. Add round 4's decisions here.
+
 ## Open
 
 - [design/not-yet-designed.md](design/not-yet-designed.md): Not yet designed. Read before designing anything new, and add to it whatever a decision parks.
