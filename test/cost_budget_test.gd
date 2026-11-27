@@ -171,7 +171,7 @@ func test_the_queries_that_take_arguments_are_timed_with_representative_ones() -
 	var sim: DiveSimulation = habitat.simulation()
 	for i in 4:
 		probe.send(&"pulse")
-		probe.send(&"debug_skip", [2.0])
+		probe.send(&"advance", [2.0])
 	await probe.frame()
 	assert_array(sim.points()).is_not_empty()
 	assert_array(sim.inferred_boundaries()).is_not_empty()
