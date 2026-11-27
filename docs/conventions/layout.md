@@ -8,8 +8,8 @@
 - `view/`: scenes and view logic.
   `view/start_menu.tscn` (`StartMenu`) is the main scene; it starts `view/habitat.tscn` with the chosen Scenario.
   `Arm` (`view/arm.gd`), `HullGroans` (`view/hull_groans.gd`), `KeyMap` (`view/key_map.gd`), `PowerLine` (`view/power_line.gd`), `ChecklistPanel` (`view/checklist_panel.gd`; `ChecklistPanel.text_of()` is the Tab panel's text, tested directly), `KeyPrompt` (`view/key_prompt.gd`;
-  `KeyPrompt.rect()` builds a screen-space prompt for the F1 controls and the debug menu) `OutcomeScreen` (`view/outcome_screen.gd`), `FlightTape` (`view/flight_tape.gd`, a tape of the Drive's flight display), `AttitudeBall` (`view/attitude_ball.gd`, its attitude ball's geometry) and `Pointing` (`view/pointing.gd`, what lies under the centre dot) are view logic as plain `RefCounted`s, tested directly (plain transforms; a seeded RNG;
-  plain data).
+  `KeyPrompt.rect()` builds a screen-space prompt for the F1 controls and the debug menu) `OutcomeScreen` (`view/outcome_screen.gd`), `FlightTape` (`view/flight_tape.gd`, a tape of the Drive's flight display)
+  `AttitudeBall` (`view/attitude_ball.gd`, its attitude ball's geometry) and `Pointing` (`view/pointing.gd`, what lies under the centre dot) are view logic as plain `RefCounted`s, tested directly (plain transforms; a seeded RNG; plain data).
   `StationTheme` (`view/station_theme.gd`, the Station screens' one Theme and colours) `CautionLamps` (`view/caution_lamps.gd`, each Station's lamps from the simulation) and `ScreenPace` (`view/screen_pace.gd`, how often an instrument draws) are plain `RefCounted`s too.
   `StationScreen` and `KeyList` are the `SubViewport`s a Station's screen and key list are composed in (see The view's Station screens).
   A view node can be tested outside the tree when its logic needs no `Input` or physics (`crew_look_test.gd` drives `CrewMember.look()` / `hold()`); a node it makes in `_init` must be its child from then, or the test leaks orphans.

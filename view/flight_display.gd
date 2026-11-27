@@ -144,7 +144,19 @@ static func fitting_size(text: String, width: float) -> int:
 
 
 class _Canvas extends Control:
+	## How far the Head's pitch or heading may move, degrees, before the
+	## ball's circles and labels are worked out again.
+	const BALL_SNAP := 0.05
+
 	var display: FlightDisplay
+	# The ball's picture (_ball_picture()) and the pitch, heading and radius
+	# it was worked out for.
+	var _ball_key := Vector3(INF, INF, INF)
+	var _surface := PackedVector2Array()
+	## Each [polyline, colour, width].
+	var _lines: Array[Array] = []
+	## Each [where, text].
+	var _labels: Array[Array] = []
 
 	func _process(delta: float) -> void:
 		if display._pace.due_at(delta, display.sim, DiveSimulation.STATION_DRIVE):
@@ -195,11 +207,28 @@ class _Canvas extends Control:
 	## Head's own meridian), headings every BALL_MERIDIAN (labelled in a ring
 	## BALL_RING above the middle), and its rim.
 	func _ball(ball: AttitudeBall, centre: Vector2, radius: float) -> void:
-		var font := ThemeDB.fallback_font
+		var key := Vector3(snappedf(ball.pitch, BALL_SNAP), snappedf(ball.heading, BALL_SNAP), radius)
+		if key != _ball_key:
+			_ball_key = key
+			_ball_picture(AttitudeBall.new(key.x, key.y), centre, radius)
 		draw_circle(centre, radius, StationTheme.ROCKWARD_COLOUR)
-		var surface := ball.surfaceward()
-		if surface.size() >= 3:
-			draw_colored_polygon(_scaled(surface, centre, radius), StationTheme.SURFACEWARD_COLOUR)
+		if _surface.size() >= 3:
+			draw_colored_polygon(_surface, StationTheme.SURFACEWARD_COLOUR)
+		for line: Array in _lines:
+			draw_polyline(line[0], line[1], line[2], true)
+		var font := ThemeDB.fallback_font
+		for label: Array in _labels:
+			draw_string(font, label[0], label[1], HORIZONTAL_ALIGNMENT_LEFT, -1, FlightDisplay.FONT_SMALL,
+					StationTheme.LEGEND_COLOUR)
+		draw_arc(centre, radius, 0.0, TAU, 96, StationTheme.RULE_COLOUR, 3.0, true)
+
+	## Works out the ball's picture for the Head's pitch and heading, kept
+	## until they change by BALL_SNAP: the surface's part, the circles and
+	## the labels.
+	func _ball_picture(ball: AttitudeBall, centre: Vector2, radius: float) -> void:
+		_surface = _scaled(ball.surfaceward(), centre, radius)
+		_lines.clear()
+		_labels.clear()
 		var faint := StationTheme.faded(StationTheme.LEGEND_COLOUR, 0.35)
 		var clear := StationTheme.faded(StationTheme.LEGEND_COLOUR, 0.7)
 		var rung := FlightDisplay.PITCH_RUNG
@@ -208,11 +237,11 @@ class _Canvas extends Control:
 			var labelled := is_zero_approx(fmod(at_pitch, FlightDisplay.BALL_LABEL))
 			var colour := StationTheme.LEGEND_COLOUR if i == 0 else (clear if labelled else faint)
 			for run in ball.parallel(at_pitch):
-				draw_polyline(_scaled(run, centre, radius), colour, 2.0 if labelled else 1.0, true)
+				_lines.append([_scaled(run, centre, radius), colour, 2.0 if labelled else 1.0])
 		var step := FlightDisplay.BALL_MERIDIAN
 		for i in roundi(360.0 / step):
 			for run in ball.meridian(i * step):
-				draw_polyline(_scaled(run, centre, radius), faint, 1.0, true)
+				_lines.append([_scaled(run, centre, radius), faint, 1.0])
 		# Pitch labels where each labelled circle crosses the Head's meridian,
 		# ahead of the Head if they can; heading labels in a ring above the
 		# middle (round the pole when steep). None lies on another or on the
@@ -230,20 +259,17 @@ class _Canvas extends Control:
 			if ball.facing(i * step, ring).z > 0.25:
 				var at := centre + ball.place(i * step, ring) * radius
 				_label(at - Vector2(22, 0), "%03d" % roundi(i * step), taken)
-		draw_arc(centre, radius, 0.0, TAU, 96, StationTheme.RULE_COLOUR, 3.0, true)
 
 	## A label on the ball, its left end at at and centred on it upright,
 	## unless it would lie on a place already taken; it then takes its own.
 	func _label(at: Vector2, text: String, taken: Array[Rect2]) -> void:
-		var font := ThemeDB.fallback_font
-		var room := Rect2(at - Vector2(0, 13), font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1,
-				FlightDisplay.FONT_SMALL) * Vector2(1, 0) + Vector2(0, 26))
+		var room := Rect2(at - Vector2(0, 13), ThemeDB.fallback_font.get_string_size(text,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, FlightDisplay.FONT_SMALL) * Vector2(1, 0) + Vector2(0, 26))
 		for other in taken:
 			if other.intersects(room):
 				return
 		taken.append(room)
-		draw_string(font, at + Vector2(0, 9), text, HORIZONTAL_ALIGNMENT_LEFT, -1, FlightDisplay.FONT_SMALL,
-				StationTheme.LEGEND_COLOUR)
+		_labels.append([at + Vector2(0, 9), text])
 
 	## Places on the unit disc as pixels on the ball.
 	static func _scaled(points: PackedVector2Array, centre: Vector2, radius: float) -> PackedVector2Array:

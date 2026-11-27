@@ -71,3 +71,11 @@ Grilled with the developer on 27 November 2026, following 16-glide-and-scan.md, 
   the Boundary approaching is still announced 30 m of depth ahead, counted along the Head's line to where it meets the surface;
   features of interest stay placed by depth, and the First dive leaves out any that would lie within a fold of a Boundary, where the Medium at that depth depends on the place;
   the guess of the Wobble ahead is seeded by which Boundary it is (its mean depth), never by where it is met, so it does not jitter as the Head moves.
+- **The attitude ball, as built (#119; agent's choices, the developer away).**
+  Kerbal's navball is the reference for how such a ball works (a sphere marked in pitch and heading, read through a fixed mark, with markers for targets), not for its look: it is drawn flat in the Station screens' colour language, the surface's blue above the horizon and the rock's brown below, in the attitude's old place.
+  Up on the ball is the surface's way along the Head's own meridian, as an aircraft's ball with no bank: the Lithocraft does not roll, so nothing else could be up, and it keeps the flat display's rule that steeper lies lower.
+  Straight down the Head's last heading points up from the pole; it is continuous through vertical, so the ball has no dead spot, and a tilt toward the lean slides the pole down the lean's meridian.
+  It is drawn as the crew would see a ball (the half facing them, squeezed toward the rim); a mark behind it is pinned to the rim on its side, as a tape pins a bug.
+  The lean is an arrow from the pole along its meridian, with LEAN 030 in a corner; the pitch, the Course's pitch and the lean are corner figures, and the bottom right corner and one more marker are left for the Glide's line (#126).
+  The deviation keeps CourseDeviation's words, "OFF COURSE" over them on a row of their own, so the longest reads whole (#133 found the flat display's cut off); the foot says FOLLOWS THE COURSE in green otherwise.
+  The flat display's chevrons at the Course's pitch went with the ladder: the cross on the ball and the COURSE figure say the same.
