@@ -60,8 +60,6 @@ const TUNING := "TUNING"
 
 ## The lanes, top to bottom: the channel and the name written on it.
 const _LANES := [[DiveSimulation.CHANNEL_ACTIVE, "ACTIVE"], [DiveSimulation.CHANNEL_STANDBY, "STANDBY"]]
-## The three lines of a lane.
-enum { _WOBBLE, _COUNTER_WAVE, _RESIDUAL }
 ## Points along a drawn wave.
 const _STEPS := 240
 ## The layout, in the screen's pixels: the strip under the lanes, the names'
@@ -89,6 +87,9 @@ var _far := Label.new()
 var _band := Label.new()
 var _wear := Label.new()
 var _lost := Label.new()
+## How often it brings itself up to the simulation: every frame while the
+## crew is at the Reactor, a few times a second while they are not.
+var _pace := ScreenPace.new()
 
 
 # --- What it reads, as words --------------------------------------------------
@@ -227,7 +228,7 @@ func band_edges(channel: StringName) -> Vector2:
 ## A channel's Residual as it is drawn, oldest to newest; empty when the
 ## simulation has none to give (STANDBY with no scan).
 func residual_points(channel: StringName) -> PackedVector2Array:
-	return _points(residual_plot(channel), channel, _RESIDUAL, RESIDUAL_SCALE)
+	return _line(residual_plot(channel), _waves(channel).residual, RESIDUAL_SCALE)
 
 
 ## The words on a channel's lane that are showing.
@@ -263,7 +264,9 @@ func readings() -> Dictionary:
 	}
 
 
-## Brings the writing up to the simulation; done every frame.
+## Brings the writing up to the simulation, and asks for the waves to be
+## drawn anew: every frame while the crew is at the Reactor, and at least
+## every ScreenPace.UNWATCHED_S while they are not (_process()).
 func refresh() -> void:
 	if sim == null or _lanes.is_empty():
 		return
@@ -296,8 +299,14 @@ func _init() -> void:
 	_lost.visible = false
 
 
-func _process(_delta: float) -> void:
-	refresh()
+func _process(delta: float) -> void:
+	if _pace.due_at(delta, sim, DiveSimulation.STATION_REACTOR):
+		refresh()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED:
+		_pace.hurry()
 
 
 func _label(font_size: int) -> Label:
@@ -469,21 +478,22 @@ func _outside(residual: float, band: float) -> bool:
 	return not is_nan(residual) and residual > band
 
 
-## One of a channel's three waves across `plot`, from SPAN_S seconds ago to
-## now, newest at the right. Empty for a wave the simulation cannot give.
-func _points(plot: Rect2, channel: StringName, wave: int, full_scale: float) -> PackedVector2Array:
+## A channel's three waves from SPAN_S seconds ago to now, one point for
+## each of _STEPS (DiveSimulation.waves()).
+func _waves(channel: StringName) -> Dictionary:
+	return sim.waves(channel, SPAN_S, _STEPS)
+
+
+## One wave's `values` across `plot`, oldest at the left; empty for a wave the
+## simulation cannot give (NAN).
+func _line(plot: Rect2, values: PackedFloat64Array, full_scale: float) -> PackedVector2Array:
 	var points := PackedVector2Array()
-	for i in _STEPS + 1:
-		var along := float(i) / _STEPS
-		var t := -SPAN_S * (1.0 - along)
-		var value := 0.0
-		match wave:
-			_WOBBLE: value = sim.wobble_wave(channel, t)
-			_COUNTER_WAVE: value = sim.counter_wave(channel, t)
-			_RESIDUAL: value = sim.residual_wave(channel, t)
-		if is_nan(value):
+	var last := values.size() - 1
+	for i in values.size():
+		if is_nan(values[i]):
 			return PackedVector2Array()
-		points.append(Vector2(plot.position.x + plot.size.x * along, value_y(plot, value, full_scale)))
+		points.append(Vector2(plot.position.x + plot.size.x * float(i) / last,
+				value_y(plot, values[i], full_scale)))
 	return points
 
 
@@ -513,10 +523,11 @@ func _draw_lane(index: int) -> void:
 		draw_rect(Rect2(lane.position.x, lane.position.y + 3.0, 6.0, lane.size.y - 6.0),
 				StationTheme.SELECTED_COLOUR)
 
+	var traced := _waves(channel)
 	var waves := waves_plot(channel)
 	_draw_plot(waves)
-	_draw_wave(_points(waves, channel, _WOBBLE, WAVE_SCALE), StationTheme.NOW_COLOUR, 2.0)
-	_draw_wave(_points(waves, channel, _COUNTER_WAVE, WAVE_SCALE), StationTheme.SELECTED_COLOUR, 2.0)
+	_draw_wave(_line(waves, traced.wobble, WAVE_SCALE), StationTheme.NOW_COLOUR, 2.0)
+	_draw_wave(_line(waves, traced.counter, WAVE_SCALE), StationTheme.SELECTED_COLOUR, 2.0)
 
 	var sum := residual_plot(channel)
 	_draw_plot(sum)
@@ -533,7 +544,7 @@ func _draw_lane(index: int) -> void:
 			draw_dashed_line(Vector2(sum.position.x, widest), Vector2(sum.end.x, widest),
 					StationTheme.faded(StationTheme.ENGAGED_COLOUR, 0.45), 1.0, 6.0)
 	var residual := sim.residual(channel)
-	_draw_wave(residual_points(channel), StationTheme.CAUTION_COLOUR if _outside(residual, sim.band())
+	_draw_wave(_line(sum, traced.residual, RESIDUAL_SCALE), StationTheme.CAUTION_COLOUR if _outside(residual, sim.band())
 			else StationTheme.NOW_COLOUR, 3.5)
 
 

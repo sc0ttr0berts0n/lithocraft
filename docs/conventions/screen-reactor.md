@@ -6,4 +6,5 @@
   Each lane's verdict is in words (`verdict()`).
   STANDBY's is a prediction: its number is beside a plus-or-minus, `wobble_ahead_spurious()`, the ripple the drawn line keeps, and while that could reach outside the Band the verdict is "IN BAND IF THE SCAN IS RIGHT".
   Under the lanes: the Boundary countdown on a track toward NOW, giving way to "BOUNDARY CROSSED" and the swap's key while `settling_in()`; the Band beside its widest; the Head's wear.
-  It keeps no state; its writing is `Label`s, never drawn strings, tested not to overlap, and its waves run on the dive's clock.
+  It keeps no state but its pace (`ScreenPace`); its writing is `Label`s, never drawn strings, tested not to overlap, and its waves run on the dive's clock.
+  Its six waves come from one `waves(channel, span, steps)` call a lane, which looks the Wobble and the guess up once; never draw them from `wobble_wave()` point by point, which cost the quiet frame half its time (#96).

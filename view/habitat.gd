@@ -1076,6 +1076,8 @@ func _bore_instrument() -> Control:
 	var tunnel := TunnelPanel.new()
 	tunnel.sim = _sim
 	tunnel.zoom = BORE_PANEL_ZOOM
+	survey.watched_at = DiveSimulation.STATION_BORE
+	tunnel.watched_at = DiveSimulation.STATION_BORE
 	for panel: Control in [survey, tunnel]:
 		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		panel.size_flags_vertical = Control.SIZE_EXPAND_FILL

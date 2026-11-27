@@ -11,14 +11,18 @@
 class_name CostBudget
 extends RefCounted
 
-## The budget, in baselines. Generous on purpose: about twice what the mean
-## and the worst frame cost when it was set and four times the dearest query,
-## to catch a query or a screen grown several times dearer, not a small drift.
-## No condition's mean frame may pass the first, no single frame the second,
-## no single call of a query the simulation hands a screen the third. Ticket
-## #96 tightens them once it has found where a quiet frame goes.
-const MEAN_FRAME_BASELINES := 25.0
-const WORST_FRAME_BASELINES := 75.0
+## The budget, in baselines. Generous on purpose, to catch a query or a screen
+## grown several times dearer, not a small drift. No condition's mean frame may
+## pass the first, no single frame the second, no single call of a query the
+## simulation hands a screen the third. Set by ticket #96 once screens the crew
+## is not at drew less: the dearest condition's mean frame was then about 6.5
+## baselines (a quiet frame about 3), so the first is twice that; the worst
+## frame was 16 to 38 baselines from one run to the next (the simulation's
+## step as a pulse comes in with a full point cloud, which #96 did not touch,
+## and which another program can disturb), so the second is about half again
+## the worst seen; the dearest query was four times under the third.
+const MEAN_FRAME_BASELINES := 13.0
+const WORST_FRAME_BASELINES := 60.0
 const QUERY_BASELINES := 20.0
 
 ## How many queries the report lists, dearest first.

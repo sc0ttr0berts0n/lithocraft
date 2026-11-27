@@ -74,6 +74,9 @@ const FONT := 28
 const FONT_LARGE := 34
 
 var sim: DiveSimulation
+## Drawn every frame while the crew is at the Drive, every
+## ScreenPace.UNWATCHED_S while not.
+var _pace := ScreenPace.new()
 
 var _canvas := _Canvas.new()
 
@@ -104,8 +107,9 @@ class _Canvas extends Control:
 
 	var display: FlightDisplay
 
-	func _process(_delta: float) -> void:
-		queue_redraw()
+	func _process(delta: float) -> void:
+		if display._pace.due_at(delta, display.sim, DiveSimulation.STATION_DRIVE):
+			queue_redraw()
 
 	func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), StationTheme.SCREEN_COLOUR)
