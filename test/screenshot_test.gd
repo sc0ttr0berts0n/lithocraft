@@ -108,6 +108,17 @@ func test_the_screen_space_layer_is_hidden_unless_asked_for() -> void:
 	assert_bool(with_notice.get_node("%DiveView").visible).is_false()
 
 
+func test_the_checklist_panel_is_shown_when_asked_for_and_the_orders_are_left_unread() -> void:
+	var plain := _staged(["--look", "Drive", "--time", "1"])
+	var with_checklist := _staged(["--look", "Drive", "--time", "1", "--checklist"])
+
+	assert_bool((plain.get(&"_checklist") as ChecklistPanel).is_visible_in_tree()).is_false()
+	assert_bool((with_checklist.get(&"_checklist") as ChecklistPanel).is_visible_in_tree()).is_true()
+	assert_bool(with_checklist.get_node("%DiveView").visible).is_false()
+	# Opening it in a shot is not the crew pressing Tab: the dive is as staged.
+	assert_str(DiveTestKit.step_state(with_checklist.simulation(), &"read_orders")).is_equal(DiveSimulation.STEP_PENDING)
+
+
 func test_a_station_is_seen_through_the_crews_eyes_and_the_bore_from_outside_it() -> void:
 	var seated := _staged(["--look", "Thermal", "--time", "1"])
 	var seated_camera := seated.get_viewport().get_camera_3d()

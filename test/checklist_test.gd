@@ -539,12 +539,48 @@ func test_a_climb_only_plotted_brings_no_warning_of_the_turn() -> void:
 	sim.set_steering_effort(1.0)
 	DiveTestKit.run(sim, 30.0)
 	assert_int(_turn_warnings(sim)).is_equal(0)
-	# Nor is it sent in the moment of plotting, before the vessel has moved on.
+	# Nor is it sent in the moment of plotting, before the vessel has moved on:
+	# the Checklist looks at once, through a step that takes no time, and the
+	# Head, straight on its dive, is not yet being steered round.
 	sim = _diving_in_sand()
 	var on_the_way := sim.messages_on_the_way()
 	sim.set_course(0.0, -90.0)
+	sim.advance(0.0)
 	assert_int(sim.messages_on_the_way()).is_equal(on_the_way)
 	assert_int(_turn_warnings(sim)).is_equal(0)
+
+
+func test_a_climb_plotted_with_no_steering_effort_brings_no_warning() -> void:
+	# Under way and diving, the climb plotted, but the Head heated evenly: it
+	# never begins to come round, so there is no turn to warn of.
+	var sim := _diving_in_sand()
+	sim.set_steering_effort(0.0)
+	DiveTestKit.run(sim, 20.0)
+	sim.set_course(0.0, -90.0)
+	DiveTestKit.run(sim, 120.0, 0.5)
+	assert_float(sim.speed()).is_greater(0.0)
+	assert_float(sim.pitch()).is_greater(0.0)
+	assert_float(sim.steering()).is_equal(0.0)
+	assert_int(_turn_warnings(sim)).is_equal(0)
+	assert_int(sim.messages_on_the_way()).is_equal(0)
+
+
+func test_a_climb_plotted_with_the_drive_nudged_to_hold_a_dive_brings_no_warning() -> void:
+	# The climb plotted, but the Drive nudged to steer for a shallower dive:
+	# the Head is steered round, and still for a dive, not for home.
+	var sim := _diving_in_sand()
+	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
+	sim.set_course(0.0, -45.0)
+	DiveTestKit.nudge(sim, 0.0, 105.0)
+	assert_float(sim.steered_pitch()).is_greater(0.0)
+	var steered_round := false
+	for i in 240:
+		sim.advance(0.5)
+		steered_round = steered_round or sim.steering() > 0.0
+	assert_bool(steered_round).is_true()
+	assert_float(sim.pitch()).is_greater(0.0)
+	assert_int(_turn_warnings(sim)).is_equal(0)
+	assert_int(sim.messages_on_the_way()).is_equal(0)
 
 
 func test_surface_control_warns_of_the_turn_once_the_lithocraft_begins_it_still_diving() -> void:
@@ -587,6 +623,34 @@ func test_a_second_turn_for_home_is_warned_of_again() -> void:
 	sim.set_course(0.0, -90.0)
 	assert_bool(_fly_until_warned(sim, 2)).is_true()
 	assert_float(sim.pitch()).is_greater(0.0)
+
+
+func test_a_warning_still_on_its_way_is_not_sent_again_by_a_replotted_climb() -> void:
+	# Sealed in granite, where a message takes minutes down the link.
+	var layout := MediumLayout.layered([[0.0, Medium.sand()], [5.0, Medium.granite()]])
+	var sim := _first_dive_on(layout)
+	sim.start_below(5.0 + 4.0 * sim.vessel_length())
+	assert_bool(sim.tunnel_sealed()).is_true()
+	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
+	sim.set_autopilot(DiveSimulation.STATION_THERMAL, true)
+	sim.set_power(0.5)
+	sim.set_steering_effort(1.0)
+	DiveTestKit.run(sim, 5.0, 0.5)
+	var before := sim.messages_on_the_way()
+	sim.set_course(0.0, -90.0)
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.messages_on_the_way() > before,
+			60.0, 0.5, false)).is_true()
+	# The climb's pitch stepped through level and back before the first copy
+	# arrives: the same warning, already on its way.
+	sim.set_course(0.0, 0.0)
+	DiveTestKit.run(sim, 1.0, 0.5)
+	sim.set_course(0.0, -90.0)
+	DiveTestKit.run(sim, 5.0, 0.5)
+	assert_int(_turn_warnings(sim)).is_equal(0)
+	sim.set_power(0.0)
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.messages_on_the_way() == 0,
+			20000.0, 1.0)).is_true()
+	assert_int(_turn_warnings(sim)).is_equal(1)
 
 
 func test_a_turn_that_leads_to_no_climb_brings_no_warning() -> void:

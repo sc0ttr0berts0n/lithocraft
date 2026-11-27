@@ -33,11 +33,11 @@ Success prints nothing after the engine's version line.
 Any script error is a real failure.
 The same without the scene path runs the main scene, the start menu, which should print nothing.
 `tools/ci/smoke.sh [scene]` runs either one and exits 1 if Godot exits non-zero or prints an error; Godot itself exits 0 after a script or parse error, so the exit code alone proves nothing.
-A warning, such as leaked ObjectDB instances at exit, passes.
+A warning (leaked ObjectDB instances at exit) passes.
 
-CI: `.github/workflows/ci.yml` runs on every push to `dev` and every pull request into `dev`.
-In order: the lint, the docs check, then the Linux Godot of its `GODOT_VERSION` (cached), `./test.sh`, and `tools/ci/smoke.sh` on the Habitat and the main scene; the first failure fails the job.
-A pull request merges into `dev` only on a green job.
+CI: `.github/workflows/ci.yml` runs on each push to `dev` and pull request into it.
+In order: the lint, the docs check, then the Linux Godot of its `GODOT_VERSION` (cached), `./test.sh`, and `tools/ci/smoke.sh` on the Habitat and the main scene; any failure fails the job.
+Agents merge into `dev` only on a green job, a rule: `dev` is unprotected.
 
 Cost budget: `tools/cost/cost.sh`, no part of `./test.sh`; see `cost-budget.md`.
 
