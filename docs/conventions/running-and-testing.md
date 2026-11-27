@@ -45,6 +45,9 @@ It prints the PNG's path and exits 0; on any failure it prints why, leaves no PN
 - A Habitat-level test starts from `DiveTestKit.staged_habitat(self, scenario)`: in the tree, freed with the test, stepped only by `habitat._physics_process(step)`.
   `station(habitat, name)` / `stations(habitat)` find its Stations, `await DiveTestKit.laid_out(self)` waits for a screen's Containers before its readings are read, and `staged_shot(self, arguments)` stages one as the screenshot tool does.
 - No test of the game calls a `debug_*` command (see `debug-commands.md`): wear the Head with `wear_head_gently()`, lose the plasma with `lose_plasma()`, strand with `strand()`, and end a dive by losing the plasma with the tunnel open (brought home) or by flying it.
+  `convention_test.gd` fails on a new one.
+- Convention checks that read the source live in `test/convention_test.gd`, each with its allow-list and every entry's reason: no debug command in a test of the game (`debug-commands.md`), no avoided GLOSSARY term in `sim/` or `view/` (`layout.md`), no layout named on the scan side (`scan.md`).
+  A new rule with a fixed shape goes there; a finding is cleared by fixing the code, and by an allow-list entry only when the rule does not mean that case.
 - Read expected sequences from the layout (`MediumLayout.first_dive().boundary_depths()` and `medium_at()`), never a hand-written list of depths.
 - Every autopilot starts off, so a setting holds with no help.
   Engage the autopilot of a Station the test wants to steady itself: the Reactor's for any dive that crosses a Boundary with nobody at the Reactor (`survey_test`, `stranding_test`, `repair_test`; left alone, the Residual outside the Band loses the plasma within minutes), Thermal's to keep the hull whole at full power (`steering_test`, `habitat_down_test`).

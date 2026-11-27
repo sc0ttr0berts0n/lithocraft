@@ -1,7 +1,7 @@
 # Convention checks that read the source (ticket #80): rules with a fixed
 # shape that a review once had to find by reading. Each test names the
-# convention file that states its rule. The fourth of the ticket's rules,
-# the Checklist's intention list, is derived in scenario_test.gd.
+# convention file that states its rule. The ticket's other rule, that every
+# crew command is in the Checklist's intention list, is in scenario_test.gd.
 #
 # Every allow-list is here, each entry with its reason. An entry nothing
 # uses any more fails its test, so the lists cannot outlive their causes.
