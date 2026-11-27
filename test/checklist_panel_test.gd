@@ -4,8 +4,8 @@
 extends GdUnitTestSuite
 
 const _STATIONS := {
-	DiveSimulation.STATION_REACTOR: ["Reactor", Color.ORANGE],
-	DiveSimulation.STATION_THERMAL: ["Thermal", Color.RED],
+	DiveSimulation.STATION_REACTOR: "Reactor",
+	DiveSimulation.STATION_THERMAL: "Thermal",
 }
 
 
@@ -32,6 +32,18 @@ func test_the_next_step_is_highlighted_with_its_station_and_key() -> void:
 	# A step after it is neither highlighted nor the next.
 	var later := _line_with(text, sim.checklist()[0].steps[2].text)
 	assert_str(later).not_contains("[b]")
+
+
+func test_every_colour_in_the_panel_is_the_themes() -> void:
+	var sim := Scenario.first_dive().start()
+	sim.read_orders()
+	sim.advance(0.1)
+	var found := RegEx.create_from_string("\\[color=#([0-9a-f]{6})\\]").search_all(
+			ChecklistPanel.text_of(sim, _STATIONS))
+	assert_int(found.size()).is_greater(0)
+	for hit in found:
+		assert_bool(StationTheme.has(Color.html(hit.get_string(1)))).override_failure_message(
+				"#%s is not a Theme colour" % hit.get_string(1)).is_true()
 
 
 func test_a_step_that_takes_two_controls_shows_the_keys_of_both() -> void:

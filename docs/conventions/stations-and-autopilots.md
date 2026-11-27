@@ -27,7 +27,8 @@ A test that wants a Station to steady itself engages its autopilot (see Testing)
 
 **The ring's slide.**
 `station_ring()` is where the ring of Stations and the Arm's rail are along the Habitat, 0 by the Head end floor to 1 by the Tail end floor, and `ring_sliding()` whether it is on its way.
-`_slide_ring()` runs every step, stranded steps included: the ring sets off once an end is the floor (the felt gravity points more toward it than toward the outer wall, `_END_IS_FLOOR`) and takes `_RING_SLIDE_S`; near level it stays at, or finishes going to, the end it last set off for.
-It reads `pitch()`, not `felt_acceleration()`, so the Head's shudder cannot start a slide.
+Both delegate to `RingSlide` (`sim/ring_slide.gd`, a subsystem owned as `_ring`), which is told only the share of the felt gravity along the Bore.
+`RingSlide.step()` runs every step, stranded steps included (`_step()` calls it before anything else): the ring sets off once an end is the floor (the felt gravity points more toward it than toward the outer wall, `_END_IS_FLOOR`) and takes `_SLIDE_S`; near level it stays at, or finishes going to, the end it last set off for.
+It is handed `pitch()`, not `felt_acceleration()`, so the Head's shudder cannot start a slide.
 Nothing else in the simulation knows of the slide: Stations stay live through it, and a held command stops only because the view reports the Station unattended.
 The slide is free; what it should cost and how it fails is in `docs/design/not-yet-designed.md`.

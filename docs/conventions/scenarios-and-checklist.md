@@ -15,6 +15,7 @@ Debug commands that call `_step()` directly (`debug_skip()`, `debug_next_boundar
 It breaks the subsystem rule on one point: it is handed the simulation on each `tend()` so the conditions can read it; it holds no reference between calls.
 The rules it keeps: goals are achieved once and stay so; steps tick in order, only the next step of the running phase can tick, and an event counts toward one step (the steps after one that ticks see only state that tend); a phase begins once the one before is finished, or early when its `begins_when` holds, and steps left undone before it are `MISSED`;
 a message is sent once its condition holds and arrives after its length at `link_capacity()` (fast up the open tunnel, a trickle through sealed rock), one at a time, oldest first.
+A message is sent once a dive unless it names when it may be sent again (`Message.again_after(condition)`): once that has held since it was sent, its own condition sends it again.
 **Phase triggers.**
 A phase's `begins_when` holds only on something the simulation reports the dive doing: a state the vessel is in (below the surface, `Scenario.settled_in(medium)`: in that Medium with the Residual inside the Band, `Scenario.climbing()`, surfaced) or an event of the dive (`&"boundary_approaching"`, `&"relight_result"`, `&"surfaced"`).
 It never holds on what the crew intends: a plotted Course (`&"course_plotted"`, `course_pitch()`), an engaged autopilot, a setting, `&"orders_read"`, a pulse.
@@ -29,3 +30,9 @@ A new dive starts the Checklist afresh (`_scenario` is kept between dives).
 Step texts name no keys: a step's `action` names the key-map action that does it, and the panel writes `KeyMap.label(action)`.
 A step that may take a second control names it with `Step.and_also(action)` (`also` in the step's dictionary), and the panel writes both: every "Pretune standby" step names `tune_frequency` and `tune_amplitude`.
 Events a Scenario's conditions need that the simulation did not raise are added to it as ordinary events (`&"course_plotted"`, `&"pulse_sent"`, `&"orders_read"`).
+**Messages follow what the dive does.**
+A message's `sent_when` keeps the phase triggers' rule: surface control speaks of what the Lithocraft does or what has happened to it, never of what the crew only intends.
+The First dive's "Turning for home: you will deepen through the turn." is sent on `Scenario.turning_for_home()`: a climb plotted and steered for, the Head still cutting below level, moving, and being steered round (`steering()` above nothing), so a climb plotted at rest, or in the moment of plotting, sends nothing.
+It is the only place the crew is told the turn deepens when the climb is plotted before "Turn and climb" begins, since that phase's two steps then tick in the same moment; it adds no step.
+It is sent once for each turn for home: stopping mid-turn or replotting the climb is the same turn, and it may be sent again only after the climb has been given up for a Course that is not one (`course_pitch()` level or diving).
+A turn to a level or diving Course, and a climb the Drive is nudged into off a diving Course, send nothing.
