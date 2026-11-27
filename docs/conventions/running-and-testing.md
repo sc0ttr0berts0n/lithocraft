@@ -9,6 +9,7 @@ Plan tests, screenshots and long-running processes as the work goes, but run the
 - At the push: CI repeats it, so do not rerun a green whole suite to be sure.
   CI runs the whole suite and the scene smoke checks today; the lint and the docs check join it with ticket #87.
 - An orchestrator merging several tickets runs the whole suite once per merge that had conflicts and once before review, and puts this policy in each agent's brief.
+- An orchestrator names a model for every agent it starts: a ticket's implementer runs on Opus, a docs-only or mechanical ticket on a smaller model, and the largest model is kept for work that is mostly hard reasoning, which a ticket rarely is (the developer's rule, 27 November 2026).
 
 ## Running
 
