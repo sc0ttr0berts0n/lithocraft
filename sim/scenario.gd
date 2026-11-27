@@ -298,7 +298,7 @@ static func first_dive() -> Scenario:
 				&"tune_frequency", standby_pretuned()).and_also(&"tune_amplitude"),
 		Step.new(&"shift", "Shift as the Head crosses", DiveSimulation.STATION_REACTOR,
 				&"shift", shift_in(middle.name)),
-		_trim_active(&"trim_active", middle.name),
+		_tune_active(&"tune_active", middle.name),
 	]
 
 	var sandstone := Phase.new(String(middle.name).capitalize(), settled_in(middle.name))
@@ -313,7 +313,7 @@ static func first_dive() -> Scenario:
 				&"tune_frequency", standby_pretuned()).and_also(&"tune_amplitude"),
 		Step.new(&"shift_granite", "Shift into the %s" % bottom.name, DiveSimulation.STATION_REACTOR,
 				&"shift", shift_in(bottom.name)),
-		_trim_active(&"trim_active_granite", bottom.name),
+		_tune_active(&"tune_active_granite", bottom.name),
 	]
 
 	var granite := Phase.new(String(bottom.name).capitalize(), settled_in(bottom.name))
@@ -329,6 +329,11 @@ static func first_dive() -> Scenario:
 	turn.steps = [
 		Step.new(&"plot_climb", "Plot the Course: climb. The Lithocraft goes forward only, so the way home is a turn",
 				DiveSimulation.STATION_NAVIGATION, &"plot_pitch", course_is_a_climb()),
+		# The Shifts down let the Reactor's autopilot go, and the climb crosses
+		# both Boundaries again with no Shift asked: engaged, it tunes ACTIVE
+		# through them, at some wear of the Head.
+		Step.new(&"reactor_autopilot_climb", "Engage the Reactor's autopilot for the climb: it tunes active through the Boundaries above",
+				DiveSimulation.STATION_REACTOR, &"autopilot_reactor", _autopilot_on(DiveSimulation.STATION_REACTOR)),
 		Step.new(&"climbing", "Turn for home: the Drive follows the Course round, and deepens through the turn before it rises",
 				DiveSimulation.STATION_DRIVE, &"", climbing()),
 	]
@@ -393,7 +398,7 @@ static func shift_drill() -> Scenario:
 				&"tune_frequency", standby_pretuned()).and_also(&"tune_amplitude"),
 		Step.new(&"shift", "Shift as the Head crosses", DiveSimulation.STATION_REACTOR,
 				&"shift", shift_in(below.name)),
-		_trim_active(&"trim_active", below.name),
+		_tune_active(&"tune_active", below.name),
 	]
 	s.phases = [reactor]
 
@@ -516,7 +521,7 @@ static func _pulse_for_the_boundary(id: StringName) -> Step:
 ## a Shift lets the Reactor's autopilot go; the crew tunes ACTIVE until the
 ## Residual is inside the Band there. It ticks at once after a Shift that
 ## already left it inside.
-static func _trim_active(id: StringName, medium_name: StringName) -> Step:
+static func _tune_active(id: StringName, medium_name: StringName) -> Step:
 	return Step.new(id, "Select active and tune it until the Residual is inside the Band",
 			DiveSimulation.STATION_REACTOR, &"tune_frequency", settled_in(medium_name)).and_also(&"tune_amplitude")
 

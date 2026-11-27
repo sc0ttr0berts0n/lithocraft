@@ -24,6 +24,7 @@ Intentions tick steps, so a phase that needs one asks for it in a step: "Turn an
 The intention commands are not listed by hand: `_state_every_intention()` finds every public command of `DiveSimulation` by reflection (a public method that returns nothing) and sends each, the crew at every Station, so a new crew command is tried against every trigger with nobody remembering.
 `NOT_AN_INTENTION` holds the few it does not send (the time step, a new dive, the Scenario start commands), each with its reason, and `_intention_arguments()` the arguments that cannot be made up from their types.
 `test_every_public_command_is_an_intention_or_listed_as_not_one` fails on a command that is neither sent nor listed.
+A step may tick on an engaged autopilot, which a phase's trigger must ignore: to a step it is a state the simulation reports (`autopilot(station)`), as in Startup and in "Turn and climb", whose second step asks for the Reactor's autopilot before the climb, since the Shifts down let it go and no Shift is asked at the Boundaries above.
 **The Checklist follower.**
 `test/checklist_follower_test.gd` plays the First dive by its Checklist alone: it reads `next_step()`, has its table's entry for that step send the command the step's key sends, and steps time (run fast, as the time key does) until the step ticks.
 A new or renamed step of the First dive needs an entry in `_first_dive_table()`: the step's own `action` and how the crew follows it; a step with no entry, or an entry naming another action, fails the follower by name.

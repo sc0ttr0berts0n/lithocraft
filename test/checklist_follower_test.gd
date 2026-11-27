@@ -107,7 +107,7 @@ static func _pretune(sim: DiveSimulation) -> void:
 
 ## ACTIVE tuned by its keys toward the Wobble on the plasma now, which the
 ## Reactor's screen draws.
-static func _trim(sim: DiveSimulation) -> void:
+static func _tune_active(sim: DiveSimulation) -> void:
 	_tune_by_keys(sim, DiveSimulation.CHANNEL_ACTIVE, DiveTestKit.wobble(sim))
 
 
@@ -155,15 +155,16 @@ static func _first_dive_table() -> Dictionary:
 		&"pulse_boundary": {action = &"pulse", follow = _pulse},
 		&"pretune_standby": {action = &"tune_frequency", follow = _pretune, fast = false},
 		&"shift": {action = &"shift", follow = _shift_in.bind(middle)},
-		&"trim_active": {action = &"tune_frequency", follow = _trim, fast = false},
+		&"tune_active": {action = &"tune_frequency", follow = _tune_active, fast = false},
 		&"observe_sandstone": {action = &"observe", follow = _observe},
 		&"upload": {action = &"link", follow = _link},
 		&"pulse_boundary_granite": {action = &"pulse", follow = _pulse},
 		&"pretune_standby_granite": {action = &"tune_frequency", follow = _pretune, fast = false},
 		&"shift_granite": {action = &"shift", follow = _shift_in.bind(bottom)},
-		&"trim_active_granite": {action = &"tune_frequency", follow = _trim, fast = false},
+		&"tune_active_granite": {action = &"tune_frequency", follow = _tune_active, fast = false},
 		&"observe_granite": {action = &"observe", follow = _observe},
 		&"plot_climb": {action = &"plot_pitch", follow = _plot_pitch.bind(_Habitat.PITCHES[2])},
+		&"reactor_autopilot_climb": {action = &"autopilot_reactor", follow = _engage.bind(DiveSimulation.STATION_REACTOR)},
 		&"climbing": {action = &"", follow = _wait},
 		&"paid": {action = &"", follow = _wait},
 	}
