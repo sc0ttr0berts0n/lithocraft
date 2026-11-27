@@ -1,0 +1,13 @@
+# The Drive's screen (FlightDisplay) following the Course and off it, as ticket #65 named.
+# From the repo root: tools/screenshot/shot.sh --sheet tools/screenshot/recipes/drive.txt
+# Navigation's screen in the same two states is in navigation.txt: the Course and the deviation must match.
+# Debug commands: none.
+
+# Course 090, 60 deg down, plotted at the start; the Drive turns toward it: "follows the Course" in green.
+following the Course: --look Drive --time 30 --do "0 set_power 0.5" --do "0 set_course 90 60"
+
+# Two nudges up at 20 s: the hollow mark 30 deg above the Course's, OFF COURSE 30 deg up.
+off the Course, 30 deg up: --look Drive --time 30 --do "0 set_power 0.5" --do "0 set_course 90 60" --do "20 nudge_pitch -1" --do "20 nudge_pitch -1"
+
+# A nudge down and two to the right: off in both pitch and heading.
+off the Course, down and right: --look Drive --time 30 --do "0 set_power 0.5" --do "0 set_course 90 60" --do "20 nudge_pitch 1" --do "20 nudge_heading 1" --do "20 nudge_heading 1"

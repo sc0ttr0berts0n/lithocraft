@@ -48,3 +48,13 @@ The review is clean when no finding stands.
   Take the suite's result from CI's run of the branch's head, or from the one run before review (`running-and-testing.md`, What runs when), never from a pasted count.
 - Finding: a claim the diff or the screenshot does not bear out, including one that is true of an earlier commit of the branch but not of its head.
 - Finding: a change in the diff the report does not mention and the ticket did not ask for.
+
+## A screen the diff touches is regenerated and read
+
+- Do: for every Station screen or view the diff touches (its script in `view/`, or a simulation query it shows), regenerate its recipe's sheet, `tools/screenshot/shot.sh --sheet tools/screenshot/recipes/<screen>.txt` (`screenshot-recipes.md`), and read it once, at the default size.
+  A change to what every screen shares (`StationScreen`, `StationTheme`, the key list) is read on `stations.txt`.
+  Check each tile against its name and the comment over it in the recipe, and against the ticket.
+- Finding: a tile that does not show the state its name says, or shows something the ticket or the spec rules out (text cut off or overlapping, a colour outside the colour language).
+- Finding: a diff that adds a state to a screen, or a new screen, with no tile for it in a recipe; or one that makes a recipe's tile stale and leaves it.
+- Finding: a sheet's PNG committed, or anywhere Godot imports it.
+- Why: nine of round 3's tickets had "checked in screenshots" criteria; the pictures lived in a temporary folder the reviewer could not see, and are gone (ticket #88).

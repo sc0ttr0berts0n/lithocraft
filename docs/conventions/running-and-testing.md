@@ -64,6 +64,7 @@ It prints the PNG's path and exits 0; on any failure it prints why, leaves no PN
   A tile is its shot scaled down to 768 pixels wide, two to a row, at which the text on a Station's screen still reads; `--tile <width>` and `--columns <count>` change that (`--tile 1152` for no scaling).
   A shot that fails, in the list or in its staging, fails the sheet: the reason names the shot, the exit is 1 and no PNG is left at that path.
   The same list gives the same sheet, byte for byte; each shot gets a fresh Habitat and the same seed as a shot alone (`ShotSheet`, `tools/screenshot/shot_sheet.gd`).
+- The lists kept for each screen, and the rules for them: `screenshot-recipes.md`.
 - It is safe to run several at once, in one checkout or in several worktrees; each opens a silent window centred on the developer's second monitor (`SHOT_MONITOR` names another).
 - A staged Habitat is tested headless through `ShotPlan`, and a list and its layout through `ShotSheet` (`test/screenshot_test.gd`); the picture itself needs the window.
 

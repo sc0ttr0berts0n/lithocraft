@@ -1,0 +1,29 @@
+# The Reactor's screen (PlasmaDisplay) in the states ticket #63 named.
+# From the repo root: tools/screenshot/shot.sh --sheet tools/screenshot/recipes/reactor.txt
+# The Shift drill starts 40 m above the sandstone with one pulse sent under way.
+# Debug commands: debug_wear_head in "worn and hot" (a Head worn half through is many Boundaries away).
+
+# ACTIVE cancels the sand's Wobble: the Residual flat inside the Band, no lamp lit, no scan yet.
+steady in the sand: --look Reactor --time 20 --do "0 set_power 0.5"
+
+# One pulse under way, STANDBY tuned to the guess: GUESS SURE is low, the predicted Residual ripples
+# and its verdict is IN BAND IF THE SCAN IS RIGHT.
+Boundary ahead, poor scan: --scenario "Shift drill" --look Reactor --time 20 --do "2 tune_frequency 1.29" --do "2 tune_amplitude 0.65"
+
+# Four more pulses under Quiet Ship, then under way again: GUESS SURE is high, the predicted Residual near flat.
+Boundary ahead, Quiet Ship scan: --scenario "Shift drill" --look Reactor --time 20 --do "0 set_quiet_ship true" --do "1 pulse" --do "2 pulse" --do "3 pulse" --do "4 pulse" --do "6 set_quiet_ship false" --do "6 tune_frequency 1.27" --do "6 tune_amplitude 0.63"
+
+# The Head crosses near 67 s with STANDBY prepared and no swap made: BOUNDARY CROSSED and the swap's key,
+# ACTIVE's Residual amber outside the Band, OUT OF BAND lit.
+just past a Boundary, before the swap: --scenario "Shift drill" --look Reactor --time 70 --do "2 tune_frequency 1.29" --do "2 tune_amplitude 0.65"
+
+# Full power with all heat outward and a Head worn half through: the Band about half its widest.
+# ACTIVE's amplitude is a little off for the last 2 s, a Residual a fresh, cool Head's Band would hold,
+# so HEAD WORN, HOT and OUT OF BAND are all lit.
+worn and hot: --look Reactor --time 60 --do "0 set_power 1" --do "1 debug_wear_head 0.5" --do "58 select_channel active" --do "58 tune_amplitude 0.63"
+
+# ACTIVE tuned off the Wobble in frequency alone: the Residual beats, swelling and fading.
+wrong frequency: --look Reactor --time 20 --do "0 set_power 0.5" --do "14 select_channel active" --do "14 tune_frequency 1.0"
+
+# ACTIVE tuned off the Wobble in amplitude alone: the Residual is a wave of one size.
+wrong amplitude: --look Reactor --time 20 --do "0 set_power 0.5" --do "14 select_channel active" --do "14 tune_amplitude 0.8"
