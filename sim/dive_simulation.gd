@@ -188,6 +188,19 @@ const _FEATURE_CALL := Vector2(0.2, 0.6)
 const _OUT_OF_BAND_CALL := Vector2(0.6, 1.0)
 const _BOUNDARY_AHEAD_CALL := Vector2(0.2, 0.5)
 const _EMERGENCY_CALL_URGENCY := 1.0
+## How much more urgent an acknowledged call must grow, on the 0 to 1 scale,
+## from its urgency when acknowledged before it sounds again: a quarter, so a
+## call creeping along its range sounds again once at most, and one that
+## worsens sharply sounds at once. Tuned for play (ADR 0001).
+const _CALL_SOUNDS_AGAIN_RISE := 0.25
+## The calls that only report: they never touch the time rate (every other
+## call is a warning, the vessel at risk). Science does not stop the clock.
+const _REPORTS := [&"feature_in_column"]
+## Seconds before the crossing, by the Boundary countdown, at which the
+## Boundary call begins while STANDBY is inside the Band against the scan's
+## guess: a crew already tuned needs only this long. The developer's "30
+## second window" (27 November 2026); tuned for play (ADR 0001).
+const _BOUNDARY_CALL_READY_S := 30.0
 ## The fastest the simulation may be run, as a multiple of normal. Turns take
 ## minutes at normal rate. Tuned for play (ADR 0001).
 const _MAX_TIME_RATE := 64.0
@@ -390,6 +403,9 @@ var _autopilot := {}
 var _time_rate := 1.0
 ## Each calling Station's call: StringName -> [reason StringName, urgency].
 var _calls := {}
+## Each acknowledged call's Station: StringName -> its urgency when the crew
+## acknowledged it. A call not here sounds.
+var _acknowledged := {}
 ## Path distance at which the Head entered Medium that will seal the tunnel
 ## when the Tail leaves it, or NAN while none is coming.
 var _seal_coming_at := NAN
@@ -641,16 +657,30 @@ func _disengage(station: StringName, cause: StringName) -> void:
 
 
 ## How many times normal to run the simulation: advance(dt) then runs
-## dt x rate simulated seconds. Clamped to 1..max_time_rate(). Any Station call
-## returns it to 1, and while any Station is still calling it cannot be raised
-## above 1: time runs fast only through quiet stretches. Stranded, it can be:
-## the crew wait on the link and the store, and nothing else moves. So it can
-## while self-destruct runs, with the Stations off the crew: calls neither
-## hold it down nor return it to 1.
+## dt x rate simulated seconds. Clamped to 1..max_time_rate(). A warning (any
+## call but a feature in the Column, see call_warns()) that begins, changes
+## reason or grows more urgent returns it to 1, and while a warning sounds
+## (call_sounding()) it cannot be raised above 1; once the crew acknowledge it
+## (acknowledge_calls()) they may raise it again while the warning still
+## shows. A feature of interest never touches it. Stranded, it can be raised
+## whatever calls: the crew wait on the link and the store, and nothing else
+## moves. So it can while self-destruct runs, with the Stations off the crew:
+## calls neither hold it down nor return it to 1.
 func set_time_rate(rate: float) -> void:
-	var fastest := _MAX_TIME_RATE if _calls.is_empty() or stranded() or _self_destructing \
-			else 1.0
+	var fastest := 1.0 if _warning_sounds() and not (stranded() or _self_destructing) \
+			else _MAX_TIME_RATE
 	_time_rate = clampf(rate, 1.0, fastest)
+
+
+## The master acknowledge, from anywhere and at any time: every call now
+## sounding falls silent. Each call still shows (call_urgency(), call_reason()
+## as before); an acknowledged call sounds again only if its reason changes or
+## it grows more urgent, and a call that ends and comes back is a new call.
+## It is no Station's command, so it disengages no autopilot.
+func acknowledge_calls() -> void:
+	for station in _calls:
+		if not _acknowledged.has(station):
+			_acknowledged[station] = _calls[station][1]
 
 
 ## Start another dive after surfacing (under its own power, brought home
@@ -1079,8 +1109,8 @@ func _debug_dive_over() -> bool:
 
 ## Runs dt x time_rate() simulated seconds. At normal rate that is one step of
 ## dt; faster, it is split into steps no longer than dt or _FAST_STEP_S,
-## whichever is longer. A Station call returns the rate to normal and the rest
-## of the time is not run.
+## whichever is longer. A warning that sounds anew returns the rate to normal
+## and the rest of the time is not run.
 func advance(dt: float) -> void:
 	if dead():
 		return
@@ -1241,6 +1271,20 @@ func call_urgency(station: StringName) -> float:
 ## (Bore). &"" when not calling.
 func call_reason(station: StringName) -> StringName:
 	return _calls[station][0] if _calls.has(station) else &""
+
+
+## True while this Station calls and the crew have not acknowledged the call
+## (acknowledge_calls()), or it has sounded again since: its tone sounds. An
+## acknowledged call still shows; its light stays lit.
+func call_sounding(station: StringName) -> bool:
+	return _calls.has(station) and not _acknowledged.has(station)
+
+
+## True while this Station's call is a warning, the vessel at risk: every call
+## but a feature in the Column, which only reports. A sounding warning holds
+## the time rate at 1 (set_time_rate()). False when not calling.
+func call_warns(station: StringName) -> bool:
+	return _calls.has(station) and not _calls[station][0] in _REPORTS
 
 
 ## The Thermal Station's heat split now: share of heat sent into the Column.
@@ -1909,8 +1953,8 @@ func survey_value() -> float:
 ##       against the Wobble at that moment, `band` the Band, `clean` whether
 ##       the Residual is inside it.
 ##   &"station_call" {station, reason, urgency}: a Station has begun calling,
-##       or calls for a new reason (see call_reason()). The time rate returns
-##       to normal.
+##       or calls for a new reason (see call_reason()), and sounds. A
+##       warning returns the time rate to normal (see call_warns()).
 ##   &"stranded" {depth, distance, aboard, aboard_stretches, paid,
 ##       rescue_time, clock}: the plasma was lost while sealed in; the
 ##       Lithocraft is on the emergency store and a rescue is called.
@@ -2656,8 +2700,9 @@ func _steady_autopilots(dt: float) -> void:
 
 
 ## Works out which Stations call, why and how urgently, from the state after
-## this step. A call that begins, or changes reason, is announced and returns
-## the time rate to normal.
+## this step. A call that begins, or changes reason, is announced and sounds;
+## an acknowledged one sounds again once it has grown _CALL_SOUNDS_AGAIN_RISE
+## more urgent. A warning that sounds anew returns the time rate to normal.
 func _update_calls() -> void:
 	var calls := {}
 	_reactor_call(calls)
@@ -2682,12 +2727,32 @@ func _update_calls() -> void:
 						_urgency(_FEATURE_CALL, to_tail))
 	for station in calls:
 		var was: StringName = _calls[station][0] if _calls.has(station) else &""
-		if calls[station][0] != was:
+		var reason: StringName = calls[station][0]
+		var urgency: float = calls[station][1]
+		var anew := false
+		if reason != was:
 			_events.append({type = &"station_call", station = station,
-					reason = calls[station][0], urgency = calls[station][1]})
-			if not _self_destructing:
+					reason = reason, urgency = urgency})
+			anew = true
+		elif _acknowledged.has(station) \
+				and urgency >= _acknowledged[station] + _CALL_SOUNDS_AGAIN_RISE:
+			anew = true
+		if anew:
+			_acknowledged.erase(station)
+			if not reason in _REPORTS and not _self_destructing:
 				_time_rate = 1.0
+	for station in _acknowledged.keys():
+		if not calls.has(station):
+			_acknowledged.erase(station)
 	_calls = calls
+
+
+## True while any Station's warning sounds, unacknowledged.
+func _warning_sounds() -> bool:
+	for station in _calls:
+		if call_sounding(station) and call_warns(station):
+			return true
+	return false
 
 
 func _reactor_call(calls: Dictionary) -> void:
@@ -2698,10 +2763,20 @@ func _reactor_call(calls: Dictionary) -> void:
 	elif out_of_band():
 		_offer_call(calls, STATION_REACTOR, &"out_of_band", _urgency(_OUT_OF_BAND_CALL,
 				_plasma.out_share(_wobble())))
-	elif not is_nan(_announced_boundary):
+	elif not is_nan(_announced_boundary) and not _boundary_call_waits():
 		var to_go := absf(_announced_boundary - depth()) / _BOUNDARY_APPROACH_M
 		_offer_call(calls, STATION_REACTOR, &"boundary_approaching",
 				_urgency(_BOUNDARY_AHEAD_CALL, 1.0 - to_go))
+
+
+## True while the Boundary call waits for a crew that is ready: STANDBY is
+## inside the Band against the scan's guess (its predicted Residual, NAN and
+## so never inside with no scan) and the Boundary countdown is further off
+## than _BOUNDARY_CALL_READY_S. Untuned, the call comes as soon as the
+## Boundary is announced. Both are the scan's, so a misleading scan can hold
+## the call back as it misleads the countdown.
+func _boundary_call_waits() -> bool:
+	return residual(CHANNEL_STANDBY) <= band() and boundary_countdown() > _BOUNDARY_CALL_READY_S
 
 
 ## A call's urgency from its range (x when it begins, y at its worst) and how
@@ -2855,6 +2930,7 @@ func _die() -> void:
 	_speed = 0.0
 	_slip = 0.0
 	_calls = {}
+	_acknowledged = {}
 	_time_rate = 1.0
 	_events.append({type = &"hull_failed", cause = cause, depth = depth(), distance = _distance,
 			lost = lost, lost_stretches = lost_stretches, rebuy = _stranding.rebuy(),
@@ -2936,6 +3012,7 @@ func _rest_at_surface() -> void:
 	_surfaced = true
 	_self_destructing = false  # Home alive: nothing left to destroy.
 	_calls = {}
+	_acknowledged = {}
 	_time_rate = 1.0
 
 
