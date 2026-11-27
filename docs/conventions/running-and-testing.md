@@ -5,9 +5,9 @@
 Plan tests, screenshots and long-running processes as the work goes, but run the slow ones near review, not on every round.
 
 - While iterating: the one test being written, and the suites for the code being changed (`./test.sh heat scan`).
-- Once, at hand-back or before the push: the whole suite (`./test.sh`), the docs check (`python tools/docs/check_docs.py`), the lint (when ticket #79 has given it a command), and the ticket's screenshots.
+- Once, at hand-back or before the push: the whole suite (`./test.sh`), the docs check (`python tools/docs/check_docs.py`), the lint (`python tools/lint/lint.py`), and the ticket's screenshots.
 - At the push: CI repeats it, so do not rerun a green whole suite to be sure.
-  CI runs the whole suite and the scene smoke checks today; the lint and the docs check join it with ticket #87.
+  CI runs the suite and the smoke checks; the lint and the docs check join it with ticket #87.
 - An orchestrator merging several tickets runs the whole suite once per merge that had conflicts and once before review, and puts this policy in each agent's brief.
 - An orchestrator names a model for every agent it starts: a ticket's implementer runs on Opus, a docs-only or mechanical ticket on a smaller model, and the largest model is kept for work that is mostly hard reasoning, which a ticket rarely is (the developer's rule, 27 November 2026).
 
@@ -17,11 +17,11 @@ Tests: set `GODOT_BIN` to a Godot 4.7 binary (on Windows the `_console.exe` buil
 Exit 0 is a pass, 100 a test failure, 105 a script or parse error.
 
 - While iterating, run only the suites for the code being changed: `./test.sh heat scan` runs `test/heat_test.gd` and `test/scan_test.gd` in seconds (`heat`, `heat_test`, `heat_test.gd` and `test/heat_test.gd` all name the same suite).
-  With no suite named, every suite runs, which takes minutes.
+  With none named, every suite runs, in minutes.
 - A run ends with one plain line, `PASSED: 8 test cases, 0 errors, 0 failures, ... (exit 0)`.
   A failing run first prints `FAILED <suite> > <test>` with what was expected and the line, for each failing test; a script or parse error prints the engine's error lines.
   The run's full output is in `reports/last_run.log`; `--verbose` prints it as it comes instead, colours and all.
-- `test.cmd` hands its arguments to `test.sh` through the bash of Git for Windows, so there is one script to change: `test.sh`.
+- `test.cmd` runs `test.sh` with its arguments through Git for Windows' bash, so `test.sh` is the one script to change.
 - The wrappers run an `--import` pass first.
   Without it a fresh checkout fails discovery with "Could not find type" for `class_name` classes.
 - Every verbose run (and every `last_run.log`) has `ERROR: Remote Debugger: Unable to connect to host '127.0.0.1:0'`.
@@ -36,10 +36,12 @@ The same without the scene path runs the main scene, the start menu, which shoul
 A warning, such as leaked ObjectDB instances at exit, passes.
 
 CI: `.github/workflows/ci.yml` runs on every push to `dev` and every pull request into `dev`.
-It fetches the Linux Godot binary named by its `GODOT_VERSION` (cached between runs), then runs `./test.sh`, then `tools/ci/smoke.sh res://view/habitat.tscn`, then `tools/ci/smoke.sh` for the main scene; the first failure turns the job red.
+It fetches the Linux Godot of its `GODOT_VERSION` (cached), then `./test.sh`, then `tools/ci/smoke.sh` on the Habitat and the main scene; the first failure fails the job.
 A pull request merges into `dev` only on a green job.
 
 Cost budget: `tools/cost/cost.sh`, no part of `./test.sh`; see `cost-budget.md`.
+
+Lint: `python tools/lint/lint.py`; install once: `python -m pip install -r tools/lint/requirements.txt` (this PC: `lint.md`).
 
 Ad-hoc checks: prefer a headless check when a window isn't needed.
 For a look at the game, `tools/screenshot/shot.sh` takes one PNG of a Scenario run to a dive time; from Git Bash at the repo root, with `GODOT_BIN` set as for the tests:

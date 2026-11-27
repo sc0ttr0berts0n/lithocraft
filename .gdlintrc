@@ -1,0 +1,27 @@
+# gdlint's settings (gdtoolkit, pinned in tools/lint/requirements.txt), run by
+# `python tools/lint/lint.py`; see docs/conventions/lint.md.
+# Keys left out take gdlint's defaults. These match how the code is written.
+
+# A tab counts four columns, as the editor shows it. The longest lines today are
+# one-line lambdas in tests (kept on one line on purpose) and messages.
+max-line-length: 170
+tab-characters: 4
+
+# Constants that cannot be `const` (a RegEx, a computed Vector3) are named as
+# constants; private enum values and preloads take a leading underscore.
+class-variable-name: (_?[a-z][a-z0-9]*(_[a-z0-9]+)*|_?[A-Z][A-Z0-9]*(_[A-Z0-9]+)*)
+enum-element-name: _?[A-Z][A-Z0-9]*(_[A-Z0-9]+)*
+load-constant-name: (_?([A-Z][a-z0-9]*)+|_?[A-Z][A-Z0-9]*(_[A-Z0-9]+)*)
+
+# Not how the code is organised: the simulation's interface is one class with
+# many public methods (sim/dive_simulation.gd), suites hold many tests, and
+# members are ordered by topic, not by kind.
+disable:
+- class-definitions-order
+- max-public-methods
+- max-file-lines
+
+excluded_directories: !!set
+  .git: null
+  .godot: null
+  addons: null

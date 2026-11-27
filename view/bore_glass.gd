@@ -20,7 +20,7 @@ const EDGE_COVER := 0.4
 ## line as seen along the axis. Inside clear_within the sight line meets the
 ## Column, and the glass covers nothing; from there the cover grows to
 ## edge_cover at the tube's edge. The mesh is a cylinder standing on its own Y.
-const SHADER := "
+const SHADER := """
 shader_type spatial;
 render_mode blend_mix, cull_disabled;
 
@@ -43,7 +43,7 @@ void fragment() {
 	ROUGHNESS = 1.0;
 	ALPHA = edge_cover * smoothstep(clear_within, 1.0, passes_at);
 }
-"
+"""
 
 
 ## The material of a glass tube of bore_radius round a Column of

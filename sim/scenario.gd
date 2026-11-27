@@ -346,7 +346,8 @@ static func first_dive() -> Scenario:
 	s.phases = [startup, sand, first_boundary, sandstone, granite, turn, surface]
 
 	s.messages = [
-		Message.new("Orders for your first dive: survey down through the %s into the %s, then surface with the data. You are paid for survey once it is uploaded, or brought home." % [middle.name, bottom.name], always()),
+		Message.new(("Orders for your first dive: survey down through the %s into the %s, then surface with the data. "
+				+ "You are paid for survey once it is uploaded, or brought home.") % [middle.name, bottom.name], always()),
 		Message.new("We have you nearing the %s. Pretune standby at the Reactor and swap it in as you cross." % middle.name,
 				on_event(&"boundary_approaching")),
 		Message.new("The tunnel has sealed behind you. You are on sound through the rock now: slow both ways.",
@@ -403,7 +404,9 @@ static func shift_drill() -> Scenario:
 	s.phases = [reactor]
 
 	s.messages = [
-		Message.new("Shift drill: the Drive and Thermal are on their autopilots and Navigation has pulsed. Yours is the Reactor: pretune standby against the scan's guess of the %s, and swap it in as the Head crosses." % below.name, always()),
+		Message.new(("Shift drill: the Drive and Thermal are on their autopilots and Navigation has pulsed. "
+				+ "Yours is the Reactor: pretune standby against the scan's guess of the %s, and swap it in as the Head crosses.")
+				% below.name, always()),
 		Message.new("We have you nearing the %s. Pretune standby at the Reactor and swap it in as you cross." % below.name,
 				on_event(&"boundary_approaching")),
 		Message.new("Shift made. That is the drill: dive on, or turn for home.", shift_in(below.name)),
@@ -494,7 +497,9 @@ static func stranded_in_the_granite() -> Scenario:
 	s.phases = [dark, still_dark, wait, relit, home]
 
 	s.messages = [
-		Message.new("We hear you are dark, sealed in the %s. A rescue is coming down the tunnel. Try a relight; if the Head will not light, send your survey up and keep the hull cool while you wait." % bottom.name, always()),
+		Message.new(("We hear you are dark, sealed in the %s. A rescue is coming down the tunnel. "
+				+ "Try a relight; if the Head will not light, send your survey up and keep the hull cool while you wait.")
+				% bottom.name, always()),
 		Message.new("You are lit. Climb home.", _relight(true)),
 		Message.new("Welcome home. The survey is paid for.", on_event(&"paid")),
 	]
