@@ -24,7 +24,7 @@
 - **One colour language on every screen, an airliner's** (`StationTheme`, `view/station_theme.gd`): white is what is happening now, cyan what the crew has selected or aims for (the Course, a setting, a target), green engaged and working, amber a caution, red a warning (what is about to kill the crew).
   Beside the five are only the screen's neutrals, which say nothing: its background, the grey of a legend (a title, a unit, a scale), the darker grey of a rule or an unlit lamp, and two backdrops for a picture of the world.
   The rock's own colours (`ColumnLook`) are a picture too, not language.
-  A Station's hue (`habitat.gd::STATIONS`) is for its call light, its gimbal's bob and its name on the checklist, never its screen.
+  A Station's hue (`habitat.gd::STATIONS`) is for objects in the room, its call light and its gimbal's bob, which let the crew tell across the Habitat which Station calls; never a reading, so not its screen and not its name on the checklist (`ChecklistPanel` writes in the five colours and the legend grey).
 - **The Theme is the only place a screen's colours are written.**
   Controls take them from `StationTheme.theme()` by type variation (`StationTheme.variation(meaning)` on a Label); a display that draws itself reads the constants (`StationTheme.CAUTION_COLOUR`), fainter through `StationTheme.faded()`.
   `station_theme_test.gd` fails any script in `view/` that writes a colour (`Color(...)`, `Color.NAME`), unless it is listed there as drawing nothing on a Station screen; a new screen script is checked without being listed.

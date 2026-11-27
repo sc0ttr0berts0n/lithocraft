@@ -12,7 +12,7 @@ const NOT_ON_A_SCREEN: Array[String] = [
 	"habitat.gd", "gimballed_station.gd", "gimbal.gd", "crew_member.gd", "arm.gd", "arm_view.gd",
 	"hull_feel.gd", "hull_groans.gd", "slip_sound.gd",
 	"column_look.gd", "column_strip.gd", "feature_look.gd",
-	"start_menu.gd", "outcome_screen.gd", "checklist_panel.gd", "controls_panel.gd",
+	"start_menu.gd", "outcome_screen.gd", "controls_panel.gd",
 	"debug_panel.gd", "dive_view.gd", "key_prompt.gd", "key_map.gd",
 ]
 
