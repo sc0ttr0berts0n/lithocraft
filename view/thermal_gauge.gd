@@ -47,10 +47,19 @@ const MOST_ZOOM := 1.5
 const MARGIN_PX := 16.0
 
 var sim: DiveSimulation
+## Drawn every frame while the crew is at Thermal, every
+## ScreenPace.UNWATCHED_S while not.
+var _pace := ScreenPace.new()
 
 
-func _process(_delta: float) -> void:
-	queue_redraw()
+func _process(delta: float) -> void:
+	if _pace.due_at(delta, sim, DiveSimulation.STATION_THERMAL):
+		queue_redraw()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED:
+		_pace.hurry()
 
 
 # --- What it shows, read from the simulation --------------------------------

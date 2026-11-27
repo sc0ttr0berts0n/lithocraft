@@ -8,8 +8,10 @@ extends SceneTree
 ## The conditions, played in this order, each for the same stretch of dive
 ## time: the commands that set it up, and (the full point cloud) whether the
 ## cloud is filled first and how many frames lie between the pulses sent while
-## it is played. The Course is turned well off the way the drill dives, so
-## the projected path is a turn under every one after the first.
+## it is played, and (the last) the Station the crew is seated at instead of
+## Navigation, so the screen they watch is timed as well as those they do not.
+## The Course is turned well off the way the drill dives, so the projected
+## path is a turn under every one after the first.
 const CONDITIONS := [
 	{name = "under way, a Boundary ahead", send = []},
 	{name = "a slow turn", send = [[&"set_course", [90.0, 20.0]], [&"set_power", [0.3]],
@@ -17,6 +19,7 @@ const CONDITIONS := [
 	{name = "steering effort at zero", send = [[&"set_steering_effort", [0.0]]]},
 	{name = "low power", send = [[&"set_steering_effort", [1.0]], [&"set_power", [0.05]]]},
 	{name = "a full point cloud", send = [[&"set_power", [0.5]]], fill = true, pulse_every = 30},
+	{name = "seated at the Reactor", send = [], seat = DiveSimulation.STATION_REACTOR},
 ]
 ## Dive time each condition is played for unless --seconds says, seconds.
 const SECONDS := 4.0
@@ -65,6 +68,8 @@ func _initialize() -> void:
 	for condition: Dictionary in CONDITIONS:
 		for command: Array in condition.send:
 			_probe.send(command[0], command[1])
+		if condition.has("seat"):
+			habitat.seat_at(condition.seat)
 		if condition.get("fill", false):
 			var pulses := 0
 			while _sim.point_count() < _sim.point_capacity() and pulses < FILL_PULSES:

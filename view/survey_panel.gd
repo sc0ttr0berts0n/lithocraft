@@ -21,10 +21,21 @@ var sim: DiveSimulation
 ## and spacing are drawn: above 1 on a Station screen, to be read from the
 ## Arm's hold.
 var zoom := 1.0
+## The Station whose screen shows it (the simulation's name): drawn every
+## frame while the crew is there, every ScreenPace.UNWATCHED_S while not.
+## Empty (the debug overlay): every frame.
+var watched_at := &""
+var _pace := ScreenPace.new()
 
 
-func _process(_delta: float) -> void:
-	queue_redraw()
+func _process(delta: float) -> void:
+	if _pace.due_at(delta, sim, watched_at):
+		queue_redraw()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED:
+		_pace.hurry()
 
 
 ## What the crew can point at: the survey, the whole panel
