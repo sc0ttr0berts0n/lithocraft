@@ -7,7 +7,10 @@ Run with the venv that has faster-whisper (see docs/playtests/README.md):
     $PY tools/playtest/playtest.py frame VIDEO 12:34.5 [--width 1600]
     $PY tools/playtest/playtest.py burst VIDEO 12:30 --dur 5 --step 0.5   # one frame every step
     $PY tools/playtest/playtest.py sheet VIDEO 12:30 --dur 20 --step 2     # one tiled contact sheet
-    $PY tools/playtest/playtest.py crop VIDEO 12:34 --box x,y,w,h          # full-res crop (4K pixels)
+    $PY tools/playtest/playtest.py crop VIDEO 12:34 --region checklist     # full-res crop (or --box x,y,w,h, 4K pixels)
+
+frame, burst and sheet also take --region NAME (or --box): they crop first, then scale, and a region
+defaults to its own width. Regions live in the REGIONS table in this script.
 
 Frames go to "<video folder>/<video name>.analysis/", next to the video and out of the repo.
 Times are seconds (754.5) or m:ss(.s) or h:mm:ss.
@@ -32,6 +35,50 @@ def parse_time(text):
 def stamp(seconds, sep=":"):
     m, s = divmod(seconds, 60)
     return f"{int(m):02d}{sep}{s:04.1f}"
+
+
+# Named crop regions, in 4K (3840x2160) source pixels: x,y,w,h. One table; add new ones here.
+REGIONS = {
+    "checklist": (0, 30, 560, 330),      # upper-left panel
+    "screen": (960, 540, 1920, 1080),    # middle of the view, where a Station's screen sits
+}
+
+
+def region_box(name=None, box=None):
+    """The (x, y, w, h) to crop to from --region NAME or --box x,y,w,h, or None for the whole frame."""
+    if name and box:
+        sys.exit("give --region or --box, not both")
+    if name:
+        if name not in REGIONS:
+            sys.exit(f"unknown region '{name}'; known: {', '.join(REGIONS)}")
+        return REGIONS[name]
+    if box:
+        parts = [int(float(v)) for v in box.split(",")]
+        if len(parts) != 4:
+            sys.exit("--box needs x,y,w,h")
+        return tuple(parts)
+    return None
+
+
+def video_filters(box, width, default_width):
+    """ffmpeg filters: crop to box (if any), then scale to width.
+    width None means the default: default_width for the whole frame, the region's own width for a region."""
+    vf = []
+    if box:
+        vf.append(f"crop={box[2]}:{box[3]}:{box[0]}:{box[1]}")
+        if width is None:
+            width = box[2]
+    elif width is None:
+        width = default_width
+    if width > 0:
+        vf.append(f"scale={width}:-2")
+    return vf
+
+
+def sheet_frame_count(dur, step):
+    # fps=1/step yields a frame at 0, step, 2*step ... up to dur.
+    # The clip is cut at dur + step/2 so the frame landing on dur is kept; epsilon absorbs float error.
+    return int(dur / step + 1e-6) + 1
 
 
 def out_dir(video):
@@ -94,47 +141,63 @@ def cmd_transcribe(a):
     print(f"wrote {dest / 'transcript.md'}", file=sys.stderr)
 
 
-def frame_at(video, t, width, name=None):
+def frame_at(video, t, width, box=None, tag="", default_width=1600):
     d = out_dir(video)
-    path = d / (name or f"f_{stamp(t, '-')}_w{width}.jpg")
-    scale = [] if width <= 0 else ["-vf", f"scale={width}:-1"]
-    ffmpeg("-ss", f"{t:.3f}", "-i", str(video), "-frames:v", "1", *scale, "-q:v", "3", str(path))
+    vf = video_filters(box, width, default_width)
+    w = width if width is not None else ("native" if box else default_width)
+    path = d / f"f_{stamp(t, '-')}{tag}_w{w}.jpg"
+    extra = ["-vf", ",".join(vf)] if vf else []
+    ffmpeg("-ss", f"{t:.3f}", "-i", str(video), "-frames:v", "1", *extra, "-q:v", "3", str(path))
     return path
 
 
+def region_tag(a):
+    return f"_{a.region}" if a.region else ("_box" + "x".join(map(str, region_box(box=a.box))) if a.box else "")
+
+
 def cmd_frame(a):
-    print(frame_at(a.video, parse_time(a.time), a.width))
+    print(frame_at(a.video, parse_time(a.time), a.width, region_box(a.region, a.box), region_tag(a)))
 
 
 def cmd_burst(a):
     t0, n = parse_time(a.time), int(round(a.dur / a.step))
+    box = region_box(a.region, a.box)
     for i in range(n + 1):
-        print(frame_at(a.video, t0 + i * a.step, a.width))
+        print(frame_at(a.video, t0 + i * a.step, a.width, box, region_tag(a), 1280))
 
 
 def cmd_sheet(a):
     # One seek, then fps-select frames and tile them: cheap to read as one image.
     t0 = parse_time(a.time)
-    n = int(round(a.dur / a.step)) + 1
+    n = sheet_frame_count(a.dur, a.step)
+    box = region_box(a.region, a.box)
     cols = a.cols or min(n, 4)
     rows = -(-n // cols)
     d = out_dir(a.video)
-    path = d / f"sheet_{stamp(t0, '-')}_{a.dur:g}s_every{a.step:g}s.jpg"
-    vf = (f"fps=1/{a.step},scale={a.width}:-1,"
+    path = d / f"sheet_{stamp(t0, '-')}{region_tag(a)}_{a.dur:g}s_every{a.step:g}s.jpg"
+    pre = ",".join(video_filters(box, a.width, 800))
+    vf = (f"fps=1/{a.step},{pre},"
           f"drawtext=text='%{{pts\\:hms\\:{t0}}}':x=8:y=8:fontsize=28:fontcolor=yellow:box=1:boxcolor=black@0.6,"
           f"tile={cols}x{rows}")
-    ffmpeg("-ss", f"{t0:.3f}", "-t", f"{a.dur + 0.01:.3f}", "-i", str(a.video), "-vf", vf,
+    ffmpeg("-ss", f"{t0:.3f}", "-t", f"{a.dur + a.step / 2:.3f}", "-i", str(a.video), "-vf", vf,
            "-frames:v", "1", "-q:v", "3", str(path))
     print(path)
 
 
 def cmd_crop(a):
     t = parse_time(a.time)
-    x, y, w, h = a.box.split(",")
+    x, y, w, h = region_box(a.region, a.box)
     d = out_dir(a.video)
     path = d / f"crop_{stamp(t, '-')}_{x}_{y}_{w}x{h}.png"
     ffmpeg("-ss", f"{t:.3f}", "-i", str(a.video), "-frames:v", "1", "-vf", f"crop={w}:{h}:{x}:{y}", str(path))
     print(path)
+
+
+def add_region(p, required=False):
+    g = p.add_mutually_exclusive_group(required=required)
+    g.add_argument("--region", choices=sorted(REGIONS), help="named 4K crop region: " + ", ".join(
+        f"{k}={','.join(map(str, v))}" for k, v in REGIONS.items()))
+    g.add_argument("--box", help="x,y,w,h in 4K source pixels, for anything else")
 
 
 def main():
@@ -153,24 +216,28 @@ def main():
 
     f = sub.add_parser("frame")
     f.add_argument("video"); f.add_argument("time")
-    f.add_argument("--width", type=int, default=1600, help="0 for full 4K")
+    f.add_argument("--width", type=int, default=None, help="0 for full 4K (default 1600; a region's own width)")
+    add_region(f)
     f.set_defaults(fn=cmd_frame)
 
     b = sub.add_parser("burst")
     b.add_argument("video"); b.add_argument("time")
     b.add_argument("--dur", type=float, default=5); b.add_argument("--step", type=float, default=0.5)
-    b.add_argument("--width", type=int, default=1280)
+    b.add_argument("--width", type=int, default=None, help="default 1280; a region's own width")
+    add_region(b)
     b.set_defaults(fn=cmd_burst)
 
     s = sub.add_parser("sheet")
     s.add_argument("video"); s.add_argument("time")
     s.add_argument("--dur", type=float, default=20); s.add_argument("--step", type=float, default=2)
-    s.add_argument("--width", type=int, default=800); s.add_argument("--cols", type=int, default=0)
+    s.add_argument("--width", type=int, default=None, help="tile width; default 800, or a region's own width")
+    add_region(s)
+    s.add_argument("--cols", type=int, default=0)
     s.set_defaults(fn=cmd_sheet)
 
     c = sub.add_parser("crop")
     c.add_argument("video"); c.add_argument("time")
-    c.add_argument("--box", required=True, help="x,y,w,h in source pixels")
+    add_region(c, required=True)
     c.set_defaults(fn=cmd_crop)
 
     a = p.parse_args()
