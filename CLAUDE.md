@@ -1,6 +1,6 @@
 # Lithocraft
 
-A hard-science-fiction 3D Godot game about operating the Lithocraft, a ring-shaped vessel that bores through rock. The first playable slice is one Earth desert dive. Specs: GitHub issue #1 (First dive), then #71 (After the second checkpoint). Every ticket is a sub-issue of #1.
+A hard-science-fiction 3D Godot game about operating the Lithocraft, a ring-shaped vessel that bores through rock. The first playable slice is one Earth desert dive. Specs: GitHub issue #1 (First dive), then #71 (After the second checkpoint). Every ticket is a sub-issue of #1. A spec lists the tickets that must land first, its own or not.
 
 ## Before any work
 
@@ -10,16 +10,15 @@ For design questions, or anything the spec leaves out, read the index `docs/desi
 
 ## Implementing a ticket
 
-One ticket per session. Take the frontier: an open sub-issue of #1 with no open blockers and no assignee.
+One ticket per agent. Take the frontier: an open sub-issue of #1 with no open blockers and no assignee.
 
-Before changing code, read the index `docs/conventions.md`, then the files under `docs/conventions/` for the area the ticket touches: the simulation's interface, where each subsystem extends, the view's rules, the key map, test patterns and gotchas. Record new conventions in the topic file they belong to.
+Before changing code, read the index `docs/conventions.md`, then its topic files for the area the ticket touches. Record new conventions in the topic file they belong to.
 
 - Work lands on `dev`: branch from it and merge or PR back into it. `main` holds only stable builds, promoted from `dev` by the developer.
-
 - Build test-first at the one seam, the simulation's interface: commands and a time step in, state and events out. The simulation is plain GDScript classes with no scene nodes; the view only reads it and sends commands.
 - Tests assert relationships ("faster in sand than granite"), never tuned constants.
 - The Habitat and the Arm have a browser reference on the `prototype/habitat-down` branch. Its geometry and feel carry over; its code does not.
-- The ticket is done when every acceptance criterion is checked, the whole suite passes headless, and a review is clean.
+- A ticket is done when every acceptance criterion is checked, "What runs when" (`running-and-testing.md`) passes and a review is clean: one, on the integration branch, for tickets built together.
 
 ## Designing with the developer
 

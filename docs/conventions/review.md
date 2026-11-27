@@ -45,6 +45,6 @@ The review is clean when no finding stands.
 
 - Do: treat every claim in the implementer's report as a pointer to where to look, never as the thing seen.
   Check each against the diff; for anything the crew see, regenerate the screenshot with `tools/screenshot/shot.sh` and look at it.
-  Run the suite yourself once, at the end, rather than trusting a pasted count.
+  Take the suite's result from CI's run of the branch's head, or from the one run before review (`running-and-testing.md`, What runs when), never from a pasted count.
 - Finding: a claim the diff or the screenshot does not bear out, including one that is true of an earlier commit of the branch but not of its head.
 - Finding: a change in the diff the report does not mention and the ticket did not ask for.
