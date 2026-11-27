@@ -1,4 +1,4 @@
-# The Drive's screen (FlightDisplay) following the Course and off it, as ticket #65 named.
+# The Drive's screen (FlightDisplay) following the Course and off it, as ticket #65 named, and the lean straight down (#91).
 # From the repo root: tools/screenshot/shot.sh --sheet tools/screenshot/recipes/drive.txt
 # Navigation's screen in the same two states is in navigation.txt: the Course and the deviation must match.
 # Debug commands: none.
@@ -11,3 +11,9 @@ off the Course, 30 deg up: --look Drive --time 30 --do "0 set_power 0.5" --do "0
 
 # A nudge down and two to the right: off in both pitch and heading.
 off the Course, down and right: --look Drive --time 30 --do "0 set_power 0.5" --do "0 set_course 90 60" --do "20 nudge_pitch 1" --do "20 nudge_heading 1" --do "20 nudge_heading 1"
+
+# The lean (#91): straight down, two nudges right at 20 s turn only the lean: hollow cyan pointer over the heading tape at 030 and LEAN 030; still Following the Course.
+straight down, leant 030: --look Drive --time 30 --do "0 set_power 0.5" --do "20 nudge_heading 1" --do "20 nudge_heading 1"
+
+# The same lean, then two nudges up at 10 s: the Drive tilts toward 030 (the heading reads 030 once it tilts), OFF COURSE 30 deg up and no lean marker.
+tilted toward the lean: --look Drive --time 30 --do "0 set_power 0.5" --do "10 nudge_heading 1" --do "10 nudge_heading 1" --do "10 nudge_pitch -1" --do "10 nudge_pitch -1"

@@ -32,7 +32,11 @@ The shape is in the class's header comment; copy it.
   Heading 0 is along -Z, 90 along +X.
   Pitch +90 is the Head straight down, -90 straight up.
 - Path distance (`distance()`, metres along the path since the dive began) is what survey stretches, features and the Column are positioned in, not depth.
-  The path is 3D; map a path distance to the world with `_depth_at_distance()` / `_medium_at_distance()`, which read the remembered path (`_remember_path()`).
+  The path is 3D; map a path distance to the world with `_place_at_distance()` / `_medium_at_distance()`, which read the remembered path (`_remember_path()`, whole world places, not depths).
+- A Boundary is a surface whose depth varies with place (`MediumLayout.with_waviness()`), so the layout is asked with a place, never a depth: `medium_at_point(place)` for the Medium there (the Head's is `_medium_here()`).
+  `meets(from, to)` for where a straight piece passes through the surfaces (metres along it, which Boundary, the Medium before and after), and `next_meet(origin, direction)` for the first one a line meets, however far.
+  `boundary_depths()` and `medium_at(depth)` are the mean depths, which name the layers (a Scenario's Media, a test's expectations); `boundary_depth_at(index, x, z)` is where one lies under a place.
+  Anything new that asks where the rock changes (the Beam, the Sweep, the Glide's line, a target's body) asks `meets()` with its ray or path.
 - Power is one budget in the units of `set_power()`.
 
 ## Subsystems

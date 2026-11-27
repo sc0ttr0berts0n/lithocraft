@@ -355,7 +355,7 @@ const SCAN_AND_LAYOUT := {
 }
 
 ## What naming the layout looks like.
-const LAYOUT_NAMES: Array[String] = ["MediumLayout", "_layout", "medium_at", "boundary_depths"]
+const LAYOUT_NAMES: Array[String] = ["MediumLayout", "_layout", "medium_at", "boundary_depth", "next_meet"]
 
 ## What taking scan points or patches looks like, in code.
 const _TAKES_THE_SCAN := "\\b(ScanPoint|BoundaryPatch|BoundaryFit)\\b|\\bpoints\\(\\)|\\binferred_boundaries\\(\\)"

@@ -32,7 +32,9 @@ The Course is Navigation's alone: `set_course()` is the only command that takes 
 The Drive leaves it only by `nudge_pitch(direction)` / `nudge_heading(direction)`, each one step of `nudge_degrees()` from what the Drive steers for now (`steered_heading()`, `steered_pitch()`), only the sign of `direction` counting; `course_test.gd` fails a Drive command that takes degrees.
 The first nudge begins the override (`overriding()`), which holds its own heading and pitch after the crew walks away, and ends on `end_override()`, on engaging the Drive's autopilot, or as soon as a nudge or a newly plotted Course brings the two together.
 The deviation is `deviation_pitch()` (+ steeper down) and `deviation_heading()` (+ to the right, the short way round): what the Drive steers for less the Course, zero while it follows.
-Heading means nothing straight up or down, so there the heading deviation is zero and a heading nudge turns nothing.
+Heading means nothing straight up or down, so the heading deviation is zero while either what the Drive steers for or the Course points there (tilted off a Course straight down, the whole deviation is the pitch).
+**The lean** (#91): while the Drive steers straight up or down (`steers_straight_up_or_down()`), a heading nudge turns the lean (`lean()`) and nothing else, and a pitch nudge off vertical tilts toward it; off vertical `lean()` is `steered_heading()`.
+Every command that changes what the Drive steers for first snapshots `_lean = lean()`, so steered back to vertical the lean keeps the way it came, and a Course plotted off vertical (turned onto the short way, whatever the lean) leaves the lean at its heading.
 A view that says how far off the Drive is reads these two, in `CourseDeviation`'s words, never its own subtraction.
 A new Station's rule goes in `_steady_autopilots()` behind `autopilot(STATION_...)`.
 A test that wants a Station to steady itself engages its autopilot (see Testing).
