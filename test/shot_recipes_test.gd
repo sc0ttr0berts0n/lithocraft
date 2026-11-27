@@ -1,5 +1,5 @@
 # Holds the screenshot recipes (tools/screenshot/recipes/, one list of named
-# shots per screen: docs/conventions/running-and-testing.md, "Ad-hoc checks")
+# shots per screen: docs/conventions/screenshot-recipes.md)
 # to the tool as it is now: every recipe must still make a sheet, so a renamed
 # command, Station or Scenario fails here and not at the next review. What a
 # tile shows needs a window and a reader, so that is the reviewer's to check.

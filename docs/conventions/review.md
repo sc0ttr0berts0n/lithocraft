@@ -51,7 +51,7 @@ The review is clean when no finding stands.
 
 ## A screen the diff touches is regenerated and read
 
-- Do: for every Station screen or view the diff touches (its script in `view/`, or a simulation query it shows), regenerate its recipe's sheet, `tools/screenshot/shot.sh --sheet tools/screenshot/recipes/<screen>.txt` (`running-and-testing.md`, "Ad-hoc checks"), and read it once, at the default size.
+- Do: for every Station screen or view the diff touches (its script in `view/`, or a simulation query it shows), regenerate its recipe's sheet, `tools/screenshot/shot.sh --sheet tools/screenshot/recipes/<screen>.txt` (`screenshot-recipes.md`), and read it once, at the default size.
   A change to what every screen shares (`StationScreen`, `StationTheme`, the key list) is read on `stations.txt`.
   Check each tile against its name and the comment over it in the recipe, and against the ticket.
 - Finding: a tile that does not show the state its name says, or shows something the ticket or the spec rules out (text cut off or overlapping, a colour outside the colour language).

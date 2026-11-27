@@ -64,12 +64,7 @@ It prints the PNG's path and exits 0; on any failure it prints why, leaves no PN
   A tile is its shot scaled down to 768 pixels wide, two to a row, at which the text on a Station's screen still reads; `--tile <width>` and `--columns <count>` change that (`--tile 1152` for no scaling).
   A shot that fails, in the list or in its staging, fails the sheet: the reason names the shot, the exit is 1 and no PNG is left at that path.
   The same list gives the same sheet, byte for byte; each shot gets a fresh Habitat and the same seed as a shot alone (`ShotSheet`, `tools/screenshot/shot_sheet.gd`).
-- The evidence for a screen is its recipe, a list kept in `tools/screenshot/recipes/`, one per Station screen and per view a ticket checked by eye: `reactor.txt`, `thermal.txt`, `drive.txt`, `navigation.txt`, `stations.txt` (every Station from the Arm's hold), `habitat.txt` (the room, and the ring at each end and mid-slide) and `column.txt` (features in the Column).
-  `tools/screenshot/shot.sh --sheet tools/screenshot/recipes/reactor.txt` makes its sheet, `tools/screenshot/out/reactor-sheet.png`; each takes under a minute, and no sheet is ever committed.
-  A ticket that changes a screen or a view adds the states it makes to that recipe, or corrects the tiles it changes, and a new screen gets a new recipe; the reviewer regenerates the sheet and reads it (`review.md`).
-  A tile's name says the state it shows, and a comment line over it says what to look for and how the state is reached.
-  Stage a state with crew and Scenario start commands, and check it headless before the sheet is read (`ShotPlan.stage()` on a Habitat, then the simulation's queries); a `debug_*` command only where the state is otherwise far away, named in the recipe's header.
-  `shot_recipes_test.gd` fails a recipe that no longer makes a sheet (a renamed command, Station or Scenario); what a tile shows is the reader's to check.
+- The lists kept for each screen, and the rules for them: `screenshot-recipes.md`.
 - It is safe to run several at once, in one checkout or in several worktrees; each opens a silent window centred on the developer's second monitor (`SHOT_MONITOR` names another).
 - A staged Habitat is tested headless through `ShotPlan`, and a list and its layout through `ShotSheet` (`test/screenshot_test.gd`); the picture itself needs the window.
 
