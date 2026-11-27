@@ -88,10 +88,21 @@ class Phase:
 
 
 ## A message surface control sends down the link once its condition holds.
+## It is sent once a dive, unless it says when it may be sent again
+## (again_after()).
 class Message:
 	extends RefCounted
 	var text: String
 	var sent_when: Callable
+	## Once sent, the message may be sent again after this has held; an
+	## invalid Callable (the default): never again this dive.
+	var again_when := Callable()
+
+	## Lets the message be sent again once `condition` has held since it was
+	## last sent; returns the message.
+	func again_after(condition: Callable) -> Message:
+		again_when = condition
+		return self
 
 	func _init(p_text: String, p_sent_when: Callable) -> void:
 		text = p_text
@@ -198,6 +209,16 @@ static func climbing() -> Callable:
 ## Holds while the Course plotted is a climb.
 static func course_is_a_climb() -> Callable:
 	return when(func(sim: DiveSimulation) -> bool: return sim.course_pitch() < 0.0)
+
+
+## Holds while the Lithocraft is turning for home and still diving: a climb
+## is plotted and the Drive steers for one, and the Head, cutting below level
+## and moving, is being steered round. Something the Lithocraft does: a climb
+## plotted is not a turn until the vessel has begun to come round to it.
+static func turning_for_home() -> Callable:
+	return when(func(sim: DiveSimulation) -> bool:
+		return sim.course_pitch() < 0.0 and sim.steered_pitch() < 0.0 \
+				and sim.pitch() > 0.0 and sim.speed() > 0.0 and sim.steering() > 0.0)
 
 
 # --- The Scenarios -----------------------------------------------------------
@@ -315,6 +336,10 @@ static func first_dive() -> Scenario:
 				on_event(&"tunnel_sealed")),
 		Message.new("%s confirmed. Survey a feature, then turn for home." % String(bottom.name).capitalize(),
 				in_medium(bottom.name)),
+		# One for each turn for home: the same turn until the climb is given
+		# up for another Course, however the turn itself goes.
+		Message.new("Turning for home: you will deepen through the turn.", turning_for_home()) \
+				.again_after(when(func(sim: DiveSimulation) -> bool: return sim.course_pitch() >= 0.0)),
 		Message.new("We hear you are dark. A rescue is coming down the tunnel. Keep the hull cool.",
 				on_event(&"stranded")),
 		Message.new("Welcome home. The survey is paid for.", on_event(&"paid")),

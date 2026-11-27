@@ -26,7 +26,7 @@ var _phase := 0
 ## Each phase's step states, matching the Scenario's phases and steps.
 var _states: Array = []
 var _achieved := {}
-## Indices of the messages sent, by index.
+## Indices of the messages sent and not to be sent again yet, by index.
 var _sent := {}
 ## Indices of messages sent and not yet arrived, oldest first.
 var _on_the_way: Array[int] = []
@@ -56,7 +56,11 @@ func tend(sim: DiveSimulation, events: Array, dt: float, out: Array[Dictionary])
 			out.append({type = &"goal_achieved", id = goal.id, text = goal.text})
 	_tick(sim, events, out)
 	for i in _scenario.messages.size():
-		if not _sent.has(i) and _scenario.messages[i].sent_when.call(sim, events):
+		var message: Scenario.Message = _scenario.messages[i]
+		if _sent.has(i):
+			if message.again_when.is_valid() and message.again_when.call(sim, events):
+				_sent.erase(i)
+		elif message.sent_when.call(sim, events):
 			_sent[i] = true
 			_on_the_way.append(i)
 	_deliver(sim.link_capacity() * _CHARACTERS_PER_SURVEY_METRE * dt, out)
