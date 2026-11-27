@@ -23,6 +23,7 @@ The review is clean when no finding stands.
   Read its doc comment for a bound on the work per call, then read the body against that bound.
 - Finding: no stated bound; a body that does more than the bound says; or a bound that grows with something the crew controls (pulses sent, dive time, distance bored, the time rate).
 - Not a finding: a bound that grows with something fixed for the dive, such as the number of Stations or of Boundaries in the layout.
+- The cost budget (`tools/cost/cost.sh`, see `cost-budget.md`) times every such query; a diff that adds one, or makes one dearer, and has not run it is a finding.
 
 ## A choice that contradicts the spec is a finding, even when recorded
 
