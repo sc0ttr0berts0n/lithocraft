@@ -62,20 +62,13 @@ const HEADING_LABEL := 10.0
 const PITCH_SPAN := 70.0
 const PITCH_RUNG := 10.0
 
-const BACKGROUND := StationTheme.SCREEN_COLOUR
-## Toward the surface above the horizon, and the rock below it.
-const SURFACEWARD := StationTheme.SURFACEWARD_COLOUR
-const ROCKWARD := StationTheme.ROCKWARD_COLOUR
-## Scales and their numbers, and the rules round each instrument: legends.
-const SCALE := StationTheme.LEGEND_COLOUR
-const DIM := StationTheme.RULE_COLOUR
-## The vessel's own mark and readings: what is happening now.
-const OWN := StationTheme.NOW_COLOUR
-## The Course, and the Drive's override of it: what the crew has selected.
-const COURSE := StationTheme.SELECTED_COLOUR
-## A starved Drive, slipping grip: cautions. Grip holding: working.
-const WARN := StationTheme.CAUTION_COLOUR
-const HOLDING := StationTheme.ENGAGED_COLOUR
+# Its colours are StationTheme's, by the Theme's own names: the sky toward
+# the surface and the rock below the horizon as backdrops; scales, their
+# numbers and the rules round each instrument as legends; the vessel's own
+# mark and readings white (now); the Course and the Drive's nudges off it
+# cyan (selected); a starved Drive and slipping grip amber (cautions); grip
+# holding green (working).
+
 const FONT_SMALL := 24
 const FONT := 28
 const FONT_LARGE := 34
@@ -115,7 +108,7 @@ class _Canvas extends Control:
 		queue_redraw()
 
 	func _draw() -> void:
-		draw_rect(Rect2(Vector2.ZERO, size), FlightDisplay.BACKGROUND)
+		draw_rect(Rect2(Vector2.ZERO, size), StationTheme.SCREEN_COLOUR)
 		var sim := display.sim
 		if sim == null:
 			return
@@ -137,11 +130,11 @@ class _Canvas extends Control:
 		# The horizon may lie off the indicator, steep in a dive or a climb.
 		var horizon := clampf(mid.y + ladder.place(0.0, pitch), box.position.y, box.end.y)
 		draw_rect(Rect2(box.position, Vector2(box.size.x, horizon - box.position.y)),
-				FlightDisplay.SURFACEWARD)
+				StationTheme.SURFACEWARD_COLOUR)
 		draw_rect(Rect2(Vector2(box.position.x, horizon), Vector2(box.size.x, box.end.y - horizon)),
-				FlightDisplay.ROCKWARD)
+				StationTheme.ROCKWARD_COLOUR)
 		if ladder.on_scale(0.0, pitch):
-			draw_line(Vector2(box.position.x, horizon), Vector2(box.end.x, horizon), FlightDisplay.SCALE, 2.0)
+			draw_line(Vector2(box.position.x, horizon), Vector2(box.end.x, horizon), StationTheme.LEGEND_COLOUR, 2.0)
 		for rung in ladder.ticks(pitch, FlightDisplay.PITCH_RUNG / 2.0, -90.0, 90.0):
 			if is_zero_approx(rung):
 				continue
@@ -150,13 +143,13 @@ class _Canvas extends Control:
 				continue
 			var labelled := is_zero_approx(fmod(rung, FlightDisplay.PITCH_RUNG))
 			var half := 84.0 if labelled else 28.0
-			draw_line(Vector2(mid.x - half, y), Vector2(mid.x + half, y), FlightDisplay.SCALE, 2.0)
+			draw_line(Vector2(mid.x - half, y), Vector2(mid.x + half, y), StationTheme.LEGEND_COLOUR, 2.0)
 			if labelled:
 				var label := "%+d" % roundi(rung)
 				draw_string(font, Vector2(mid.x - half - 62.0, y + 8.0), label, HORIZONTAL_ALIGNMENT_RIGHT,
-						56.0, FlightDisplay.FONT_SMALL, FlightDisplay.SCALE)
+						56.0, FlightDisplay.FONT_SMALL, StationTheme.LEGEND_COLOUR)
 				draw_string(font, Vector2(mid.x + half + 6.0, y + 8.0), label, HORIZONTAL_ALIGNMENT_LEFT,
-						-1, FlightDisplay.FONT_SMALL, FlightDisplay.SCALE)
+						-1, FlightDisplay.FONT_SMALL, StationTheme.LEGEND_COLOUR)
 		# The Course at its heading and pitch from the vessel's; over it, what
 		# the Drive steers toward instead, hollow. Pinned marks stay clear of
 		# the indicator's edges and its plate.
@@ -167,33 +160,33 @@ class _Canvas extends Control:
 			return (mid + Vector2(across.pinned(FlightTape.sideways(to_heading, to_pitch, heading), 0.0),
 					ladder.pinned(to_pitch, pitch))).clamp(marks.position, marks.end)
 		var course: Vector2 = place.call(sim.course_heading(), sim.course_pitch())
-		_cross(course, FlightDisplay.COURSE, true)
-		_chevrons(box, course.y, FlightDisplay.COURSE, true)
+		_cross(course, StationTheme.SELECTED_COLOUR, true)
+		_chevrons(box, course.y, StationTheme.SELECTED_COLOUR, true)
 		if off_course:
 			var steered: Vector2 = place.call(sim.steered_heading(), sim.steered_pitch())
-			_cross(steered, FlightDisplay.COURSE, false)
-			_chevrons(box, steered.y, FlightDisplay.COURSE, false)
+			_cross(steered, StationTheme.SELECTED_COLOUR, false)
+			_chevrons(box, steered.y, StationTheme.SELECTED_COLOUR, false)
 		# The vessel's mark, fixed at the middle.
-		var mark := FlightDisplay.OWN
+		var mark := StationTheme.NOW_COLOUR
 		draw_line(mid + Vector2(-78, 0), mid + Vector2(-26, 0), mark, 6.0)
 		draw_line(mid + Vector2(-26, -3), mid + Vector2(-26, 16), mark, 6.0)
 		draw_line(mid + Vector2(26, 0), mid + Vector2(78, 0), mark, 6.0)
 		draw_line(mid + Vector2(26, -3), mid + Vector2(26, 16), mark, 6.0)
 		draw_rect(Rect2(mid - Vector2(5, 5), Vector2(10, 10)), mark)
 		var plate := Rect2(box.position, Vector2(box.size.x, PLATE))
-		draw_rect(plate, StationTheme.faded(FlightDisplay.BACKGROUND, 0.7))
+		draw_rect(plate, StationTheme.faded(StationTheme.SCREEN_COLOUR, 0.7))
 		draw_string(font, box.position + Vector2(8, 30), "PITCH %+.0f" % pitch, HORIZONTAL_ALIGNMENT_LEFT,
 				-1, FlightDisplay.FONT, mark)
 		draw_string(font, box.position + Vector2(box.size.x - 228, 30), "COURSE %+.0f" % sim.course_pitch(),
-				HORIZONTAL_ALIGNMENT_RIGHT, 220, FlightDisplay.FONT, FlightDisplay.COURSE)
+				HORIZONTAL_ALIGNMENT_RIGHT, 220, FlightDisplay.FONT, StationTheme.SELECTED_COLOUR)
 		if off_course:
 			# The deviation, stated beside the hollow mark it is drawn with.
 			var foot := Rect2(Vector2(box.position.x, box.end.y - PLATE), Vector2(box.size.x, PLATE))
-			draw_rect(foot, StationTheme.faded(FlightDisplay.BACKGROUND, 0.7))
-			_cross(foot.position + Vector2(26, PLATE / 2.0), FlightDisplay.COURSE, false)
+			draw_rect(foot, StationTheme.faded(StationTheme.SCREEN_COLOUR, 0.7))
+			_cross(foot.position + Vector2(26, PLATE / 2.0), StationTheme.SELECTED_COLOUR, false)
 			draw_string(font, foot.position + Vector2(52, 30), "OFF COURSE  %s" % CourseDeviation.of(sim),
-					HORIZONTAL_ALIGNMENT_LEFT, box.size.x - 60, FlightDisplay.FONT, FlightDisplay.COURSE)
-		draw_rect(box, FlightDisplay.DIM, false, 2.0)
+					HORIZONTAL_ALIGNMENT_LEFT, box.size.x - 60, FlightDisplay.FONT, StationTheme.SELECTED_COLOUR)
+		draw_rect(box, StationTheme.RULE_COLOUR, false, 2.0)
 
 	## The Course's cross on the attitude indicator, or hollow what the Drive
 	## steers for off it.
@@ -233,66 +226,66 @@ class _Canvas extends Control:
 		var sinking := sim.speed() * sin(deg_to_rad(sim.pitch()))
 		draw_string(ThemeDB.fallback_font, Vector2(box.position.x - 10, box.end.y + 26), "%s %.2f m/s" % [
 				"down" if sinking >= 0.0 else "up", absf(sinking)], HORIZONTAL_ALIGNMENT_CENTER,
-				box.size.x + 20, FlightDisplay.FONT_SMALL, FlightDisplay.OWN)
+				box.size.x + 20, FlightDisplay.FONT_SMALL, StationTheme.NOW_COLOUR)
 
 	## A vertical tape with reading at its middle; growing is -1 for values
 	## that grow up the screen, 1 for down. Ticks below lowest are left off.
 	func _vertical_tape(box: Rect2, tape: FlightTape, reading: float, growing: float, tick: float,
 			label: float, lowest: float, format: String, title: String) -> void:
 		var font := ThemeDB.fallback_font
-		draw_rect(box, StationTheme.faded(FlightDisplay.SCALE, 0.08))
+		draw_rect(box, StationTheme.faded(StationTheme.LEGEND_COLOUR, 0.08))
 		var mid := box.get_center()
 		for value in tape.ticks(reading, tick, lowest):
 			var y := mid.y + growing * tape.place(value, reading)
 			var labelled := absf(value / label - roundf(value / label)) < 0.001
 			draw_line(Vector2(box.end.x - (22.0 if labelled else 12.0), y), Vector2(box.end.x, y),
-					FlightDisplay.SCALE, 2.0)
+					StationTheme.LEGEND_COLOUR, 2.0)
 			if labelled and y > box.position.y + 16.0 and y < box.end.y - 8.0:
 				draw_string(font, Vector2(box.position.x + 6, y + 8), format % value,
-						HORIZONTAL_ALIGNMENT_LEFT, -1, FlightDisplay.FONT_SMALL, FlightDisplay.SCALE)
-		draw_rect(box, FlightDisplay.DIM, false, 2.0)
+						HORIZONTAL_ALIGNMENT_LEFT, -1, FlightDisplay.FONT_SMALL, StationTheme.LEGEND_COLOUR)
+		draw_rect(box, StationTheme.RULE_COLOUR, false, 2.0)
 		draw_string(font, box.position + Vector2(0, -6), title, HORIZONTAL_ALIGNMENT_CENTER, box.size.x,
-				FlightDisplay.FONT_SMALL, FlightDisplay.DIM)
+				FlightDisplay.FONT_SMALL, StationTheme.RULE_COLOUR)
 
 	## The reading in a box at a tape's middle.
 	func _readout(box: Rect2, value: String, unit: String) -> void:
 		var font := ThemeDB.fallback_font
 		var window := Rect2(box.position.x - 6, box.get_center().y - 24, box.size.x + 12, 48)
-		draw_rect(window, FlightDisplay.BACKGROUND)
-		draw_rect(window, FlightDisplay.OWN, false, 3.0)
+		draw_rect(window, StationTheme.SCREEN_COLOUR)
+		draw_rect(window, StationTheme.NOW_COLOUR, false, 3.0)
 		draw_string(font, window.position + Vector2(6, 36), value, HORIZONTAL_ALIGNMENT_LEFT,
-				window.size.x - 12, FlightDisplay.FONT_LARGE, FlightDisplay.OWN)
+				window.size.x - 12, FlightDisplay.FONT_LARGE, StationTheme.NOW_COLOUR)
 		draw_string(font, window.position + Vector2(6, 36), unit, HORIZONTAL_ALIGNMENT_RIGHT,
-				window.size.x - 12, FlightDisplay.FONT_SMALL, FlightDisplay.OWN)
+				window.size.x - 12, FlightDisplay.FONT_SMALL, StationTheme.NOW_COLOUR)
 
 	func _heading(sim: DiveSimulation, box: Rect2) -> void:
 		var font := ThemeDB.fallback_font
 		var tape := FlightTape.new(FlightDisplay.HEADING_SPAN, box.size.x, 360.0)
 		var heading := sim.heading_degrees()
 		var mid := box.get_center()
-		draw_rect(box, StationTheme.faded(FlightDisplay.SCALE, 0.08))
+		draw_rect(box, StationTheme.faded(StationTheme.LEGEND_COLOUR, 0.08))
 		for value in tape.ticks(heading, FlightDisplay.HEADING_TICK):
 			var x := mid.x + tape.place(value, heading)
 			var labelled := is_zero_approx(fmod(value, FlightDisplay.HEADING_LABEL))
 			draw_line(Vector2(x, box.position.y), Vector2(x, box.position.y + (16.0 if labelled else 9.0)),
-					FlightDisplay.SCALE, 2.0)
+					StationTheme.LEGEND_COLOUR, 2.0)
 			if labelled:
 				draw_string(font, Vector2(x - 30, box.position.y + 40), "%03d" % roundi(value),
-						HORIZONTAL_ALIGNMENT_CENTER, 60, FlightDisplay.FONT_SMALL, FlightDisplay.SCALE)
+						HORIZONTAL_ALIGNMENT_CENTER, 60, FlightDisplay.FONT_SMALL, StationTheme.LEGEND_COLOUR)
 		if sim.overriding():
-			_bug(Vector2(mid.x + tape.pinned(sim.steered_heading(), heading), box.position.y), FlightDisplay.COURSE, false)
-		_bug(Vector2(mid.x + tape.pinned(sim.course_heading(), heading), box.position.y), FlightDisplay.COURSE, true)
+			_bug(Vector2(mid.x + tape.pinned(sim.steered_heading(), heading), box.position.y), StationTheme.SELECTED_COLOUR, false)
+		_bug(Vector2(mid.x + tape.pinned(sim.course_heading(), heading), box.position.y), StationTheme.SELECTED_COLOUR, true)
 		# The heading itself, under a fixed pointer.
 		draw_colored_polygon(PackedVector2Array([Vector2(mid.x, box.position.y + 2),
-				Vector2(mid.x - 10, box.position.y - 14), Vector2(mid.x + 10, box.position.y - 14)]), FlightDisplay.OWN)
+				Vector2(mid.x - 10, box.position.y - 14), Vector2(mid.x + 10, box.position.y - 14)]), StationTheme.NOW_COLOUR)
 		var window := Rect2(mid.x - 46, box.end.y - 32, 92, 32)
-		draw_rect(window, FlightDisplay.BACKGROUND)
-		draw_rect(window, FlightDisplay.OWN, false, 3.0)
+		draw_rect(window, StationTheme.SCREEN_COLOUR)
+		draw_rect(window, StationTheme.NOW_COLOUR, false, 3.0)
 		draw_string(font, window.position + Vector2(0, 27), "%03d" % roundi(heading), HORIZONTAL_ALIGNMENT_CENTER,
-				window.size.x, FlightDisplay.FONT, FlightDisplay.OWN)
+				window.size.x, FlightDisplay.FONT, StationTheme.NOW_COLOUR)
 		draw_string(font, Vector2(box.end.x - 178, box.end.y - 8), "COURSE %03d" % roundi(sim.course_heading()),
-				HORIZONTAL_ALIGNMENT_RIGHT, 170, FlightDisplay.FONT_SMALL, FlightDisplay.COURSE)
-		draw_rect(box, FlightDisplay.DIM, false, 2.0)
+				HORIZONTAL_ALIGNMENT_RIGHT, 170, FlightDisplay.FONT_SMALL, StationTheme.SELECTED_COLOUR)
+		draw_rect(box, StationTheme.RULE_COLOUR, false, 2.0)
 
 	## The Course's (or the override's) bug on the heading tape's edge.
 	func _bug(at: Vector2, colour: Color, filled: bool) -> void:
@@ -312,20 +305,20 @@ class _Canvas extends Control:
 		var starved := PowerLine.starved(requested, drawn, full)
 		_title(box, "POWER")
 		var bar := Rect2(box.position + Vector2(10, 44), Vector2(box.size.x - 20, 30))
-		draw_rect(bar, StationTheme.faded(FlightDisplay.SCALE, 0.1))
+		draw_rect(bar, StationTheme.faded(StationTheme.LEGEND_COLOUR, 0.1))
 		draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(drawn / full, 0.0, 1.0), bar.size.y)),
-				FlightDisplay.WARN if starved else FlightDisplay.OWN)
+				StationTheme.CAUTION_COLOUR if starved else StationTheme.NOW_COLOUR)
 		var set_x := bar.position.x + bar.size.x * clampf(requested / full, 0.0, 1.0)
-		draw_line(Vector2(set_x, bar.position.y - 6), Vector2(set_x, bar.end.y + 6), FlightDisplay.COURSE, 4.0)
-		draw_rect(bar, FlightDisplay.DIM, false, 2.0)
+		draw_line(Vector2(set_x, bar.position.y - 6), Vector2(set_x, bar.end.y + 6), StationTheme.SELECTED_COLOUR, 4.0)
+		draw_rect(bar, StationTheme.RULE_COLOUR, false, 2.0)
 		draw_string(font, box.position + Vector2(10, 106), "set %d%%" % PowerLine.percent(requested, full),
-				HORIZONTAL_ALIGNMENT_LEFT, -1, FlightDisplay.FONT, FlightDisplay.COURSE)
+				HORIZONTAL_ALIGNMENT_LEFT, -1, FlightDisplay.FONT, StationTheme.SELECTED_COLOUR)
 		draw_string(font, box.position + Vector2(10, 136), "actual %d%%" % PowerLine.percent(drawn, full),
-				HORIZONTAL_ALIGNMENT_LEFT, -1, FlightDisplay.FONT, FlightDisplay.WARN if starved else FlightDisplay.OWN)
+				HORIZONTAL_ALIGNMENT_LEFT, -1, FlightDisplay.FONT, StationTheme.CAUTION_COLOUR if starved else StationTheme.NOW_COLOUR)
 		if starved:
 			draw_string(font, box.position + Vector2(10, 28), "STARVED", HORIZONTAL_ALIGNMENT_RIGHT,
-					box.size.x - 20, FlightDisplay.FONT_SMALL, FlightDisplay.WARN)
-		draw_rect(box, FlightDisplay.DIM, false, 2.0)
+					box.size.x - 20, FlightDisplay.FONT_SMALL, StationTheme.CAUTION_COLOUR)
+		draw_rect(box, StationTheme.RULE_COLOUR, false, 2.0)
 
 	func _grip(sim: DiveSimulation, box: Rect2) -> void:
 		var font := ThemeDB.fallback_font
@@ -333,18 +326,18 @@ class _Canvas extends Control:
 		_title(box, "GRIP")
 		var bar := Rect2(box.position + Vector2(10, 44), Vector2(box.size.x - 20, 30))
 		var held := bar.size.x * (1.0 - slip)
-		draw_rect(Rect2(bar.position, Vector2(held, bar.size.y)), FlightDisplay.OWN)
-		draw_rect(Rect2(bar.position + Vector2(held, 0), Vector2(bar.size.x - held, bar.size.y)), FlightDisplay.WARN)
-		draw_rect(bar, FlightDisplay.DIM, false, 2.0)
+		draw_rect(Rect2(bar.position, Vector2(held, bar.size.y)), StationTheme.NOW_COLOUR)
+		draw_rect(Rect2(bar.position + Vector2(held, 0), Vector2(bar.size.x - held, bar.size.y)), StationTheme.CAUTION_COLOUR)
+		draw_rect(bar, StationTheme.RULE_COLOUR, false, 2.0)
 		if slip > 0.0:
 			draw_string(font, box.position + Vector2(10, 104), "SLIPPING %d%%" % roundi(slip * 100.0),
-					HORIZONTAL_ALIGNMENT_LEFT, -1, FlightDisplay.FONT, FlightDisplay.WARN)
+					HORIZONTAL_ALIGNMENT_LEFT, -1, FlightDisplay.FONT, StationTheme.CAUTION_COLOUR)
 			draw_string(font, box.position + Vector2(10, 126), "ease off %s" % KeyMap.label(&"power_step", 1),
-					HORIZONTAL_ALIGNMENT_LEFT, -1, FlightDisplay.FONT_SMALL, FlightDisplay.WARN)
+					HORIZONTAL_ALIGNMENT_LEFT, -1, FlightDisplay.FONT_SMALL, StationTheme.CAUTION_COLOUR)
 		else:
 			draw_string(font, box.position + Vector2(10, 104), "holding", HORIZONTAL_ALIGNMENT_LEFT, -1,
-					FlightDisplay.FONT, FlightDisplay.HOLDING)
-		draw_rect(box, FlightDisplay.DIM, false, 2.0)
+					FlightDisplay.FONT, StationTheme.ENGAGED_COLOUR)
+		draw_rect(box, StationTheme.RULE_COLOUR, false, 2.0)
 
 	func _steering(sim: DiveSimulation, box: Rect2) -> void:
 		_title(box, "DRIVE")
@@ -352,19 +345,19 @@ class _Canvas extends Control:
 		for i in rows.size():
 			_meter(Rect2(box.position + Vector2(10, 40 + i * 36), Vector2(box.size.x - 20, 30)),
 					rows[i][0], rows[i][1])
-		draw_rect(box, FlightDisplay.DIM, false, 2.0)
+		draw_rect(box, StationTheme.RULE_COLOUR, false, 2.0)
 
 	## A labelled bar filled to share, its percentage at the right.
 	func _meter(row: Rect2, label: String, share: float) -> void:
 		var font := ThemeDB.fallback_font
 		var bar := Rect2(row.position + Vector2(100, 6), Vector2(row.size.x - 164, row.size.y - 12))
-		draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(share, 0.0, 1.0), bar.size.y)), FlightDisplay.OWN)
-		draw_rect(bar, FlightDisplay.DIM, false, 1.0)
+		draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(share, 0.0, 1.0), bar.size.y)), StationTheme.NOW_COLOUR)
+		draw_rect(bar, StationTheme.RULE_COLOUR, false, 1.0)
 		draw_string(font, row.position + Vector2(0, 23), label, HORIZONTAL_ALIGNMENT_LEFT, 98,
-				FlightDisplay.FONT_SMALL, FlightDisplay.SCALE)
+				FlightDisplay.FONT_SMALL, StationTheme.LEGEND_COLOUR)
 		draw_string(font, row.position + Vector2(0, 23), "%d%%" % roundi(share * 100.0),
-				HORIZONTAL_ALIGNMENT_RIGHT, row.size.x, FlightDisplay.FONT_SMALL, FlightDisplay.SCALE)
+				HORIZONTAL_ALIGNMENT_RIGHT, row.size.x, FlightDisplay.FONT_SMALL, StationTheme.LEGEND_COLOUR)
 
 	func _title(box: Rect2, title: String) -> void:
 		draw_string(ThemeDB.fallback_font, box.position + Vector2(10, 28), title, HORIZONTAL_ALIGNMENT_LEFT, -1,
-				FlightDisplay.FONT_SMALL, FlightDisplay.DIM)
+				FlightDisplay.FONT_SMALL, StationTheme.RULE_COLOUR)

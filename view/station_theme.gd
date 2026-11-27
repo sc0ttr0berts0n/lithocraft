@@ -44,6 +44,9 @@ const WARNING_COLOUR := Color("ff3b30")
 const SCREEN_COLOUR := Color("05080a")
 const LEGEND_COLOUR := Color("93a1ad")
 const RULE_COLOUR := Color("3c4852")
+## The projected path, on Navigation's scan display and its moving map: cyan,
+## as what the crew has selected is.
+const PROJECTED_PATH_COLOUR := SELECTED_COLOUR
 ## Backdrops of a picture of the world: toward the surface, toward the rock.
 const SURFACEWARD_COLOUR := Color("1d3a55")
 const ROCKWARD_COLOUR := Color("4a3220")

@@ -34,6 +34,21 @@ func test_the_next_step_is_highlighted_with_its_station_and_key() -> void:
 	assert_str(later).not_contains("[b]")
 
 
+func test_a_step_that_takes_two_controls_shows_the_keys_of_both() -> void:
+	# The Shift drill's pretune: STANDBY may be off in frequency, in
+	# amplitude or in both, so the step names both controls' keys.
+	var sim := Scenario.shift_drill().start()
+	sim.read_orders()
+	sim.advance(0.1)
+	var next := sim.next_step()
+	assert_str(next.id).is_equal(&"pretune_standby")
+
+	var line := _line_with(ChecklistPanel.text_of(sim, _STATIONS), next.text)
+
+	for action: StringName in [&"tune_frequency", &"tune_amplitude"]:
+		assert_str(line).contains(KeyMap.label(action).replace("[", "[lb]"))
+
+
 func test_the_panel_shows_every_goal_and_surface_controls_messages() -> void:
 	var sim := Scenario.first_dive().start()
 	DiveTestKit.run(sim, 5.0)

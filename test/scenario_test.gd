@@ -35,6 +35,20 @@ func test_every_scenario_has_orders_and_a_checklist_of_distinct_steps() -> void:
 				ids.append(step.id)
 
 
+func test_every_pretune_step_names_both_of_the_reactors_tuning_controls() -> void:
+	var pretunes := 0
+	for scenario in Scenario.all():
+		for phase in scenario.phases:
+			for step in phase.steps:
+				if not String(step.id).begins_with("pretune_standby"):
+					continue
+				pretunes += 1
+				assert_array([step.action, step.also]).override_failure_message(
+						"%s: %s names %s and %s" % [scenario.title, step.id, step.action, step.also]
+				).contains_exactly_in_any_order([&"tune_frequency", &"tune_amplitude"])
+	assert_int(pretunes).is_greater(3)
+
+
 ## Every command that states what the crew intends and by itself moves
 ## nothing, sent to this dive.
 static func _state_every_intention(sim: DiveSimulation) -> void:

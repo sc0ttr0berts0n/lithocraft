@@ -79,7 +79,10 @@ static func _step_line(step: Dictionary, is_next: bool, station_names: Dictionar
 	if station_names.has(step.station):
 		var named: Array = station_names[step.station]
 		where = "  [color=#%s]%s[/color]" % [named[1].to_html(false), named[0]]
-	var key := "  %s" % _escaped(KeyMap.label(step.action)) if step.action != &"" else ""
+	var key := ""
+	for action: StringName in [step.action, step.also]:
+		if action != &"":
+			key += "  %s" % _escaped(KeyMap.label(action))
 	match step.state:
 		DiveSimulation.STEP_DONE:
 			return _coloured("[x] %s" % step.text, _DONE_COLOUR)

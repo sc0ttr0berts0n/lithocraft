@@ -12,3 +12,4 @@
 - A directional scan: a steered, narrow beam that sees further ahead and nothing elsewhere (developer's idea, second play test).
 - What the Arm and the slides cost, and how they fail: the Stations' slide to the new floor and the Arm's run along the Bore are free for now, drawing no power and never failing.
 - Phase as a third control of the Counter-wave.
+- Coasting, and what the ring of Stations does in it: spec #71 asks that the Stations not move "in level and coast", but the simulation has no coasting state (the Head either cuts or stands still), so only level is built and tested; the ring's behaviour while coasting waits for a coasting state.

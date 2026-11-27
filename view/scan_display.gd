@@ -71,9 +71,6 @@ const VESSEL_COLOUR := StationTheme.NOW_COLOUR
 ## The vessel's heading line, metres, and its marker, pixels.
 const HEADING_M := 45.0
 const VESSEL_PX := 9.0
-## The projected path, here and on the moving map: cyan, as what the crew has
-## selected is (StationTheme).
-const PROJECTED_PATH_COLOUR := StationTheme.SELECTED_COLOUR
 ## The projected path is worked out afresh every this many frames: it changes
 ## slowly, and running the turn forward is not free. The picture is redrawn
 ## every REDRAW_FRAMES.
@@ -333,7 +330,7 @@ func _draw_scan(canvas: Control, place: Callable) -> void:
 	for step in _projected:
 		coming.append(place.call(step - head))
 	if coming.size() > 1:
-		canvas.draw_polyline(coming, PROJECTED_PATH_COLOUR, 2.5)
+		canvas.draw_polyline(coming, StationTheme.PROJECTED_PATH_COLOUR, 2.5)
 	_draw_vessel(canvas, vessel, place.call(sim.heading() * HEADING_M))
 
 

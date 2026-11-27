@@ -39,7 +39,7 @@ const TOWARD_UNDERSIDE := Vector3.DOWN
 ## (ADR 0001); tests read minimum_turn_radius(), never this.
 const _MIN_TURN_RADIUS_M := 250.0
 ## How far one nudge at the Drive moves what it steers for, degrees: small
-## beside the quarter turn between a dive and level, so the Drive trims its
+## beside the quarter turn between a dive and level, so the Drive edges its
 ## way off the Course and cannot swing to a new one in a press. Tuned for
 ## play (ADR 0001); tests read nudge_degrees(), never this.
 const _NUDGE_DEG := 15.0
@@ -1538,31 +1538,35 @@ func _wobble_for(channel: StringName) -> Vector2:
 ## (wobble_ahead_frequency()), so it is only as true as the guess, and NAN
 ## with no scan of the Boundary ahead. So with the three below.
 func residual_steady(channel: StringName) -> float:
-	var wobble := _wobble_for(channel)
-	return NAN if is_nan(wobble.x) else Plasma.residual_steady(_plasma.counter_wave(channel), wobble)
+	return _residual_part(channel, Plasma.residual_steady)
 
 
 ## The beating part of a channel's Residual: how much further it swells at
 ## its fullest because the Counter-wave's frequency is off the Wobble's. It
 ## swells and fades residual_beat_frequency() times a second. 0 on frequency.
 func residual_beat(channel: StringName) -> float:
-	var wobble := _wobble_for(channel)
-	return NAN if is_nan(wobble.x) else Plasma.residual_beat(_plasma.counter_wave(channel), wobble)
+	return _residual_part(channel, Plasma.residual_beat)
 
 
 ## How often a channel's Residual beats, in hertz: the difference between the
 ## Counter-wave's frequency and the Wobble's, so the beats slow as the
 ## frequency nears. 0 on frequency.
 func residual_beat_frequency(channel: StringName) -> float:
-	var wobble := _wobble_for(channel)
-	return NAN if is_nan(wobble.x) else Plasma.beat_frequency(_plasma.counter_wave(channel), wobble)
+	return _residual_part(channel, Plasma.beat_frequency)
 
 
 ## A channel's Residual at its fullest: its steady part and its beating part.
 ## It is this, for ACTIVE, that the Band is held against (out_of_band()).
 func residual(channel: StringName) -> float:
+	return _residual_part(channel, Plasma.residual_reach)
+
+
+## One reading of a channel's Residual: `part(counter_wave, wobble)`, one of
+## Plasma's rules, of the channel's Counter-wave against the Wobble it is read
+## against (_wobble_for()); NAN when STANDBY has no guess to be read against.
+func _residual_part(channel: StringName, part: Callable) -> float:
 	var wobble := _wobble_for(channel)
-	return NAN if is_nan(wobble.x) else Plasma.residual_reach(_plasma.counter_wave(channel), wobble)
+	return NAN if is_nan(wobble.x) else part.call(_plasma.counter_wave(channel), wobble)
 
 
 ## The Band: how much Residual the Head bears without wearing, in the units
@@ -1822,28 +1826,28 @@ func projected_path() -> PackedVector3Array:
 	var wanted := _wanted_direction()
 	var effort := _effective_steering_effort()
 	var settled := deg_to_rad(_PROJECTION_SETTLED_DEG)
-	var helm: Array = [_position, _direction, _bearing, _steering]
+	var turning := Turning.new(_position, _direction, _bearing, _steering)
 	var since_point := 0.0
 	var length := 0.0
-	while (helm[1] as Vector3).angle_to(wanted) > settled and length < _PROJECTION_TURN_M:
-		var speed := _speed_while_steering(helm[3])
+	while turning.direction.angle_to(wanted) > settled and length < _PROJECTION_TURN_M:
+		var speed := _speed_while_steering(turning.steering)
 		if speed <= 0.0:
 			break
 		var dt := minf(_PROJECTION_SAMPLE_M / speed, _PROJECTION_STEP_S)
-		var before: Vector3 = helm[0]
-		helm = _turned(helm[0], helm[1], helm[2], helm[3], wanted, effort, speed, dt)
+		var before := turning.position
+		turning = _turned(turning, wanted, effort, speed, dt)
 		length += speed * dt
 		since_point += speed * dt
-		if _surfaces_between(before, helm[0]):
-			path.append(_at_the_surface(before, helm[0]))
+		if _surfaces_between(before, turning.position):
+			path.append(_at_the_surface(before, turning.position))
 			return path
 		if since_point >= _PROJECTION_SAMPLE_M:
 			since_point = 0.0
-			path.append(helm[0])
-	var from: Vector3 = helm[0]
+			path.append(turning.position)
+	var from := turning.position
 	if since_point > 0.0:
 		path.append(from)
-	if (helm[1] as Vector3).angle_to(wanted) > settled:
+	if turning.direction.angle_to(wanted) > settled:
 		return path
 	var end := from + wanted * _PROJECTION_STRAIGHT_M
 	path.append(_at_the_surface(from, end) if _surfaces_between(from, end) else end)
@@ -2247,7 +2251,8 @@ func target_depth() -> float:
 
 ## The Checklist's phases in order, each {title, steps}; each step {id, text,
 ## station (&"" for none), action (the key-map action that does it, &"" for
-## none), state (STEP_PENDING, STEP_DONE or STEP_MISSED)}.
+## none), also (a second action it may take, &"" for none), state
+## (STEP_PENDING, STEP_DONE or STEP_MISSED)}.
 func checklist() -> Array[Dictionary]:
 	return _checklist.phases()
 
@@ -2421,31 +2426,52 @@ static func _direction_of(heading_degrees: float, pitch_degrees: float) -> Vecto
 ## this speed, and moves it along the arc: one step of the turning rule
 ## (_turned()), from where the Head is now.
 func _steer(speed: float, dt: float) -> void:
-	var helm := _turned(_position, _direction, _bearing, _steering, _wanted_direction(),
-			_effective_steering_effort(), speed, dt)
-	_position = helm[0]
-	_direction = helm[1]
-	_bearing = helm[2]
-	_steering = helm[3]
+	var turned := _turned(Turning.new(_position, _direction, _bearing, _steering),
+			_wanted_direction(), _effective_steering_effort(), speed, dt)
+	_position = turned.position
+	_direction = turned.direction
+	_bearing = turned.bearing
+	_steering = turned.steering
 
 
 ## The hardest the Head steers now: the Drive's effort, or the gentle share of
 ## it the Drive's autopilot keeps to.
 func _effective_steering_effort() -> float:
-	return minf(_steering_effort, _AUTOPILOT_STEERING_EFFORT) 			if autopilot(STATION_DRIVE) else _steering_effort
+	return minf(_steering_effort, _AUTOPILOT_STEERING_EFFORT) \
+			if autopilot(STATION_DRIVE) else _steering_effort
+
+
+## A Head partway through a turn: where it is (world frame), the way it
+## points, its last compass bearing in degrees and how hard it steers, 0 to 1.
+## What the turning rule (_turned()) steps from and gives back.
+class Turning:
+	extends RefCounted
+	var position: Vector3
+	var direction: Vector3
+	var bearing: float
+	var steering: float
+
+	func _init(p_position: Vector3, p_direction: Vector3, p_bearing: float, p_steering: float) -> void:
+		position = p_position
+		direction = p_direction
+		bearing = p_bearing
+		steering = p_steering
 
 
 ## The turning rule, the one both a step (_steer()) and the projected path
-## (projected_path()) run: a Head at `position` pointing along `direction`
-## (last compass `bearing`, degrees), steering this hard, turns toward `wanted`
-## for dt seconds at this speed and moves along the arc. Returns [position,
-## direction, bearing, steering] afterwards. The steering builds toward what
+## (projected_path()) run: the Head as `from` has it turns toward `wanted`
+## for dt seconds at this speed and moves along the arc. Returns the Head
+## afterwards, a new Turning. The steering builds toward what
 ## the remaining turn needs, no harder than `effort`, at a limited rate, and
 ## the path bends by at most speed / minimum radius radians per second, so a
 ## stopped vessel cannot turn and none turns tighter than its minimum arc. The
 ## Head only ever moves the way it points.
-static func _turned(position: Vector3, direction: Vector3, bearing: float, steering: float,
-		wanted: Vector3, effort: float, speed: float, dt: float) -> Array:
+static func _turned(from: Turning, wanted: Vector3, effort: float, speed: float,
+		dt: float) -> Turning:
+	var position := from.position
+	var direction := from.direction
+	var bearing := from.bearing
+	var steering := from.steering
 	var remaining := direction.angle_to(wanted)
 	var needed := clampf(rad_to_deg(remaining) / _STEER_EASE_DEG, 0.0, effort)
 	# The path bends by the steering's mean over the step (it builds at its
@@ -2472,7 +2498,7 @@ static func _turned(position: Vector3, direction: Vector3, bearing: float, steer
 		position += direction * travelled
 	if Vector2(direction.x, direction.z).length() > 1e-4:
 		bearing = fposmod(rad_to_deg(atan2(direction.x, -direction.z)), 360.0)
-	return [position, direction, bearing, steering]
+	return Turning.new(position, direction, bearing, steering)
 
 
 ## The axis to turn about to bring a Head pointing along `direction` round
@@ -3144,7 +3170,8 @@ func _record_survey(from: float, to: float) -> void:
 		var piece := piece_end - from
 		var medium := _medium_at_distance((from + piece_end) * 0.5)
 		for mineral in medium.composition:
-			_stretch_minerals[mineral] = _stretch_minerals.get(mineral, 0.0) 					+ medium.composition[mineral] * piece
+			_stretch_minerals[mineral] = _stretch_minerals.get(mineral, 0.0) \
+					+ medium.composition[mineral] * piece
 		_stretch_media[medium.name] = _stretch_media.get(medium.name, 0.0) + piece
 		_stretch_quality += _recording_quality() * piece
 		_stretch_shuttered = _stretch_shuttered or shuttered()

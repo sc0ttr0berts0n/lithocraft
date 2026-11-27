@@ -3,7 +3,7 @@
 **Stranding, rescue and death** (`sim/stranding.gd`, `Stranding`): what losing the plasma or the hull comes to (`check()` once a step, stranded steps included: `DIED` when the hull fails, whatever the plasma, so the stranding clock running out is the same death as any other hull failure; `STRANDED` sealed in;
 `BROUGHT_HOME` with the tunnel open), whether the Lithocraft is stranded or its crew dead, the repair bills (hull and Head), the rescue (its time from the open and sealed lengths, `call_rescue()` at the stranding, `wait_for_rescue()` each stranded step, its cost), the rebuy.
 `DiveSimulation._check_stranded()` carries the outcome out on the survey, the link and the vessel's place (`_die()`, `_strand()`, `_bring_home()`, and `_rescue()` when the rescue arrives), since those are the simulation's.
-It holds the emergency store (see Extension points).
+It holds the emergency store (see "The emergency store" below).
 The tunnel's sealed length is counted on `DiveSimulation` (`_sealed_metres`, added to in `_update_tunnel()` as the Tail leaves dense rock; O(1) a step) and handed in.
 A stranding keeps the survey aboard (the link can still send it, on the store); the rescue brings it home and sells it, death loses it (`_lose_unsold()`).
 `stranding_clock()` and `rescue_time()` are live estimates at any time: stranded, running live; under way, what they would be if the plasma went now.
@@ -38,4 +38,4 @@ There is no `recover()`: a stranding ends in a relight, the rescue (automatic, `
 A new per-dive variable needs nothing.
 A variable that must survive (what was paid, where the crew is) goes in that list; a test in `stranding_test.gd` checks the list against the script's variables.
 The subsystems (`_heat`, `_plasma`, `_stranding`) are replaced whole by a fresh simulation's, so a new variable inside one starts over with no work; one that must survive into the next dive lives on `DiveSimulation`, not in the subsystem.
-Station settings return to their start, so the view re-sends its own (`habitat.gd::_reset_settings`).
+Station settings return to their start, and the view never re-sends its own: the dive over, its key goes back to the start menu (`habitat.gd::_key_new_dive`), and a fresh Habitat reads its copies of the settings from the simulation as it starts (`_ready()`).
