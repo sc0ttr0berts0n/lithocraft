@@ -6,8 +6,10 @@
 ##   state out     - read-only query methods, e.g. depth()
 ##   events out    - take_events(): events since the last call, then cleared.
 ##                   Each a Dictionary with a `type` StringName plus fields.
-## Heat (Heat), the plasma and its Counter-wave (Plasma), and stranding (Stranding)
-## are its own subsystems, reached only through this interface; see
+## Heat (Heat), the plasma and its Counter-wave (Plasma), stranding (Stranding),
+## the look-ahead (LookAhead), the turning rule and the projected path
+## (ProjectedPath) and the ring of Stations' slide (RingSlide) are its own
+## subsystems, reached only through this interface; see
 ## docs/conventions/simulation-interface.md, "Subsystems".
 class_name DiveSimulation
 extends RefCounted
@@ -33,22 +35,13 @@ const _FEATURE_RECORD_S := 20.0
 const TOWARD_HEAD := Vector3.FORWARD
 const TOWARD_UNDERSIDE := Vector3.DOWN
 
-## Steering. The Head turns the Lithocraft by heating one side of its rim
-## harder than the other, so the vessel cuts faster on that side and its path
-## bends. The tightest arc it can cut, in metres of radius. Tuned for play
-## (ADR 0001); tests read minimum_turn_radius(), never this.
-const _MIN_TURN_RADIUS_M := 250.0
+## Steering. The turning rule and its constants are ProjectedPath's
+## (sim/projected_path.gd).
 ## How far one nudge at the Drive moves what it steers for, degrees: small
 ## beside the quarter turn between a dive and level, so the Drive edges its
 ## way off the Course and cannot swing to a new one in a press. Tuned for
 ## play (ADR 0001); tests read nudge_degrees(), never this.
 const _NUDGE_DEG := 15.0
-## How fast the uneven heating builds up or dies away, as a share of full
-## steering per second: the vessel answers the Drive slowly. Tuned for play.
-const _STEER_RESPONSE := 0.1
-## Within this many degrees of the setting the steering eases off, so the
-## vessel settles onto its heading instead of swinging past. Tuned for play.
-const _STEER_EASE_DEG := 10.0
 ## The most the Drive's autopilot steers, as a share of full steering: it
 ## follows the Course on a wide, cool arc rather than spend power and heat
 ## turning hard. Tuned for play (ADR 0001).
@@ -63,19 +56,6 @@ const _STEER_HEAT := 0.5
 ## The path the Column was cut along is remembered as points at least this
 ## far apart (straight runs are merged into one piece). Metres.
 const _PATH_SAMPLE_M := 0.5
-## The projected path (projected_path()): its points lie this far apart along
-## a turn, metres, whatever the speed, so the work of projecting does not grow
-## as the vessel slows (the turning rule cuts the same arc in long steps as in
-## short); how far the straight stretch beyond the turn reaches, metres; and
-## the most path a turn is followed for, metres, so a Drive barely steering
-## does not project for ever. Tuned for play (ADR 0001).
-const _PROJECTION_SAMPLE_M := 5.0
-const _PROJECTION_STRAIGHT_M := 250.0
-const _PROJECTION_TURN_M := 4000.0
-## The turn is over, for the projection, once the Head points within this
-## many degrees of what the Drive steers for: the steering eases off as it
-## nears, so the last of a turn is all but straight.
-const _PROJECTION_SETTLED_DEG := 0.05
 
 ## Upload priorities for set_upload_priority(): which waiting survey stretch
 ## goes up the link next.
@@ -85,16 +65,6 @@ const UPLOAD_MOST_VALUABLE_FIRST := &"most_valuable_first"
 
 ## Earth's surface gravity, m/s^2.
 const _GRAVITY := 9.81
-
-## The ring of Stations and the Arm's rail slide along the Habitat's wall to
-## the other end once that end is the floor: once "down" points more toward
-## it than toward the outer wall, as this share of the felt gravity along the
-## Bore. Real basis: a carriage on a rail up the wall. The seconds the slide
-## takes are tuned for play (ADR 0001): long enough to watch a Station leave,
-## short beside the turn that causes it. The slide is free: it draws no power
-## and cannot fail.
-const _END_IS_FLOOR := 0.70710678
-const _RING_SLIDE_S := 6.0
 
 ## Length of the Lithocraft from Head to Tail, in metres: how far behind the
 ## Head the tunnel is made. Tuned for play (ADR 0001).
@@ -405,11 +375,8 @@ var _relight_asked := false
 var _relight_random := RandomNumberGenerator.new()
 ## Stations a crew member is at (StringName -> true).
 var _attended := {}
-## The ring of Stations: which end's floor it is at or sliding to, and how far
-## along the slide it is, 0 at the Head end to 1 at the Tail end, at a steady
-## rate (station_ring() eases it).
-var _ring_to_tail := false
-var _ring_slide := 0.0
+## The ring of Stations' slide along the Habitat (sim/ring_slide.gd).
+var _ring := RingSlide.new()
 ## Stations whose autopilot is engaged (StringName -> true). All start off.
 var _autopilot := {}
 ## How many times normal the simulation runs, 1 or more.
@@ -1134,7 +1101,10 @@ func _step(dt: float) -> void:
 	if _surfaced or dead():
 		return  # The dive is over; nothing moves until new_dive().
 	_dive_time += dt
-	_slide_ring(dt)
+	# The ring of Stations follows the floor. It is told pitch(), not
+	# felt_acceleration(), so the Head's shudder cannot start a slide; and it
+	# runs stranded too: the carriages need no plasma.
+	_ring.step(sin(deg_to_rad(pitch())), dt)
 	if stranded():
 		_step_stranded(dt)
 		return
@@ -1183,19 +1153,6 @@ func _step(dt: float) -> void:
 	if _surfaced or dead():
 		return  # Brought home through the open tunnel, or the hull failed.
 	_update_calls()
-
-
-## The ring of Stations follows the floor: it sets off for an end once that
-## end is the floor (_END_IS_FLOOR) and slides there at a steady rate. While
-## neither end is the floor (near level) it stays at, or goes on to, the end
-## it last set off for. Runs stranded too: the carriages need no plasma.
-func _slide_ring(dt: float) -> void:
-	var toward_head := sin(deg_to_rad(pitch()))
-	if toward_head >= _END_IS_FLOOR:
-		_ring_to_tail = false
-	elif toward_head <= -_END_IS_FLOOR:
-		_ring_to_tail = true
-	_ring_slide = move_toward(_ring_slide, 1.0 if _ring_to_tail else 0.0, dt / _RING_SLIDE_S)
 
 
 ## The share of this much pushing power the grip waves can put into this
@@ -1359,7 +1316,7 @@ func power() -> float:
 ## Radius in metres of the tightest arc the Lithocraft can cut. No command
 ## turns it tighter, however slow or fast it goes.
 func minimum_turn_radius() -> float:
-	return _MIN_TURN_RADIUS_M
+	return ProjectedPath.minimum_turn_radius()
 
 
 ## The Drive's steering effort setting, 0 to 1; see set_steering_effort().
@@ -1390,12 +1347,12 @@ func felt_acceleration() -> Vector3:
 ## other, a dive to a climb or back; level, they stay where they last were.
 ## Every Station stays live through the slide.
 func station_ring() -> float:
-	return smoothstep(0.0, 1.0, _ring_slide)
+	return _ring.place()
 
 
 ## Whether the ring of Stations is sliding from one end to the other now.
 func ring_sliding() -> bool:
-	return _ring_slide != (1.0 if _ring_to_tail else 0.0)
+	return _ring.sliding()
 
 
 ## How hard the Head's grinding is shuddering the vessel now, in m/s^2: there
@@ -1821,57 +1778,10 @@ func heading() -> Vector3:
 ## stretch the way the Head points. Only the Head's place while the vessel is
 ## not moving, or the dive is over.
 func projected_path() -> PackedVector3Array:
-	var path := PackedVector3Array([_position])
 	if _speed <= 0.0 or stranded() or _surfaced or dead():
-		return path
-	var wanted := _wanted_direction()
-	var effort := _effective_steering_effort()
-	var settled := deg_to_rad(_PROJECTION_SETTLED_DEG)
-	var turning := Turning.new(_position, _direction, _bearing, _steering)
-	var since_point := 0.0
-	var length := 0.0
-	var straight_on := false
-	while turning.direction.angle_to(wanted) > settled and length < _PROJECTION_TURN_M:
-		var speed := _speed_while_steering(turning.steering)
-		if speed <= 0.0:
-			break
-		var dt := _PROJECTION_SAMPLE_M / speed
-		var before := turning.position
-		var pointed := turning.direction
-		turning = _turned(turning, wanted, effort, speed, dt)
-		# No steering and none building: the vessel goes straight on and never
-		# comes round, so the rest of the path is the way it points.
-		if turning.steering <= 0.0 and turning.direction.is_equal_approx(pointed):
-			straight_on = true
-			break
-		length += speed * dt
-		since_point += speed * dt
-		if _surfaces_between(before, turning.position):
-			path.append(_at_the_surface(before, turning.position))
-			return path
-		if since_point >= _PROJECTION_SAMPLE_M:
-			since_point = 0.0
-			path.append(turning.position)
-	var from := turning.position
-	if since_point > 0.0:
-		path.append(from)
-	var onward := turning.direction if straight_on else wanted
-	if not straight_on and turning.direction.angle_to(wanted) > settled:
-		return path
-	var end := from + onward * _PROJECTION_STRAIGHT_M
-	path.append(_at_the_surface(from, end) if _surfaces_between(from, end) else end)
-	return path
-
-
-## True when the straight piece from one place to another comes up through
-## the surface.
-static func _surfaces_between(from: Vector3, to: Vector3) -> bool:
-	return from.y < 0.0 and to.y >= 0.0
-
-
-## Where the straight piece from one place to another meets the surface.
-static func _at_the_surface(from: Vector3, to: Vector3) -> Vector3:
-	return from.lerp(to, -from.y / (to.y - from.y))
+		return PackedVector3Array([_position])
+	return ProjectedPath.ahead(_turning(), _wanted_direction(), _effective_steering_effort(),
+			_speed_while_steering)
 
 
 ## The Bore Station's survey so far: one SurveyStretch per completed stretch of
@@ -2433,10 +2343,10 @@ static func _direction_of(heading_degrees: float, pitch_degrees: float) -> Vecto
 
 ## Turns the Head toward the Course (or the Drive's override) for dt seconds at
 ## this speed, and moves it along the arc: one step of the turning rule
-## (_turned()), from where the Head is now.
+## (ProjectedPath.turned()), from where the Head is now.
 func _steer(speed: float, dt: float) -> void:
-	var turned := _turned(Turning.new(_position, _direction, _bearing, _steering),
-			_wanted_direction(), _effective_steering_effort(), speed, dt)
+	var turned := ProjectedPath.turned(_turning(), _wanted_direction(),
+			_effective_steering_effort(), speed, dt)
 	_position = turned.position
 	_direction = turned.direction
 	_bearing = turned.bearing
@@ -2450,78 +2360,9 @@ func _effective_steering_effort() -> float:
 			if autopilot(STATION_DRIVE) else _steering_effort
 
 
-## A Head partway through a turn: where it is (world frame), the way it
-## points, its last compass bearing in degrees and how hard it steers, 0 to 1.
-## What the turning rule (_turned()) steps from and gives back.
-class Turning:
-	extends RefCounted
-	var position: Vector3
-	var direction: Vector3
-	var bearing: float
-	var steering: float
-
-	func _init(p_position: Vector3, p_direction: Vector3, p_bearing: float, p_steering: float) -> void:
-		position = p_position
-		direction = p_direction
-		bearing = p_bearing
-		steering = p_steering
-
-
-## The turning rule, the one both a step (_steer()) and the projected path
-## (projected_path()) run: the Head as `from` has it turns toward `wanted`
-## for dt seconds at this speed and moves along the arc. Returns the Head
-## afterwards, a new Turning. The steering builds toward what
-## the remaining turn needs, no harder than `effort`, at a limited rate, and
-## the path bends by at most speed / minimum radius radians per second, so a
-## stopped vessel cannot turn and none turns tighter than its minimum arc. The
-## Head only ever moves the way it points.
-static func _turned(from: Turning, wanted: Vector3, effort: float, speed: float,
-		dt: float) -> Turning:
-	var position := from.position
-	var direction := from.direction
-	var bearing := from.bearing
-	var steering := from.steering
-	var remaining := direction.angle_to(wanted)
-	var needed := clampf(rad_to_deg(remaining) / _STEER_EASE_DEG, 0.0, effort)
-	# The path bends by the steering's mean over the step (it builds at its
-	# limited rate, then holds), so a long step and many short ones cut the
-	# same arc.
-	var building := minf(absf(needed - steering) / _STEER_RESPONSE, dt)
-	var built := move_toward(steering, needed, _STEER_RESPONSE * dt)
-	var mean := built if dt <= 0.0 else built - (built - steering) * building / (2.0 * dt)
-	steering = built
-	var turn := minf(remaining, mean * speed / _MIN_TURN_RADIUS_M * dt)
-	var before := direction
-	if turn > 0.0:
-		if turn >= remaining:
-			direction = wanted
-		else:
-			direction = direction.rotated(_turn_axis(direction, wanted, bearing), turn).normalized()
-	# Along the arc: the chord points halfway between the two directions and
-	# is a little shorter than the arc.
-	var travelled := speed * dt
-	if turn > 1e-9:
-		var chord := 2.0 * sin(turn / 2.0) / turn
-		position += (before + direction).normalized() * travelled * chord
-	else:
-		position += direction * travelled
-	if Vector2(direction.x, direction.z).length() > 1e-4:
-		bearing = fposmod(rad_to_deg(atan2(direction.x, -direction.z)), 360.0)
-	return Turning.new(position, direction, bearing, steering)
-
-
-## The axis to turn about to bring a Head pointing along `direction` round
-## toward wanted. A straight about-turn goes round sideways when the Head is
-## not vertical, and over the bearing when it points straight up or down.
-static func _turn_axis(direction: Vector3, wanted: Vector3, bearing: float) -> Vector3:
-	var axis := direction.cross(wanted)
-	if axis.length() > 1e-6:
-		return axis.normalized()
-	var sideways := Vector3.UP - direction * direction.dot(Vector3.UP)
-	if sideways.length() > 1e-4:
-		return sideways.normalized()
-	var h := deg_to_rad(bearing)
-	return Vector3(cos(h), 0.0, sin(h)) * signf(-direction.y)
+## The Head as it is now, for the turning rule to step from.
+func _turning() -> ProjectedPath.Turning:
+	return ProjectedPath.Turning.new(_position, _direction, _bearing, _steering)
 
 
 ## Adds the Head's place to the remembered path, merging short or straight
