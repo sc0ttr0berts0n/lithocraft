@@ -2,7 +2,19 @@
 
 **A new Station call.**
 Add an `_offer_call(calls, station, reason, urgency)` in `_update_calls()`, with urgency from `_urgency(_<KIND>_CALL, share)` and a new `const _<KIND>_CALL := Vector2(begins, worst)` beside the others, never an inline number.
-A call that begins or changes reason raises `&"station_call"` and drops the time rate to 1.
+A call that begins or changes reason raises `&"station_call"` and sounds (`call_sounding()`).
+Every call is a warning (`call_warns()`) but those in `_REPORTS`, today only `&"feature_in_column"`: science never touches the time rate.
+A warning that begins, changes reason or sounds again drops the time rate to 1, and `set_time_rate()` refuses a raised rate while any warning sounds; stranded or self-destructing, neither holds.
+A new call that only reports goes in `_REPORTS`; anything that puts the vessel at risk stays a warning.
+
+**The master acknowledge.**
+`acknowledge_calls()` (/, anywhere) silences every call now sounding; it is no Station's command, so no autopilot lets go, and it works stranded and self-destructing alike.
+An acknowledged call still shows (`call_urgency()`, `call_reason()`); it sounds again when its reason changes, when it has grown `_CALL_SOUNDS_AGAIN_RISE` more urgent since the acknowledge, or when it ends and comes back.
+The view reads the three queries: a sounding warning beats its tone and flashes its light, a sounding report chimes once, and a call that shows but does not sound keeps its light lit, steady and silent (`GimballedStation.set_call()`); while any call sounds, every screen's footer names the key.
+
+**The Boundary call waits for a ready crew.**
+While STANDBY's predicted Residual is inside the Band (`residual(CHANNEL_STANDBY) <= band()`), the Reactor's `&"boundary_approaching"` waits until `boundary_countdown()` is within `_BOUNDARY_CALL_READY_S` (`_boundary_call_waits()`); untuned or unscanned (the Residual NAN) it comes when the Boundary is announced.
+It reads the countdown and the guess through their queries, so a misleading scan holds the call back as it misleads both.
 
 **Autopilots.**
 Each Station's autopilot is a switch, A320 style: `set_autopilot(station, engaged)` (E at every Station), read with `autopilot(station)`.

@@ -22,6 +22,60 @@ func _one_boundary(at := 20.0, below: Medium = null) -> DiveSimulation:
 	return sim
 
 
+## Uniform rock with a feature of interest a few metres down, under way at a
+## power that raises no other call.
+func _with_a_feature() -> DiveSimulation:
+	var layout := MediumLayout.uniform(DiveTestKit.rock(2.0, 2.0, 0.3)).with_features([[5.0, ColumnFeature.quartz_vein()]])
+	var sim := DiveSimulation.new(layout)
+	sim.set_power(0.4)
+	return sim
+
+
+## Under way far above any Boundary, ACTIVE's amplitude off the Wobble's by
+## `bands` Bands: outside the Band by that much less one.
+func _out_of_band(bands: float) -> DiveSimulation:
+	var sim := _one_boundary(600.0)
+	sim.advance(0.1)
+	_detune(sim, bands)
+	sim.advance(0.1)
+	return sim
+
+
+static func _detune(sim: DiveSimulation, bands: float) -> void:
+	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_ACTIVE, DiveTestKit.wobble(sim) + Vector2(0.0, bands * sim.band()))
+
+
+## The Stations whose call sounds now.
+static func _sounding(sim: DiveSimulation) -> Array:
+	return DiveSimulation.STATIONS.filter(func(station: StringName) -> bool: return sim.call_sounding(station))
+
+
+## Under way in soft rock above one Boundary into hard rock that a pulse
+## carries well, after a Quiet Ship scan, so the scan has a guess of the
+## Wobble beyond; STANDBY pretuned against it or left as it starts. At low
+## power, so the Boundary is announced well before the crossing.
+func _scanned_above_a_boundary(pretuned: bool) -> DiveSimulation:
+	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, DiveTestKit.soft(0.6)], [80.0, DiveTestKit.hard(0.6)]]))
+	sim.set_power(0.15)
+	DiveTestKit.run(sim, 5.0, 0.1)
+	DiveTestKit.quiet_scan(sim, 6)
+	if pretuned:
+		DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_ahead(sim))
+	return sim
+
+
+## Runs until the Reactor calls for the Boundary ahead, or the Boundary is
+## crossed first; returns the depth of the Head then and whether it was the
+## call.
+static func _until_the_boundary_call(sim: DiveSimulation) -> Dictionary:
+	for i in 60000:
+		sim.advance(0.1)
+		var crossed := DiveTestKit.types(sim.take_events()).has(&"boundary_crossed")
+		if sim.call_reason(DiveSimulation.STATION_REACTOR) == &"boundary_approaching" or crossed:
+			return {depth = sim.depth(), called = not crossed}
+	return {depth = sim.depth(), called = false}
+
+
 func _calls(events: Array, station: StringName) -> Array:
 	return events.filter(func(e: Dictionary) -> bool:
 		return e.type == &"station_call" and e.station == station)
@@ -54,7 +108,7 @@ func test_the_time_rate_is_never_below_normal_nor_above_its_maximum() -> void:
 	assert_float(sim.time_rate()).is_equal(sim.max_time_rate())
 
 
-func test_a_station_call_returns_the_time_rate_to_normal() -> void:
+func test_a_warning_returns_the_time_rate_to_normal() -> void:
 	var sim := _one_boundary(200.0)
 	sim.set_time_rate(sim.max_time_rate())
 	var seen := []
@@ -69,7 +123,7 @@ func test_a_station_call_returns_the_time_rate_to_normal() -> void:
 	assert_bool(sim.out_of_band()).is_false()
 
 
-func test_the_time_rate_cannot_be_raised_while_a_station_is_still_calling() -> void:
+func test_the_time_rate_cannot_be_raised_while_a_warning_sounds() -> void:
 	var sim := _one_boundary(200.0)
 	sim.set_time_rate(sim.max_time_rate())
 	DiveTestKit.run_until(sim, &"station_call", 600.0, [], 1.0 / 60.0)
@@ -221,3 +275,136 @@ func test_the_bore_station_calls_for_a_feature_in_the_column_until_observed() ->
 	sim.set_observed_feature(sim.features_in_column()[0].id)
 	sim.advance(0.1)
 	assert_float(sim.call_urgency(DiveSimulation.STATION_BORE)).is_equal(0.0)
+
+
+# --- Science leaves the time rate alone --------------------------------------
+
+func test_a_feature_entering_the_column_leaves_a_raised_time_rate_as_it_is_and_still_calls_the_bore_station() -> void:
+	var sim := _with_a_feature()
+	sim.set_time_rate(sim.max_time_rate())
+	for i in 6000:
+		sim.advance(1.0 / 60.0)
+		if sim.call_reason(DiveSimulation.STATION_BORE) == &"feature_in_column":
+			break
+
+	assert_str(String(sim.call_reason(DiveSimulation.STATION_BORE))).is_equal("feature_in_column")
+	assert_float(sim.call_urgency(DiveSimulation.STATION_BORE)).is_greater(0.0)
+	assert_bool(sim.call_sounding(DiveSimulation.STATION_BORE)).is_true()
+	assert_bool(sim.call_warns(DiveSimulation.STATION_BORE)).is_false()
+	assert_float(sim.time_rate()).is_equal(sim.max_time_rate())
+	# Nor does it hold the rate down, unacknowledged.
+	sim.set_time_rate(1.0)
+	sim.set_time_rate(sim.max_time_rate())
+	assert_float(sim.time_rate()).is_equal(sim.max_time_rate())
+
+
+# --- The master acknowledge ---------------------------------------------------
+
+func test_after_the_acknowledge_no_call_sounds_and_each_acknowledged_call_still_shows() -> void:
+	var sim := _with_a_feature()
+	while sim.call_reason(DiveSimulation.STATION_BORE) != &"feature_in_column":
+		sim.advance(0.1)
+	_detune(sim, 1.5)
+	sim.advance(0.1)
+	assert_array(_sounding(sim)).contains_exactly_in_any_order([DiveSimulation.STATION_REACTOR, DiveSimulation.STATION_BORE])
+
+	sim.acknowledge_calls()
+	sim.advance(0.1)
+
+	assert_array(_sounding(sim)).is_empty()
+	assert_str(String(sim.call_reason(DiveSimulation.STATION_REACTOR))).is_equal("out_of_band")
+	assert_str(String(sim.call_reason(DiveSimulation.STATION_BORE))).is_equal("feature_in_column")
+	assert_float(sim.call_urgency(DiveSimulation.STATION_REACTOR)).is_greater(0.0)
+	assert_float(sim.call_urgency(DiveSimulation.STATION_BORE)).is_greater(0.0)
+
+
+func test_an_acknowledged_call_stays_silent_while_it_holds_and_sounds_again_once_it_grows_more_urgent() -> void:
+	var sim := _out_of_band(1.2)
+	sim.acknowledge_calls()
+	DiveTestKit.run(sim, 5.0, 0.1)
+	assert_bool(sim.call_sounding(DiveSimulation.STATION_REACTOR)).is_false()
+
+	_detune(sim, 4.0)  # The Residual now far outside the Band: the Head grinds.
+	sim.advance(0.1)
+
+	assert_str(String(sim.call_reason(DiveSimulation.STATION_REACTOR))).is_equal("out_of_band")
+	assert_bool(sim.call_sounding(DiveSimulation.STATION_REACTOR)).is_true()
+
+
+func test_an_acknowledged_call_sounds_again_when_its_reason_changes_even_to_a_less_urgent_one() -> void:
+	var sim := _one_boundary(60.0)
+	sim.advance(0.1)
+	_detune(sim, 1.5)
+	sim.advance(0.1)
+	sim.acknowledge_calls()
+	var acknowledged := sim.call_urgency(DiveSimulation.STATION_REACTOR)
+	DiveTestKit.run_until(sim, &"boundary_approaching")
+	sim.advance(0.1)
+	assert_str(String(sim.call_reason(DiveSimulation.STATION_REACTOR))).is_equal("out_of_band")
+	assert_bool(sim.call_sounding(DiveSimulation.STATION_REACTOR)).is_false()
+
+	DiveTestKit.cancel_wobble(sim)  # Back inside the Band, the Boundary still ahead.
+	sim.advance(0.1)
+
+	assert_str(String(sim.call_reason(DiveSimulation.STATION_REACTOR))).is_equal("boundary_approaching")
+	assert_float(sim.call_urgency(DiveSimulation.STATION_REACTOR)).is_less(acknowledged)
+	assert_bool(sim.call_sounding(DiveSimulation.STATION_REACTOR)).is_true()
+
+
+func test_a_call_that_ends_and_comes_back_sounds_again() -> void:
+	var sim := _out_of_band(1.5)
+	sim.acknowledge_calls()
+	DiveTestKit.cancel_wobble(sim)
+	sim.advance(0.1)
+	assert_float(sim.call_urgency(DiveSimulation.STATION_REACTOR)).is_equal(0.0)
+
+	_detune(sim, 1.5)
+	sim.advance(0.1)
+
+	assert_bool(sim.call_sounding(DiveSimulation.STATION_REACTOR)).is_true()
+
+
+# --- The time rate after a warning -------------------------------------------
+
+func test_a_raised_time_rate_is_refused_while_a_warning_sounds_and_allowed_once_it_is_acknowledged() -> void:
+	var sim := _out_of_band(1.5)
+	sim.set_time_rate(sim.max_time_rate())
+	assert_float(sim.time_rate()).is_equal(1.0)
+
+	sim.acknowledge_calls()
+	sim.set_time_rate(sim.max_time_rate())
+	sim.advance(1.0 / 60.0)
+
+	assert_str(String(sim.call_reason(DiveSimulation.STATION_REACTOR))).is_equal("out_of_band")
+	assert_float(sim.time_rate()).is_equal(sim.max_time_rate())
+
+
+func test_an_acknowledged_warning_that_grows_more_urgent_drops_a_raised_time_rate_again() -> void:
+	var sim := _out_of_band(1.2)
+	sim.acknowledge_calls()
+	sim.set_time_rate(sim.max_time_rate())
+	sim.advance(1.0 / 60.0)
+	assert_float(sim.time_rate()).is_equal(sim.max_time_rate())
+
+	_detune(sim, 4.0)
+	sim.advance(1.0 / 60.0)
+
+	assert_float(sim.time_rate()).is_equal(1.0)
+	sim.set_time_rate(sim.max_time_rate())
+	assert_float(sim.time_rate()).is_equal(1.0)
+
+
+# --- The Boundary call waits for a crew that is ready ------------------------
+
+func test_with_standby_inside_the_band_against_the_guess_the_boundary_call_begins_later_than_untuned() -> void:
+	var tuned := _scanned_above_a_boundary(true)
+	var untuned := _scanned_above_a_boundary(false)
+	assert_float(tuned.residual(DiveSimulation.CHANNEL_STANDBY)).is_less_equal(tuned.band())
+	assert_float(untuned.residual(DiveSimulation.CHANNEL_STANDBY)).is_greater(untuned.band())
+
+	var tuned_call := _until_the_boundary_call(tuned)
+	var untuned_call := _until_the_boundary_call(untuned)
+
+	assert_bool(untuned_call.called).is_true()
+	assert_bool(tuned_call.called).override_failure_message("the tuned crew's call never came before the crossing").is_true()
+	assert_float(tuned_call.depth).is_greater(untuned_call.depth)

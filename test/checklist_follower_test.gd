@@ -175,7 +175,9 @@ static func _first_dive_table() -> Dictionary:
 ## Plays this dive by its Checklist alone: reads the next step, has the
 ## table's entry for it send its command, and steps time until the step ticks,
 ## time run fast between calls as the crew's own time key does (it is no
-## Station's command) except for a step its entry works at the normal rate. Stops when the Checklist has no step left, or at the
+## Station's command) except for a step its entry works at the normal rate,
+## and while the phase has a feature still to observe (_observing_ahead()).
+## It never acknowledges a call: no step says to. Stops when the Checklist has no step left, or at the
 ## first thing that fails the follower, which `failure` then says: a step with
 ## no entry in `table` (named), an entry whose action is not the one its step
 ## names, a step that did not tick within its time limit (named, with its
@@ -210,7 +212,8 @@ static func _follow(sim: DiveSimulation, table: Dictionary) -> Dictionary:
 					where, table[id].get("limit", STEP_LIMIT_S), sim.depth(), sim.medium().name]
 		else:
 			table[id].follow.call(sim)
-			sim.set_time_rate(sim.max_time_rate() if table[id].get("fast", true) else 1.0)
+			var fast: bool = table[id].get("fast", true) and not _observing_ahead(sim)
+			sim.set_time_rate(sim.max_time_rate() if fast else 1.0)
 			waited += LOOK_S * sim.time_rate()
 			sim.advance(LOOK_S)
 			for event in sim.take_events():
@@ -219,6 +222,16 @@ static func _follow(sim: DiveSimulation, table: Dictionary) -> Dictionary:
 					failure = "The step \"%s\" of the phase \"%s\" was missed: the phase \"%s\" began with it still to do (at %.0f m, in %s)" % [
 							event.id, sim.checklist()[event.phase].title, DiveTestKit.phase_title(sim), sim.depth(), sim.medium().name]
 	return {sim = sim, events = events, failure = failure}
+
+
+## True while the phase now running has a step still to do that observes a
+## feature. A feature's call leaves the time rate alone (#115), and at a
+## raised rate one can come and go through the Column between two looks, so
+## a crew whose Checklist asks it to observe one in this rock watches the
+## Column at the normal rate.
+static func _observing_ahead(sim: DiveSimulation) -> bool:
+	var steps: Array = sim.checklist()[sim.checklist_phase()].steps
+	return steps.any(func(step: Dictionary) -> bool: return step.action == &"observe" and step.state == DiveSimulation.STEP_PENDING)
 
 
 ## The First dive followed from its start, after `first` (the one wrong key,

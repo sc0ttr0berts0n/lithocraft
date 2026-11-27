@@ -45,6 +45,9 @@ const CALL_BEAT_CALM_S := 1.4
 const CALL_BEAT_URGENT_S := 0.3
 const CALL_LIGHT_ENERGY := 2.5
 const CALL_LIGHT_FADE_S := 0.25
+## The call light's glow, held steady, while its call shows but does not
+## sound: acknowledged, or a feature's chime rung. Dimmer than a beat's flash.
+const CALL_LIGHT_HELD_ENERGY := 0.8
 ## How far up the call tone climbs at full urgency, as a pitch scale.
 const CALL_PITCH_RISE := 0.5
 ## Sample rate and pip shape of the call tone.
@@ -96,8 +99,13 @@ var _disengage_sound: AudioStreamPlayer3D
 ## frame from the simulation), and seconds since it last let go.
 var autopilot := false
 var _since_disengaged := INF
-## How urgently the Station calls, 0 (not calling) to 1.
+## How urgently the Station calls, 0 (not calling) to 1; whether the call
+## sounds (not yet acknowledged) and whether it is a warning, which beats,
+## or a report, which chimes once.
 var _urgency := 0.0
+var _sounding := false
+var _warns := true
+var _chimed := false
 var _until_beat := 0.0
 ## Share of the power it asks for the Station is getting, 0 to 1. Below 1 its
 ## screen browns out: dimmer the less it gets, and flickering.
@@ -160,23 +168,40 @@ func _process(delta: float) -> void:
 	if _keys_material:
 		_keys_material.albedo_color = Color(dim, dim, dim)
 	_show_header()
-	_call_light.light_energy *= exp(-delta / CALL_LIGHT_FADE_S)
-	if _urgency <= 0.0:
+	var held := CALL_LIGHT_HELD_ENERGY if _urgency > 0.0 else 0.0
+	_call_light.light_energy = maxf(held, _call_light.light_energy * exp(-delta / CALL_LIGHT_FADE_S))
+	if _urgency <= 0.0 or not _sounding:
 		_until_beat = 0.0
+		_chimed = false
+		return
+	if not _warns:
+		if not _chimed:
+			_chimed = true
+			_beat()
 		return
 	_until_beat -= delta
 	if _until_beat <= 0.0:
 		_until_beat = beat_seconds(_urgency)
-		_call_light.light_energy = CALL_LIGHT_ENERGY
-		_call_sound.pitch_scale = pitch_scale(_urgency)
-		_call_sound.play()
+		_beat()
 
 
-## Call for attention, 0 (stop) to 1 (most urgent): a beat of the Station's
-## own tone and a flash of its own light, faster and higher the more urgent.
+## One beat of the call: the Station's tone and a flash of its light.
+func _beat() -> void:
+	_call_light.light_energy = CALL_LIGHT_ENERGY
+	_call_sound.pitch_scale = pitch_scale(_urgency)
+	_call_sound.play()
+
+
+## Call for attention, 0 (stop) to 1 (most urgent). A warning that sounds
+## beats the Station's own tone and flashes its own light, faster and higher
+## the more urgent; a report that sounds (`warns` false: a feature in the
+## Column) chimes once. Once it no longer sounds (acknowledged), or after the
+## chime, the light stays lit, steady and silent, until the call ends.
 ## Nothing is drawn over the view; the screen says why.
-func set_call(urgency: float) -> void:
+func set_call(urgency: float, sounding := true, warns := true) -> void:
 	_urgency = clampf(urgency, 0.0, 1.0)
+	_sounding = sounding
+	_warns = warns
 
 
 func is_calling() -> bool:
