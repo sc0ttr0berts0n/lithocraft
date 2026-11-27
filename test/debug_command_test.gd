@@ -251,14 +251,17 @@ func test_detuning_active_now_puts_the_residual_outside_the_band() -> void:
 
 
 func test_jumping_to_the_next_boundary_crosses_it_and_stops_short_of_the_one_after() -> void:
-	var sim := DiveSimulation.new(MediumLayout.first_dive())
-	var boundaries := MediumLayout.first_dive().boundary_depths()
+	var layout := MediumLayout.first_dive()
+	var sim := DiveSimulation.new(layout)
 	var first := sim.medium().name
+	# The first dive's Boundaries are wavy: each lies where it does under the Head.
+	var under_head := func(index: int) -> float:
+		return layout.boundary_depth_at(index, sim.head_position().x, sim.head_position().z)
 
 	sim.debug_next_boundary()
 
-	assert_float(sim.depth()).is_greater(boundaries[0])
-	assert_float(sim.depth()).is_less(boundaries[1])
+	assert_float(sim.depth()).is_greater(under_head.call(0))
+	assert_float(sim.depth()).is_less(under_head.call(1))
 	assert_str(String(sim.medium().name)).is_not_equal(String(first))
 	assert_array(DiveTestKit.types(sim.take_events())).contains([&"boundary_crossed"])
 	# The Head cut its way there: the Column passed is recorded, and the
@@ -269,7 +272,7 @@ func test_jumping_to_the_next_boundary_crosses_it_and_stops_short_of_the_one_aft
 
 	sim.debug_next_boundary()
 
-	assert_float(sim.depth()).is_greater(boundaries[1])
+	assert_float(sim.depth()).is_greater(under_head.call(1))
 
 
 func test_jumping_climbing_crosses_the_boundary_above() -> void:
