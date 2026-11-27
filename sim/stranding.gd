@@ -32,7 +32,7 @@ const DIED := &"died"
 const _HEAD_REPAIR_COST := 500.0
 ## Energy the emergency store holds when full, in the units of set_power()
 ## times seconds: a couple of relights, or the slow link for an hour or so,
-## not both. Tuned for play (ADR 0001). Real basis: a tokamak cannot restart
+## not both. Tuned for play (ADR 0001). Real basis: a tokamak cannot relight
 ## itself; JET struck its plasmas from huge flywheel generators.
 const _STORE_CAPACITY := 100.0
 ## What repairing a hull worn through costs, in the units of paid(), charged

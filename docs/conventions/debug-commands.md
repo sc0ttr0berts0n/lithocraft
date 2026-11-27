@@ -12,3 +12,5 @@ Each is tested in `debug_command_test.gd` to reach the state it names.
 A new one: a `debug_*` method here with a test, then a key in the debug menu (see Key map).
 `debug_next_scan_view()` is the one that sets nothing of the dive: it picks which candidate view Navigation's scan display draws (`scan_view()`), is held by the simulation so a screenshot can send it with `--do`, and has its own key (F4, anywhere) outside the menu, whose numpad is full.
 Crew-facing code and tests of the game never call them.
+A test enforces the tests' half: `test_no_test_of_the_game_calls_a_debug_command` (`test/convention_test.gd`) reads every script under `test/` and fails on a `debug_*` call, or a `DiveSimulation` debug command named in a string (the screenshot tool's `--do`).
+Its allow-lists are `DEBUG_SUITES` (suites that test debug commands themselves) and `DEBUG_CALLS` (the calls other suites make today, by file and command), each entry with its reason; an entry no test uses any more fails too.

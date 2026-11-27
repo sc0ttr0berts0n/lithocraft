@@ -97,7 +97,7 @@ const _DEBUG_DETUNE := 1.3
 ## A relight: the energy of the pulse that strikes the plasma again, in the
 ## units of set_power() times seconds, and the chance it takes on a fresh Head
 ## and on one worn through (between, it falls with the wear). Real basis: a
-## tokamak cannot restart itself; striking a plasma takes a large pulse of
+## tokamak cannot relight itself; striking a plasma takes a large pulse of
 ## stored energy, and a worn wall fouls it with impurities that can stop it
 ## taking. Tuned for play (ADR 0001): a healthy Head almost always relights.
 const _RELIGHT_PULSE := 40.0

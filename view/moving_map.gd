@@ -8,7 +8,7 @@
 ## so a Station screen can show it as a texture.
 ##
 ## Across is distance over the ground along the track, unrolled: the path's
-## turns in heading are straightened out, as a profile along a route is. A
+## turns in heading are straightened out, as a road's profile is. A
 ## patch of an Inferred Boundary is placed across by how far ahead of the
 ## Head its corners lie along the heading now.
 ##
