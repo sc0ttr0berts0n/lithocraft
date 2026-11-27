@@ -74,7 +74,7 @@ code=$?
 # GdUnit colours every line; strip the colour codes and carriage returns, then
 # keep only the reports of what failed and the totals.
 esc=$(printf '\033')
-sed -e "s/$esc\[[0-9;]*[A-Za-z]//g" -e 's/\r$//' "$log" | awk -v code="$code" -v log_path="$log" '
+tr -d '\r' <"$log" | sed "s/$esc\[[0-9;]*[A-Za-z]//g" | awk -v code="$code" -v log_path="$log" '
   function trimmed(text) {
     sub(/^[ \t]+/, "", text)
     return text
