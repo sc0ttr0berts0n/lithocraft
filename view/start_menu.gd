@@ -80,3 +80,14 @@ func _start(index: int) -> void:
 	tree.root.add_child(habitat)
 	tree.current_scene = habitat
 	queue_free()
+
+
+# Deliberately broken: shows the CI job turns red on a script error in a scene (#72). Never merged.
+var _ci_red_frames := 0
+
+
+func _process(_delta: float) -> void:
+	_ci_red_frames += 1
+	if _ci_red_frames == 60:
+		var nothing: Node = null
+		nothing.queue_free()
