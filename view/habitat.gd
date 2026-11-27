@@ -1233,7 +1233,8 @@ func _build_room() -> void:
 	outer.flip_faces = true
 	_add_along_axis(outer, _surface(Color(0.17, 0.2, 0.22)), 0.0)
 
-	# The Bore: glass round the Column, which stays in view from anywhere.
+	# The Bore: glass round the Column, which stays in view from anywhere. The
+	# glass is clear over the Column (BoreGlass), so its colours are as painted.
 	var column := MeshInstance3D.new()
 	column.mesh = _column_tube()
 	column.material_override = _column_material()
@@ -1244,10 +1245,7 @@ func _build_room() -> void:
 	glass.height = LENGTH
 	glass.cap_top = false
 	glass.cap_bottom = false
-	var glass_material := _surface(Color(0.62, 0.85, 1.0, 0.15))
-	glass_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	glass_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_add_along_axis(glass, glass_material, 0.0)
+	_add_along_axis(glass, BoreGlass.material(COLUMN_RADIUS, BORE_RADIUS), 0.0)
 	var ring := TorusMesh.new()
 	ring.inner_radius = BORE_RADIUS + 0.005
 	ring.outer_radius = BORE_RADIUS + 0.035
