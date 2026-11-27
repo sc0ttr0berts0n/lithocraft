@@ -1,12 +1,15 @@
 # The Drive's screen
 
-- The Drive's screen is a primary flight display (`FlightDisplay`, `view/flight_display.gd`), a picture drawn in its own `SubViewport`: attitude (pitch ladder), speed and depth tapes, heading tape, power, grip and steering, each read from the simulation's queries every frame;
+- The Drive's screen is a primary flight display (`FlightDisplay`, `view/flight_display.gd`), a picture drawn in its own `SubViewport`: the attitude ball, speed and depth tapes, heading tape, power, grip and steering, each read from the simulation's queries every frame;
   its status lines are the Course, written as Navigation's screen writes it (`habitat.gd::_course_line()`), then whether the Drive follows it or how far off it steers (or how the dive ended).
   A tape's scale is a `FlightTape`: the reading stays at its middle, a value's place is `place(value, reading)` (the short way round on the compass), and a bug off the tape is `pinned()` to its nearer end.
-  While the Drive steers straight up or down, the heading tape shows the lean (`lean()`) as a hollow cyan pointer over its edge, pinned inside the tape, and "LEAN 030" at its left; until #119's ball shows it at the pole.
-  On the attitude indicator a mark lies aside by `FlightTape.sideways()`, the true angle off the vessel's vertical plane, not the bare heading difference, which means nothing in a steep dive.
+- **The attitude ball** (#119) is a sphere fixed to the world, marked in pitch and heading, seen along where the Head points, so the vessel's white mark is fixed at its middle; its geometry is `AttitudeBall` (`view/attitude_ball.gd`), plain data tested directly, places on the unit disc that `FlightDisplay` scales by `ball_radius()`.
+  Its face is turned so the surface's way along the Head's own meridian is up, the Head's heading (the last one while vertical) running through the middle; straight down the rock's pole is the middle and the heading points up from it, so it has no dead spot.
+  On it, each through `_on_ball()`: the Course's cross, what the Drive steers for hollow while off it, and while the Drive steers straight up or down a hollow cyan arrow from the pole along the lean's meridian (`lean()`), the way a pitch nudge tilts; a mark behind the ball is pinned to its rim on its side (`AttitudeBall.place()`).
+  Its four corners hold figures, legend over value: PITCH top left, COURSE (its pitch) top right, LEAN bottom left while vertical; the bottom right corner is free for #126's figure, and its marker is one more `_on_ball()` call.
+  Ball labels go through `_label()`, which drops one that would lie on another or on the vessel's mark.
   The Course is always cyan (`StationTheme.SELECTED_COLOUR`), what the Drive steers for off it hollow in the same cyan (both are what the crew has selected), and where the Head points white.
 - The deviation is stated in one set of words on every screen that states it (`CourseDeviation`, `view/course_deviation.gd`: "30 deg up, 15 deg right", from `deviation_pitch()` and `deviation_heading()`):
-  at the foot of the Drive's attitude indicator beside the hollow mark ("OFF COURSE 30 deg up"), in the Drive's status line ("off Course: 30 deg up") and in Navigation's second status line ("Drive is off the Course by 30 deg up", else "Drive follows the Course" in green).
+  in the ball's foot, "OFF COURSE" beside the hollow mark over the words, shrunk by `FlightDisplay.fitting_size()` only if they would not fit whole (else FOLLOWS THE COURSE in green), in the Drive's status line ("off Course: 30 deg up") and in Navigation's second status line ("Drive is off the Course by 30 deg up", else "Drive follows the Course" in green).
   `course_deviation_test.gd` stages a Habitat and fails if the two screens differ on the Course or the deviation; a new screen that shows either uses `_course_line()` and `CourseDeviation`.
-  Pitch follows the simulation's sign (+ diving), so diving rungs lie below the horizon, as nose-down ones do on an airliner's.
+  Pitch follows the simulation's sign (+ diving), so steeper directions lie below the middle and the rock's half below the horizon.
