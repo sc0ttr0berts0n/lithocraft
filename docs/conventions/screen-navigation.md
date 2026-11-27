@@ -6,6 +6,7 @@
   The plan and section pair is a top-down view beside a side-on one, ahead to the right in both and at one scale, nothing in 3D.
   The world-up 3D view has deeper always lower and goes round only with the compass heading.
   The debug key F4 (anywhere, `debug_next_scan_view()`) flips to the next, and the display's caption names the one shown, its number and the key.
+  Surface control's survey points are drawn apart from the vessel's own in all three, hollow, small and faint in the legend's grey (`ScanDisplay.SURVEY_PX`, `SURVEY_ALPHA`), since they are one branch of `_draw_scan()`; `navigation.txt`'s "survey beside own" tiles show them.
   How the views are drawn, and the rules for changing them: `docs/conventions/scan.md`, "Drawing the scan".
 - The Beam shows in every view as its cone (faint cyan fans out to `beam_reach()`) and the label `beam_label()` ("BEAM NARROW 30 deg") in the display's lower left; Navigation's status lines give it a line of its own (width, cone, reach, and "pulses as it goes" or "by hand only"), so the screen has five lines (`NAVIGATION_LINES`).
 - Navigation's moving map (`MovingMap`, `view/moving_map.gd`) is a 2D cross-section of the whole dive, redrawn a few times a second: across is ground distance along the unrolled track (`MovingMap.profile()` of `remembered_path()`, the simulation's perfect record of the path), down is depth, at one scale both ways.

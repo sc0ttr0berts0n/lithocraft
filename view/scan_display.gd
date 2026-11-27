@@ -3,8 +3,9 @@
 ## key until one is picked (DiveSimulation.scan_view(), the forward scope
 ## when a dive starts). Each shows the same things from the same queries: the
 ## vessel, the Course (dashed cyan), the projected path (solid cyan), the
-## Beam's cone at its width (faint cyan, out to its reach), the points and the
-## Inferred Boundaries; a label in the lower left names the Beam's width.
+## Beam's cone at its width (faint cyan, out to its reach), the points
+## (surface control's survey hollow and fainter than the vessel's own) and
+## the Inferred Boundaries; a label in the lower left names the Beam's width.
 ##
 ##   forward scope     the vessel's own vertical plane with ahead up the
 ##                     screen and range rings about the Head, as a
@@ -52,6 +53,12 @@ const CERTAIN := StationTheme.NOW_COLOUR
 const POINT_PX := Vector2(3.0, 6.0)
 const POINT_ALPHA := Vector2(0.7, 1.0)
 const POINT_LEAST_ALPHA := 0.3
+## A point of surface control's survey (ScanPoint.surveyed): a hollow square
+## of the legend's grey, this many pixels on a side and this opaque, fainter
+## than any of the vessel's own echoes and never filled, so the crew sees
+## where its own scan has replaced the survey.
+const SURVEY_PX := 5.0
+const SURVEY_ALPHA := 0.45
 ## Seconds for a point to fade to about a third of its brightness: an old echo
 ## describes rock the vessel has since moved relative to.
 const FADE_S := 90.0
@@ -374,6 +381,10 @@ func _draw_scan(canvas: Control, place: Callable, heading_m := HEADING_M) -> voi
 	for point in _points:
 		var at: Vector2 = place.call(point.position - head)
 		if not within.has_point(at):
+			continue
+		if point.surveyed:
+			canvas.draw_rect(Rect2(at - Vector2.ONE * SURVEY_PX * 0.5, Vector2.ONE * SURVEY_PX),
+					StationTheme.faded(DOUBTFUL, SURVEY_ALPHA), false, 1.0)
 			continue
 		var colour := DOUBTFUL.lerp(CERTAIN, point.confidence)
 		colour.a = maxf(lerpf(POINT_ALPHA.x, POINT_ALPHA.y, point.confidence)
