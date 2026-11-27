@@ -7,20 +7,9 @@ const ACTIVE := DiveSimulation.CHANNEL_ACTIVE
 const STANDBY := DiveSimulation.CHANNEL_STANDBY
 
 
-## Test values only: two Media strong enough that the grip waves never slip,
-## one soft and weaker, one hard and stronger, so crossing between them
-## changes the Wobble's frequency and its amplitude.
-func _soft() -> Medium:
-	return Medium.new(&"soft", 1.0, 3.0, 0.3, 300.0, 1.0, {&"quartz": 1.0}, 0.5)
-
-
-func _hard() -> Medium:
-	return Medium.new(&"hard", 4.0, 6.0, 0.3, 300.0, 1.0, {&"feldspar": 1.0}, 0.5)
-
-
 ## Soft rock with one Boundary into hard rock at this depth.
 func _one_boundary(at := 20.0) -> DiveSimulation:
-	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, _soft()], [at, _hard()]]))
+	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, DiveTestKit.soft()], [at, DiveTestKit.hard()]]))
 	sim.set_power(0.5)
 	return sim
 
@@ -316,7 +305,7 @@ func test_the_band_is_narrower_hot_than_cool_and_widens_again_as_the_hull_cools(
 ## A dive at this power toward a deep Boundary, so the hull settles hot or
 ## cool.
 func _hot_or_cool(power: float) -> DiveSimulation:
-	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, _soft()], [3000.0, _hard()]]))
+	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, DiveTestKit.soft()], [3000.0, DiveTestKit.hard()]]))
 	sim.set_power(power)
 	return sim
 
@@ -413,8 +402,9 @@ func test_every_cause_at_once_is_reported_one_by_one() -> void:
 
 func test_a_lost_plasma_reports_no_cause() -> void:
 	var sim := _at_rest()
-	sim.debug_lose_plasma()
+	DiveTestKit.lose_plasma(sim)
 
+	assert_bool(sim.plasma_lost()).is_true()
 	assert_array(sim.steadiness_causes()).is_empty()
 
 
@@ -481,7 +471,7 @@ func test_the_reactors_autopilot_tunes_active_back_inside_the_band_wearing_the_h
 	assert_bool(sim.plasma_lost()).is_false()
 	assert_bool(sim.autopilot(DiveSimulation.STATION_REACTOR)).is_true()
 	# It makes no Shift: STANDBY is as the crew left it.
-	assert_float(sim.counter_wave_frequency(STANDBY)).is_equal_approx(DiveTestKit.wobble_in(_soft()).x, 1e-6)
+	assert_float(sim.counter_wave_frequency(STANDBY)).is_equal_approx(DiveTestKit.wobble_in(DiveTestKit.soft()).x, 1e-6)
 
 
 func test_the_reactors_autopilot_wears_the_head_less_than_leaving_it_and_more_than_a_prepared_swap() -> void:
@@ -523,7 +513,7 @@ func test_engaging_the_reactors_autopilot_never_changes_head_wear_in_that_step()
 func _many_boundaries() -> DiveSimulation:
 	var layers := []
 	for i in 40:
-		layers.append([i * 15.0, _soft() if i % 2 == 0 else _hard()])
+		layers.append([i * 15.0, DiveTestKit.soft() if i % 2 == 0 else DiveTestKit.hard()])
 	var sim := DiveSimulation.new(MediumLayout.layered(layers))
 	sim.set_power(1.0)
 	return sim
@@ -549,7 +539,7 @@ func test_left_to_the_autopilot_boundary_after_boundary_wears_the_head_until_the
 
 func test_prepared_swaps_at_every_crossing_never_wear_the_head() -> void:
 	var sim := _many_boundaries()
-	DiveTestKit.tune(sim, STANDBY, DiveTestKit.wobble_in(_hard()))
+	DiveTestKit.tune(sim, STANDBY, DiveTestKit.wobble_in(DiveTestKit.hard()))
 	for i in 10:
 		DiveTestKit.run_until(sim, &"boundary_crossed", 20000.0, [], 0.25)
 		# The old ACTIVE, dropped to STANDBY, is ready for the rock after.
@@ -571,7 +561,7 @@ func test_a_boundary_crossed_with_the_hull_hot_wears_the_head_more() -> void:
 ## Dives at this power to a deep Boundary, so the hull settles hot or cool,
 ## then lets the autopilot tune ACTIVE back inside the Band.
 func _crossed_hot_or_cool(power: float) -> DiveSimulation:
-	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, _soft()], [300.0, _hard()]]))
+	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, DiveTestKit.soft()], [300.0, DiveTestKit.hard()]]))
 	sim.set_power(power)
 	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
 	DiveTestKit.run_until(sim, &"boundary_crossed", 20000.0, [], 0.25)
@@ -659,7 +649,7 @@ func test_the_band_is_at_its_widest_on_a_fresh_head_with_the_hull_cool_and_narro
 	assert_float(sim.band()).is_equal_approx(sim.band_widest(), 0.0001)
 	var widest := sim.band_widest()
 
-	sim.debug_wear_head(0.5)
+	DiveTestKit.wear_head_gently(sim, 0.5)
 	sim.advance(0.1)
 
 	assert_float(sim.band()).is_less(widest)

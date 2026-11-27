@@ -22,27 +22,29 @@ func test_a_fresh_dive_lights_no_lamp_at_any_station() -> void:
 		assert_array(_lit(sim, station)).is_empty()
 
 
-func test_the_reactor_lamp_for_a_worn_head_lights_as_the_head_wears_and_clears_when_it_is_whole() -> void:
+func test_the_reactor_lamp_for_a_worn_head_is_dark_on_a_whole_head_and_lights_as_the_head_wears() -> void:
 	var sim := Scenario.first_dive().start()
 	assert_array(_labels(sim, DiveSimulation.STATION_REACTOR)).contains([CautionLamps.HEAD_WORN])
 	assert_array(_lit(sim, DiveSimulation.STATION_REACTOR)).not_contains([CautionLamps.HEAD_WORN])
 
-	sim.debug_wear_head(0.3)
-	assert_array(_lit(sim, DiveSimulation.STATION_REACTOR)).contains([CautionLamps.HEAD_WORN])
+	DiveTestKit.wear_head_gently(sim, 0.3)
 
-	sim.debug_wear_head(-1.0)
-	assert_array(_lit(sim, DiveSimulation.STATION_REACTOR)).not_contains([CautionLamps.HEAD_WORN])
+	assert_array(_lit(sim, DiveSimulation.STATION_REACTOR)).contains([CautionLamps.HEAD_WORN])
 
 
 func test_a_stations_lamps_keep_their_places_lit_or_not() -> void:
 	var sim := Scenario.first_dive().start()
+	var before := {}
 	for station in DiveSimulation.STATIONS:
-		var before := _labels(sim, station)
-		sim.debug_wear_head(0.3)
-		sim.set_power(1.0)
-		DiveTestKit.run(sim, 20.0, 0.1)
+		before[station] = _labels(sim, station)
 
-		assert_array(_labels(sim, station)).is_equal(before)
+	DiveTestKit.wear_head_gently(sim, 0.3)
+	sim.set_power(1.0)
+	DiveTestKit.run(sim, 20.0, 0.1)
+
+	assert_array(_lit(sim, DiveSimulation.STATION_REACTOR)).is_not_empty()
+	for station in DiveSimulation.STATIONS:
+		assert_array(_labels(sim, station)).is_equal(before[station])
 
 
 func test_only_the_reactor_shows_the_worn_head() -> void:

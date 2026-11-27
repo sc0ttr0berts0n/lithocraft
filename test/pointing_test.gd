@@ -159,13 +159,8 @@ func _station(display: bool) -> GimballedStation:
 	if display:
 		station.show_display(_picture())
 	station.show_reading("first\nsecond")
-	await _laid_out()
+	await DiveTestKit.laid_out(self)
 	return station
-
-
-func _laid_out() -> void:
-	await get_tree().process_frame
-	await get_tree().process_frame
 
 
 func test_a_screens_readings_are_its_lines_top_to_bottom_then_its_display() -> void:
@@ -205,7 +200,7 @@ func test_displays_side_by_side_are_each_a_reading_pointed_at_left_to_right() ->
 	var pictures: Array[Texture2D] = [_picture(), _picture()]
 	station.show_displays(pictures)
 	station.show_reading("first")
-	await _laid_out()
+	await DiveTestKit.laid_out(self)
 	var face := station.face()
 	var faces: Array[Pointing.Face] = [face]
 	var eye := station.pose().origin
@@ -293,7 +288,7 @@ func test_no_reading_floats_off_the_screen_whatever_a_station_shows() -> void:
 		lines.append("A line of a Station's reading, long enough to run wide %d" % i)
 	station.footer = "Time x1"
 	station.show_reading("\n".join(lines))
-	await _laid_out()
+	await DiveTestKit.laid_out(self)
 
 	var face := station.face()
 

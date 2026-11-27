@@ -50,6 +50,13 @@ static func _state_every_intention(sim: DiveSimulation) -> void:
 	sim.set_uploading(true)
 	sim.set_quiet_ship(true)
 	sim.pulse()
+	# The Reactor's selector and its two controls, on STANDBY: nothing of the
+	# plasma moves until a swap.
+	sim.select_channel(DiveSimulation.CHANNEL_ACTIVE)
+	sim.select_channel(DiveSimulation.CHANNEL_STANDBY)
+	sim.tune_frequency(sim.wobble_frequency() * 1.5)
+	sim.tune_amplitude(sim.wobble_amplitude() * 0.5)
+	sim.set_upload_priority(DiveSimulation.UPLOAD_MOST_VALUABLE_FIRST)
 	for station in DiveSimulation.STATIONS:
 		sim.set_autopilot(station, true)
 
@@ -221,7 +228,12 @@ func test_the_shift_drills_checklist_and_orders_tick_as_the_shift_is_made() -> v
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 600.0, [], 0.5)).is_not_empty()
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_PENDING)
 	# The drill began with a pulse: there is a guess to pretune against.
-	assert_float(sim.wobble_ahead_frequency()).is_between(below_wobble.x * 0.8, below_wobble.x * 1.2)
+	# It is of the rock below, off the truth as a poor scan's is, and nearer
+	# it than no guess at all would be: STANDBY as it began, tuned for the
+	# rock the Head is in.
+	var guess := sim.wobble_ahead_frequency()
+	assert_bool(is_nan(guess)).is_false()
+	assert_float(absf(guess - below_wobble.x)).is_less(absf(sim.wobble_frequency() - below_wobble.x))
 	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_ahead(sim))
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_DONE)

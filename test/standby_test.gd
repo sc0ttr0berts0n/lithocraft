@@ -8,20 +8,10 @@ const ACTIVE := DiveSimulation.CHANNEL_ACTIVE
 const STANDBY := DiveSimulation.CHANNEL_STANDBY
 
 
-## Test values only: soft, weaker rock over hard, stronger rock, both strong
-## enough never to slip.
-func _soft() -> Medium:
-	return Medium.new(&"soft", 1.0, 3.0, 0.3, 300.0, 1.0, {&"quartz": 1.0}, 0.5)
-
-
-func _hard() -> Medium:
-	return Medium.new(&"hard", 4.0, 6.0, 0.3, 300.0, 1.0, {&"feldspar": 1.0}, 0.5)
-
-
 ## Soft rock with one Boundary into hard rock at this depth: deep enough that
 ## its call comes after the dive is under way.
 func _one_boundary(at := 60.0) -> DiveSimulation:
-	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, _soft()], [at, _hard()]]))
+	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, DiveTestKit.soft()], [at, DiveTestKit.hard()]]))
 	sim.set_power(0.5)
 	return sim
 
@@ -147,7 +137,7 @@ func test_the_controls_stay_on_the_channel_they_were_on_after_a_swap() -> void:
 
 
 func test_a_prepared_swap_on_the_crossing_wears_nothing_and_an_early_or_late_one_wears_the_head() -> void:
-	var ahead := DiveTestKit.wobble_in(_hard())
+	var ahead := DiveTestKit.wobble_in(DiveTestKit.hard())
 	var on_time := _one_boundary()
 	var early := _one_boundary()
 	var late := _one_boundary()
@@ -178,7 +168,7 @@ func test_a_prepared_swap_on_the_crossing_wears_nothing_and_an_early_or_late_one
 func test_swapping_back_brings_the_old_counter_wave_back() -> void:
 	var sim := _one_boundary()
 	DiveTestKit.run_until(sim, &"boundary_approaching")
-	DiveTestKit.tune(sim, STANDBY, DiveTestKit.wobble_in(_hard()))
+	DiveTestKit.tune(sim, STANDBY, DiveTestKit.wobble_in(DiveTestKit.hard()))
 	DiveTestKit.run_until(sim, &"boundary_crossed")
 	var swapped := _swap(sim)
 
@@ -188,5 +178,5 @@ func test_swapping_back_brings_the_old_counter_wave_back() -> void:
 	assert_dict(back).is_not_empty()
 	# Back to the soft rock's Counter-wave in the hard rock.
 	assert_bool(back.clean).is_false()
-	assert_vector(DiveTestKit.counter_wave(sim, ACTIVE)).is_equal_approx(DiveTestKit.wobble_in(_soft()), Vector2.ONE * 1e-6)
+	assert_vector(DiveTestKit.counter_wave(sim, ACTIVE)).is_equal_approx(DiveTestKit.wobble_in(DiveTestKit.soft()), Vector2.ONE * 1e-6)
 	assert_bool(sim.out_of_band()).is_true()

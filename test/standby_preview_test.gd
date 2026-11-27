@@ -8,21 +8,14 @@ const ACTIVE := DiveSimulation.CHANNEL_ACTIVE
 const STANDBY := DiveSimulation.CHANNEL_STANDBY
 ## Depth of the test layouts' one Boundary, metres.
 const BOUNDARY_M := 80.0
-
-
-## Test values only: soft, weaker rock over hard, stronger rock, both strong
-## enough never to slip and both carrying sound well.
-func _soft() -> Medium:
-	return Medium.new(&"soft", 1.0, 3.0, 0.3, 300.0, 1.0, {&"quartz": 1.0}, 0.6)
-
-
-func _hard() -> Medium:
-	return Medium.new(&"hard", 4.0, 6.0, 0.3, 300.0, 1.0, {&"feldspar": 1.0}, 0.6)
+## The test layouts' rock carries sound well, so a pulse returns echoes from
+## well above the Boundary.
+const SOUND_CARRYING := 0.6
 
 
 ## Under way in soft rock above one Boundary into hard rock.
 func _dive() -> DiveSimulation:
-	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, _soft()], [BOUNDARY_M, _hard()]]))
+	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, DiveTestKit.soft(SOUND_CARRYING)], [BOUNDARY_M, DiveTestKit.hard(SOUND_CARRYING)]]))
 	sim.set_power(0.5)
 	DiveTestKit.run(sim, 5.0, 0.1)
 	return sim
@@ -51,7 +44,7 @@ func _well_scanned() -> DiveSimulation:
 
 
 func _truth() -> Vector2:
-	return DiveTestKit.wobble_in(_hard())
+	return DiveTestKit.wobble_in(DiveTestKit.hard(SOUND_CARRYING))
 
 
 # --- The guess ----------------------------------------------------------------
@@ -238,7 +231,9 @@ func test_stopped_the_boundary_is_never_reached() -> void:
 ## as open, so the Boundary between them returns no echo) and cuts as fast,
 ## but is stronger, so its Wobble is another.
 func _soft_twin() -> Medium:
-	return Medium.new(&"twin", 1.0, 5.0, 0.3, 300.0, 1.0, {&"quartz": 1.0}, 0.6)
+	var soft := DiveTestKit.soft(SOUND_CARRYING)
+	return Medium.new(&"twin", soft.hardness, soft.strength + 2.0, soft.porosity, 300.0, 1.0,
+			{&"quartz": 1.0}, SOUND_CARRYING)
 
 
 ## Two dives given the same commands over ground that returns the same echoes:
@@ -247,8 +242,8 @@ func _soft_twin() -> Medium:
 ## same depth and under way again.
 func _alike_to_the_scan() -> Array[DiveSimulation]:
 	var dives: Array[DiveSimulation] = []
-	for layers in [[[0.0, _soft()], [140.0, _hard()]],
-			[[0.0, _soft()], [60.0, _soft_twin()], [140.0, _hard()]]]:
+	for layers in [[[0.0, DiveTestKit.soft(SOUND_CARRYING)], [140.0, DiveTestKit.hard(SOUND_CARRYING)]],
+			[[0.0, DiveTestKit.soft(SOUND_CARRYING)], [60.0, _soft_twin()], [140.0, DiveTestKit.hard(SOUND_CARRYING)]]]:
 		var sim := DiveSimulation.new(MediumLayout.layered(layers))
 		sim.set_power(0.5)
 		DiveTestKit.run(sim, 5.0, 0.1)

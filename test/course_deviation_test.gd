@@ -10,22 +10,14 @@ func _staged(commands: Array) -> Node:
 	var args := ["--look", "Drive", "--time", "3", "--out", "unused.png"]
 	for command: String in commands:
 		args.append_array(["--do", command])
-	var plan := ShotPlan.parse(PackedStringArray(args))
-	assert_str(plan.error).is_empty()
-	var habitat: Node = auto_free(plan.make_habitat())
-	add_child(habitat)
-	assert_str(plan.stage(habitat)).is_empty()
-	await get_tree().process_frame
-	await get_tree().process_frame
+	var habitat := DiveTestKit.staged_shot(self, args)
+	await DiveTestKit.laid_out(self)
 	return habitat
 
 
 ## Everything written on the screen of the Station with this name.
 func _written(habitat: Node, station_name: String) -> String:
-	for child in habitat.get_children():
-		if child is GimballedStation and (child as GimballedStation).station_name == station_name:
-			return "\n".join((child as GimballedStation).screen().texts())
-	return ""
+	return "\n".join(DiveTestKit.station(habitat, station_name).screen().texts())
 
 
 func test_no_deviation_is_no_words() -> void:
