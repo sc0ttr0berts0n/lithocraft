@@ -3,13 +3,9 @@
 ## key until one is picked (DiveSimulation.scan_view(), the forward scope
 ## when a dive starts). Each shows the same things from the same queries: the
 ## vessel, the Course (dashed cyan), the projected path (solid cyan), the
-<<<<<<< HEAD
-## points (surface control's survey hollow and fainter than the vessel's own)
-## and the Inferred Boundaries.
-=======
-## Beam's cone at its width (faint cyan, out to its reach), the points and the
-## Inferred Boundaries; a label in the lower left names the Beam's width.
->>>>>>> origin/dev
+## Beam's cone at its width (faint cyan, out to its reach), the points
+## (surface control's survey hollow and fainter than the vessel's own) and
+## the Inferred Boundaries; a label in the lower left names the Beam's width.
 ##
 ##   forward scope     the vessel's own vertical plane with ahead up the
 ##                     screen and range rings about the Head, as a

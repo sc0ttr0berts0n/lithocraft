@@ -23,15 +23,6 @@ world-up 3D, mid-turn: --look Navigation --time 85 --do "0 debug_next_scan_view"
 Drive follows the Course: --look Navigation --time 30 --do "0 set_power 0.5" --do "0 set_course 90 60"
 Drive off the Course, 30 deg up: --look Navigation --time 30 --do "0 set_power 0.5" --do "0 set_course 90 60" --do "20 set_attended drive true" --do "20 nudge_pitch -1" --do "20 nudge_pitch -1"
 
-<<<<<<< HEAD
-# Surface control's survey beside the vessel's own points (ticket #118): the First dive from the surface,
-# Quiet Ship at 20 s some 40 m down and one clean pulse at 35 s. Under the pulse's cone the vessel's own
-# filled squares have replaced the survey's; round them, and at the granite below, the survey's faint
-# hollow grey squares and its faint patches remain. Every other tile above starts surveyed too.
-forward scope, survey beside own: --look Navigation --time 40 --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
-plan and section, survey beside own: --look Navigation --time 40 --do "0 debug_next_scan_view" --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
-world-up 3D, survey beside own: --look Navigation --time 40 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
-=======
 # The Beam's widths, diving as above: wide and short against narrow and long, the cone drawn at its width and
 # Navigation's Beam line naming it, its angle and reach. Wide in the forward scope, narrow in all three views.
 forward scope, wide Beam: --scenario "Shift drill" --look Navigation --time 10 --do "0 set_beam_width wide" --do "4 pulse" --do "8 pulse"
@@ -42,4 +33,11 @@ world-up 3D, narrow Beam: --scenario "Shift drill" --look Navigation --time 10 -
 # The Beam pulsing by itself: the First dive under way at full power with the switch on and no key pressed;
 # the Beam line says it pulses as it goes and the cloud grows as the vessel covers ground.
 Beam pulsing by itself, under way: --look Navigation --time 60 --do "0 set_power 1" --do "0 set_autopilot thermal true" --do "0 set_beam_pulsing true"
->>>>>>> origin/dev
+
+# Surface control's survey beside the vessel's own points (ticket #118): the First dive from the surface,
+# Quiet Ship at 20 s some 40 m down and one clean pulse at 35 s. Under the pulse's cone the vessel's own
+# filled squares have replaced the survey's; round them, and at the granite below, the survey's faint
+# hollow grey squares and its faint patches remain. Every other tile above starts surveyed too.
+forward scope, survey beside own: --look Navigation --time 40 --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
+plan and section, survey beside own: --look Navigation --time 40 --do "0 debug_next_scan_view" --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
+world-up 3D, survey beside own: --look Navigation --time 40 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
