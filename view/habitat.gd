@@ -332,6 +332,12 @@ func _key_time_normal(_index: int) -> void:
 	_sim.set_time_rate(1.0)
 
 
+## The master acknowledge: every call now sounding falls silent; the lights
+## stay lit.
+func _key_acknowledge_calls(_index: int) -> void:
+	_sim.acknowledge_calls()
+
+
 ## Back to the start menu once the dive is over and its end has settled into
 ## its outcome.
 func _key_new_dive(_index: int) -> void:
@@ -705,8 +711,8 @@ func _set_power(power: float) -> void:
 
 ## Each Station calls with its own tone and light as urgently as the
 ## simulation says, and every screen's header strip shows its autopilot and
-## its Caution lamps (CautionLamps), its footer the time rate.
-## Thermal's autopilot may have moved the heat split, and the Drive's its
+## its Caution lamps (CautionLamps), its footer the time rate and, while any
+## call sounds, the master acknowledge's key. Thermal's autopilot may have moved the heat split, and the Drive's its
 ## power, so the Habitat's copies follow them.
 func _show_calls() -> void:
 	_heat_split = _sim.heat_split()
@@ -716,7 +722,12 @@ func _show_calls() -> void:
 			KeyMap.label(&"time_normal")] if rate > 1.0 \
 			else "Time x1  %s faster" % KeyMap.label(&"time_faster")
 	for station in _in_use:
-		station.set_call(_sim.call_urgency(_sim_names[station]))
+		if _sim.call_sounding(_sim_names[station]):
+			footer += "  %s acknowledge" % KeyMap.label(&"acknowledge_calls")
+			break
+	for station in _in_use:
+		var named: StringName = _sim_names[station]
+		station.set_call(_sim.call_urgency(named), _sim.call_sounding(named), _sim.call_warns(named))
 		station.autopilot = _sim.autopilot(_sim_names[station])
 		station.footer = footer
 		station.show_lamps(CautionLamps.of(_sim, _sim_names[station]))

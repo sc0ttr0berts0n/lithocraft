@@ -20,3 +20,9 @@ iron concretions, recorded: --look column --time 30 --do "0 start_below 127.8" -
 # The same feature from the outer wall, and on the Bore Station's screen.
 iron concretions, into the Bore: --look bore --time 2 --do "0 start_below 127.8" --do "0 set_observed_feature 1"
 iron concretions, the Bore Station's screen: --look "Bore Station" --time 2 --do "0 start_below 127.8" --do "0 set_observed_feature 1"
+
+# The Bore Station calling for a feature nobody observes (ticket #115): its light lit, the time rate left
+# alone, and "[/] acknowledge" in every screen's footer while the call sounds; then acknowledged with the
+# master acknowledge (acknowledge_calls, the / key): the light stays lit, steady, and the footer loses it.
+iron concretions, the Bore Station calling: --look "Bore Station" --time 2 --do "0 start_below 127.8"
+iron concretions, the call acknowledged: --look "Bore Station" --time 2 --do "0 start_below 127.8" --do "1 acknowledge_calls"
