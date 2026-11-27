@@ -26,7 +26,17 @@ Commands (`PY=~/.venvs/playtest/Scripts/python.exe`; times are seconds or m:ss):
 | One moment | `frame VIDEO 4:17 [--width 1600]` (`--width 0` for full 4K) | <1 s |
 | A motion or a sequence | `burst VIDEO 8:20 --dur 5 --step 0.5` | one file per frame |
 | A stretch at a glance | `sheet VIDEO 7:52 --dur 54 --step 6 --cols 3` | one tiled, time-stamped image |
-| Small text (a screen, the Checklist) | `crop VIDEO 4:20 --box 0,30,560,330` | full-res pixels, 4K coordinates |
+| Small text (a screen, the Checklist) | `crop VIDEO 4:20 --region checklist` | full-res pixels, 4K coordinates |
+| One panel over time | `sheet VIDEO 7:52 --dur 54 --step 6 --region checklist` | tiles only the region, at its own width |
+
+`frame`, `burst`, `sheet` and `crop` all take `--region NAME` or `--box x,y,w,h` (4K pixels, for anything else); the first three crop, then scale, and a region's default width is its own. A sheet has exactly the frames the span yields, so no blank tile ends it. Regions live in one table, `REGIONS` in the script:
+
+| Region | 4K box `x,y,w,h` | What |
+|---|---|---|
+| `checklist` | `0,30,560,330` | the upper-left panel |
+| `screen` | `960,540,1920,1080` | the middle of the view, where a Station's screen sits |
+
+Tests: `python -m unittest tools/playtest/test_playtest.py` (builds its own ffmpeg test video).
 
 ## Method
 
