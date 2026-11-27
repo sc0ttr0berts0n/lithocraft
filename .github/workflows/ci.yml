@@ -25,11 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Cache the Godot binary
         id: godot-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/godot
           key: godot-${{ env.GODOT_VERSION }}-linux.x86_64
@@ -52,7 +52,7 @@ jobs:
       # Checks that need no Godot run (a lint, the docs check) go here, before the suite.
 
       - name: Suite
-        run: ./test.sh
+        run: bash ./test.sh  # test.sh is not marked executable in git
 
       - name: Smoke check, the Habitat scene
         run: tools/ci/smoke.sh res://view/habitat.tscn
