@@ -128,6 +128,7 @@ const LEFT_OUT := {
 	"flag": "Godot's size flags",
 	"panel": "the view's screen-space panels (ChecklistPanel) and Godot's Panel",
 	"cooling": "plain sense: what Thermal's pumps do",
+	"all round": "plain English: sparks from all round the ring",
 }
 
 ## Avoided words the glossary qualifies, so the word alone is no breach, each
@@ -139,6 +140,10 @@ const QUALIFIED := {
 	"heading": "not checked: only wrong for the plotted target; a heading is half of every Course",
 	"override": "not checked: only wrong for the amount; the Drive's override is the interface's name",
 	"flight plan": "not checked: no code names one yet",
+	"worm drive": "not checked as a phrase: \"worm\" alone is avoided, so it is found anyway",
+	"warp": "not checked: only wrong for the Glide; warp is to be travel between planets",
+	"ultrasound": "not checked: only wrong for the tool",
+	"feature of interest": "not checked: only wrong for a Target; a thing seen in the Column is one",
 	"warning": "checked by its own rule: a name that says warning given a caution, or the other way (_WARNING_FOR_A_CAUTION)",
 }
 
