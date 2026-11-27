@@ -39,7 +39,7 @@ CI: `.github/workflows/ci.yml` runs on every push to `dev` and every pull reques
 It fetches the Linux Godot binary named by its `GODOT_VERSION` (cached between runs), then runs `./test.sh`, then `tools/ci/smoke.sh res://view/habitat.tscn`, then `tools/ci/smoke.sh` for the main scene; the first failure turns the job red.
 A pull request merges into `dev` only on a green job.
 
-Cost budget: `tools/cost/cost.sh` times a headless dive with every Station's screen live against a budget, in about half a minute; it is no part of `./test.sh` (see `cost-budget.md`).
+Cost budget: `tools/cost/cost.sh`, no part of `./test.sh`; see `cost-budget.md`.
 
 Ad-hoc checks: prefer a headless check when a window isn't needed.
 For a look at the game, `tools/screenshot/shot.sh` takes one PNG of a Scenario run to a dive time; from Git Bash at the repo root, with `GODOT_BIN` set as for the tests:
@@ -77,6 +77,7 @@ It prints the PNG's path and exits 0; on any failure it prints why, leaves no PN
 - A Habitat-level test starts from `DiveTestKit.staged_habitat(self, scenario)`: in the tree, freed with the test, stepped only by `habitat._physics_process(step)`.
   `station(habitat, name)` / `stations(habitat)` find its Stations, `await DiveTestKit.laid_out(self)` waits for a screen's Containers before its readings are read, and `staged_shot(self, arguments)` stages one as the screenshot tool does.
 - No test of the game calls a `debug_*` command (see `debug-commands.md`): wear the Head with `wear_head_gently()`, lose the plasma with `lose_plasma()`, strand with `strand()`, and end a dive by losing the plasma with the tunnel open (brought home) or by flying it.
+- Convention checks that read the source live in `test/convention_test.gd`, their allow-lists and reasons with them: fix the code before adding an entry.
 - Read expected sequences from the layout (`MediumLayout.first_dive().boundary_depths()` and `medium_at()`), never a hand-written list of depths.
 - Every autopilot starts off, so a setting holds with no help.
   Engage the autopilot of a Station the test wants to steady itself: the Reactor's for any dive that crosses a Boundary with nobody at the Reactor (`survey_test`, `stranding_test`, `repair_test`; left alone, the Residual outside the Band loses the plasma within minutes), Thermal's to keep the hull whole at full power (`steering_test`, `habitat_down_test`).

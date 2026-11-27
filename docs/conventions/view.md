@@ -57,7 +57,9 @@
   Both endings' handlers (`_on_hull_failed`, `_on_paid`) hand their breakdown lines to `_end_dive()`; a new ending's breakdown does the same.
 - Hull damage is felt, never drawn (`view/hull_feel.gd`, `HullFeel`): while `hull_taking_damage()` sparks spit from the outer wall (more emitters the faster it creeps) and `shake_metres()` adds to the crew's shake;
   groans come from points round the ring as `AudioStreamPlayer3D`s, timed and sized by `HullGroans` from wear and `hull_stress()`, and rising with `self_destruct_hold()` while the crew holds K.
-  The Habitat calls `HullFeel.step(delta, felt)` after `advance`.
+  The Habitat calls `HullFeel.step(delta, felt, crew_z)` after `advance`.
+  Sparks and groans keep to the `TUNED_IN_M` of wall about the crew (`HullFeel.near_crew()`), never the Habitat's whole length: a longer room must not thin them, and a denser feel is a retune there, not more emitters.
+  `hull_feel_test` holds the density per metre of wall near the crew to a room `TUNED_IN_M` long.
   Shake from any source sums into the one `_crew.shake()` call.
 - Chance that shows in the picture is repeatable, so two screenshots of one moment match: drawn in the Habitat's physics step from the global generator, which the screenshot tool seeds (the crew's shake, where the sparks spit), or from a generator of the node's own with a fixed seed (a starved screen's flicker).
   Never from the global generator in `_process`, where the sounds draw on it by the clock, nor from one seeded with `randomize()`.

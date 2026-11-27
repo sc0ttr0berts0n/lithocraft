@@ -140,8 +140,11 @@ func test_the_queries_timed_are_the_simulation_s_readings_and_none_of_its_comman
 
 	for polled: String in ["projected_path", "points", "inferred_boundaries", "depth", "plasma_stability"]:
 		assert_bool(polled in queries).override_failure_message("%s is not timed" % polled).is_true()
-	for command: String in ["pulse", "shift", "relight", "new_dive", "take_events", "debug_surface", "advance"]:
+	for command: String in ["pulse", "shift", "relight", "new_dive", "take_events", "advance"]:
 		assert_bool(command in queries).override_failure_message("%s would be called" % command).is_false()
+	# Nor a debug command, which answers too.
+	for query in queries:
+		assert_bool(query.begins_with("debug")).override_failure_message("%s would be called" % query).is_false()
 
 	var habitat := DiveTestKit.staged_habitat(self, Scenario.shift_drill())
 	var probe := CostProbe.new(habitat)
