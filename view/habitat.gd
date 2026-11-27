@@ -972,12 +972,12 @@ func _build_controls() -> void:
 
 
 ## The checklist in the upper left, clear of the F1 controls and the debug
-## menu, hidden until asked for; each Station named in its own colour.
+## menu, hidden until asked for; each Station named, in the colour language.
 func _build_checklist() -> void:
 	_checklist.sim = _sim
 	for station in STATIONS:
 		if station[2] != &"":
-			_checklist.stations[station[2]] = [station[0], station[1]]
+			_checklist.stations[station[2]] = station[0]
 	_checklist.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_checklist.offset_left = 16.0
 	_checklist.offset_top = 16.0

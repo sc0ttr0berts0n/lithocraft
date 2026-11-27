@@ -3,6 +3,7 @@
 - `habitat.gd` owns the `DiveSimulation`, sets each Station's attendance from `_at(station)`, calls `advance(delta)` in `_physics_process`, then takes events.
   Child views get the sim handed to them (`DiveView.attach(sim)`, or a public `sim` var on a `Control`).
   A tool that drives a dive from outside (`tools/screenshot`) gets the sim from `simulation()` and sends it commands only, seats the crew with `seat_at(station)` (`Arm.seat()`: held at once, as after a carry), and steps the Habitat by calling `_physics_process(step)` itself with its physics processing off.
+- A Station's tint (`habitat.gd::STATIONS`) is allowed only on objects in the room: its call light and its gimbal's bob. Never on a reading (a screen, the checklist, a notice): readings use the five colours of `StationTheme`, held by `station_theme_test.gd`'s source check, which reads `checklist_panel.gd` too.
 - `_at(station)`: the crew member is seated there by the Arm, or within `STATION_REACH` of its pivot where it is now.
   That is all the view says of a Station that slides away: it reports reach each step (`set_attended()`), and the simulation decides what a held command does (see Self-destruct), so there is no reach check per command.
   Every Station key is gated by `_at` of its Station, once, in the key map's dispatch (see Key map); a `_key_` handler need not check it.
