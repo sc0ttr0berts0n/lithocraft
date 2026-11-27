@@ -118,6 +118,31 @@ func test_the_projection_follows_the_drive_nudged_off_the_course() -> void:
 	assert_float(_off_path(nudged.head_position(), straight)).is_greater(10.0)
 
 
+## The lean (#91): leant east and tilted from straight down, the projection
+## bends east, and the vessel flies it.
+func test_tilted_toward_the_lean_the_projection_bends_that_way_and_the_vessel_follows_it() -> void:
+	var sim := _diving()
+	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
+	DiveTestKit.nudge(sim, 90.0, 0.0)
+	var leant_straight_down := sim.projected_path()
+	DiveTestKit.nudge(sim, 0.0, -45.0)
+	sim.advance(1.0)
+
+	var path := sim.projected_path()
+
+	for point in leant_straight_down:
+		assert_float(absf(point.x - sim.head_position().x)).is_less(0.01)
+	var last := (path[path.size() - 1] - path[path.size() - 2]).normalized()
+	assert_float(last.x).is_greater(0.5)
+	var start := sim.distance()
+	var furthest_off := 0.0
+	while sim.distance() - start < _length(path) - 2.0 * sim.speed():
+		sim.advance(1.0)
+		furthest_off = maxf(furthest_off, _off_path(sim.head_position(), path))
+	assert_float(furthest_off).is_less(0.5)
+	assert_float(sim.head_position().x).is_greater(10.0)
+
+
 func test_on_its_course_the_projection_is_a_straight_line_ahead() -> void:
 	var sim := _diving()
 

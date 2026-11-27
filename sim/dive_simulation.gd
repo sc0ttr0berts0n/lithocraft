@@ -252,6 +252,12 @@ var _course_heading := 0.0
 var _overriding := false
 var _override_heading := 0.0
 var _override_pitch := 0.0
+## The lean: the compass heading, degrees, a pitch nudge tilts the Drive
+## toward while it steers straight up or down, where a compass heading means
+## nothing (the vessel's own gyro reference, a ball attitude display's pole).
+## Read it through lean(): off vertical the lean is the heading the Drive
+## steers for, and this only what it was when a command last snapshotted it.
+var _lean := 0.0
 ## The last compass heading the vessel had while not pointing straight up or
 ## down, where heading has no meaning. Degrees, 0 along -Z, 90 along +X.
 var _bearing := 0.0
@@ -451,6 +457,7 @@ func set_course(heading_degrees: float, pitch_degrees: float) -> void:
 	if _off_the_crew():
 		return
 	_disengage_on_command(STATION_NAVIGATION)
+	_lean = lean()
 	_course_heading = fposmod(heading_degrees, 360.0)
 	_course_pitch = clampf(pitch_degrees, -90.0, 90.0)
 	_settle_override()
@@ -482,8 +489,10 @@ func nudge_pitch(direction: float) -> void:
 
 ## Drive: nudges the compass heading it steers for one step of
 ## nudge_degrees(), right (clockwise from above) for a positive `direction`,
-## left for a negative one; otherwise as nudge_pitch(). Does nothing while
-## the Drive steers straight up or down, where heading means nothing.
+## left for a negative one; otherwise as nudge_pitch(). While the Drive
+## steers straight up or down, where heading means nothing, it turns the lean
+## (lean()) instead and nothing else: the Drive steers for what it did, and
+## the next pitch nudge tilts toward the lean.
 func nudge_heading(direction: float) -> void:
 	_nudge(signf(direction) * _NUDGE_DEG, 0.0)
 
@@ -494,7 +503,13 @@ func _nudge(heading_degrees: float, pitch_degrees: float) -> void:
 	if not attended(STATION_DRIVE):
 		return
 	_disengage_on_command(STATION_DRIVE)
-	_override_heading = fposmod(steered_heading() + heading_degrees, 360.0)
+	_lean = lean()
+	if steers_straight_up_or_down() and not is_zero_approx(heading_degrees):
+		_lean = fposmod(_lean + heading_degrees, 360.0)
+		return
+	# Off vertical the lean is the heading steered for; from vertical, the
+	# way a pitch nudge tilts.
+	_override_heading = fposmod(_lean + heading_degrees, 360.0)
 	_override_pitch = clampf(steered_pitch() + pitch_degrees, -90.0, 90.0)
 	_overriding = true
 	_settle_override()
@@ -512,6 +527,7 @@ func end_override() -> void:
 	if _off_the_crew():
 		return
 	_disengage_on_command(STATION_DRIVE)
+	_lean = lean()
 	_overriding = false
 
 
@@ -606,6 +622,7 @@ func set_autopilot(station: StringName, engaged: bool) -> void:
 		return
 	_autopilot[station] = true
 	if station == STATION_DRIVE:
+		_lean = lean()
 		_overriding = false
 		_power = _AUTOPILOT_DRIVE_POWER
 
@@ -1291,12 +1308,30 @@ func deviation_pitch() -> float:
 ## The deviation in heading: how far what the Drive steers for is off the
 ## Course round the compass, the short way, in degrees: positive to the right
 ## (clockwise from above), negative to the left. Zero while the Drive follows
-## the Course, and while it steers straight up or down, where heading means
-## nothing.
+## the Course, and while either it or the Course points straight up or down,
+## where heading means nothing: tilted off a Course straight down, the whole
+## deviation is the pitch.
 func deviation_heading() -> float:
-	if not _overriding or absf(_override_pitch) >= 90.0:
+	if not _overriding or absf(_override_pitch) >= 90.0 or absf(_course_pitch) >= 90.0:
 		return 0.0
 	return wrapf(_override_heading - _course_heading, -180.0, 180.0)
+
+
+## The lean: the compass heading, degrees 0 to 360, the Drive tilts toward
+## when a pitch nudge takes it off straight up or down. While it steers
+## straight up or down (steers_straight_up_or_down()) heading nudges turn it
+## and nothing else; otherwise it is the heading the Drive steers for
+## (steered_heading()), so steered back to vertical it keeps the way it came.
+## A Course plotted off vertical so sets it to the Course's heading. Constant
+## work.
+func lean() -> float:
+	return _lean if steers_straight_up_or_down() else steered_heading()
+
+
+## True while what the Drive steers for (steered_pitch()) is straight up or
+## down, where heading nudges turn the lean (lean()). Constant work.
+func steers_straight_up_or_down() -> bool:
+	return absf(steered_pitch()) >= 90.0
 
 
 ## How far one nudge at the Drive moves what it steers for, in degrees; see
