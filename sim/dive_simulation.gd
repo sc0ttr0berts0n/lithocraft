@@ -138,6 +138,34 @@ const _SCAN_POINT_CAPACITY := 2000
 ## scan cannot tell two echoes this close apart. Tuned for play (ADR 0001);
 ## tests read point_resolution().
 const _SCAN_RESOLUTION_M := 1.0
+## Surface control's survey (start_surveyed()): soundings of every Boundary on
+## a square grid this many metres apart, half the Boundary fit's cell so every
+## cell of ground holds four and is fitted, out to this far either side of
+## where the dive begins. Tuned for play (ADR 0001): the ground the First
+## dive cuts straight down and back up through.
+const _SURVEY_SPACING_M := 8.0
+const _SURVEY_HALF_SIDE_M := 128.0
+## How sure the survey is of each sounding: less than the vessel's poorest
+## ordinary echo, so its Inferred Boundaries are fainter than any pulse's.
+## Tuned for play (ADR 0001).
+const _SURVEY_CONFIDENCE := 0.05
+## The survey is wrong. It places each Boundary flat at its mean depth (from
+## the surface the gentle folds blur away) and off by a share of that depth,
+## one way or the other, the same all across, at least half this share and
+## at most all of it; and each sounding scatters about that by this many
+## metres. Tuned for play (ADR 0001): a visible margin, within the look-ahead's
+## allowance for a scan that is out.
+const _SURVEY_DEPTH_ERROR := 0.02
+const _SURVEY_SCATTER_M := 1.0
+## A survey sounding gives way to the vessel's own echoes near it (within
+## _SURVEY_SPACING_M across the ground and this many metres up or down) once
+## their confidence summed comes to _SURVEY_GIVES_WAY_AT: where the vessel
+## has heard the rock itself, a faint echo or two is not enough to wipe the
+## survey out, a clear scan is. Tuned for play (ADR 0001).
+const _SURVEY_GIVES_WAY_DEPTH_M := 25.0
+const _SURVEY_GIVES_WAY_AT := 0.5
+## Fixed seed, so a layout's survey is the same every dive.
+const _SURVEY_SEED := 47
 
 ## Boundaries. A Boundary this many metres of depth ahead along the Head's
 ## line is announced, so the Reactor Station can prepare for the Shift. Tuned
@@ -360,6 +388,14 @@ var _points: Array[ScanPoint] = []
 ## (_scan_cell()), so a new return finds the points near it without a scan of
 ## the whole cloud: Vector3i -> Array[ScanPoint].
 var _point_cells := {}
+## Surface control's survey (start_surveyed()): its points still held, never
+## more than it began with and apart from point_capacity(); the same filed by
+## ground, in squares _SURVEY_SPACING_M on a side (_sounding_cell()), Vector2i ->
+## Array[ScanPoint]; and the confidence of the vessel's own echoes heard near
+## each so far, ScanPoint -> float.
+var _soundings: Array[ScanPoint] = []
+var _sounding_cells := {}
+var _sounding_heard := {}
 ## Seconds simulated this dive, stranded time included: what a point's age is
 ## counted from.
 var _dive_time := 0.0
@@ -789,6 +825,40 @@ func start_dark(head_wear: float) -> void:
 	_check_stranded()
 	if stranded():
 		_update_calls()
+
+
+## Scenario start: the dive begins with surface control's survey in the scan:
+## every Boundary of the layout sounded from the surface over the ground about
+## where the Head is, as points of low confidence marked as the survey's
+## (ScanPoint.surveyed), so the Inferred Boundaries, the Boundary countdown
+## and STANDBY's guess have something to work from before any pulse. The
+## survey is coarse and wrong (_SURVEY_DEPTH_ERROR); the vessel's own echoes
+## replace it where they outweigh it, and it is held apart from
+## point_capacity(), so it neither crowds out the vessel's points nor is
+## crowded out by them. Ignored unless the dive has not begun, and once a
+## survey is held.
+func start_surveyed() -> void:
+	if not _at_dive_start() or not _soundings.is_empty():
+		return
+	var random := RandomNumberGenerator.new()
+	random.seed = _SURVEY_SEED
+	var across := int(_SURVEY_HALF_SIDE_M / _SURVEY_SPACING_M)
+	for mean in _layout.boundary_depths():
+		var off := random.randf_range(0.5, 1.0) * (1.0 if random.randf() < 0.5 else -1.0)
+		var surveyed := mean * (1.0 + off * _SURVEY_DEPTH_ERROR)
+		for i in range(-across, across):
+			for j in range(-across, across):
+				var depth := surveyed + random.randfn() * _SURVEY_SCATTER_M
+				var place := Vector3(_position.x + (i + 0.5) * _SURVEY_SPACING_M, -depth,
+						_position.z + (j + 0.5) * _SURVEY_SPACING_M)
+				var point := ScanPoint.new(place, _SURVEY_CONFIDENCE, depth, -1, _dive_time, true)
+				_soundings.append(point)
+				var key := _sounding_cell(place)
+				if not _sounding_cells.has(key):
+					_sounding_cells[key] = []
+				_sounding_cells[key].append(point)
+	_inferred_at_pulse = -1  # The cloud has changed with no pulse sent.
+	_look_ahead()
 
 
 ## True while a dive has not begun: no time has run and it has not ended.
@@ -1778,17 +1848,22 @@ func navigation_supplied() -> float:
 	return _supplied(_navigation_draw, _navigation_request)
 
 
-## Navigation's point cloud: the points pulses have returned this dive,
-## oldest first. It holds at most point_capacity(), the oldest giving way
-## first, and a return within point_resolution() of a point an earlier pulse
-## returned replaces it. A copy; changing it does not change the cloud.
+## Navigation's point cloud: surface control's survey still held, if the
+## dive began with one (start_surveyed(), ScanPoint.surveyed), then the points
+## pulses have returned this dive, oldest first. The vessel's own are at most
+## point_capacity(), the oldest giving way first, and a return within
+## point_resolution() of a point an earlier pulse returned replaces it; the
+## survey is held beside them, giving way only to the vessel's own echoes
+## near it. A copy; changing it does not change the cloud.
 func points() -> Array[ScanPoint]:
-	return _points.duplicate()
+	var cloud: Array[ScanPoint] = _soundings.duplicate()
+	cloud.append_array(_points)
+	return cloud
 
 
-## How many points the cloud holds, at most point_capacity().
+## How many points the cloud holds, the survey's included.
 func point_count() -> int:
-	return _points.size()
+	return _soundings.size() + _points.size()
 
 
 ## How many pulses have been sent this dive. The cloud changes only when this
@@ -1797,7 +1872,8 @@ func pulses_sent() -> int:
 	return _pulses_sent
 
 
-## The most points the cloud holds.
+## The most of the vessel's own points the cloud holds; the survey's are held
+## beside them.
 func point_capacity() -> int:
 	return _SCAN_POINT_CAPACITY
 
@@ -1843,7 +1919,7 @@ func inferred_boundaries() -> Array[BoundaryPatch]:
 func _fit_boundaries() -> void:
 	if _inferred_at_pulse != _pulses_sent:
 		_inferred_at_pulse = _pulses_sent
-		_inferred = BoundaryFit.fit(_points)
+		_inferred = BoundaryFit.fit(points())
 
 
 ## Seconds since the points this patch was fitted to returned, on average. It
@@ -3257,6 +3333,8 @@ func _send_pulse() -> void:
 	_pulses_sent += 1
 	if not replaced.is_empty():
 		_points = _points.filter(func(p: ScanPoint) -> bool: return not replaced.has(p))
+		if not _soundings.is_empty():
+			_soundings = _soundings.filter(func(p: ScanPoint) -> bool: return not replaced.has(p))
 	var over := _points.size() - _SCAN_POINT_CAPACITY
 	if over > 0:
 		for point in _points.slice(0, over):
@@ -3286,8 +3364,47 @@ func _add_point(point: ScanPoint, replaced: Dictionary) -> void:
 						replaced[near] = true
 				if cell.is_empty():
 					_point_cells.erase(key)
+	if not _sounding_cells.is_empty():
+		_outhear_soundings(point, replaced)
 	_file_point(point)
 	_points.append(point)
+
+
+## Counts an echo of the vessel's own against the survey soundings near it
+## (_SURVEY_GIVES_WAY_DEPTH_M up or down, _SURVEY_SPACING_M across the ground):
+## each that its echoes have now outweighed (_SURVEY_GIVES_WAY_AT) is taken out
+## of _sounding_cells and marked in `replaced`, for _send_pulse() to sweep out of
+## _soundings. Looks in only the nine squares round the echo's.
+func _outhear_soundings(point: ScanPoint, replaced: Dictionary) -> void:
+	var centre := _sounding_cell(point.position)
+	for dx in range(-1, 2):
+		for dz in range(-1, 2):
+			var key := centre + Vector2i(dx, dz)
+			if not _sounding_cells.has(key):
+				continue
+			var cell: Array = _sounding_cells[key]
+			for i in range(cell.size() - 1, -1, -1):
+				var sounding: ScanPoint = cell[i]
+				var off := sounding.position - point.position
+				if absf(off.y) >= _SURVEY_GIVES_WAY_DEPTH_M \
+						or Vector2(off.x, off.z).length() >= _SURVEY_SPACING_M:
+					continue
+				var heard: float = _sounding_heard.get(sounding, 0.0) + point.confidence
+				if heard < _SURVEY_GIVES_WAY_AT:
+					_sounding_heard[sounding] = heard
+					continue
+				_sounding_heard.erase(sounding)
+				cell.remove_at(i)
+				replaced[sounding] = true
+			if cell.is_empty():
+				_sounding_cells.erase(key)
+
+
+## The square of _sounding_cells a place falls in: _SURVEY_SPACING_M on a side
+## across the ground, so every sounding within that of a place lies in the
+## nine round the place's.
+func _sounding_cell(place: Vector3) -> Vector2i:
+	return Vector2i(floori(place.x / _SURVEY_SPACING_M), floori(place.z / _SURVEY_SPACING_M))
 
 
 ## Files a point in its cell of _point_cells.

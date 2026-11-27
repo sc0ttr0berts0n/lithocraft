@@ -79,6 +79,7 @@ const NOT_AN_INTENTION := {
 	&"set_scenario": "puts a Scenario on the simulation and starts its Checklist afresh",
 	&"start_below": "Scenario start: places the Head as the dive begins; not a crew command",
 	&"start_dark": "Scenario start: loses the plasma as the dive begins; not a crew command",
+	&"start_surveyed": "Scenario start: puts surface control's survey in the scan as the dive begins; not a crew command",
 }
 
 
@@ -194,6 +195,16 @@ func test_every_scenario_opens_with_its_orders_from_surface_control() -> void:
 	for scenario in Scenario.all():
 		var sim := scenario.start()
 		assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return not s.surface_messages().is_empty(), 600.0, 0.5)).is_true()
+
+
+func test_every_scenario_begins_with_surface_controls_survey_in_the_scan() -> void:
+	# Every Scenario so far is on the First dive's ground, which surface control
+	# surveyed: each begins with the survey's points and its Inferred Boundaries.
+	for scenario in Scenario.all():
+		var sim := scenario.start()
+		var surveyed := sim.points().filter(func(p: ScanPoint) -> bool: return p.surveyed)
+		assert_int(surveyed.size()).override_failure_message("%s begins unsurveyed" % scenario.title).is_greater(0)
+		assert_int(sim.inferred_boundaries().size()).override_failure_message("%s infers nothing" % scenario.title).is_greater(0)
 
 
 # --- The Scenario start commands ------------------------------------------

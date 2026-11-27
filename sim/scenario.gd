@@ -344,6 +344,9 @@ static func first_dive() -> Scenario:
 	]
 
 	s.phases = [startup, sand, first_boundary, sandstone, granite, turn, surface]
+	# Surface control surveyed the ground before the dive: its faint points
+	# are in the scan as the dive begins.
+	s.prepare = func(sim: DiveSimulation) -> void: sim.start_surveyed()
 
 	s.messages = [
 		Message.new(("Orders for your first dive: survey down through the %s into the %s, then surface with the data. "
@@ -380,10 +383,12 @@ static func shift_drill() -> Scenario:
 			above.name, below.name]
 	s.prepare = func(sim: DiveSimulation) -> void:
 		sim.start_below(boundary - _DRILL_ABOVE_BOUNDARY_M)
+		# The same ground as the First dive, surveyed from the surface alike.
+		sim.start_surveyed()
 		sim.set_autopilot(DiveSimulation.STATION_THERMAL, true)
 		sim.set_autopilot(DiveSimulation.STATION_DRIVE, true)
-		# Navigation's one pulse as the drill begins: without a scan of the
-		# Boundary ahead STANDBY has no guess to pretune against.
+		# Navigation's one pulse as the drill begins: the survey's guess alone
+		# is too faint to pretune well against, and the drill is the Shift.
 		sim.pulse()
 
 	s.orders = [
@@ -431,6 +436,9 @@ static func stranded_in_the_granite() -> Scenario:
 	s.summary = "Sealed in the %s, the Head dark and the stranding clock running: relight, or send the survey up, cool the hull and wait for the rescue." % bottom.name
 	s.prepare = func(sim: DiveSimulation) -> void:
 		sim.start_below(granite_top + _STRANDED_INTO_GRANITE_M)
+		# Surveyed from the surface as the First dive's ground is: the climb
+		# home has a faint guess of the Boundaries above before any pulse.
+		sim.start_surveyed()
 		sim.start_dark(_STRANDED_HEAD_WEAR)
 
 	s.orders = [

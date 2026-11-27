@@ -22,9 +22,14 @@ func _short_first_dive() -> MediumLayout:
 	])
 
 
-func _first_dive_on(layout: MediumLayout) -> DiveSimulation:
+## The First dive's Checklist on this layout; `surveyed` false leaves out
+## surface control's survey, so nothing is known of the rock until a pulse.
+func _first_dive_on(layout: MediumLayout, surveyed := true) -> DiveSimulation:
 	var sim := DiveSimulation.new(layout)
-	sim.set_scenario(Scenario.first_dive())
+	var scenario := Scenario.first_dive()
+	if not surveyed:
+		scenario.prepare = func(_sim: DiveSimulation) -> void: pass
+	sim.set_scenario(scenario)
 	return sim
 
 
@@ -206,8 +211,8 @@ func test_the_checklist_moves_on_once_under_way_even_with_the_orders_unread() ->
 
 ## A first dive on the short layout with its startup done: the Reactor's and
 ## Thermal's autopilots engaged, the Course a dive, the Drive's autopilot on.
-func _started() -> DiveSimulation:
-	var sim := _first_dive_on(_short_first_dive())
+func _started(surveyed := true) -> DiveSimulation:
+	var sim := _first_dive_on(_short_first_dive(), surveyed)
 	sim.read_orders()
 	sim.advance(0.1)
 	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
@@ -307,7 +312,7 @@ func test_the_first_boundary_begins_as_it_approaches_and_wants_standby_pretuned_
 
 
 func test_with_no_scan_of_the_boundary_ahead_standby_cannot_be_pretuned() -> void:
-	var sim := _started()
+	var sim := _started(false)
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 600.0, [], 0.5)).is_not_empty()
 	sim.advance(0.1)
 	# With no scan the Checklist asks for one first.

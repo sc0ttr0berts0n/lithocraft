@@ -1,11 +1,20 @@
 # The scan: the point cloud and Inferred Boundaries
 
 **The point cloud.**
-`points()` is bounded: at most `point_capacity()`, the oldest giving way first, and a return within `point_resolution()` of a point an earlier pulse returned replaces it (echoes of one pulse never replace each other).
+`points()` is bounded: the vessel's own at most `point_capacity()`, the oldest giving way first (surface control's survey is held beside them), and a return within `point_resolution()` of a point an earlier pulse returned replaces it (echoes of one pulse never replace each other).
 `_add_point()` finds the points near a return through `_point_cells`, a grid of cubes twice the resolution on a side, looking in only eight cells, and `_send_pulse()` sweeps the replaced and the evicted out once per pulse, so a pulse costs the same however long the dive or however hard the crew mash P.
 A point's age is `point_age(point)`, counted on `dive_time()` (seconds simulated this dive, stranded time included); the view fades by it.
 Anything that adds points goes through `_add_point()` and the sweep.
 An echo comes from where its ray meets a Boundary's surface (`_echoes_along()`, through `MediumLayout.meets()`), so on a wavy Boundary the points lie on its folds; a new tool that sounds the rock (the Sweep, an aimed Beam) casts its rays the same way.
+
+**Surface control's survey.**
+A Scenario that begins surveyed calls the Scenario start command `start_surveyed()` in `prepare` (all three do); the simulation, which owns the layout, makes the survey's points then, once, and nothing on the scan side ever sees the layout for it.
+They are ordinary `ScanPoint`s marked `surveyed` (`pulse` -1), soundings of every Boundary on a square grid over the ground about the Head, half the fit's cell apart so every cell is fitted: flat at the Boundary's mean depth, off it by a share of that depth the same all across, scattered a little, and of a confidence below any ordinary echo's, so their patches and STANDBY's guess from them are faint.
+They are held in `_soundings`, apart from `point_capacity()` (which bounds the vessel's own points alone), so the oldest-first eviction never takes them and they never crowd out a long dive's own points; `points()` gives them first, then the vessel's.
+They go only by being outheard: `_add_point()` hands each of the vessel's echoes to `_outhear_soundings()`, which adds its confidence to every sounding near it (`_sounding_cells`, squares of the grid's spacing, nine looked in) and takes out each whose heard total reaches `_SURVEY_GIVES_WAY_AT`; `_send_pulse()` sweeps them out with the replaced points.
+So a clean scan replaces the survey under its cone, and a faint echo here and there leaves it standing (`surface_survey_test.gd`).
+The fit, the look-ahead, the countdown and the guess take the survey as any other points: there is no second path.
+A tool that sounds the rock (the Sweep, an aimed Beam) adds its points through `_add_point()` and so outhears the survey too.
 
 **Drawing the scan.**
 Navigation's scan display (`ScanDisplay`) draws the cloud as one of three candidate views (see `docs/conventions/screen-navigation.md`, "Navigation's point cloud").
@@ -13,7 +22,8 @@ Every view is a flat drawing through one static function from a place's offset f
 A mark every candidate must show goes in `_draw_scan()`; a view's own scale marks go in its `_draw_*_marks()`.
 No view may read a clock or the layout (`scan_display_test.gd` checks the source): a place is a function of the simulation's state alone, so a view turns only as the vessel does.
 The points and patches are fetched only when `pulses_sent()` changes (never `points()` each frame); their fade is worked out at each redraw.
-A point is white as it is certain, the legend's grey as it is a guess, larger the surer, and never fades out altogether; a patch is its outline, its face filled faintly unless edge-on.
+A point is white as it is certain, the legend's grey as it is a guess, larger the surer, and never fades out altogether; a survey point (`surveyed`) is a small hollow square of the legend's grey, fainter still and never filled, in every view; a patch is its outline, its face filled faintly unless edge-on.
+The survey is in the cloud before any pulse, so a view's first fetch (its `_pulses_shown` starts at -1) has it.
 
 **Inferred Boundaries.**
 `inferred_boundaries()` is the one query for the Boundaries as the scan suggests them: `BoundaryPatch`es fitted by `BoundaryFit.fit(points)` (`sim/boundary_fit.gd`), a static, plain function of `ScanPoint`s alone that never sees a Medium, the layout or the simulation (`boundary_fit_test.gd` checks its source).
