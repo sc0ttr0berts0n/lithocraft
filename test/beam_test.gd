@@ -193,13 +193,13 @@ func test_a_pulse_by_itself_under_way_is_noisier_than_one_by_hand_at_quiet_ship(
 
 
 func test_the_width_and_the_switch_are_settings_that_disengage_navigation_s_autopilot() -> void:
-	for set in [func(sim: DiveSimulation) -> void: sim.set_beam_width(DiveSimulation.BEAM_NARROW),
+	for change in [func(sim: DiveSimulation) -> void: sim.set_beam_width(DiveSimulation.BEAM_NARROW),
 			func(sim: DiveSimulation) -> void: sim.set_beam_pulsing(true)]:
 		var sim := DiveSimulation.new(_banded())
 		sim.set_autopilot(DiveSimulation.STATION_NAVIGATION, true)
 		sim.take_events()
 
-		set.call(sim)
+		change.call(sim)
 
 		assert_bool(sim.autopilot(DiveSimulation.STATION_NAVIGATION)).is_false()
 		assert_array(DiveTestKit.types(sim.take_events())).contains([&"autopilot_off"])
