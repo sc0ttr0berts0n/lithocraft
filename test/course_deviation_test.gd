@@ -41,7 +41,8 @@ func test_following_the_course_neither_screen_says_the_drive_is_off_it() -> void
 
 
 func test_nudged_off_the_course_both_screens_state_the_same_deviation() -> void:
-	var habitat := await _staged(["0 set_power 1", "1 nudge_pitch -1", "1 nudge_pitch -1", "2 nudge_heading 1"])
+	# Off a Course that is not straight down, where heading means something.
+	var habitat := await _staged(["0 set_power 1", "0 set_course 0 60", "1 nudge_pitch -1", "1 nudge_pitch -1", "2 nudge_heading 1"])
 
 	var deviation := CourseDeviation.of(habitat.simulation())
 	assert_str(deviation).contains("up").contains("right")
