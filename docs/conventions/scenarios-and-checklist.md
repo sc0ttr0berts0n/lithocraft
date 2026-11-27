@@ -25,6 +25,7 @@ Intentions tick steps, so a phase that needs one asks for it in a step: "Turn an
 `test/checklist_follower_test.gd` plays the First dive by its Checklist alone: it reads `next_step()`, has its table's entry for that step send the command the step's key sends, and steps time (run fast, as the time key does) until the step ticks.
 A new or renamed step of the First dive needs an entry in `_first_dive_table()`: the step's own `action` and how the crew follows it; a step with no entry, or an entry naming another action, fails the follower by name.
 An entry sends only what its step asks for, when the crew could see it is time (a Shift once the Head is in the Medium named, a pretune only to the scan's guess), so a step the crew cannot do from what the Checklist has asked so far fails there: fix the Checklist, never the entry.
+It tunes as a hand does: the channel selected first, then the Reactor's keys a press at a time at the normal time rate (`_tune_by_keys()`), so a tuning step is only as reachable as it is for the crew.
 A step that does not tick within its time limit, or is left `MISSED`, fails naming the step and its phase.
 A new dive starts the Checklist afresh (`_scenario` is kept between dives).
 Step texts name no keys: a step's `action` names the key-map action that does it, and the panel writes `KeyMap.label(action)`.

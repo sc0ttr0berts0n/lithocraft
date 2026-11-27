@@ -277,6 +277,8 @@ func test_the_first_boundary_begins_as_it_approaches_and_wants_standby_pretuned_
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 600.0, seen, 0.5)).is_not_empty()
 	sim.advance(0.1)
 	assert_str(sim.checklist()[sim.checklist_phase()].title).is_equal(Scenario.first_dive().phases[2].title)
+	# The sand's scan already shows the Boundary ahead: no more pulses asked.
+	assert_str(DiveTestKit.step_state(sim, &"pulse_boundary")).is_equal(DiveSimulation.STEP_DONE)
 	# STANDBY still cancels the sand's Wobble: not pretuned for the sandstone.
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"pretune_standby")
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_PENDING)
@@ -291,6 +293,15 @@ func test_the_first_boundary_begins_as_it_approaches_and_wants_standby_pretuned_
 	sim.shift()
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"shift")).is_equal(DiveSimulation.STEP_DONE)
+
+	# The guess was off, so the Shift left the Residual outside the Band: the
+	# crew tunes ACTIVE until it is inside, and only then is the Boundary behind.
+	assert_bool(sim.out_of_band()).is_true()
+	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"trim_active")
+	assert_str(sim.checklist()[sim.checklist_phase()].title).is_equal(Scenario.first_dive().phases[2].title)
+	DiveTestKit.cancel_wobble(sim)
+	sim.advance(0.1)
+	assert_str(DiveTestKit.step_state(sim, &"trim_active")).is_equal(DiveSimulation.STEP_DONE)
 	assert_str(sim.checklist()[sim.checklist_phase()].title).is_equal(Scenario.first_dive().phases[3].title)
 
 
@@ -298,14 +309,23 @@ func test_with_no_scan_of_the_boundary_ahead_standby_cannot_be_pretuned() -> voi
 	var sim := _started()
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_approaching", 600.0, [], 0.5)).is_not_empty()
 	sim.advance(0.1)
-	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"pretune_standby")
+	# With no scan the Checklist asks for one first.
+	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"pulse_boundary")
 
 	# Tuned to the very Wobble of the sandstone, which no scan has shown the
 	# crew: the Checklist reads what the crew can see, and that is no guess.
 	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(Medium.sandstone()))
 	sim.advance(0.1)
 
+	assert_str(DiveTestKit.step_state(sim, &"pulse_boundary")).is_equal(DiveSimulation.STEP_PENDING)
 	assert_str(DiveTestKit.step_state(sim, &"pretune_standby")).is_equal(DiveSimulation.STEP_PENDING)
+
+	# The pulse step ticks on what the scan shows: once there is a guess of
+	# the Wobble ahead, and not before.
+	assert_bool(is_nan(sim.wobble_ahead_frequency())).is_true()
+	DiveTestKit.quiet_scan(sim)
+	assert_bool(is_nan(sim.wobble_ahead_frequency())).is_false()
+	assert_str(DiveTestKit.step_state(sim, &"pulse_boundary")).is_equal(DiveSimulation.STEP_DONE)
 
 
 func test_the_autopilots_tuning_is_not_the_crews_shift() -> void:
@@ -355,6 +375,8 @@ func test_the_sandstone_and_granite_steps_tick_as_each_is_done() -> void:
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"upload")).is_equal(DiveSimulation.STEP_DONE)
 
+	# On this short layout the sand's scan reached the second Boundary too.
+	assert_str(DiveTestKit.step_state(sim, &"pulse_boundary_granite")).is_equal(DiveSimulation.STEP_DONE)
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"pretune_standby_granite")
 	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(Medium.sand()))
 	sim.advance(0.1)
@@ -373,6 +395,9 @@ func test_the_sandstone_and_granite_steps_tick_as_each_is_done() -> void:
 	sim.shift()
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"shift_granite")).is_equal(DiveSimulation.STEP_DONE)
+	# A Shift that leaves the Residual inside the Band leaves ACTIVE no tuning to do.
+	assert_bool(sim.out_of_band()).is_false()
+	assert_str(DiveTestKit.step_state(sim, &"trim_active_granite")).is_equal(DiveSimulation.STEP_DONE)
 
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"observe_granite")
 	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return not s.features_in_column().is_empty(), 3000.0, 0.5)).is_true()

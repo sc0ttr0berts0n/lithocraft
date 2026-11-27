@@ -15,6 +15,9 @@ const LOOK_S := 0.5
 ## it, unless its entry in the table sets its own `limit`. A test value, far
 ## longer than any step of a dive that goes well.
 const STEP_LIMIT_S := 20000.0
+## Presses of each of the Reactor's two tuning keys the follower makes between
+## looks: four a second, a hand's pace. A test value.
+const PRESSES_PER_LOOK := 2
 
 ## The First dive followed with no key pressed first, flown once and shared by
 ## the tests that only read it.
@@ -76,16 +79,36 @@ static func _observe(sim: DiveSimulation) -> void:
 			return
 
 
-## The Reactor's two tuning controls, on the channel selected (STANDBY, where
-## every dive starts and a Shift leaves it): set to the scan's guess of the
-## Wobble ahead, which is what the crew can see. With no guess there is
-## nothing to tune to.
+## The Reactor's keys worked toward the Counter-wave `target` on this channel,
+## as a hand works them: C first if the other channel is selected, then each
+## tuning key a press at a time (the frequency a step of its own size up or
+## down, the amplitude a fixed step), PRESSES_PER_LOOK of each between looks,
+## until neither can come nearer.
+static func _tune_by_keys(sim: DiveSimulation, channel: StringName, target: Vector2) -> void:
+	if sim.selected_channel() != channel:
+		sim.select_channel(channel)
+		return
+	for i in PRESSES_PER_LOOK:
+		var frequency := sim.counter_wave_frequency(channel)
+		if absf(log(target.x / frequency)) > log(1.0 + _Habitat.FREQUENCY_STEP) / 2.0:
+			sim.tune_frequency(frequency * (1.0 + _Habitat.FREQUENCY_STEP * signf(target.x - frequency)))
+		var amplitude := sim.counter_wave_amplitude(channel)
+		if absf(target.y - amplitude) > _Habitat.AMPLITUDE_STEP / 2.0:
+			sim.tune_amplitude(amplitude + _Habitat.AMPLITUDE_STEP * signf(target.y - amplitude))
+
+
+## STANDBY tuned by its keys toward the scan's guess of the Wobble ahead,
+## which is what the crew can see. With no guess there is nothing to tune to.
 static func _pretune(sim: DiveSimulation) -> void:
 	var guess := DiveTestKit.wobble_ahead(sim)
-	if is_nan(guess.x) or is_nan(guess.y):
-		return
-	sim.tune_frequency(guess.x)
-	sim.tune_amplitude(guess.y)
+	if not (is_nan(guess.x) or is_nan(guess.y)):
+		_tune_by_keys(sim, DiveSimulation.CHANNEL_STANDBY, guess)
+
+
+## ACTIVE tuned by its keys toward the Wobble on the plasma now, which the
+## Reactor's screen draws.
+static func _trim(sim: DiveSimulation) -> void:
+	_tune_by_keys(sim, DiveSimulation.CHANNEL_ACTIVE, DiveTestKit.wobble(sim))
 
 
 ## R at the Reactor, once the Head is in the Medium the step names: "as the
@@ -109,7 +132,9 @@ static func _wait(_sim: DiveSimulation) -> void:
 ## The follower's table for the First dive: for each Checklist step, by id,
 ## the key-map action its command belongs to (it must be the one the step
 ## names) and how it is followed (`follow`, called with the simulation before
-## every look while the step is next). A step with no entry here fails the
+## every look while the step is next). An entry with `fast = false` is worked
+## at the normal time rate: nobody tunes with time running fast. A step with
+## no entry here fails the
 ## follower by name, so a new step cannot be added without saying how it is
 ## followed.
 static func _first_dive_table() -> Dictionary:
@@ -127,12 +152,16 @@ static func _first_dive_table() -> Dictionary:
 		&"quiet_scan": {action = &"quiet_ship", follow = _quiet_scan},
 		&"quiet_off": {action = &"quiet_ship", follow = _quiet_off},
 		&"observe": {action = &"observe", follow = _observe},
-		&"pretune_standby": {action = &"tune_frequency", follow = _pretune},
+		&"pulse_boundary": {action = &"pulse", follow = _pulse},
+		&"pretune_standby": {action = &"tune_frequency", follow = _pretune, fast = false},
 		&"shift": {action = &"shift", follow = _shift_in.bind(middle)},
+		&"trim_active": {action = &"tune_frequency", follow = _trim, fast = false},
 		&"observe_sandstone": {action = &"observe", follow = _observe},
 		&"upload": {action = &"link", follow = _link},
-		&"pretune_standby_granite": {action = &"tune_frequency", follow = _pretune},
+		&"pulse_boundary_granite": {action = &"pulse", follow = _pulse},
+		&"pretune_standby_granite": {action = &"tune_frequency", follow = _pretune, fast = false},
 		&"shift_granite": {action = &"shift", follow = _shift_in.bind(bottom)},
+		&"trim_active_granite": {action = &"tune_frequency", follow = _trim, fast = false},
 		&"observe_granite": {action = &"observe", follow = _observe},
 		&"plot_climb": {action = &"plot_pitch", follow = _plot_pitch.bind(_Habitat.PITCHES[2])},
 		&"climbing": {action = &"", follow = _wait},
@@ -145,7 +174,7 @@ static func _first_dive_table() -> Dictionary:
 ## Plays this dive by its Checklist alone: reads the next step, has the
 ## table's entry for it send its command, and steps time until the step ticks,
 ## time run fast between calls as the crew's own time key does (it is no
-## Station's command). Stops when the Checklist has no step left, or at the
+## Station's command) except for a step its entry works at the normal rate. Stops when the Checklist has no step left, or at the
 ## first thing that fails the follower, which `failure` then says: a step with
 ## no entry in `table` (named), an entry whose action is not the one its step
 ## names, a step that did not tick within its time limit (named, with its
@@ -180,7 +209,7 @@ static func _follow(sim: DiveSimulation, table: Dictionary) -> Dictionary:
 					where, table[id].get("limit", STEP_LIMIT_S), sim.depth(), sim.medium().name]
 		else:
 			table[id].follow.call(sim)
-			sim.set_time_rate(sim.max_time_rate())
+			sim.set_time_rate(sim.max_time_rate() if table[id].get("fast", true) else 1.0)
 			waited += LOOK_S * sim.time_rate()
 			sim.advance(LOOK_S)
 			for event in sim.take_events():
@@ -332,4 +361,3 @@ func test_a_step_that_does_not_tick_within_its_time_limit_fails_naming_the_step_
 	assert_float(dive.sim.dive_time()).is_greater_equal(60.0)
 	assert_float(dive.sim.dive_time()).is_less(STEP_LIMIT_S)
 	assert_str(DiveTestKit.next_step_id(dive.sim)).is_equal(first.id)
-
