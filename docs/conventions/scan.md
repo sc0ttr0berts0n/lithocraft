@@ -7,7 +7,7 @@ A point's age is `point_age(point)`, counted on `dive_time()` (seconds simulated
 Anything that adds points goes through `_add_point()` and the sweep.
 
 **Drawing the scan.**
-Navigation's scan display (`ScanDisplay`) draws the cloud as one of three candidate views (see `docs/conventions/station-screens.md`, "Navigation's point cloud").
+Navigation's scan display (`ScanDisplay`) draws the cloud as one of three candidate views (see `docs/conventions/screen-navigation.md`, "Navigation's point cloud").
 Every view is a flat drawing through one static function from a place's offset from the Head to its place on the screen (`scope_place()`, `plan_place()`, `section_place()`, `world_up_place()`: metres, x right, y down), and `_draw_scan()` draws the same things through whichever it is given.
 A mark every candidate must show goes in `_draw_scan()`; a view's own scale marks go in its `_draw_*_marks()`.
 No view may read a clock or the layout (`scan_display_test.gd` checks the source): a place is a function of the simulation's state alone, so a view turns only as the vessel does.
