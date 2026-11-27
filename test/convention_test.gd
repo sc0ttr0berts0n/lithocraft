@@ -169,6 +169,10 @@ const OTHER_SENSES := {
 	"view/arm.gd": {
 		"seat": "what the Arm does to the crew member (seat()); not a name for a Station",
 	},
+	"view/bore_glass.gd": {
+		"tube": "the shape of the Bore's glass wall, a tube of glass; not a name for the Bore",
+		"cylinder": "the mesh the glass is drawn on; not a name for the Bore",
+	},
 	"view/crew_member.gd": {
 		"cylinder": "plain geometry: the shape the crew member may stand in; not the Bore",
 	},
