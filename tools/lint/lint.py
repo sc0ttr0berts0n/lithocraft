@@ -118,6 +118,7 @@ def _line_endings(files: list[str]) -> list[str]:
         info, path = entry.split("\t", 1)
         if path not in wanted:
             continue
+        wanted.discard(path)  # a file mid-merge is listed once a stage
         index, tree, *attr = info.split()  # i/lf w/crlf attr/text eol=crlf
         if index in ("i/crlf", "i/mixed"):
             findings.append(f"{path}:1: CRLF line endings in the repository (git add --renormalize {path})")
