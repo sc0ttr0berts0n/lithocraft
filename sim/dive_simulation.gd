@@ -8,7 +8,8 @@
 ##                   Each a Dictionary with a `type` StringName plus fields.
 ## Heat (Heat), the plasma and its Counter-wave (Plasma), stranding (Stranding),
 ## the look-ahead (LookAhead), the turning rule and the projected path
-## (ProjectedPath) and the ring of Stations' slide (RingSlide) are its own
+## (ProjectedPath), the ring of Stations' slide (RingSlide) and Navigation's
+## Beam (Beam) are its own
 ## subsystems, reached only through this interface; see
 ## docs/conventions/simulation-interface.md, "Subsystems".
 class_name DiveSimulation
@@ -116,15 +117,8 @@ const _DRIVE_NOISE := 0.5
 ## instruments, 0 to 1. Tuned for play (ADR 0001).
 const _SHUTTERED_QUALITY := 0.2
 
-## The scan. A pulse is sent as this many rays in a cone this wide (half-angle,
-## degrees) round the heading. Tuned for play (ADR 0001).
-const _PULSE_RAYS := 300
-const _PULSE_CONE_DEG := 35.0
-## Metres a pulse carries through a Medium of sound-carrying 1 before its echo
-## has faded to 1/e (out and back counts twice). Tuned for play (ADR 0001).
-const _SCAN_REACH_M := 500.0
-## Echoes weaker than this (1 = a perfect reflection close by) are lost.
-const _ECHO_CUTOFF := 0.01
+## The scan. A pulse is the Beam's (Beam, sim/beam.gd): its width, rays,
+## reach and the ground between the pulses it sends by itself are its own.
 ## Echo strength that reads as even odds against the scanner's own noise
 ## floor, even with the vessel silent. Tuned for play (ADR 0001).
 const _SCAN_NOISE_FLOOR := 0.15
@@ -227,6 +221,12 @@ const SCAN_VIEW_PLAN_AND_SECTION := &"plan_and_section"
 const SCAN_VIEW_WORLD_UP := &"world_up"
 const SCAN_VIEWS: Array[StringName] = [SCAN_VIEW_FORWARD_SCOPE, SCAN_VIEW_PLAN_AND_SECTION,
 		SCAN_VIEW_WORLD_UP]
+## The Beam's three widths (set_beam_width()), widest first: wide and short,
+## middle, narrow and long.
+const BEAM_WIDE := Beam.WIDE
+const BEAM_MIDDLE := Beam.MIDDLE
+const BEAM_NARROW := Beam.NARROW
+const BEAM_WIDTHS: Array[StringName] = Beam.WIDTHS
 ## Debug commands (see "Debug commands" below). The hull's wear at the brink
 ## of failure, all but worn through. Not tuned for play: a debug setting.
 const _DEBUG_BRINK_WEAR := 0.98
@@ -364,6 +364,10 @@ var _point_cells := {}
 ## counted from.
 var _dive_time := 0.0
 var _pulse_pending := false
+## Whether the pulse waiting was the Beam's own (its switch), not the crew's.
+var _pulse_by_itself := false
+## Navigation's Beam: its width, its switch and the ground since its last pulse.
+var _beam := Beam.new()
 var _pulses_sent := 0
 ## The Boundaries inferred from the cloud (BoundaryFit), and the pulses_sent()
 ## they were fitted at: refitted only when a pulse has changed the cloud and
@@ -595,6 +599,29 @@ func pulse() -> void:
 	if _off_the_crew():
 		return
 	_pulse_pending = true
+	_pulse_by_itself = false
+
+
+## Navigation: the Beam's width, one of BEAM_WIDTHS (an unknown one is
+## ignored). All three spend the same energy, so the narrower reaches further
+## over a smaller angle. A setting, not a reading (it holds, and changes what
+## every later pulse sounds): it disengages Navigation's autopilot.
+func set_beam_width(width: StringName) -> void:
+	if _off_the_crew() or not width in BEAM_WIDTHS:
+		return
+	_disengage_on_command(STATION_NAVIGATION)
+	_beam.set_width(width)
+
+
+## Navigation: the switch that pulses the Beam by itself as the vessel covers
+## ground, about once per stretch of new ground; a halted vessel sends none.
+## Its pulses are as noisy as a hand pulse sent under way. A setting, not a
+## reading: it disengages Navigation's autopilot.
+func set_beam_pulsing(on: bool) -> void:
+	if _off_the_crew():
+		return
+	_disengage_on_command(STATION_NAVIGATION)
+	_beam.set_pulsing(on)
 
 
 ## Navigation: Quiet Ship on or off. On, the Head spins down to idle and the
@@ -1188,6 +1215,9 @@ func _step(dt: float) -> void:
 	if depth_before > 0.0 and depth() <= 0.0 and not _heat.failed():
 		_surface()
 		return
+	if _beam.covered(_speed * dt) and not _pulse_pending:
+		_pulse_pending = true
+		_pulse_by_itself = true
 	if _pulse_pending:
 		_pulse_pending = false
 		_send_pulse()
@@ -1791,6 +1821,29 @@ func point_count() -> int:
 	return _points.size()
 
 
+## The Beam's width, one of BEAM_WIDTHS (BEAM_MIDDLE when a dive starts).
+func beam_width() -> StringName:
+	return _beam.width()
+
+
+## The half-angle of the Beam's cone at its width, degrees: what a view draws
+## its edges at.
+func beam_half_angle() -> float:
+	return _beam.half_angle()
+
+
+## The furthest the Beam's echo comes back from at its width, metres, were the
+## rock ahead all like the Medium the Head is in now. Narrower is further.
+func beam_reach() -> float:
+	return _beam.reach(_medium_here().sound_carrying)
+
+
+## Whether the Beam's switch is on: it pulses by itself as the vessel covers
+## ground (set_beam_pulsing()). Off when a dive starts.
+func beam_pulsing() -> bool:
+	return _beam.pulsing()
+
+
 ## How many pulses have been sent this dive. The cloud changes only when this
 ## does, so a view can rebuild on it without copying points() every frame.
 func pulses_sent() -> int:
@@ -2008,8 +2061,9 @@ func survey_value() -> float:
 ##       `cause` AUTOPILOT_OFF_BY_COMMAND (a crew command changed its
 ##       setting) or AUTOPILOT_OFF_BY_SWITCH (the crew switched it off).
 ##   &"course_plotted" {heading, pitch}: Navigation plotted the Course.
-##   &"pulse_sent" {quiet_ship}: Navigation's pulse went out, under Quiet
-##       Ship or not.
+##   &"pulse_sent" {quiet_ship, width, by_itself}: Navigation's Beam pulsed,
+##       under Quiet Ship or not, at its width (one of BEAM_WIDTHS), sent by
+##       hand (pulse()) or by itself (set_beam_pulsing()).
 ##   &"orders_read": see read_orders().
 ##   &"checklist_step", &"checklist_phase", &"goal_achieved",
 ##       &"surface_message": the Scenario's progress; see Checklist.tend().
@@ -3222,7 +3276,8 @@ func _medium_at_distance(along_path: float) -> Medium:
 
 # --- Scan -----------------------------------------------------------------
 
-## Sends one pulse as a cone of rays round the heading. Each echo comes from a
+## Sends one pulse of the Beam, its cone of rays round the heading (the
+## Beam's axis; Beam.rays()), at its width. Each echo comes from a
 ## Boundary, where the Medium changes and part of the sound is reflected. An
 ## echo is weaker the further it travelled and the worse the Media carried
 ## it; its confidence is its strength against the vessel's own noise. Weak
@@ -3230,20 +3285,9 @@ func _medium_at_distance(along_path: float) -> Medium:
 ## from (uncertain at range).
 func _send_pulse() -> void:
 	var origin := head_position()
-	var ahead := heading()
-	var side := ahead.cross(Vector3.RIGHT if absf(ahead.x) < 0.9 else Vector3.UP).normalized()
-	var other_side := ahead.cross(side)
-	# No echo returns from further than the cutoff allows in a Medium that
-	# carries sound perfectly.
-	var reach := -log(_ECHO_CUTOFF) * _SCAN_REACH_M / 2.0
-	var min_cos := cos(deg_to_rad(_PULSE_CONE_DEG))
 	var replaced := {}
-	for ray in _PULSE_RAYS:
-		var c := _scan_random.randf_range(min_cos, 1.0)
-		var s := sqrt(1.0 - c * c)
-		var turn := _scan_random.randf() * TAU
-		var direction := ahead * c + (side * cos(turn) + other_side * sin(turn)) * s
-		for echo in _echoes_along(origin, direction, reach):
+	for direction in _beam.rays(heading(), _scan_random):
+		for echo in _echoes_along(origin, direction):
 			var r: float = echo[0]
 			# A starved scanner listens less keenly: its echoes come back weaker.
 			var strength: float = echo[1] * navigation_supplied()
@@ -3255,6 +3299,7 @@ func _send_pulse() -> void:
 			_add_point(ScanPoint.new(origin + direction * r + stray, confidence, r,
 					_pulses_sent, _dive_time), replaced)
 	_pulses_sent += 1
+	_beam.sent()
 	if not replaced.is_empty():
 		_points = _points.filter(func(p: ScanPoint) -> bool: return not replaced.has(p))
 	var over := _points.size() - _SCAN_POINT_CAPACITY
@@ -3262,7 +3307,8 @@ func _send_pulse() -> void:
 		for point in _points.slice(0, over):
 			_unfile_point(point)
 		_points = _points.slice(over)
-	_events.append({type = &"pulse_sent", quiet_ship = _quiet_ship})
+	_events.append({type = &"pulse_sent", quiet_ship = _quiet_ship, width = _beam.width(),
+			by_itself = _pulse_by_itself})
 
 
 ## Adds a point to the cloud, first taking out every point an earlier pulse
@@ -3320,21 +3366,21 @@ func _scan_cell(position: Vector3) -> Vector3i:
 ## metres, nearest first, where the ray meets the surface (a wavy one at the
 ## depth it has there). Strength falls with the sound lost to each Medium on
 ## the way out and back, and with what earlier Boundaries reflected.
-func _echoes_along(origin: Vector3, direction: Vector3, reach: float) -> Array:
+func _echoes_along(origin: Vector3, direction: Vector3) -> Array:
 	var echoes := []
 	var faded := 0.0
 	var passed := 1.0
 	var travelled := 0.0
-	for met in _layout.meets(origin, origin + direction * reach):
+	for met in _layout.meets(origin, origin + direction * _beam.reach()):
 		var r: float = met[0]
 		if r <= 0.0:
 			continue
 		var before: Medium = met[2]
 		var after: Medium = met[3]
-		faded += 2.0 * (r - travelled) / (before.sound_carrying * _SCAN_REACH_M)
+		faded += Beam.fading(r - travelled, before.sound_carrying)
 		travelled = r
-		var strength := exp(-faded)
-		if strength < _ECHO_CUTOFF:
+		var strength := _beam.strength(faded)
+		if strength <= 0.0:
 			break
 		var reflected := _reflection(before, after)
 		if reflected <= 0.0:

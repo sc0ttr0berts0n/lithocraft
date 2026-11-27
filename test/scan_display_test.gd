@@ -261,3 +261,89 @@ func test_the_display_reads_the_scan_and_never_the_layout_or_a_clock() -> void:
 		assert_bool(source.contains(word)) \
 				.override_failure_message("scan_display.gd names %s" % word) \
 				.is_false()
+
+
+# --- The Beam's width and the scope's range ---------------------------------
+
+## A quiet vessel straight down with a Boundary this many metres below the
+## Head, three clean pulses sent, and a display of the game's own size
+## reading it.
+func _boundary_below(metres: float) -> Array:
+	var start := DiveSimulation.new(MediumLayout.uniform(DiveTestKit.rock(1.0))).depth()
+	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, DiveTestKit.rock(1.0)],
+			[start + metres, DiveTestKit.basalt(4.0, 1.0, 0.02)]]))
+	DiveTestKit.quiet_scan(sim)
+	var display: ScanDisplay = auto_free(ScanDisplay.new())
+	display.size = (load("res://view/habitat.gd") as GDScript).call(&"_navigation_display_px")
+	display.sim = sim
+	add_child(display)
+	display._process(0.0)
+	return [sim, display]
+
+
+func test_the_display_names_the_beam_s_width_in_every_view() -> void:
+	var sim := _diving()
+	var display: ScanDisplay = auto_free(ScanDisplay.new())
+	display.sim = sim
+	add_child(display)
+
+	for view in sim.scan_views():
+		var shown := {}
+		for width in DiveSimulation.BEAM_WIDTHS:
+			sim.set_beam_width(width)
+			assert_str(display.beam_label().to_lower()).contains(String(width))
+			shown[display.beam_label()] = true
+		assert_int(shown.size()).is_equal(DiveSimulation.BEAM_WIDTHS.size())
+		sim.debug_next_scan_view()
+
+
+func test_the_scope_steps_in_for_a_nearer_boundary_and_out_with_none_ahead() -> void:
+	var ranges := {}
+	var last := 0.0
+	for ahead in range(5, 250, 5):
+		var shown := ScanDisplay.scope_range(ahead).x
+		# A Boundary further ahead never shows on a shorter range, and the one
+		# it was chosen for is in view.
+		assert_float(shown).is_greater_equal(last)
+		assert_float(shown).is_greater(ahead)
+		last = shown
+		ranges[shown] = true
+
+	# It steps: more than two ranges between a near Boundary and a far one.
+	assert_int(ranges.size()).is_greater(2)
+	assert_float(ScanDisplay.scope_range(INF).x).is_greater_equal(last)
+	assert_float(ScanDisplay.scope_range(30.0).x).is_less(ScanDisplay.scope_range(INF).x)
+
+
+func test_a_boundary_30_m_ahead_is_drawn_clear_of_the_vessel_s_marker() -> void:
+	var staged := _boundary_below(30.0)
+	var display: ScanDisplay = staged[1]
+	var pane := display.single_pane()
+
+	var shown := 30.0 * ScanDisplay.scope_scale(pane, display.scope_shown().x)
+	var at_the_furthest := 30.0 * ScanDisplay.scope_scale(pane, ScanDisplay.scope_range(INF).x)
+
+	assert_float(display.scope_shown().x).is_less(ScanDisplay.scope_range(INF).x)
+	assert_float(shown).is_greater(at_the_furthest)
+	assert_float(shown).is_greater(4.0 * ScanDisplay.VESSEL_PX)
+
+
+func test_the_scope_s_range_changes_only_on_a_pulse() -> void:
+	# A Boundary well ahead, then the vessel closes on it with no pulse: the
+	# range holds until the next pulse, which steps it in.
+	var staged := _boundary_below(150.0)
+	var sim: DiveSimulation = staged[0]
+	var display: ScanDisplay = staged[1]
+	var before := display.scope_shown()
+	sim.set_autopilot(DiveSimulation.STATION_THERMAL, true)
+	sim.set_power(1.0)
+	var start := sim.depth()
+	while sim.depth() < start + 120.0:
+		sim.advance(0.5)
+		display._process(0.0)
+		assert_vector(display.scope_shown()).is_equal(before)
+
+	DiveTestKit.quiet_scan(sim)
+	display._process(0.0)
+
+	assert_float(display.scope_shown().x).is_less(before.x)
