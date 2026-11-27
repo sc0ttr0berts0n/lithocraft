@@ -381,6 +381,14 @@ func test_the_sandstone_and_granite_steps_tick_as_each_is_done() -> void:
 	assert_str(DiveTestKit.step_state(sim, &"observe_granite")).is_equal(DiveSimulation.STEP_DONE)
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"plot_climb")
 
+	# The planned path (ticket #89): the climb plotted when the Checklist asks
+	# for it, surface control warns of the turn once the Lithocraft begins it.
+	assert_int(_turn_warnings(sim)).is_equal(0)
+	sim.set_course(0.0, -90.0)
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return _turn_warnings(s) > 0, 3000.0, 0.5)).is_true()
+	assert_int(_turn_warnings(sim)).is_equal(1)
+	assert_str(DiveTestKit.step_state(sim, &"plot_climb")).is_equal(DiveSimulation.STEP_DONE)
+
 
 func test_turning_for_home_ticks_on_the_climb_and_surfacing_on_the_pay() -> void:
 	# In sand all the way, so the arc home is quick; the turn begins once the
@@ -466,6 +474,99 @@ func test_the_turns_text_says_the_lithocraft_turns_for_home_and_deepens_through_
 				text += step.text.to_lower() + " "
 	for said in ["turn", "home", "forward only", "deepens"]:
 		assert_str(text).contains(said)
+
+
+# --- Surface control warns of the turn for home (ticket #89) --------------
+
+## How many times surface control's warning that the turn for home deepens
+## has arrived.
+static func _turn_warnings(sim: DiveSimulation) -> int:
+	var count := 0
+	for text in sim.surface_messages():
+		if text.to_lower().contains("deepen"):
+			count += 1
+	return count
+
+
+## Flies until the warning has arrived `count` times; false if it does not.
+static func _fly_until_warned(sim: DiveSimulation, count := 1, seconds := 3000.0) -> bool:
+	return DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return _turn_warnings(s) >= count, seconds, 0.5)
+
+
+func test_a_climb_only_plotted_brings_no_warning_of_the_turn() -> void:
+	# At the surface, the Drive unpowered: the Course is an intention, and
+	# the Lithocraft has not begun to turn.
+	var sim := _first_dive_on(MediumLayout.uniform(Medium.sand()))
+	sim.set_course(0.0, -90.0)
+	sim.set_steering_effort(1.0)
+	DiveTestKit.run(sim, 30.0)
+	assert_int(_turn_warnings(sim)).is_equal(0)
+	# Nor is it sent in the moment of plotting, before the vessel has moved on.
+	sim = _diving_in_sand()
+	var on_the_way := sim.messages_on_the_way()
+	sim.set_course(0.0, -90.0)
+	assert_int(sim.messages_on_the_way()).is_equal(on_the_way)
+	assert_int(_turn_warnings(sim)).is_equal(0)
+
+
+func test_surface_control_warns_of_the_turn_once_the_lithocraft_begins_it_still_diving() -> void:
+	# The early path: the climb plotted long before the Checklist asks.
+	var sim := _diving_in_sand()
+	var before := sim.checklist_phase()
+	assert_int(_turn_warnings(sim)).is_equal(0)
+	sim.set_course(0.0, -90.0)
+	assert_bool(_fly_until_warned(sim)).is_true()
+	# It comes while the Lithocraft is still diving, before the turn's phase.
+	assert_float(sim.pitch()).is_greater(0.0)
+	assert_int(sim.checklist_phase()).is_equal(before)
+
+
+func test_the_warning_of_the_turn_comes_once_however_the_turn_goes() -> void:
+	var sim := _diving_in_sand()
+	sim.set_course(0.0, -90.0)
+	assert_bool(_fly_until_warned(sim)).is_true()
+	# Stopped mid-turn and under way again, the climb replotted at another
+	# heading: the same turn for home.
+	sim.set_power(0.0)
+	DiveTestKit.run(sim, 20.0)
+	sim.set_power(0.5)
+	sim.set_course(90.0, -60.0)
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.pitch() < 0.0, 3000.0)).is_true()
+	DiveTestKit.run(sim, 20.0)
+	assert_int(_turn_warnings(sim)).is_equal(1)
+	assert_int(sim.messages_on_the_way()).is_equal(0)
+
+
+func test_a_second_turn_for_home_is_warned_of_again() -> void:
+	var sim := _diving_in_sand()
+	sim.set_course(0.0, -90.0)
+	assert_bool(_fly_until_warned(sim)).is_true()
+	# The climb given up for a dive, then plotted again deeper down.
+	sim.set_course(0.0, 90.0)
+	DiveTestKit.run(sim, 20.0)
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.pitch() > 80.0, 3000.0)).is_true()
+	assert_int(_turn_warnings(sim)).is_equal(1)
+	sim.set_course(0.0, -90.0)
+	assert_bool(_fly_until_warned(sim, 2)).is_true()
+	assert_float(sim.pitch()).is_greater(0.0)
+
+
+func test_a_turn_that_leads_to_no_climb_brings_no_warning() -> void:
+	# Round to another heading, and up to level: neither Course is a climb.
+	var sim := _diving_in_sand()
+	sim.set_course(90.0, 45.0)
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.pitch() < 50.0, 3000.0)).is_true()
+	sim.set_course(180.0, 0.0)
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.pitch() < 5.0, 3000.0)).is_true()
+	assert_int(_turn_warnings(sim)).is_equal(0)
+	assert_int(sim.messages_on_the_way()).is_equal(0)
+	# The Drive nudged up off a diving Course: a climb nobody plotted.
+	sim = _diving_in_sand()
+	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
+	DiveTestKit.nudge(sim, 0.0, -180.0)
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.pitch() < 0.0, 3000.0)).is_true()
+	assert_int(_turn_warnings(sim)).is_equal(0)
+	assert_int(sim.messages_on_the_way()).is_equal(0)
 
 
 # --- Goals ---------------------------------------------------------------
