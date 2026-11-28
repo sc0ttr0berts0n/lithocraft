@@ -544,8 +544,10 @@ func _frame(index: int, area: Vector2) -> Dictionary:
 
 ## The words in one pane, each clear of the others and of the vessel's and
 ## the aim's marks (ScanLabels), placed in the order they matter: the pane's
-## title, the scale's numbers (so a view never loses its scale), surface
-## control's names for the rocks, then the targets' names. `frame` is _frame() of the pane.
+## title, the forward scope's range (so it never loses its scale), surface
+## control's names for the rocks, the other scale words (a depth, DOWN, N,
+## "+100 m", each with places either side), then the targets' names.
+## `frame` is _frame() of the pane.
 func _pane_labels(index: int, area: Vector2, frame: Dictionary) -> ScanLabels:
 	var labels := ScanLabels.new(Rect2(Vector2.ZERO, area), FONT_SIZE)
 	var place: Callable = frame.place
@@ -569,15 +571,17 @@ func _pane_labels(index: int, area: Vector2, frame: Dictionary) -> ScanLabels:
 			var right := area.x - labels.width(title) - 6.0
 			labels.place(title, [Vector2(8.0, top), Vector2(right, top), Vector2(8.0, area.y - 6.0),
 					Vector2(right, area.y - 6.0)], legend)
+	if sim.scan_view() == DiveSimulation.SCAN_VIEW_FORWARD_SCOPE:
+		_scope_ring_labels(labels, vessel, frame.scale, area)
+	_expected_labels(labels, place, area)
 	match sim.scan_view():
 		DiveSimulation.SCAN_VIEW_FORWARD_SCOPE:
-			_scope_scale_labels(labels, vessel, frame.scale, place, area)
+			_scope_down_label(labels, vessel, frame.scale, place)
 		DiveSimulation.SCAN_VIEW_PLAN_AND_SECTION:
 			if index == 1:
 				_section_scale_labels(labels, vessel, frame.scale, area)
 		DiveSimulation.SCAN_VIEW_WORLD_UP:
 			_world_scale_labels(labels, place)
-	_expected_labels(labels, place, area)
 	_target_labels(labels, place)
 	return labels
 
@@ -843,7 +847,7 @@ func _draw_vessel(canvas: Control, vessel: Vector2, heading_end: Vector2) -> voi
 
 ## The forward scope's marks: range rings about the Head at the range's ring
 ## spacing, the fan's centre line, and a plumb line to where down is, a tick
-## mark on each ring it crosses. Their words: _scope_scale_labels().
+## mark on each ring it crosses. Their words: _scope_ring_labels(), _scope_down_label().
 func _draw_scope_marks(canvas: Control, vessel: Vector2, scale: float, place: Callable) -> void:
 	var tick_m := _scope.y
 	for ring in range(1, ceili(canvas.size.length() / (tick_m * scale))):
@@ -867,17 +871,22 @@ static func _scope_down(vessel: Vector2, place: Callable) -> Vector2:
 	return down.normalized() if down.length() > 0.0 else Vector2.ZERO
 
 
-## The forward scope's numbers: each second ring's range, beside the vessel's
-## row (under it, else over it), and DOWN at the plumb line's end.
-func _scope_scale_labels(labels: ScanLabels, vessel: Vector2, scale: float, place: Callable, area: Vector2) -> void:
+## DOWN at the end of the forward scope's plumb line, beside it either side.
+func _scope_down_label(labels: ScanLabels, vessel: Vector2, scale: float, place: Callable) -> void:
+	var down := _scope_down(vessel, place)
+	if down == Vector2.ZERO:
+		return
+	var end := vessel + down * (_scope.x - _scope.y * 0.5) * scale
+	var wide := labels.width("DOWN")
+	labels.place("DOWN", [end + Vector2(-wide - 8.0, 6.0), end + Vector2(8.0, 6.0),
+			end + Vector2(-wide - 8.0, -6.0), end + Vector2(8.0, FONT_SIZE)], StationTheme.LEGEND_COLOUR)
+
+
+## The forward scope's range: each second ring's, beside the vessel's row
+## (under it, else over it).
+func _scope_ring_labels(labels: ScanLabels, vessel: Vector2, scale: float, area: Vector2) -> void:
 	var legend := StationTheme.LEGEND_COLOUR
 	var tick_m := _scope.y
-	var down := _scope_down(vessel, place)
-	if down != Vector2.ZERO:
-		var end := vessel + down * (_scope.x - tick_m * 0.5) * scale
-		var wide := labels.width("DOWN")
-		labels.place("DOWN", [end + Vector2(-wide - 8.0, 6.0), end + Vector2(8.0, 6.0),
-				end + Vector2(-wide - 8.0, -6.0), end + Vector2(8.0, FONT_SIZE)], legend)
 	# Every second ring's range, or every fourth (eighth...) where they would
 	# crowd, so the numbers stay apart enough to read.
 	var every := 2

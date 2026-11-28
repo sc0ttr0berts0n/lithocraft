@@ -2,8 +2,8 @@
 ## at the first of its candidate places that lies wholly inside its area and
 ## clear of every label put before it and of every marker blocked out, or
 ## left out when none is clear. A pane places its labels in the order they
-## matter (its title first, then its scale's numbers, the rock's names, the
-## targets' names), so a lesser label gives way to a greater and no two ever
+## matter (its title first, then its range, the rock's names, its other
+## scale words, the targets' names), so a lesser label gives way to a greater and no two ever
 ## overlap. Each is drawn on a faint backdrop, so the points never hide it.
 ## Plain: knows nothing of the simulation or the views.
 class_name ScanLabels

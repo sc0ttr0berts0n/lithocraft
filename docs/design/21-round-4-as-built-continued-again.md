@@ -25,8 +25,8 @@ Agent's choices, the developer away. Round 4's tickets each added words or marks
 
 - **A strip under the views for the tools' state.** The Sweep's line over the Beam's, each in one place in every view, below the panes rather than over them, so a tool's label never covers the scan, a scale or the expected rock's name.
   It costs the panes some 48 of the display's 209 pixels of height, about what the old labels already covered; the views keep their scales by their own rules, so they shrink a little and never turn or zoom on their own.
-- **Every other word placed, never drawn blind.** Inside a pane, the title goes first, then the scale's numbers, then surface control's rock names, then a target's name; each takes the first of a few nearby places clear of the words before it and of the vessel's and aim's marks, or is left out.
-  A view keeps its scale ahead of a rock's name, because a scope without its range cannot be read at all, while a rock's name moved a line further into the rock, or to the pane's left, still names the same depth.
+- **Every other word placed, never drawn blind.** Inside a pane, the title goes first, then the forward scope's ring ranges, then surface control's rock names, then the other scale words (a depth, DOWN, N, "+100 m"), then a target's name; each takes the first of a few nearby places clear of the words before it and of the vessel's and aim's marks, or is left out.
+  The scope's range comes before a rock's name because a scope without its range cannot be read at all; a depth or "+100 m" has a place either side of its line, or a neighbour that says the same, so it gives way to the name, which may also move a line further into the rock, or to the pane's left, and still name the same depth.
   Where every second range ring's number would crowd, every fourth is named.
 - **Words on faint backdrops**, as the rock's names already were, so the points never hide them.
 - **The survey's points are small open crosses**, not hollow squares: at the size the sheet shows the screen, a hollow square read as a filled one. A cross is still the legend's grey and faint, so nothing reads as a caution.
