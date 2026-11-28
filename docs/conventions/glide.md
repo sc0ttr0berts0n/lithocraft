@@ -19,6 +19,7 @@ Its choices and their reasons are in the design record, "The Glide (#123)" (`doc
   A new reading of the Wobble on the plasma uses `_felt_wobble()`, not `_wobble()`, which stays the rock's for what the rock does (a relight, the guess).
 - **The Column.** `column_absent()` is the one test of whether a place in the Bore has a Column; `_in_column()`, the Bore Station's lines and `ColumnStrip` follow it. A glided stretch records nothing and its features are marked found and never added.
 - **Power and heat.** In a Glide `_share_power()` gives Navigation its draw and Thermal its base draw and the Drive the rest of an output that builds with the jet's thrust; `Heat.step()`'s `aft_share` carries all but `Glide.hull_share()` of the heat away, none into the Column.
+- **The scan.** A Glide is deaf: `_send_pulse()` counts a drowned pulse and returns nothing (no `scan_revision()` change), `start_glide()` ends a running Sweep (`_end_sweep(false)`) and `start_sweep()` is ignored while `Glide.active()`.
 - **Halts.** `_strand()`, `_die()` and `_rest_at_surface()` call `Glide.halt()` (no idle); self-destruct drops out and spins the Head up.
 
 ## Seams left for later tickets

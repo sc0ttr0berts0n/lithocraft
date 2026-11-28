@@ -297,6 +297,28 @@ func test_the_display_names_the_beam_s_width_in_every_view() -> void:
 		sim.debug_next_scan_view()
 
 
+func test_the_display_names_the_sweep_s_range_and_how_far_a_running_one_has_got() -> void:
+	var sim := DiveSimulation.new(_banded())
+	var display: ScanDisplay = auto_free(ScanDisplay.new())
+	display.sim = sim
+	add_child(display)
+	var shown := {}
+	for metres in DiveSimulation.SWEEP_RANGES:
+		sim.set_sweep_range(metres)
+		assert_str(display.sweep_label()).contains("%d m" % roundi(metres))
+		shown[display.sweep_label()] = true
+	assert_int(shown.size()).is_equal(DiveSimulation.SWEEP_RANGES.size())
+
+	sim.start_sweep()
+	DiveTestKit.run(sim, sim.sweep_duration() * 0.2, 0.5)
+	var early := display.sweep_label()
+	DiveTestKit.run(sim, sim.sweep_duration() * 0.4, 0.5)
+
+	assert_str(early).contains("%")
+	assert_str(display.sweep_label()).is_not_equal(early)
+	assert_str(display.sweep_label()).contains("%d%%" % floori(sim.sweep_progress() * 100.0))
+
+
 func test_the_scope_steps_in_for_a_nearer_boundary_and_out_with_none_ahead() -> void:
 	var ranges := {}
 	var last := 0.0
@@ -347,3 +369,20 @@ func test_the_scope_s_range_changes_only_on_a_pulse() -> void:
 	display._process(0.0)
 
 	assert_float(display.scope_shown().x).is_less(before.x)
+
+
+func test_the_scope_s_range_follows_the_boundary_ahead_of_the_vessel_however_the_beam_is_aimed() -> void:
+	# The Boundary 30 m dead ahead steps the scope in; the Beam then aimed
+	# square across and pulsed there finds no Boundary along its aim, and the
+	# scope keeps to the one ahead of the vessel.
+	var staged := _boundary_below(30.0)
+	var sim: DiveSimulation = staged[0]
+	var display: ScanDisplay = staged[1]
+	var before := display.scope_shown()
+	assert_float(before.x).is_less(ScanDisplay.scope_range(INF).x)
+
+	sim.set_beam_aim(90.0, 0.0)
+	DiveTestKit.quiet_scan(sim)
+	display._process(0.0)
+
+	assert_vector(display.scope_shown()).is_equal(before)

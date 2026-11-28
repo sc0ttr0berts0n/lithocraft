@@ -194,6 +194,37 @@ func test_the_same_pulse_sent_in_the_crawl_returns_echoes() -> void:
 	assert_int(sim.point_count()).is_greater(count)
 
 
+func test_starting_a_glide_cuts_a_running_sweep_short() -> void:
+	var sim := _surveyed()
+	sim.start_sweep()
+	sim.advance(0.5)
+	assert_bool(sim.sweep_running()).is_true()
+	sim.take_events()
+
+	_glide(sim)
+	sim.advance(0.1)
+
+	var ended: Array = sim.take_events().filter(
+			func(e: Dictionary) -> bool: return e.type == &"sweep_ended")
+	assert_bool(sim.sweep_running()).is_false()
+	assert_int(ended.size()).is_equal(1)
+	assert_bool(ended[0].finished).is_false()
+
+
+func test_a_sweep_starts_in_the_crawl_but_not_in_a_glide() -> void:
+	var crawl := _surveyed()
+	crawl.start_sweep()
+	var glide := _surveyed()
+	_glide(glide)
+	DiveTestKit.run(glide, 1.0, 0.1)
+
+	glide.start_sweep()
+	glide.advance(0.1)
+
+	assert_bool(crawl.sweep_running()).is_true()
+	assert_bool(glide.sweep_running()).is_false()
+
+
 func test_the_beam_pulses_by_itself_in_the_crawl_but_not_in_a_glide() -> void:
 	var sim := _surveyed()
 	sim.set_beam_pulsing(true)

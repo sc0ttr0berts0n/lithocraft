@@ -3,9 +3,13 @@
 ## key until one is picked (DiveSimulation.scan_view(), the forward scope
 ## when a dive starts). Each shows the same things from the same queries: the
 ## vessel, the Course (dashed cyan), the projected path (solid cyan), the
-## Beam's cone at its width (faint cyan, out to its reach), the points
+## Beam's cone at its width (faint cyan, out to its reach), a running Sweep's
+## progress (green: the spiral swept so far and its leading edge), the points
 ## (surface control's survey hollow and fainter than the vessel's own) and
-## the Inferred Boundaries; a label in the lower left names the Beam's width.
+## the Inferred Boundaries; labels in the lower left name the Beam's width
+## and the Sweep's range and progress.
+## Aimed off the vessel's axis, the Beam's cone is drawn about its aim, with
+## a small diamond (_draw_aim()) along it and the aim in the Beam's label.
 ##
 ##   forward scope     the vessel's own vertical plane with ahead up the
 ##                     screen and range rings about the Head, as a
@@ -28,10 +32,14 @@
 ## screen can show it as a texture.
 ##
 ## Reads only the simulation: scan_view() and scan_views() for the candidate;
-## points(), point_age() and pulses_sent() for the cloud; inferred_boundaries()
+## points(), point_age() and scan_revision() for the cloud; inferred_boundaries()
 ## and patch_age() for the surfaces fitted to it (and BoundaryFit.ahead() of
 ## them for the scope's range); beam_width(), beam_half_angle() and
-## beam_reach() for the Beam's cone; head_position(), heading()
+## beam_reach(), beam_aim() and beam_axis() for the Beam's cone;
+## sweep_running(), sweep_range(),
+## sweep_progress(), sweep_time_left(), sweep_from_angle(),
+## sweep_reached_angle(), sweep_axis() and sweep_origin() for the Sweep;
+## head_position(), heading()
 ## and heading_degrees() for the vessel; course_direction() for the Course;
 ## projected_path() for where this turn takes the vessel.
 class_name ScanDisplay
@@ -108,6 +116,19 @@ const BEAM_ALPHA := 0.45
 const GLIDE_PX := 7.0
 const GLIDE_ALPHA := 0.55
 const GLIDE_END_PX := 10.0
+## The aim's marker, drawn only while the Beam is aimed off the vessel's
+## axis: a hollow diamond this many pixels from the Head along the aim (at
+## any view's scale), this many pixels from its centre to a point. Seen
+## end-on, the aim is the diamond about the Head.
+const AIM_MARK_AT_PX := 46.0
+const AIM_MARK_PX := 7.0
+## A running Sweep: green, a system at work; the spiral swept so far filled
+## this faint, its leading edge this strong.
+const SWEEP_COLOUR := StationTheme.ENGAGED_COLOUR
+const SWEEP_FILL_ALPHA := 0.12
+const SWEEP_EDGE_ALPHA := 0.8
+## How opaque the backdrop under the labels in the lower left is.
+const LABEL_BACKDROP_ALPHA := 0.85
 ## The plan and section pair, side by side at one scale: the metres the
 ## section shows under the vessel, where the vessel sits across both and down
 ## the section (shares; in the plan it is half way down), and the plan's
@@ -137,13 +158,13 @@ var sim: DiveSimulation
 ## drawn in it; and over them the caption and the panes' frames.
 var _panes: Array[Control] = []
 var _over := Control.new()
-## The points drawn, refreshed only when a pulse changes the cloud, and the
-## patches fitted to them.
+## The points drawn, refreshed only when the cloud changes (a pulse, or a
+## batch of a Sweep's points), and the patches fitted to them.
 var _points: Array[ScanPoint] = []
 var _patches: Array[BoundaryPatch] = []
-var _pulses_shown := -1
+var _revision_shown := -1
 ## The forward scope's range and ring spacing, metres (one of
-## SCOPE_RANGES_M), stepped only when a pulse changes the scan.
+## SCOPE_RANGES_M), stepped only when the scan changes.
 var _scope := SCOPE_RANGES_M[-1]
 var _projected := PackedVector3Array()
 var _frames_to_projection := 0
@@ -177,8 +198,8 @@ func _process(_delta: float) -> void:
 	if _frames_to_projection <= 0:
 		_frames_to_projection = PROJECTED_PATH_FRAMES
 		_projected = sim.projected_path()
-	if sim.pulses_sent() != _pulses_shown:
-		_pulses_shown = sim.pulses_sent()
+	if sim.scan_revision() != _revision_shown:
+		_revision_shown = sim.scan_revision()
 		_points = sim.points()
 		_patches = sim.inferred_boundaries()
 		_scope = scope_range(BoundaryFit.ahead(_patches, sim.head_position(), sim.heading()).x)
@@ -206,9 +227,40 @@ func caption() -> String:
 
 
 ## The Beam's width and cone, written in the display's lower left corner over
-## every view: "BEAM NARROW 30 deg".
+## every view: "BEAM NARROW 30 deg", with its aim once it is aimed off the
+## vessel's axis: "BEAM NARROW 30 deg  AIM R45 U15".
 func beam_label() -> String:
-	return "BEAM %s %d deg" % [String(sim.beam_width()).to_upper(), roundi(2.0 * sim.beam_half_angle())]
+	var label := "BEAM %s %d deg" % [String(sim.beam_width()).to_upper(), roundi(2.0 * sim.beam_half_angle())]
+	return label if sim.beam_aim() == Vector2.ZERO else "%s  AIM %s" % [label, aim_words(sim.beam_aim())]
+
+
+## The Beam's aim (DiveSimulation.beam_aim()) in words: how far to the
+## vessel's right (R) or left (L), then toward its top (U) or underside (D),
+## each left out when nothing; "AHEAD" when it is dead ahead.
+static func aim_words(aim: Vector2) -> String:
+	var words := PackedStringArray()
+	if roundi(aim.x) != 0:
+		words.append("%s%d" % ["R" if aim.x > 0.0 else "L", absi(roundi(aim.x))])
+	if roundi(aim.y) != 0:
+		words.append("%s%d" % ["U" if aim.y > 0.0 else "D", absi(roundi(aim.y))])
+	return "AHEAD" if words.is_empty() else " ".join(words)
+
+
+## The Sweep's range and how far it has got, written over every view above
+## the Beam's label: "SWEEP 200 m  45%  1:06 left" while one runs, else its
+## range, how long it would take and the key that starts it.
+func sweep_label() -> String:
+	if sim.sweep_running():
+		return "SWEEP %d m  %d%%  %s left" % [roundi(sim.sweep_range()),
+				floori(sim.sweep_progress() * 100.0), _minutes(sim.sweep_time_left())]
+	return "SWEEP %d m  %s  %s start" % [roundi(sim.sweep_range()), _minutes(sim.sweep_duration()),
+			KeyMap.label(&"sweep")]
+
+
+## Seconds as minutes and seconds: "1:06".
+static func _minutes(seconds: float) -> String:
+	var whole := ceili(seconds)
+	return "%d:%02d" % [whole / 60, whole % 60]
 
 
 ## The forward scope's range for an Inferred Boundary this many metres ahead
@@ -223,7 +275,7 @@ static func scope_range(boundary_ahead_m: float) -> Vector2:
 
 
 ## The forward scope's range shown now and its ring spacing, metres: changed
-## only when a pulse changes the scan, never between pulses.
+## only when the scan changes, never between pulses.
 func scope_shown() -> Vector2:
 	return _scope
 
@@ -311,13 +363,23 @@ func _lay_out_panes() -> void:
 		(_panes[i].get_child(0) as Control).size = rects[i].size
 
 
-## The caption, the Beam's width, and a rule round each pane.
+## The caption, the Sweep's and the Beam's labels, and a rule round each pane.
 func _draw_over() -> void:
 	var font := ThemeDB.fallback_font
 	_over.draw_string(font, Vector2(6.0, CAPTION_PX - 8.0), caption(), HORIZONTAL_ALIGNMENT_LEFT,
 			size.x - 12.0, FONT_SIZE, StationTheme.LEGEND_COLOUR)
-	_over.draw_string(font, Vector2(8.0, size.y - 8.0), beam_label(), HORIZONTAL_ALIGNMENT_LEFT,
-			size.x - 16.0, FONT_SIZE, StationTheme.SELECTED_COLOUR)
+	# The two labels on the screen's own backdrop, so the points never hide them.
+	var labels := [[sweep_label(), SWEEP_COLOUR if sim.sweep_running() else StationTheme.SELECTED_COLOUR],
+			[beam_label(), StationTheme.SELECTED_COLOUR]]
+	var widest := 0.0
+	for label: Array in labels:
+		widest = maxf(widest, font.get_string_size(label[0], HORIZONTAL_ALIGNMENT_LEFT, -1.0, FONT_SIZE).x)
+	var line := FONT_SIZE + 4.0
+	_over.draw_rect(Rect2(4.0, size.y - 4.0 - line * labels.size(), widest + 8.0, line * labels.size()),
+			StationTheme.faded(StationTheme.SCREEN_COLOUR, LABEL_BACKDROP_ALPHA))
+	for i in labels.size():
+		_over.draw_string(font, Vector2(8.0, size.y - 8.0 - line * (labels.size() - 1 - i)), labels[i][0],
+				HORIZONTAL_ALIGNMENT_LEFT, size.x - 16.0, FONT_SIZE, labels[i][1])
 	for pane in _panes:
 		if pane.visible:
 			_over.draw_rect(Rect2(pane.position, pane.size).grow(-1.0), StationTheme.RULE_COLOUR, false, 2.0)
@@ -367,10 +429,11 @@ func _draw_pane(canvas: Control, index: int) -> void:
 ## metres, to the pane's pixels): the Inferred Boundaries, the points, the
 ## Course, the projected path and the vessel, in that order, so the vessel
 ## and what the crew has selected are never under the rock; the Beam's cone
-## first, under everything. The vessel's heading line is `heading_m` long.
+## and the Sweep's progress first, under everything. The vessel's heading line is `heading_m` long.
 func _draw_scan(canvas: Control, place: Callable, heading_m := HEADING_M) -> void:
 	var head := sim.head_position()
 	_draw_beam(canvas, place)
+	_draw_sweep(canvas, place)
 	for patch in _patches:
 		var sureness := patch.confidence * exp(-sim.patch_age(patch) / FADE_S)
 		var corners := PackedVector2Array()
@@ -398,6 +461,7 @@ func _draw_scan(canvas: Control, place: Callable, heading_m := HEADING_M) -> voi
 		canvas.draw_rect(Rect2(at - Vector2(side, side) * 0.5, Vector2(side, side)), colour)
 
 	var vessel: Vector2 = place.call(Vector3.ZERO)
+	_draw_aim(canvas, place)
 	_dashes(canvas, vessel, place.call(sim.course_direction() * COURSE_M), COURSE_COLOUR)
 	var coming := PackedVector2Array()
 	for step in _projected:
@@ -428,24 +492,94 @@ func _draw_glide(canvas: Control, place: Callable) -> void:
 	canvas.draw_line(end - across, end + across, colour, 2.0)
 
 
-## The Beam's cone at its width, as two fans from the Head out to its reach:
-## one in the vessel's vertical plane (the scope's and the section's), one
-## square across it (the plan's), each its two edges and the arc between.
-## Every view draws both through its own `place`; one seen edge-on is a line
-## along the heading.
+## The Beam's cone at its width, as two fans from the Head out to its reach,
+## about its aim (beam_axis()): one in the plane through the aim and the
+## vessel's top (dead ahead, the vessel's vertical plane: the scope's and the
+## section's), one square across it (the plan's), each its two edges and the
+## arc between. What of a fan would lie behind the vessel, where nothing is
+## sent, is drawn flat along square across it. Every view draws both through
+## its own `place`; one seen edge-on is a line along the aim.
 func _draw_beam(canvas: Control, place: Callable) -> void:
 	var heading := sim.heading()
-	var right := _right(sim.heading_degrees())
+	var axis := sim.beam_axis()
 	var half := deg_to_rad(sim.beam_half_angle())
 	var reach := sim.beam_reach()
 	var colour := StationTheme.faded(BEAM_COLOUR, BEAM_ALPHA)
-	for square: Vector3 in [right.cross(heading).normalized(), right]:
+	for square in aim_squares(heading, _right(sim.heading_degrees()), sim.beam_aim()):
 		var fan := PackedVector2Array([place.call(Vector3.ZERO)])
 		for i in 17:
 			var angle := lerpf(-half, half, i / 16.0)
-			fan.append(place.call((heading * cos(angle) + square * sin(angle)) * reach))
+			var ray := axis * cos(angle) + square * sin(angle)
+			if ray.dot(heading) < 0.0:
+				ray = (ray - heading * ray.dot(heading)).normalized()
+			fan.append(place.call(ray * reach))
 		fan.append(fan[0])
 		canvas.draw_polyline(fan, colour, 1.5)
+
+
+## The two ways square to the Beam's aimed axis that a view draws its cone's
+## fans along: [toward the vessel's top, toward its right], each turned as the
+## aim (`aim` as DiveSimulation.beam_aim(), degrees) turns the axis, so dead
+## ahead they are the vessel's top (its `right` turned square to `heading`)
+## and its right.
+static func aim_squares(heading: Vector3, right: Vector3, aim: Vector2) -> Array[Vector3]:
+	var across := deg_to_rad(aim.x)
+	var up := deg_to_rad(aim.y)
+	var top := right.cross(heading).normalized()
+	var swung := heading * cos(across) + right * sin(across)
+	return [top * cos(up) - swung * sin(up), right * cos(across) - heading * sin(across)]
+
+
+## The aim's marker while the Beam is aimed off the vessel's axis: a small
+## hollow diamond a fixed few pixels from the Head along the aim, so it shows
+## at any view's scale; seen end-on, round the Head itself. Nothing while it
+## is dead ahead, where the vessel's own heading line says the same.
+func _draw_aim(canvas: Control, place: Callable) -> void:
+	if sim.beam_aim() == Vector2.ZERO:
+		return
+	var vessel: Vector2 = place.call(Vector3.ZERO)
+	var along: Vector2 = (place.call(sim.beam_axis() * sim.beam_reach()) as Vector2) - vessel
+	var at := vessel
+	if along.length() > AIM_MARK_PX:
+		at = vessel + along.normalized() * minf(AIM_MARK_AT_PX, along.length())
+	var r := AIM_MARK_PX
+	canvas.draw_polyline(PackedVector2Array([at + Vector2(0.0, -r), at + Vector2(r, 0.0),
+			at + Vector2(0.0, r), at + Vector2(-r, 0.0), at + Vector2(0.0, -r)]), BEAM_COLOUR, 2.0)
+
+
+## A running Sweep's progress, as the Beam's cone is drawn: in the plane of
+## its axis and down (the scope's and the section's) and the plane square
+## across it (the plan's), from where it began, the spiral swept so far as a
+## faint band each side of its axis from where it started (the Beam's edge)
+## out to where it has reached, at its range, and that reach as a strong
+## leading edge, sweeping outward to square across as the Sweep goes on.
+## Every view draws both through its own `place`; a band seen edge-on is not
+## filled.
+func _draw_sweep(canvas: Control, place: Callable) -> void:
+	if not sim.sweep_running():
+		return
+	var head := sim.head_position()
+	var from := sim.sweep_origin() - head
+	var axis := sim.sweep_axis()
+	var right := _right(sim.heading_degrees())
+	var square_down := right.cross(axis)
+	if square_down.length() < 0.01:
+		square_down = Vector3.UP.cross(axis)
+	var start := deg_to_rad(sim.sweep_from_angle())
+	var reached := deg_to_rad(sim.sweep_reached_angle())
+	var reach := sim.sweep_range()
+	var fill := StationTheme.faded(SWEEP_COLOUR, SWEEP_FILL_ALPHA)
+	var edge := StationTheme.faded(SWEEP_COLOUR, SWEEP_EDGE_ALPHA)
+	var origin: Vector2 = place.call(from)
+	for square: Vector3 in [square_down.normalized(), axis.cross(square_down).normalized()]:
+		for side: float in [-1.0, 1.0]:
+			var band := PackedVector2Array([origin])
+			for i in 9:
+				var angle := lerpf(start, reached, i / 8.0) * side
+				band.append(place.call(from + (axis * cos(angle) + square * sin(angle)) * reach))
+			if _face(band) >= SURFACE_LEAST_FACE_PX:
+				canvas.draw_colored_polygon(band, fill)
+			canvas.draw_line(origin, band[band.size() - 1], edge, 2.0)
 
 
 ## The vessel: its heading line and an arrowhead along it; seen end-on (the

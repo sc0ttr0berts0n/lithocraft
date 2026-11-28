@@ -42,3 +42,35 @@ The tickets of round 4 (spec #113), as built, continuing 17-glide-and-scan-round
 - **The forward scope's ranges.**
   It steps between 60 m, 120 m and 260 m (rings every 10, 25 and 50 m), the nearest that holds the nearest Inferred Boundary ahead along the heading within three quarters of its range, or 260 m with none ahead; it is worked out only when a pulse changes the scan.
   The vessel's heading line is about an eighth of the range, so at 60 m a Boundary 30 m off is drawn well clear of it; the world-up view keeps its one scale, as the spec says.
+
+## The Sweep (#121)
+
+Agent's choices, the developer away, each until the developer rules; the shape (a spiral from the Beam's edge to square across, equal turns, nothing behind, one to three minutes by range, smeared under way) is round 3's.
+
+- **The spiral.**
+  It starts at the Beam's half-angle at the moment it begins (15 degrees narrow, 35 middle, 55 wide), so it covers what that Beam does not, and winds out to 90 degrees in 20 turns of 60 rays each, its angle off the axis rising evenly.
+  So a turn's rays are spread round a wider circle the further out it is, and the points per unit of solid angle go as one over the sine of the angle: about twice as thick at 30 degrees as at 80.
+  Its axis is the way the Head pointed as it began.
+- **Timings follow range, by the time sound takes.**
+  Each ray listens for its echo for as long as sound takes to go out to the range and back, reckoned at 4 km/s (real rock carries sound at about 2 to 6 km/s), so 1200 rays take 60 s at 100 m, 120 s at 200 m and 180 s at 300 m: the spec's one to three minutes, and a longer range takes longer because the scanner must wait longer for each echo, not by a rule of its own.
+  The three ranges are 100, 200 and 300 m, 200 m when a dive starts; the range is chosen before a Sweep starts and cannot change while one runs.
+- **Its beam.**
+  One narrow beam of 5 degrees half-angle, heard at that beam's gain by the same rule as the Beam's widths (the same energy in a smaller cone is louder), so it hears out to its range in the First dive's sand and its points are surer than the Beam's at the same range.
+  How an echo fades and is heard is now one class, `Echoes`, both tools handing it their gain, rather than the Sweep borrowing the Beam's.
+  It draws no more power than the Beam: Navigation's draw is unchanged.
+- **The smear is the true one: a picture drawn as if the scanner stood still.**
+  Each ray leaves from where the Head then is, along the spiral turned with the vessel as it then points, and its echo is placed as if heard from where the Sweep began about its first axis.
+  So diving toward a Boundary its echoes are drawn short of it, by half the way the vessel went during the Sweep on average; a turn smears it sideways; halted at Quiet Ship nothing differs and the picture is clean (and quiet, the points surer).
+  Quiet Ship is not required to start one.
+- **Points as it goes.**
+  The echoes are handed into the one cloud a batch each second of the Sweep's time and as it ends, each batch counted as one change of the cloud (`scan_revision()`, which the views and the Boundary fit now follow in place of `pulses_sent()`), so the picture builds several times a turn while the fit runs at most once a second.
+  A Sweep's points all carry one number (-1 for the dive's first, counting down), so they never replace each other but do replace the Beam's, and the cloud's capacity holds as for pulses.
+  The Beam and the Sweep may run together.
+- **Readings and settings, and keys.**
+  Starting and stopping a Sweep are readings and leave Navigation's autopilot engaged; its range is a setting and disengages it, as the Beam's width does.
+  At Navigation V starts a Sweep or cuts the running one short (what it heard stays), G / T set the next one's range shorter / longer: free letters at Navigation, T and G already meaning more and less at the Drive.
+  Stranded, a Sweep ends and none may start.
+- **How it shows.**
+  Every scan view draws a running Sweep in green (the colour language's engaged and working), as the Beam's cone is drawn in the same two planes: a faint band each side of its axis from where it started to where its spiral has reached, out to its range, from where it began, and a strong leading edge that swings outward as it goes.
+  Over the Beam's label in the lower left, "SWEEP 200 m  45%  1:06 left" while one runs, else "SWEEP 200 m  2:00  [V] start"; both labels sit on a dark backdrop so points never hide them.
+  Navigation's status lines are unchanged, keeping the display's size.

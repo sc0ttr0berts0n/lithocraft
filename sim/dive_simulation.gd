@@ -9,7 +9,7 @@
 ## Heat (Heat), the plasma and its Counter-wave (Plasma), stranding (Stranding),
 ## the look-ahead (LookAhead), the turning rule and the projected path
 ## (ProjectedPath), the ring of Stations' slide (RingSlide), Navigation's
-## Beam (Beam) and the Glide (Glide) are its own
+## Beam (Beam) and Sweep (Sweep) and the Glide (Glide) are its own
 ## subsystems, reached only through this interface; see
 ## docs/conventions/simulation-interface.md, "Subsystems".
 class_name DiveSimulation
@@ -271,6 +271,9 @@ const _HEAD_AT_IDLE_CALL := Vector2(0.2, 0.2)
 ## Metres off its line, across it, the Head may have moved before the Glide's
 ## reach along the Course is worked out afresh (glide_reach()). Not tuned.
 const _REACH_OFF_LINE_M := 1.0
+## The ranges a Sweep may be taken to (set_sweep_range()), metres, shortest
+## first: a longer range takes longer.
+const SWEEP_RANGES: Array[float] = Sweep.RANGES
 ## Debug commands (see "Debug commands" below). The hull's wear at the brink
 ## of failure, all but worn through. Not tuned for play: a debug setting.
 const _DEBUG_BRINK_WEAR := 0.98
@@ -430,11 +433,19 @@ var _reach_from := Vector3.ZERO
 var _reach_along := Vector3.ZERO
 var _reach_patches: Array[BoundaryPatch] = []
 var _reach_m := -1.0
-## The Boundaries inferred from the cloud (BoundaryFit), and the pulses_sent()
-## they were fitted at: refitted only when a pulse has changed the cloud and
-## someone asks.
+## Navigation's Sweep: its range, and the spiral it is winding, if any; how
+## many Sweeps have begun this dive; and the points its rays have returned
+## since its last batch, waiting to be handed into the cloud.
+var _sweep := Sweep.new()
+var _sweeps_begun := 0
+var _sweep_heard: Array[ScanPoint] = []
+## How many times the cloud has changed this dive (scan_revision()).
+var _scan_revision := 0
+## The Boundaries inferred from the cloud (BoundaryFit), and the
+## scan_revision() they were fitted at: refitted only when the cloud has
+## changed and someone asks.
 var _inferred: Array[BoundaryPatch] = []
-var _inferred_at_pulse := -1
+var _inferred_at_revision := -1
 ## Fixed seed, so a dive's scan is the same every run.
 var _scan_random := RandomNumberGenerator.new()
 ## Which of SCAN_VIEWS Navigation's scan display draws: a debug setting
@@ -632,6 +643,8 @@ func start_glide() -> void:
 	if part > 0.0:
 		_close_stretch(part)
 	_observed = -1
+	if _sweep.running():
+		_end_sweep(false)  # The jet's roar drowns it: a Glide is deaf.
 	_glide.spin_up()
 	_glide.start(_position, _direction, _glide_reach_along(_direction), _distance)
 	_steering = 0.0
@@ -722,6 +735,61 @@ func set_beam_pulsing(on: bool) -> void:
 		return
 	_disengage_on_command(STATION_NAVIGATION)
 	_beam.set_pulsing(on)
+
+
+## Navigation: aims the Beam off the vessel's axis, degrees: `across` toward
+## the vessel's right (negative, its left), then `up` toward its top
+## (negative, its underside); see beam_aim(). Each is held to square across
+## the vessel, so the Beam never points behind it, and rays of a wide cone
+## that would leave behind are not sent. The aim is relative to the vessel
+## and turns with the Head; 0, 0 is dead ahead. A setting, not a reading (it
+## holds, and changes where every later pulse sounds, by hand or by itself):
+## it disengages Navigation's autopilot.
+func set_beam_aim(across: float, up: float) -> void:
+	if _off_the_crew():
+		return
+	_disengage_on_command(STATION_NAVIGATION)
+	_beam.set_aim(Vector2(across, up))
+
+
+## Navigation: start a Sweep, the prospecting scan, at the range set
+## (set_sweep_range()). One narrow beam winds in a spiral about the way the
+## Head points now, from the edge of the Beam's cone out to square across,
+## each turn taking the same time, so its points lie thickest ahead and thin
+## toward the sides, and none comes from behind. It takes sweep_duration()
+## and its points join the cloud as it goes, a batch at a time. Each ray
+## leaves from where the Head then is and is placed as if from where the Sweep
+## began, so under way the picture smears; halted at Quiet Ship it is clean.
+## A reading, not a setting: it leaves Navigation's autopilot as it is.
+## Ignored while one runs, stranded, and in a Glide, which is deaf (starting
+## a Glide ends a running Sweep). Raises &"sweep_started".
+func start_sweep() -> void:
+	if _off_the_crew() or _sweep.running() or stranded() or _glide.active():
+		return
+	_sweeps_begun += 1
+	_sweep_heard.clear()
+	_sweep.start(heading(), head_position(), _beam.half_angle())
+	_events.append({type = &"sweep_started", range = _sweep.running_range(),
+			quiet_ship = _quiet_ship})
+
+
+## Navigation: cut the running Sweep short. What it has heard joins the
+## cloud; the outer turns it never reached are not taken. A reading, as
+## start_sweep() is. Raises &"sweep_ended" (not finished).
+func stop_sweep() -> void:
+	if _off_the_crew() or not _sweep.running():
+		return
+	_end_sweep(false)
+
+
+## Navigation: the range of the next Sweep, one of SWEEP_RANGES (another is
+## ignored, and so is any while a Sweep runs). Longer reaches further and
+## takes longer. A setting: it disengages Navigation's autopilot.
+func set_sweep_range(metres: float) -> void:
+	if _off_the_crew() or _sweep.running() or not metres in SWEEP_RANGES:
+		return
+	_disengage_on_command(STATION_NAVIGATION)
+	_sweep.set_range(metres)
 
 
 ## Navigation: Quiet Ship on or off. On, the Head spins down to idle and the
@@ -965,7 +1033,7 @@ func start_surveyed() -> void:
 				if not _sounding_cells.has(key):
 					_sounding_cells[key] = []
 				_sounding_cells[key].append(point)
-	_inferred_at_pulse = -1  # The cloud has changed with no pulse sent.
+	_scan_revision += 1  # The cloud has changed with no pulse sent.
 	_look_ahead()
 
 
@@ -1336,6 +1404,8 @@ func _step(dt: float) -> void:
 	# runs stranded too: the carriages need no plasma.
 	_ring.step(sin(deg_to_rad(pitch())), dt)
 	if stranded():
+		if _sweep.running():
+			_end_sweep(false)  # Nothing to power the scanner but the store.
 		_step_stranded(dt)
 		return
 	_relight_asked = false  # Only a lost plasma can be relit.
@@ -1369,6 +1439,7 @@ func _step(dt: float) -> void:
 		_pulse_pending = false
 		_send_pulse()
 		_look_ahead()
+	_listen_to_sweep(dt)
 	_steady_autopilots(dt)
 	_check_stranded()
 	if _surfaced or dead():
@@ -2114,16 +2185,107 @@ func beam_reach() -> float:
 	return _beam.reach(_medium_here().sound_carrying)
 
 
+## Where the Beam is aimed off the vessel's axis, degrees (set_beam_aim()):
+## x toward the vessel's right, y toward its top, each within square across.
+## The vessel does not roll, so its top is its right (level, square to its
+## compass heading) turned square to the way the Head points: up travelling
+## level, onward along the compass heading diving. Zero, dead ahead, when a
+## dive starts.
+func beam_aim() -> Vector2:
+	return _beam.aim()
+
+
+## The Beam's axis in the world frame, unit length: heading() swung by
+## beam_aim(), so it turns with the Head. Never behind the vessel
+## (beam_axis().dot(heading()) >= 0). The look-ahead never reads it: the
+## Boundary countdown and STANDBY's guess look along heading().
+func beam_axis() -> Vector3:
+	return _beam.axis(_direction, _vessel_right(), _vessel_top())
+
+
+## The vessel's right in the world frame: level and square to its compass
+## heading (heading_degrees(), the last one it had while straight up or down).
+func _vessel_right() -> Vector3:
+	var bearing := deg_to_rad(_bearing)
+	return Vector3(cos(bearing), 0.0, sin(bearing))
+
+
+## The vessel's top in the world frame: its right turned square to the way the
+## Head points.
+func _vessel_top() -> Vector3:
+	return _vessel_right().cross(_direction).normalized()
+
+
 ## Whether the Beam's switch is on: it pulses by itself as the vessel covers
 ## ground (set_beam_pulsing()). Off when a dive starts.
 func beam_pulsing() -> bool:
 	return _beam.pulsing()
 
 
-## How many pulses have been sent this dive. The cloud changes only when this
-## does, so a view can rebuild on it without copying points() every frame.
+## How many pulses of the Beam have been sent this dive.
 func pulses_sent() -> int:
 	return _pulses_sent
+
+
+## How many times the cloud has changed this dive: once a pulse, and once
+## each batch of a Sweep's points. The cloud and the Inferred Boundaries
+## change only when this does, so a view can rebuild on it without copying
+## points() every frame.
+func scan_revision() -> int:
+	return _scan_revision
+
+
+## The range the next Sweep is taken to, metres (one of SWEEP_RANGES); while
+## one runs, its own.
+func sweep_range() -> float:
+	return _sweep.running_range() if _sweep.running() else _sweep.range_m()
+
+
+## Seconds a Sweep takes at sweep_range(): every ray listens as long as sound
+## takes to go out to the range and back.
+func sweep_duration() -> float:
+	return Sweep.duration(sweep_range())
+
+
+## Whether a Sweep is running.
+func sweep_running() -> bool:
+	return _sweep.running()
+
+
+## The share of the running Sweep taken, 0 as it starts to 1 as it ends; 0
+## with none running.
+func sweep_progress() -> float:
+	return _sweep.progress() if _sweep.running() else 0.0
+
+
+## Seconds left of the running Sweep; 0 with none running.
+func sweep_time_left() -> float:
+	return _sweep.time_left() if _sweep.running() else 0.0
+
+
+## How far out the running Sweep's spiral has reached, degrees off its axis:
+## sweep_from_angle() as it starts, 90 (square across) as it ends. Its points
+## so far come from within it. NAN with none running.
+func sweep_reached_angle() -> float:
+	return _sweep.reached_angle() if _sweep.running() else NAN
+
+
+## Degrees off its axis the running Sweep began at, the edge of the Beam's
+## cone when it started; NAN with none running.
+func sweep_from_angle() -> float:
+	return _sweep.from_angle() if _sweep.running() else NAN
+
+
+## The axis the running Sweep winds about (the way the Head pointed as it
+## began, unit length) and where the Head was then, in the world frame of
+## points(): its points are placed as if heard from there. Both only mean
+## anything while sweep_running().
+func sweep_axis() -> Vector3:
+	return _sweep.axis()
+
+
+func sweep_origin() -> Vector3:
+	return _sweep.origin()
 
 
 ## The most of the vessel's own points the cloud holds; the survey's are held
@@ -2161,7 +2323,7 @@ func scan_views() -> Array[StringName]:
 ## (BoundaryFit), never read from the layout, so they show only what the scan
 ## returned. Each patch's confidence follows how many points support it; it
 ## lies in the world frame with the points, and is as old as they are
-## (patch_age()). Refitted only once a pulse has changed the cloud, so a view
+## (patch_age()). Refitted only once the cloud has changed, so a view
 ## may read this every frame. A copy of the list, but the patches in it are
 ## the fit's own: read them, never change them.
 func inferred_boundaries() -> Array[BoundaryPatch]:
@@ -2169,10 +2331,10 @@ func inferred_boundaries() -> Array[BoundaryPatch]:
 	return _inferred.duplicate()
 
 
-## Refits the Inferred Boundaries if a pulse has changed the cloud since.
+## Refits the Inferred Boundaries if the cloud has changed since.
 func _fit_boundaries() -> void:
-	if _inferred_at_pulse != _pulses_sent:
-		_inferred_at_pulse = _pulses_sent
+	if _inferred_at_revision != _scan_revision:
+		_inferred_at_revision = _scan_revision
 		_inferred = BoundaryFit.fit(points())
 
 
@@ -2452,6 +2614,13 @@ func survey_value() -> float:
 ##   &"glide_ended" {by, distance, glided}: the Glide halted, the Head at
 ##       idle, `by` &"plotted_length" or &"crew", at path distance
 ##       `distance` after `glided` metres.
+##   &"pulse_sent" {quiet_ship, width, by_itself}: Navigation's Beam pulsed,
+##       under Quiet Ship or not, at its width (one of BEAM_WIDTHS), sent by
+##       hand (pulse()) or by itself (set_beam_pulsing()).
+##   &"sweep_started" {range, quiet_ship}: Navigation began a Sweep
+##       (start_sweep()) to `range` metres, under Quiet Ship or not.
+##   &"sweep_ended" {finished}: the Sweep ended, `finished` all the way out
+##       to square across, or cut short (stop_sweep(), or stranded).
 ##   &"orders_read": see read_orders().
 ##   &"checklist_step", &"checklist_phase", &"goal_achieved",
 ##       &"surface_message": the Scenario's progress; see Checklist.tend().
@@ -3695,13 +3864,12 @@ func _medium_at_distance(along_path: float) -> Medium:
 
 # --- Scan -----------------------------------------------------------------
 
-## Sends one pulse of the Beam, its cone of rays round the heading (the
-## Beam's axis; Beam.rays()), at its width. Each echo comes from a
+## Sends one pulse of the Beam, its cone of rays round its axis (the heading
+## swung by the crew's aim, beam_axis(); Beam.rays()), at its width, none of
+## them behind the vessel. Each echo comes from a
 ## Boundary, where the Medium changes and part of the sound is reflected. An
 ## echo is weaker the further it travelled and the worse the Media carried
-## it; its confidence is its strength against the vessel's own noise. Weak
-## echoes are often missed (sparse at range) and stray from where they came
-## from (uncertain at range).
+## it, and is heard as _heard() says.
 func _send_pulse() -> void:
 	if _glide.active():
 		# The jet drowns every echo: the pulse is sent and nothing returns.
@@ -3712,20 +3880,38 @@ func _send_pulse() -> void:
 		return
 	var origin := head_position()
 	var replaced := {}
-	for direction in _beam.rays(heading(), _scan_random):
-		for echo in _echoes_along(origin, direction):
-			var r: float = echo[0]
-			# A starved scanner listens less keenly: its echoes come back weaker.
-			var strength: float = echo[1] * navigation_supplied()
-			var confidence := strength / (strength + _noise + _SCAN_NOISE_FLOOR)
-			if _scan_random.randf() > confidence:
-				continue
-			var stray := Vector3(_scan_random.randfn(), _scan_random.randfn(),
-					_scan_random.randfn()) * (1.0 - confidence) * r * _SCAN_SCATTER
-			_add_point(ScanPoint.new(origin + direction * r + stray, confidence, r,
-					_pulses_sent, _dive_time), replaced)
+	for direction in _beam.rays(beam_axis(), _scan_random, _direction):
+		for echo in _echoes_along(origin, direction, _beam.gain(), _beam.reach()):
+			var point := _heard(echo[0], echo[1], origin + direction * echo[0], _pulses_sent)
+			if point != null:
+				_add_point(point, replaced)
 	_pulses_sent += 1
 	_beam.sent()
+	_take_in(replaced)
+	_events.append({type = &"pulse_sent", quiet_ship = _quiet_ship, width = _beam.width(),
+			by_itself = _pulse_by_itself, drowned = false})
+
+
+## The point an echo heard `metres` away with this strength makes, placed at
+## `place` (where the tool takes it to have come from), as sounding `id`
+## found it; null when it is lost. Its confidence is its strength against the
+## vessel's own noise: weak echoes are often missed (sparse at range) and
+## stray from where they came from (uncertain at range).
+func _heard(metres: float, heard: float, place: Vector3, id: int) -> ScanPoint:
+	# A starved scanner listens less keenly: its echoes come back weaker.
+	var strength := heard * navigation_supplied()
+	var confidence := strength / (strength + _noise + _SCAN_NOISE_FLOOR)
+	if _scan_random.randf() > confidence:
+		return null
+	var stray := Vector3(_scan_random.randfn(), _scan_random.randfn(),
+			_scan_random.randfn()) * (1.0 - confidence) * metres * _SCAN_SCATTER
+	return ScanPoint.new(place + stray, confidence, metres, id, _dive_time)
+
+
+## The cloud has taken in a sounding's points (_add_point()): sweeps out the
+## points they replaced and the oldest past point_capacity(), once, and counts
+## the change (scan_revision()).
+func _take_in(replaced: Dictionary) -> void:
 	if not replaced.is_empty():
 		_points = _points.filter(func(p: ScanPoint) -> bool: return not replaced.has(p))
 		if not _soundings.is_empty():
@@ -3735,15 +3921,56 @@ func _send_pulse() -> void:
 		for point in _points.slice(0, over):
 			_unfile_point(point)
 		_points = _points.slice(over)
-	_events.append({type = &"pulse_sent", quiet_ship = _quiet_ship, width = _beam.width(),
-			by_itself = _pulse_by_itself, drowned = false})
+	_scan_revision += 1
+
+
+## The running Sweep's time goes on by a step: the rays now due are cast from
+## where the Head is now, along the spiral turned about the way it points now,
+## and each echo is placed as if from where the Sweep began about its first
+## axis (Sweep.where_placed()). Each batch's points are handed into the cloud
+## together; a finished Sweep ends. Its points share one sounding's number,
+## -2 for the dive's first Sweep and counting down (the survey's is -1), so
+## none replaces another.
+func _listen_to_sweep(dt: float) -> void:
+	if not _sweep.running():
+		return
+	var reach := minf(_sweep.running_range(), Echoes.reach(Sweep.gain()))
+	for index in _sweep.due(dt):
+		var direction := _sweep.direction(index, heading())
+		for echo in _echoes_along(_position, direction, Sweep.gain(), reach):
+			var point := _heard(echo[0], echo[1], _sweep.where_placed(index, echo[0]), -1 - _sweeps_begun)
+			if point != null:
+				_sweep_heard.append(point)
+	if _sweep.hand_in_due():
+		_hand_in_sweep()
+	if _sweep.finished():
+		_end_sweep(true)
+
+
+## Hands the Sweep's points heard since its last batch into the cloud.
+func _hand_in_sweep() -> void:
+	if _sweep_heard.is_empty():
+		return
+	var replaced := {}
+	for point in _sweep_heard:
+		_add_point(point, replaced)
+	_sweep_heard.clear()
+	_take_in(replaced)
+	_look_ahead()
+
+
+## Ends the running Sweep, what it has heard handed in. Raises &"sweep_ended".
+func _end_sweep(finished: bool) -> void:
+	_hand_in_sweep()
+	_sweep.stop()
+	_events.append({type = &"sweep_ended", finished = finished})
 
 
 ## Adds a point to the cloud, first taking out every point an earlier pulse
 ## returned within the resolution of it, which it replaces (echoes of one
 ## pulse are as new as each other, so none replaces another). Those are taken
 ## out of _point_cells now and marked in `replaced`, for _send_pulse() to sweep
-## out of _points once per pulse. Looks in only the eight cells the point's
+## out of _points once per sounding (_take_in()). Looks in only the eight cells the point's
 ## reach can touch.
 func _add_point(point: ScanPoint, replaced: Dictionary) -> void:
 	var corner := _scan_cell(point.position - Vector3.ONE * _SCAN_RESOLUTION_M)
@@ -3769,7 +3996,7 @@ func _add_point(point: ScanPoint, replaced: Dictionary) -> void:
 ## Counts an echo of the vessel's own against the survey soundings near it
 ## (_SURVEY_GIVES_WAY_DEPTH_M up or down, _SURVEY_SPACING_M across the ground):
 ## each that its echoes have now outweighed (_SURVEY_GIVES_WAY_AT) is taken out
-## of _sounding_cells and marked in `replaced`, for _send_pulse() to sweep out of
+## of _sounding_cells and marked in `replaced`, for _take_in() to sweep out of
 ## _soundings. Looks in only the nine squares round the echo's.
 func _outhear_soundings(point: ScanPoint, replaced: Dictionary) -> void:
 	var centre := _sounding_cell(point.position)
@@ -3828,25 +4055,28 @@ func _scan_cell(position: Vector3) -> Vector3i:
 	return Vector3i((position / (2.0 * _SCAN_RESOLUTION_M)).floor())
 
 
-## The echoes one ray from `origin` along `direction` returns: [range m,
-## strength] for each time it passes through a Boundary within `reach`
-## metres, nearest first, where the ray meets the surface (a wavy one at the
+## The echoes one ray from `origin` along `direction` returns, sent at this
+## gain (Echoes.gain_of(): the Beam's or the Sweep's) and listened for out to
+## `reach` metres: [range m, strength] for each time it passes through a
+## Boundary, nearest first, where the ray meets the surface (a wavy one at the
 ## depth it has there). Strength falls with the sound lost to each Medium on
-## the way out and back, and with what earlier Boundaries reflected.
-func _echoes_along(origin: Vector3, direction: Vector3) -> Array:
+## the way out and back, and with what earlier Boundaries reflected. Every
+## tool that sounds the rock casts its rays here; a body that is not a
+## Boundary (a target) returns its echoes here too.
+func _echoes_along(origin: Vector3, direction: Vector3, gain: float, reach: float) -> Array:
 	var echoes := []
 	var faded := 0.0
 	var passed := 1.0
 	var travelled := 0.0
-	for met in _layout.meets(origin, origin + direction * _beam.reach()):
+	for met in _layout.meets(origin, origin + direction * reach):
 		var r: float = met[0]
 		if r <= 0.0:
 			continue
 		var before: Medium = met[2]
 		var after: Medium = met[3]
-		faded += Beam.fading(r - travelled, before.sound_carrying)
+		faded += Echoes.fading(r - travelled, before.sound_carrying)
 		travelled = r
-		var strength := _beam.strength(faded)
+		var strength := Echoes.strength(gain, faded)
 		if strength <= 0.0:
 			break
 		var reflected := _reflection(before, after)
