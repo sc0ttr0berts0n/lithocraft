@@ -22,7 +22,7 @@ Agent's choices, the developer away. The class is `Glide` (`sim/glide.gd`); how 
   At full thrust that is a little over three times the heat of standing still with the Head running, a quarter of a Crawl at full power: modestly hotter. Real basis: a rocket's exhaust carries most of its heat away.
   There is no Column, so Thermal's split does nothing in a Glide: none goes into the Column, whatever it is set to, and its pumps draw only their base load.
 - **Time rate**: the two multiply. A Glide moves in 1 m pieces, so a long step meets both surfaces of a thin layer, and never past its end.
-- **Turns**: a Glide starts only with the Head within 1 degree of the Course and the Drive not overriding; in it, the Course changes nothing and nudges only hold it on its line (#126, below). `glide_refusal()` says why one cannot start.
+- **Turns**: a Glide starts only with the Head within 1 degree of the Course and the Drive not overriding; in it, the Course changes nothing and nudges only hold it on its line (#126, in 21-round-4-as-built-last.md). `glide_refusal()` says why one cannot start.
 - **The Reactor**: in a Glide and at the idle after it no Wobble reaches the plasma; nothing wears and nothing is out of the Band, its autopilot holds nothing, and a worn Head is as unsteady as ever (less output).
   Its screen's first line says "Head GLIDE: no Wobble", ACTIVE's Residual reads "—" and its verdict NO WOBBLE ON THE PLASMA; at the idle, "Head AT IDLE: tune STANDBY here, [R] spins up".
 - **Calls**: no Boundary is announced in a Glide, so no Boundary call. The Drive reports "glide_ending" within 10 s of the end, or while dropping out; the Reactor reports "head_at_idle" at the idle. Both are reports: they keep the time rate.
@@ -42,24 +42,30 @@ Agent's choices, the developer away. The class is `Glide` (`sim/glide.gd`); how 
   The view leaves a melted Column out of the Column strip; the look and sound are #127's.
 - **The cost budget** plays a Glide as its second condition.
 
+## Targets (#124; agent's choices, the developer away)
 
-## The Glide flown by hand (#126)
-
-Agent's choices, the developer away ("It is flown by hand, and wear comes from being off its line", 17-glide-and-scan-round-3.md). How it meets the code is `docs/conventions/glide.md`, "Flown by hand (#126)".
-
-- **What pushes it, and how hard.** Three things, each as a sideways slope of the way the vessel runs, worked out per metre along the line so a raised time rate flies the same Glide:
-  the melt sheath's own unsteadiness (about a degree at most, changing smoothly over a couple of hundred metres, seeded per Glide so a dive flown the same drifts the same);
-  rock harder on one side (felt a hull's radius either side of the Head, pushing toward the softer side: a kick where a folded Boundary crosses the line obliquely);
-  and being off the line at all, which pushes further off (a body in its bubble is unstable), capped at the sheath's own push so a long careless Glide runs away linearly, not exponentially.
-  Real basis: a supercavitating body is unstable in its cavity and is steered the whole way; a face harder on one side melts slower there and turns the vessel away from it.
-- **How the crew corrects: a Drive nudge in a Glide is far finer.** A nudge of the Crawl's 15 degrees would be wild at a Glide's speed, so in a Glide the same keys (Z / X, J / L) turn it a quarter of a degree a press on the ball's own axes, vertical or not (no lean), held until nudged back.
-  What the Drive steers for is untouched and no override begins. A nudge is a command: it disengages the Drive's autopilot.
-  The glossary avoids "trim" for a Nudge, so it is still a Nudge, its Glide sense added to the term; the Glide's Line is a new term.
-- **How wear grows.** Nothing within a metre of the line (the sheath is a little wider than the hull). Past that, the Head's one wear and the hull's one wear (no third) grow per metre glided in proportion to how far past, up to hard against the wall four metres further, beyond which it wears no faster.
-  A Head slapped through loses the plasma as a Residual would; a hull slapped through fails as heat's creep would. The hull's sparks and shake play while it slaps (`hull_taking_damage()`).
-- **How loosely the autopilot holds.** It does nothing until the Glide is 1.25 m off, then nudges back in proportion to how far past that, not knowing the push: safe but mediocre, it rides just past the slack and wears a little.
-  Measured in the test layout (hard rock, 300 m vertical): no hand, the Head wears about 0.054 and the hull 0.027; on the autopilot about 0.014 and 0.007; held, nothing. Over 800 m: no hand 0.35 and 0.18, the autopilot 0.035 and 0.018.
-- **The call.** Off the line past the slack the Drive warns, `&"off_glide_line"`, more urgent the harder against the wall; as a warning it drops the time rate (it puts the vessel at risk). On the autopilot it may begin and end as the Glide wanders across the slack; a Glide lasts seconds, so the dropped rate costs little.
-- **The ball.** The line to hold is a hollow cyan diamond at where the line is 50 m ahead: on it the Glide rejoins its line, so it shows both the line and the way back; the bottom right corner reads OFF LINE in metres, green within the slack, amber wearing, red half way to hard against the wall.
-- **Where it ends.** A Glide still halts at its plotted length measured along its line, and never past what the scan has shown along it; only its offset across the line differs. Halted, the vessel settles along its line again, so the next Glide may start without crawling straight.
-- **For #128.** A 300 m Glide left to the Drive's autopilot wears about a hundredth of the Head and less of the hull, and may sound `off_glide_line`; the Checklist-follower test should engage the Drive's autopilot after starting a Glide (starting one disengages it) and acknowledge.
+- **One kind: a lens of hematite breccia in the granite.**
+  Granite shattered and cemented by iron oxide, with a little copper sulphide; the survey sees a dense, magnetic body and cannot say what it is.
+  Real basis: Olympic Dam, hosted in granite under cover, was found in 1975 by boring into a coincident gravity and magnetic high; what it was became known only from the rock that came up.
+  It is stiffer than granite (acoustic impedance about 1.6 times: some 4 g/cc at 6 km/s against 2.65 at 5.5), so its surface returns echoes, weaker than the Boundaries'.
+- **Its size: a flattened lens 18 m across and 10 m tall.**
+  Wider than the Column, so a cut through it fills the Column all round; about as tall as the vessel is long, so a crawl through it takes the Bore Station's time to record.
+- **A body in its host, not a Medium.**
+  Cutting through it leaves the Wobble the granite's and raises no Boundary: the spec makes it a feature of interest of its own kind, and a Medium of its own would ask a Shift into and out of every target.
+  Its points still make Inferred Boundary patches over its top, as any reflector's do, and carry the contrast #122 gave echoes: going in it is stiffer than the granite, so the rock beyond its top reads harder; coming out the sign turns.
+- **The first error: a share of its depth, wider in depth than across.**
+  The Orders' place is an ellipsoid with half-extents of 4% of the depth across the ground and 6% in depth (at least 15 m), the true middle within half of each: at 780 m, 31 m across and 47 m deep against a body 9 m and 5 m.
+  Real basis: a gravity or magnetic anomaly places a buried body across the ground better than in depth, both to a share of the depth (the half-width rule); tuned tighter for play.
+- **How it narrows: round the points, as sure as they are.**
+  The vessel's own points inside the Orders' place are taken as the body's near surface; their middle is where it is, their widest spread how wide, and the body is taken as about as deep as it is wide, plus how far its points may stray.
+  Few and faint points barely move it; it never grows past the Orders' place, and it never sees the body, so a reflector that is not the target would pull it too: honest, never snapped to the truth.
+- **What it pays: 400, several features' worth, as a line of its own** ("Targets identified: A, worth 400"), once its record is up the link or brought home.
+- **Found when the Head cuts into it**, placed where it met it and as long as a straight cut through it; a target passed by, glided through (melted with the Column, #123), or crawled through and not recorded in full, achieves nothing and pays nothing.
+  Since it is found only by the Column, a Glide (#123), which has none, never finds it.
+- **Drawn as a fuzzy cyan region** in every scan view, cyan being what the crew aims for: the region's outline filled faintly at four sizes, so it is densest in its middle, with a faint rim and "TARGET A" beside it.
+- **The Prospecting drill, third on the start menu.**
+  Nothing placed a target before #128 reworks the First dive, so the drill gives the screenshots their state and the developer the loop to play now, without the Glide: halted at Quiet Ship 60 m into the granite, target A 120 m below and 12 m east, off the straight line down.
+  Its Checklist: narrow the region, aim the Beam, plot the Course one step off straight down, crawl in on the Drive's autopilot (whose gentle turns reach it from there), observe and record it.
+  The Sweep begins at the Beam's edge, so a target nearly ahead is the Beam's to narrow and one off to the side the Sweep's; the drill's lies inside the Beam's cone.
+- **For #128.** Place the body with `MediumLayout.first_dive().with_targets([TargetBody.hematite_breccia(&"A", centre)])` in the Scenario, name it in the Orders with `Scenario.identify_target(&"A")`, keep `start_surveyed()` in `prepare`, and tick steps on `Scenario.target_narrowed()`, `target_in_column()`, `observing_target()` and `target_identified()`.
+  Keep its Orders' place clear of the Boundaries' folds; reaching it on the Drive's autopilot from a Course plotted in 15-degree steps needs a long approach, which is the Glide's.

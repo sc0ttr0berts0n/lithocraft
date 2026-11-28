@@ -439,3 +439,31 @@ func test_the_scope_s_range_follows_the_boundary_ahead_of_the_vessel_however_the
 	display._process(0.0)
 
 	assert_vector(display.scope_shown()).is_equal(before)
+
+
+## The area an outline on the screen covers, square pixels.
+func _area(outline: PackedVector2Array) -> float:
+	var twice := 0.0
+	for i in outline.size():
+		twice += outline[i].cross(outline[(i + 1) % outline.size()])
+	return absf(twice) * 0.5
+
+
+func test_a_target_s_region_is_drawn_in_every_view_round_its_middle_and_smaller_as_it_narrows() -> void:
+	var head := Vector3(0.0, -400.0, 0.0)
+	var wide := TargetRegion.new(&"A", head + Vector3(20.0, -60.0, 10.0), Vector3(20.0, 30.0, 20.0))
+	var narrow := TargetRegion.new(&"A", wide.centre, Vector3(6.0, 5.0, 6.0))
+	var down := _heading(0.0, 90.0)
+	var views: Array[Callable] = [
+		func(offset: Vector3) -> Vector2: return ScanDisplay.scope_place(offset, down, 0.0),
+		func(offset: Vector3) -> Vector2: return ScanDisplay.plan_place(offset, 0.0),
+		func(offset: Vector3) -> Vector2: return ScanDisplay.section_place(offset, 0.0),
+		func(offset: Vector3) -> Vector2: return ScanDisplay.world_up_place(offset, 0.0),
+	]
+	for place in views:
+		var outline := ScanDisplay.region_outline(wide, head, place, 1.0)
+		assert_int(outline.size()).is_greater(2)
+		assert_bool(Geometry2D.is_point_in_polygon(place.call(wide.centre - head), outline)).is_true()
+		assert_float(_area(ScanDisplay.region_outline(narrow, head, place, 1.0))).is_less(_area(outline))
+		# Its inner shares lie inside its rim, so the fill builds toward the middle.
+		assert_float(_area(ScanDisplay.region_outline(wide, head, place, 0.5))).is_less(_area(outline))

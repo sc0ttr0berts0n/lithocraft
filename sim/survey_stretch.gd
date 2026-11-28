@@ -21,6 +21,9 @@ var shuttered: bool
 ## the feature's kind and what its record is worth. &"" and 0 on a stretch.
 var feature_kind: StringName = &""
 var feature_worth := 0.0
+## Set on the record of a target's feature (ColumnFeature.target): the
+## target's label, so it is paid as its own line. &"" otherwise.
+var target: StringName = &""
 
 
 func _init(p_start: float, p_length: float, p_quality: float,
@@ -43,6 +46,7 @@ static func feature_record(feature: ColumnFeature, p_medium_name: StringName) ->
 			1.0, {}, p_medium_name)
 	record.feature_kind = feature.kind
 	record.feature_worth = feature.worth
+	record.target = feature.target
 	return record
 
 
