@@ -270,6 +270,11 @@ func test_the_display_reads_the_scan_and_never_the_layout_or_a_clock() -> void:
 
 # --- The Beam's width and the scope's range ---------------------------------
 
+## The size of Navigation's scan display in the game.
+static func _game_display_px() -> Vector2i:
+	return (load("res://view/habitat.gd") as GDScript).call(&"_navigation_display_px")
+
+
 ## A quiet vessel straight down with a Boundary this many metres below the
 ## Head, three clean pulses sent, and a display of the game's own size
 ## reading it.
@@ -279,7 +284,7 @@ func _boundary_below(metres: float) -> Array:
 			[start + metres, DiveTestKit.basalt(4.0, 1.0, 0.02)]]))
 	DiveTestKit.quiet_scan(sim)
 	var display: ScanDisplay = auto_free(ScanDisplay.new())
-	display.size = (load("res://view/habitat.gd") as GDScript).call(&"_navigation_display_px")
+	display.size = _game_display_px()
 	display.sim = sim
 	add_child(display)
 	display._process(0.0)
@@ -524,7 +529,7 @@ func test_no_word_on_the_scan_display_overlaps_another_a_marker_or_the_scan_in_a
 	# titles among them) and of the vessel's and the aim's marks; the tools'
 	# labels lie off every pane, so never over the scan; and each view keeps
 	# its titles, the caption and both tools' labels.
-	var game: Vector2i = (load("res://view/habitat.gd") as GDScript).call(&"_navigation_display_px")
+	var game: Vector2i = _game_display_px()
 	var titles := {
 		DiveSimulation.SCAN_VIEW_FORWARD_SCOPE: ["AHEAD  m"],
 		DiveSimulation.SCAN_VIEW_PLAN_AND_SECTION: ["PLAN", "SECTION"],
