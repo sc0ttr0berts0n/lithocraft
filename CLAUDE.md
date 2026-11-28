@@ -10,11 +10,11 @@ For design questions, or anything the spec leaves out, read the index `docs/desi
 
 ## Implementing a ticket
 
-One ticket per agent. Take the frontier: an open sub-issue of #1 with no open blockers and no assignee.
+Tickets are built in waves: read `docs/agents/waves.md` first and take the role your brief names (implementer, integrator, looker). The frontier is the open sub-issues of #1 with no open blockers and no assignee.
 
-Before changing code, read the index `docs/conventions.md`, then its topic files for the area the ticket touches. Record new conventions in the topic file they belong to.
+Before changing code, read the index `docs/conventions.md`, then its topic files for the area the ticket touches. The integrator records new conventions, once per wave.
 
-- Work lands on `dev`: branch from it and merge or PR back into it. `main` holds only stable builds, promoted from `dev` by the developer.
+- Work lands on `dev`, one PR per wave. `main` holds only stable builds, promoted from `dev` by the developer.
 - Build test-first at the one seam, the simulation's interface: commands and a time step in, state and events out. The simulation is plain GDScript classes with no scene nodes; the view only reads it and sends commands.
 - Tests assert relationships ("faster in sand than granite"), never tuned constants.
 - The Habitat and the Arm have a browser reference on the `prototype/habitat-down` branch. Its geometry and feel carry over; its code does not.

@@ -5,11 +5,11 @@
 Plan tests, screenshots and long-running processes as the work goes, but run the slow ones near review, not on every round.
 
 - While iterating: the one test being written, and the suites for the code being changed (`./test.sh heat scan`).
-- Once, at hand-back or before the push: the whole suite (`./test.sh`), the docs check (`python tools/docs/check_docs.py`), the lint (`python tools/lint/lint.py`), and the ticket's screenshots.
+- An implementer, once, at hand-back: its own suites and the lint (`python tools/lint/lint.py`).
+- The integrator, once per wave: the whole suite (`./test.sh`), the docs check (`python tools/docs/check_docs.py`), the lint and the cost budget.
 - At the push: CI repeats it, so do not rerun a green whole suite to be sure.
   CI runs the lint, docs check, suite and smoke checks.
-- An orchestrator merging several tickets runs the whole suite once per merge that had conflicts and once before review, and puts this policy in each agent's brief.
-- An orchestrator names a model for every agent it starts: a ticket's implementer runs on Opus, a docs-only or mechanical ticket on a smaller model, and the largest model is kept for work that is mostly hard reasoning, which a ticket rarely is (the developer's rule, 27 November 2026).
+- Who merges, who writes the docs, who looks at pictures and which model each runs on: `docs/agents/waves.md`.
 
 ## Running
 
