@@ -48,3 +48,14 @@ func test_after_a_glide_the_screens_say_the_head_is_at_idle() -> void:
 
 	assert_str(_written(habitat, "Drive")).contains("HEAD AT IDLE")
 	assert_str(_written(habitat, "Reactor")).contains("AT IDLE")
+
+
+func test_after_a_glide_the_bore_station_says_why_the_link_is_slower() -> void:
+	var habitat := await _staged("Bore Station", 12.0, ["1 plot_glide 150", "1 start_glide"])
+	var sim: DiveSimulation = habitat.simulation()
+	assert_bool(sim.tunnel_sealed()).is_false()
+	var panel: TunnelPanel = habitat.find_children("*", "TunnelPanel", true, false)[0]
+
+	assert_str(panel.link_line()).contains("1 rough stretch")
+	assert_str(panel.link_line()).contains("%d%%" % roundi(100.0 * sim.link_light_share()))
+	assert_str(panel.link_line()).contains("%.2f m/s" % sim.link_rate())

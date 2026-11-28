@@ -18,6 +18,10 @@ A fully recorded feature becomes a `SurveyStretch.feature_record()` on the link 
 For "aboard" counts use `unsold_survey()` / `unsold_value()`, not `survey().size()` minus uploads: `uploaded_survey()` spans every dive.
 Heat and shuttering's cost is `pristine_value() - value()`.
 
+**The link's rate.**
+`link_capacity()` is the one reckoning: open, the glass rate times `link_light_share()` (a Glide's rough walls scatter the light, `glide.md`); sealed, sound through the Medium.
+A new effect on the light multiplies into `link_light_share()`; the Bore Station's `TunnelPanel.link_line()` says the rate and why.
+
 **New minerals.**
 Add the mineral to `ColumnLook.MINERAL_COLOURS` (its look in the Bore) and to `SurveyStretch._MINERAL_WORTH` (its worth; defaults to 1).
 
