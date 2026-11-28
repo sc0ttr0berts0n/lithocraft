@@ -75,6 +75,8 @@ func _draw() -> void:
 		var along := k * cell_m
 		var bottom := height - (bottom_at - along) * pixels_per_metre
 		var rect := Rect2(0.0, bottom - cell_px, width, cell_px)
+		if sim.column_absent(sim.distance() - along - cell_m * 0.5):
+			continue  # A Glide melted the Column here: nothing to draw.
 		var medium := sim.column_at(sim.distance() - along - cell_m * 0.5)
 		draw_rect(rect, ColumnLook.matrix_colour(medium))
 		_draw_grains(k, rect, medium)
@@ -133,6 +135,8 @@ func _grains(k: int, band_px: Vector2, medium: Medium) -> Dictionary:
 func _draw_features(bottom_at: float, visible_m: float) -> void:
 	var observed := sim.observed_feature()
 	for feature in sim.found_features():
+		if sim.column_absent(sim.distance() - feature.at):
+			continue
 		var reach := feature.size_m * 2.0
 		if feature.at < bottom_at - visible_m - reach or feature.at > bottom_at + reach:
 			continue

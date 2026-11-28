@@ -104,7 +104,9 @@ const UPLOAD_PRIORITIES: Array[StringName] = [
 const BORE_PANEL_ZOOM := 1.7
 ## The status lines each Station's screen usually shows under its instrument:
 ## what its pictures' viewports are sized for (StationScreen.body_size()).
-const NAVIGATION_LINES := 6
+const NAVIGATION_LINES := 7
+## Metres a press of Navigation's Glide keys lengthens or shortens the plot.
+const GLIDE_STEP_M := 50.0
 ## The debug menu's steps: wear per press (hull or Head), and time skipped.
 const DEBUG_WEAR_STEP := 0.1
 const DEBUG_SKIP_S := 300.0
@@ -476,6 +478,23 @@ func _key_beam_pulsing(_index: int) -> void:
 	_sim.set_beam_pulsing(not _sim.beam_pulsing())
 
 
+## Navigation: the Glide's plot shorter (-) / longer (=), the simulation
+## holding it to what the scan shows.
+func _key_plot_glide_step(index: int) -> void:
+	_sim.plot_glide(maxf(_sim.glide_plotted() + _minus_plus(index) * GLIDE_STEP_M, 0.0))
+
+
+## Navigation: a Glide of all the scan shows along the Course.
+func _key_plot_glide_all(_index: int) -> void:
+	_sim.plot_glide(_sim.glide_reach())
+
+
+## Drive: start the plotted Glide, or drop out of the running one.
+func _key_glide(_index: int) -> void:
+	if _sim.glide_state() == DiveSimulation.GLIDE_GLIDING:
+		_sim.drop_out_of_glide()
+	else:
+		_sim.start_glide()
 ## Navigation: start a Sweep (V), or cut the running one short.
 func _key_sweep(_index: int) -> void:
 	if _sim.sweep_running():
@@ -785,7 +804,44 @@ func _show_drive() -> void:
 	elif _sim.overriding():
 		line = ["off Course: %s  %s back to the Course" % [CourseDeviation.of(_sim),
 				KeyMap.label(&"end_override")], StationTheme.SELECTED]
-	_drive.show_lines([_course_line(), line])
+	_drive.show_lines([_course_line(), line, _glide_drive_line(_sim)])
+
+
+## The Drive's line for the Glide: what it is doing and the range left, or
+## the plot waiting for the Drive's key, or why it cannot start.
+static func _glide_drive_line(sim: DiveSimulation) -> Array:
+	match sim.glide_state():
+		DiveSimulation.GLIDE_GLIDING:
+			return ["GLIDE  %d m left  %s drop out" % [roundi(sim.glide_range_left()),
+					KeyMap.label(&"glide")], StationTheme.ENGAGED]
+		DiveSimulation.GLIDE_DROPPING_OUT:
+			return ["GLIDE DROPPING OUT  %d m left" % roundi(sim.glide_range_left()),
+					StationTheme.CAUTION]
+		DiveSimulation.GLIDE_IDLE:
+			return ["HEAD AT IDLE after the Glide: Shift at the Reactor", StationTheme.CAUTION]
+	if sim.glide_plotted() <= 0.0:
+		return ["No Glide plotted", StationTheme.LEGEND]
+	var refusal := sim.glide_refusal()
+	if refusal.is_empty():
+		return ["Glide %d m plotted  %s glide" % [roundi(sim.glide_plotted()), KeyMap.label(&"glide")],
+				StationTheme.SELECTED]
+	return ["Glide %d m plotted: %s" % [roundi(sim.glide_plotted()), String(refusal).replace("_", " ")],
+			StationTheme.LEGEND]
+
+
+## Navigation's line for the Glide: the one plotted against what the scan
+## shows along the Course, or the range left while one runs.
+static func _glide_plot_line(sim: DiveSimulation) -> Array:
+	if sim.gliding():
+		return ["GLIDING  %d m left" % roundi(sim.glide_range_left()), StationTheme.ENGAGED]
+	var shows := roundi(sim.glide_reach())
+	if shows <= 0:
+		return ["Glide: the scan shows no rock ahead to glide", StationTheme.LEGEND]
+	if sim.glide_plotted() <= 0.0:
+		return ["Glide: none plotted, scan shows %d m  %s plot %s all" % [shows,
+				KeyMap.label(&"plot_glide_step"), KeyMap.label(&"plot_glide_all")], StationTheme.LEGEND]
+	return ["Glide %d m plotted of %d m shown  %s" % [roundi(sim.glide_plotted()), shows,
+			KeyMap.label(&"plot_glide_step")], StationTheme.SELECTED]
 
 
 ## The Course as every screen that writes it does: what the crew has
@@ -810,6 +866,7 @@ func _show_navigation() -> void:
 			roundi(_sim.noise() * 100.0), _sim.point_count()],
 		[_beam_line(_sim), StationTheme.SELECTED],
 		ScanDisplay.rock_label(_sim),
+		_glide_plot_line(_sim),
 		_power_line(_sim.navigation_request(), _sim.navigation_draw()),
 	])
 
@@ -849,7 +906,7 @@ func _show_reactor() -> void:
 	if not _sim.plasma_lost():
 		lines.append(["Plasma %s %d%%  Head %s" % ["STEADY" if steady else "UNSTEADY",
 			roundi(_sim.plasma_stability() * 100.0),
-			"running" if _sim.head_activity() >= 1.0 else "idling %d%%" % roundi(_sim.head_activity() * 100.0)],
+			_head_words(_sim)],
 			StationTheme.NOW if steady else StationTheme.CAUTION])
 	var on_store := _sim.on_emergency_store()
 	lines.append(["Supply %d%%  drawn %d%%  short %d%%  %s %d%%" % [PowerLine.percent(_sim.reactor_output(), full),
@@ -861,7 +918,8 @@ func _show_reactor() -> void:
 	for row in [["Nav", _sim.navigation_request(), _sim.navigation_draw()],
 			["Thm", _sim.thermal_request(), _sim.thermal_draw()],
 			["Drv", _sim.drive_request(), _sim.drive_draw()]]:
-		bars.append("%s %s" % [row[0], _bar(row[1] / full, row[2] / full)])
+		# A Glide's Drive draws many times the full output: the bar shows it full.
+		bars.append("%s %s" % [row[0], _bar(minf(row[1] / full, 1.0), minf(row[2] / full, 1.0))])
 		if PowerLine.starved(row[1], row[2], full):
 			starved.append(row[0])
 	lines.append(["  ".join(bars) + ("" if starved.is_empty() else "  STARVED " + " ".join(starved)),
@@ -869,6 +927,18 @@ func _show_reactor() -> void:
 	if _sim.plasma_lost():
 		lines.append(_relight_line())
 	_reactor.show_lines(lines)
+
+
+## How the Head runs, as the Reactor's first line says it: in a Glide no
+## Wobble reaches the plasma, and after one the Head idles until a Shift.
+static func _head_words(sim: DiveSimulation) -> String:
+	if sim.gliding():
+		return "GLIDE: no Wobble"
+	if sim.glide_state() == DiveSimulation.GLIDE_IDLE:
+		return "AT IDLE: tune STANDBY here, %s spins up" % KeyMap.label(&"shift")
+	if sim.head_activity() >= 1.0:
+		return "running"
+	return "idling %d%%" % roundi(sim.head_activity() * 100.0)
 
 
 ## The relight the Reactor can try while stranded: its pulse against the
@@ -1167,6 +1237,8 @@ func _bore_reading() -> Array:
 	var in_column := _sim.features_in_column()
 	var lines := []
 	lines.append("Survey value %d" % roundi(_sim.survey_value()))
+	if _sim.gliding() or _sim.column_absent(0.0):
+		lines.append(["No Column in the Bore: melted by the Glide", StationTheme.CAUTION])
 	if _sim.call_reason(DiveSimulation.STATION_BORE) == &"tunnel_about_to_seal":
 		lines.append(["TUNNEL SEALS when the Tail leaves this rock", StationTheme.CAUTION])
 	var observed := _sim.observed_feature()
@@ -1231,10 +1303,14 @@ func _show_thermal() -> void:
 	var creeping := _sim.hull_creep_rate() > 0.0
 	var lines := [
 		_power_line(_sim.thermal_request(), _sim.thermal_draw()),
+	]
+	if _sim.gliding():
+		lines.append(["GLIDE: the jet carries the heat away, no Column", StationTheme.LEGEND])
+	lines.append_array([
 		["Integrity %.1f%%  creep %.2f%%/min" % [
 			_sim.hull_integrity() * 100.0, _sim.hull_creep_rate() * PERCENT_PER_MIN],
 			StationTheme.WARNING if creeping else StationTheme.NOW],
-	]
+	])
 	if _sim.stranded():
 		lines.append(["Pumps on store %d%%" % roundi(_heat_split * 100.0), StationTheme.SELECTED])
 	if _sim.stranded() or _sim.tunnel_sealed():

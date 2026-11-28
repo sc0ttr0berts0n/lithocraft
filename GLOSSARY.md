@@ -108,6 +108,10 @@ _Avoid_: Worm drive (outside the design record), drilling, normal mode
 The Lithocraft's fast way through rock, in full the Vapor Glide: the Head melts the whole face and the melt jets through the Bore as thrust, with no Column, no Wobble and no scan while it lasts.
 _Avoid_: Fast travel, boost, jet mode, warp (which is travel between planets)
 
+**Drop out**:
+To end a Glide before its plotted length: the jet dies and the Lithocraft halts, as at the end, with the Head at idle until a Shift spins it up.
+_Avoid_: Abort, brake, exit the Glide
+
 **Beam**:
 Navigation's scan of the way ahead: a cone of sound pulses, reaching further the narrower it is set.
 _Avoid_: Forward scanner, ping, sonar, radar

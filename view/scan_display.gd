@@ -115,6 +115,11 @@ const SCOPE_HEADING_SHARE := 0.12
 ## to the Beam's reach.
 const BEAM_COLOUR := StationTheme.SELECTED_COLOUR
 const BEAM_ALPHA := 0.45
+## The Glide's bar (_draw_glide()): its width and how opaque, in pixels, and
+## half the bar across its end.
+const GLIDE_PX := 7.0
+const GLIDE_ALPHA := 0.55
+const GLIDE_END_PX := 10.0
 ## The aim's marker, drawn only while the Beam is aimed off the vessel's
 ## axis: a hollow diamond this many pixels from the Head along the aim (at
 ## any view's scale), this many pixels from its centre to a point. Seen
@@ -492,7 +497,28 @@ func _draw_scan(canvas: Control, place: Callable, heading_m := HEADING_M) -> voi
 		coming.append(place.call(step - head))
 	if coming.size() > 1:
 		canvas.draw_polyline(coming, StationTheme.PROJECTED_PATH_COLOUR, 2.5)
+	_draw_glide(canvas, place)
 	_draw_vessel(canvas, vessel, place.call(sim.heading() * heading_m))
+
+
+## The Glide (ticket #123): the one plotted, a broad cyan bar along the Course
+## from the Head as far as it runs, or the running one's range left, a broad
+## green bar to its end; each with a bar across its end. Nothing with neither.
+func _draw_glide(canvas: Control, place: Callable) -> void:
+	var to := Vector3.ZERO
+	var colour := StationTheme.SELECTED_COLOUR
+	if sim.gliding():
+		to = sim.glide_end() - sim.head_position()
+		colour = StationTheme.ENGAGED_COLOUR
+	elif sim.glide_plotted() > 0.0:
+		to = sim.course_direction() * sim.glide_plotted()
+	if to.is_zero_approx():
+		return
+	var from: Vector2 = place.call(Vector3.ZERO)
+	var end: Vector2 = place.call(to)
+	canvas.draw_line(from, end, StationTheme.faded(colour, GLIDE_ALPHA), GLIDE_PX)
+	var across := (end - from).orthogonal().normalized() * GLIDE_END_PX
+	canvas.draw_line(end - across, end + across, colour, 2.0)
 
 
 ## The Beam's cone at its width, as two fans from the Head out to its reach,

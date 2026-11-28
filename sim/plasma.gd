@@ -326,6 +326,24 @@ func tend(dt: float, wobble: Vector2, autopilot_on: bool, hull_heat_share: float
 	_stability = _steadiness(_head_wear, outside)
 
 
+## Once a step of dt seconds in place of tend() while no Wobble reaches the
+## plasma: in a Glide, where it touches only the melt sheath, and at the idle
+## a Glide ends in. Nothing wears and nothing grinds, whatever ACTIVE holds;
+## the Reactor's autopilot has no Wobble to follow, so both Counter-waves stay
+## as set; the Band still narrows with the hull's heat (`hull_heat_share`).
+## A worn Head is as unsteady as ever.
+func tend_off_rock(dt: float, hull_heat_share: float) -> void:
+	if _lost:
+		_shift_asked = false
+		_stability = 0.0
+		return
+	_band = _band_of(_head_wear, hull_heat_share)
+	_roughness = 0.0
+	_disrupting_for = 0.0
+	_time += dt
+	_stability = _steadiness(_head_wear, 0.0)
+
+
 ## The Band on a Head worn `wear` with the hull's heat at `hull_heat_share`.
 static func _band_of(wear: float, hull_heat_share: float) -> float:
 	return _BAND * (1.0 - _WEAR_NARROWING * wear) \
