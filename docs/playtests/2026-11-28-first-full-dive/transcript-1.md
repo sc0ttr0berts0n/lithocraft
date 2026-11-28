@@ -1,0 +1,117 @@
+# Transcript: Desktop 2026.11.28 - 11.15.40.18.mp4
+
+Narration, machine-transcribed (faster-whisper large-v3); timestamps are mm:ss into the video.
+
+- **00:03.9** All right, we're going to try first dive.
+- **00:07.8** First dive from the desert surface down through the sandstone into the granite through target A and then home by glide with the data.
+- **00:14.8** That's exciting. I hope this all lines up.
+- **00:18.0** I do find the mouse to be a little sensitive, but I'm like a Counter-Strike player, so maybe a mouse sensitivity slider would be a nice thing to have soon.
+- **00:25.8** I like the nav ball. This is my first time seeing it. Visually, it makes a lot of sense.
+- **00:29.6** I'm kind of a little cheesed that, like, the text isn't perfectly aligned.
+- **00:35.0** I'm getting to the point where I want to be able to click and interact with these panels, but I'm going to, I'm okay with just keys for now because I recognize that we got to get through it.
+- **00:44.6** But things are getting very complicated and, you know, there's just not that many keys.
+- **00:51.8** Well, there are a lot of keys, but, you know, you want to interact with these things, you know.
+- **00:57.1** So let's see what else we got.
+- **01:00.0** I'm thinking about Elite's three-panel thing where there's, like, a panel to the left and a panel to the right, and I don't want to rip it off directly, but it really makes a lot of sense the more we do this.
+- **01:09.2** Like, look at this fucking thing. That is a manual of keys. That's a lot of keys.
+- **01:17.0** So last time, I actually was able to break sequence by kind of noodling with things ahead of time.
+- **01:24.2** So this time I'm going to try and go right through and, um, not last playtest that you're aware of.
+- **01:29.6** I was able to break sequence in this very build.
+- **01:33.0** So we're going to go and follow the script directly and see if we can get down to the end and do a glide home and all that shit that's promised.
+- **01:39.9** So I'm looking for the reactor.
+- **01:44.2** My reactor.
+- **01:45.3** I do love this. You should take note here that the sine waves drawn are pretty weird.
+- **01:50.2** I do have some feedback on this.
+- **01:51.7** It's kind of like, um, there's a 5% sure guess, so there's a counter wave and a wobble guess written on the screen in the standby area.
+- **01:59.9** Like, if you have a 5% sure guess, you're going to get a 5% sure guess.
+- **02:01.4** If you have all this info, I can just tune counter wave to be wobble guess and I'll get the best outcome.
+- **02:09.8** I kind of want to do something that's a little visual.
+- **02:12.5** Like, if I just have the answer, I might as well tune it for me.
+- **02:15.4** So that doesn't really make much sense to me.
+- **02:18.1** But, um, let's turn it on.
+- **02:19.9** And then, um, engage thermal autopilot.
+- **02:24.3** Here's thermals.
+- **02:27.9** Just reading them over.
+- **02:29.4** Um, doesn't look like much changed here.
+- **02:32.8** Turning that on.
+- **02:33.6** Um, plot the course to dive in the nav.
+- **02:38.4** Okay.
+- **02:38.8** Um, so I'm hitting the dive key.
+- **02:41.9** Um, engage the drives.
+- **02:44.5** Autopilot and follow the course.
+- **02:46.3** Okay.
+- **02:46.9** Also, sandstone expected.
+- **02:48.6** I'm trying to think through a way with the navigation and like looking ahead and all the scans that it's just like, I don't know.
+- **02:55.5** You ever do a pH, well I guess you haven't done much, but in a pH test where you like test the pool water,
+- **03:01.5** it's kind of like you ping it and there's certain color bands and shit like that.
+- **03:05.8** I think there should be like, since the only thing we're working with is density as I understand it,
+- **03:09.7** why not just do a color coded density thing and like eventually you can mouse over on the screen and be like,
+- **03:15.6** oh, you know, we kind of think this could be sandstone or I don't know shit, but like quartz or magma.
+- **03:21.7** I don't know.
+- **03:22.2** But, um, basically based on density, you can make a best guess, you know, and then like all the predictions can be arranged by depth.
+- **03:30.3** So, you know, we found a density of this and it's this far down.
+- **03:35.1** So the, when you get that list of what the items could be, they'll be arranged in like priority order of expected outcome.
+- **03:42.2** You know, you're at this depth and it's probably sandstone.
+- **03:45.3** So then like when we're prospecting and looking for certain materials, we get a ping, we see the color and we kind of mouse over it and go like,
+- **03:52.9** oh yeah, this is, could be sandstone, so I should go take a look.
+- **03:56.7** That's basically the plan.
+- **03:58.3** This is a little yappy sandstone.
+- **04:00.3** Unexpected is huge.
+- **04:01.6** Like, I can't see the data behind all this nonsense.
+- **04:05.4** So I don't love this, but, um, who's to say when we'll tackle it.
+- **04:10.4** Engage the drives autopilot.
+- **04:11.8** It follows the course slow and safe.
+- **04:15.7** All right.
+- **04:16.5** I've engaged autopilot and we are indeed moving.
+- **04:18.9** If I turn around, there goes the column.
+- **04:21.4** The column is choppy and it's flickery.
+- **04:24.3** I know we're early in and I'm not going to push to really level this up today.
+- **04:28.8** But there's, I guess that's Z.
+- **04:30.3** Fighting.
+- **04:30.7** I'm not really familiar with 3D development like I am today.
+- **04:35.0** But I think that's Z fighting or maybe the pixels are picking different as it scrolls up.
+- **04:40.7** It's not scrolling up smooth, so it might be like pixel wise moving up.
+- **04:44.3** I don't know.
+- **04:44.8** Lerp, something like that.
+- **04:46.4** Something's weird here.
+- **04:47.2** No big deal.
+- **04:49.9** All right.
+- **04:50.7** Switch on the beam's own pulsing.
+- **04:52.7** It pulses as the lithocraft.
+- **04:54.9** We're going to go to navigation.
+- **05:01.2** Heard something beep, but I don't know what it was.
+- **05:05.2** We need to switch on the beam's own pulsing.
+- **05:09.8** It pulses as the lithocraft covers ground.
+- **05:16.1** I think it's by hand only where I need to change it, but there's just so many instructions I have to read them all.
+- **05:23.1** Beam pulses by itself on or off.
+- **05:27.6** That's the one.
+- **05:28.2** Okay.
+- **05:28.4** I pressed O.
+- **05:29.6** Bam.
+- **05:33.1** So we need to quiet ship and then we're going to pulse by hand.
+- **05:41.0** P.
+- **05:42.9** Boom.
+- **05:44.0** That's a bummer.
+- **05:44.8** This is not acknowledging this step or I'm doing it wrong.
+- **05:54.5** I think I'm going to...
+- **05:56.2** Eh.
+- **06:00.0** Damn.
+- **06:00.5** Because I don't really know how to do the new things you've added.
+- **06:03.0** So I think to get through this what we should do is like give me a yes I did this step no matter what kind of feature or I just report back at this point and we get a quick fix in.
+- **06:18.7** I'm bummed out either way, but I don't really know what to do.
+- **06:22.8** I'm going to noodle with it just in case there's something I didn't know.
+- **06:28.4** I'm just going to keep fucking around, seeing if I can get it to happen.
+- **06:32.0** Quiet ship, so I've done that.
+- **06:34.4** Then pulse by hand, clean scan.
+- **06:42.4** Yeah, so there's, like, our expected sandstone.
+- **06:44.3** I guess that's, like, the ground report, but I wish the...
+- **06:46.9** It was all in the same data type, like, I guess at a point cloud,
+- **06:50.4** maybe color-coordinated, you know, in the same way, like, thermals look,
+- **06:55.1** where you go through that kind of palette.
+- **07:09.4** I don't love, like, left, right, and down, up.
+- **07:12.6** It should be, like, beam pitch, beam roll.
+- **07:29.7** I think I'm stuck. Okay, I guess I'm stuck.
+- **07:35.0** I'm just going to screenshot this and say where I got stuck.
+- **07:46.5** See if we can get out of it.
+- **07:48.3** It didn't take long to get back here, so I'm just going to end this session
+- **07:51.2** and do another play session.

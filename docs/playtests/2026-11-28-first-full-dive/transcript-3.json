@@ -1,0 +1,2313 @@
+[
+ {
+  "start": 0.62,
+  "end": 16.38,
+  "text": "All right, playtest number two. We're trying the glide drill. Pulse at Quiet Ship. Let's get on the... I tend to use the arm a lot, which I like. I'm looking for gameplay reasons to get off it, but it's fun. Helps to just jump between screens like this.",
+  "words": [
+   {
+    "t": 0.62,
+    "w": " All"
+   },
+   {
+    "t": 1.02,
+    "w": " right,"
+   },
+   {
+    "t": 1.36,
+    "w": " playtest"
+   },
+   {
+    "t": 1.74,
+    "w": " number"
+   },
+   {
+    "t": 2.1,
+    "w": " two."
+   },
+   {
+    "t": 2.66,
+    "w": " We're"
+   },
+   {
+    "t": 3.04,
+    "w": " trying"
+   },
+   {
+    "t": 3.22,
+    "w": " the"
+   },
+   {
+    "t": 3.38,
+    "w": " glide"
+   },
+   {
+    "t": 3.6,
+    "w": " drill."
+   },
+   {
+    "t": 5.1,
+    "w": " Pulse"
+   },
+   {
+    "t": 5.48,
+    "w": " at"
+   },
+   {
+    "t": 5.64,
+    "w": " Quiet"
+   },
+   {
+    "t": 6.0,
+    "w": " Ship."
+   },
+   {
+    "t": 6.88,
+    "w": " Let's"
+   },
+   {
+    "t": 7.26,
+    "w": " get"
+   },
+   {
+    "t": 7.38,
+    "w": " on"
+   },
+   {
+    "t": 7.56,
+    "w": " the..."
+   },
+   {
+    "t": 7.86,
+    "w": " I"
+   },
+   {
+    "t": 8.14,
+    "w": " tend"
+   },
+   {
+    "t": 8.36,
+    "w": " to"
+   },
+   {
+    "t": 8.5,
+    "w": " use"
+   },
+   {
+    "t": 8.68,
+    "w": " the"
+   },
+   {
+    "t": 8.86,
+    "w": " arm"
+   },
+   {
+    "t": 9.04,
+    "w": " a"
+   },
+   {
+    "t": 9.18,
+    "w": " lot,"
+   },
+   {
+    "t": 9.46,
+    "w": " which"
+   },
+   {
+    "t": 9.62,
+    "w": " I"
+   },
+   {
+    "t": 9.72,
+    "w": " like."
+   },
+   {
+    "t": 10.0,
+    "w": " I'm"
+   },
+   {
+    "t": 10.16,
+    "w": " looking"
+   },
+   {
+    "t": 10.3,
+    "w": " for"
+   },
+   {
+    "t": 10.4,
+    "w": " gameplay"
+   },
+   {
+    "t": 10.66,
+    "w": " reasons"
+   },
+   {
+    "t": 10.98,
+    "w": " to"
+   },
+   {
+    "t": 11.2,
+    "w": " get"
+   },
+   {
+    "t": 11.34,
+    "w": " off"
+   },
+   {
+    "t": 11.5,
+    "w": " it,"
+   },
+   {
+    "t": 11.72,
+    "w": " but"
+   },
+   {
+    "t": 12.2,
+    "w": " it's"
+   },
+   {
+    "t": 12.82,
+    "w": " fun."
+   },
+   {
+    "t": 14.3,
+    "w": " Helps"
+   },
+   {
+    "t": 14.68,
+    "w": " to"
+   },
+   {
+    "t": 14.78,
+    "w": " just"
+   },
+   {
+    "t": 15.0,
+    "w": " jump"
+   },
+   {
+    "t": 15.3,
+    "w": " between"
+   },
+   {
+    "t": 15.48,
+    "w": " screens"
+   },
+   {
+    "t": 15.9,
+    "w": " like"
+   },
+   {
+    "t": 16.14,
+    "w": " this."
+   }
+  ]
+ },
+ {
+  "start": 16.38,
+  "end": 53.14,
+  "text": "All right, we are already in Quiet Ship. Good. And then we're going to pulse and glide 300 meters down to course. Ah, so we can change our glide just depth. Okay. Got the 300. Turn off Quiet Ship. Glide cannot start at Quiet Ship. Makes sense.",
+  "words": [
+   {
+    "t": 16.38,
+    "w": " All"
+   },
+   {
+    "t": 19.27,
+    "w": " right,"
+   },
+   {
+    "t": 19.85,
+    "w": " we"
+   },
+   {
+    "t": 20.15,
+    "w": " are"
+   },
+   {
+    "t": 20.27,
+    "w": " already"
+   },
+   {
+    "t": 20.53,
+    "w": " in"
+   },
+   {
+    "t": 20.67,
+    "w": " Quiet"
+   },
+   {
+    "t": 20.97,
+    "w": " Ship."
+   },
+   {
+    "t": 21.29,
+    "w": " Good."
+   },
+   {
+    "t": 21.75,
+    "w": " And"
+   },
+   {
+    "t": 22.23,
+    "w": " then"
+   },
+   {
+    "t": 22.41,
+    "w": " we're"
+   },
+   {
+    "t": 22.59,
+    "w": " going"
+   },
+   {
+    "t": 22.65,
+    "w": " to"
+   },
+   {
+    "t": 22.75,
+    "w": " pulse"
+   },
+   {
+    "t": 22.93,
+    "w": " and"
+   },
+   {
+    "t": 30.0,
+    "w": " glide"
+   },
+   {
+    "t": 30.48,
+    "w": " 300"
+   },
+   {
+    "t": 30.7,
+    "w": " meters"
+   },
+   {
+    "t": 31.04,
+    "w": " down"
+   },
+   {
+    "t": 31.44,
+    "w": " to"
+   },
+   {
+    "t": 31.72,
+    "w": " course."
+   },
+   {
+    "t": 33.68,
+    "w": " Ah,"
+   },
+   {
+    "t": 39.18,
+    "w": " so"
+   },
+   {
+    "t": 39.44,
+    "w": " we"
+   },
+   {
+    "t": 39.6,
+    "w": " can"
+   },
+   {
+    "t": 39.76,
+    "w": " change"
+   },
+   {
+    "t": 40.04,
+    "w": " our"
+   },
+   {
+    "t": 40.24,
+    "w": " glide"
+   },
+   {
+    "t": 40.78,
+    "w": " just"
+   },
+   {
+    "t": 41.04,
+    "w": " depth."
+   },
+   {
+    "t": 41.62,
+    "w": " Okay."
+   },
+   {
+    "t": 48.18,
+    "w": " Got"
+   },
+   {
+    "t": 48.66,
+    "w": " the"
+   },
+   {
+    "t": 48.8,
+    "w": " 300."
+   },
+   {
+    "t": 49.26,
+    "w": " Turn"
+   },
+   {
+    "t": 49.46,
+    "w": " off"
+   },
+   {
+    "t": 49.6,
+    "w": " Quiet"
+   },
+   {
+    "t": 49.82,
+    "w": " Ship."
+   },
+   {
+    "t": 50.24,
+    "w": " Glide"
+   },
+   {
+    "t": 50.54,
+    "w": " cannot"
+   },
+   {
+    "t": 50.7,
+    "w": " start"
+   },
+   {
+    "t": 51.1,
+    "w": " at"
+   },
+   {
+    "t": 51.88,
+    "w": " Quiet"
+   },
+   {
+    "t": 52.18,
+    "w": " Ship."
+   },
+   {
+    "t": 52.6,
+    "w": " Makes"
+   },
+   {
+    "t": 52.96,
+    "w": " sense."
+   }
+  ]
+ },
+ {
+  "start": 53.84,
+  "end": 66.94,
+  "text": "Start the glide over in the drive panel. Hold the glide on its line until the end. Engage the drives autopilot. Let's try this with no autopilot today. Ready? Go.",
+  "words": [
+   {
+    "t": 53.84,
+    "w": " Start"
+   },
+   {
+    "t": 54.32,
+    "w": " the"
+   },
+   {
+    "t": 54.48,
+    "w": " glide"
+   },
+   {
+    "t": 54.62,
+    "w": " over"
+   },
+   {
+    "t": 54.84,
+    "w": " in"
+   },
+   {
+    "t": 55.0,
+    "w": " the"
+   },
+   {
+    "t": 55.04,
+    "w": " drive"
+   },
+   {
+    "t": 55.26,
+    "w": " panel."
+   },
+   {
+    "t": 56.54,
+    "w": " Hold"
+   },
+   {
+    "t": 57.02,
+    "w": " the"
+   },
+   {
+    "t": 57.26,
+    "w": " glide"
+   },
+   {
+    "t": 57.54,
+    "w": " on"
+   },
+   {
+    "t": 58.04,
+    "w": " its"
+   },
+   {
+    "t": 58.22,
+    "w": " line"
+   },
+   {
+    "t": 58.48,
+    "w": " until"
+   },
+   {
+    "t": 58.8,
+    "w": " the"
+   },
+   {
+    "t": 58.96,
+    "w": " end."
+   },
+   {
+    "t": 59.28,
+    "w": " Engage"
+   },
+   {
+    "t": 59.72,
+    "w": " the"
+   },
+   {
+    "t": 59.82,
+    "w": " drives"
+   },
+   {
+    "t": 60.08,
+    "w": " autopilot."
+   },
+   {
+    "t": 64.52,
+    "w": " Let's"
+   },
+   {
+    "t": 65.0,
+    "w": " try"
+   },
+   {
+    "t": 65.12,
+    "w": " this"
+   },
+   {
+    "t": 65.26,
+    "w": " with"
+   },
+   {
+    "t": 65.4,
+    "w": " no"
+   },
+   {
+    "t": 65.5,
+    "w": " autopilot"
+   },
+   {
+    "t": 65.92,
+    "w": " today."
+   },
+   {
+    "t": 66.24,
+    "w": " Ready?"
+   },
+   {
+    "t": 66.62,
+    "w": " Go."
+   }
+  ]
+ },
+ {
+  "start": 79.97,
+  "end": 100.96,
+  "text": "Okay, cool. We had to tune the standby. Now, this felt weird last time, but this time, not so much, because the answer's right in front of me. Again, we got to get this to be fun instead of tedious. Cool. And we shift over.",
+  "words": [
+   {
+    "t": 79.97,
+    "w": " Okay,"
+   },
+   {
+    "t": 80.61,
+    "w": " cool."
+   },
+   {
+    "t": 83.45,
+    "w": " We"
+   },
+   {
+    "t": 83.81,
+    "w": " had"
+   },
+   {
+    "t": 83.91,
+    "w": " to"
+   },
+   {
+    "t": 84.03,
+    "w": " tune"
+   },
+   {
+    "t": 84.21,
+    "w": " the"
+   },
+   {
+    "t": 84.33,
+    "w": " standby."
+   },
+   {
+    "t": 84.75,
+    "w": " Now,"
+   },
+   {
+    "t": 84.89,
+    "w": " this"
+   },
+   {
+    "t": 85.03,
+    "w": " felt"
+   },
+   {
+    "t": 85.31,
+    "w": " weird"
+   },
+   {
+    "t": 85.67,
+    "w": " last"
+   },
+   {
+    "t": 86.09,
+    "w": " time,"
+   },
+   {
+    "t": 86.53,
+    "w": " but"
+   },
+   {
+    "t": 86.67,
+    "w": " this"
+   },
+   {
+    "t": 86.83,
+    "w": " time,"
+   },
+   {
+    "t": 87.21,
+    "w": " not"
+   },
+   {
+    "t": 87.89,
+    "w": " so"
+   },
+   {
+    "t": 88.09,
+    "w": " much,"
+   },
+   {
+    "t": 88.39,
+    "w": " because"
+   },
+   {
+    "t": 88.53,
+    "w": " the"
+   },
+   {
+    "t": 88.87,
+    "w": " answer's"
+   },
+   {
+    "t": 89.21,
+    "w": " right"
+   },
+   {
+    "t": 89.31,
+    "w": " in"
+   },
+   {
+    "t": 89.41,
+    "w": " front"
+   },
+   {
+    "t": 89.55,
+    "w": " of"
+   },
+   {
+    "t": 89.63,
+    "w": " me."
+   },
+   {
+    "t": 91.77,
+    "w": " Again,"
+   },
+   {
+    "t": 92.31,
+    "w": " we"
+   },
+   {
+    "t": 92.73,
+    "w": " got"
+   },
+   {
+    "t": 93.07,
+    "w": " to"
+   },
+   {
+    "t": 93.17,
+    "w": " get"
+   },
+   {
+    "t": 93.29,
+    "w": " this"
+   },
+   {
+    "t": 93.45,
+    "w": " to"
+   },
+   {
+    "t": 93.59,
+    "w": " be"
+   },
+   {
+    "t": 93.73,
+    "w": " fun"
+   },
+   {
+    "t": 94.13,
+    "w": " instead"
+   },
+   {
+    "t": 94.59,
+    "w": " of"
+   },
+   {
+    "t": 94.75,
+    "w": " tedious."
+   },
+   {
+    "t": 99.74,
+    "w": " Cool."
+   },
+   {
+    "t": 100.18,
+    "w": " And"
+   },
+   {
+    "t": 100.48,
+    "w": " we"
+   },
+   {
+    "t": 100.64,
+    "w": " shift"
+   },
+   {
+    "t": 100.78,
+    "w": " over."
+   }
+  ]
+ },
+ {
+  "start": 102.92,
+  "end": 119.27,
+  "text": "Love it. And put autopilot back on. That was it. You know, I'm going to do my own thing for a minute, because I have a chance to.",
+  "words": [
+   {
+    "t": 102.92,
+    "w": " Love"
+   },
+   {
+    "t": 103.28,
+    "w": " it."
+   },
+   {
+    "t": 103.72,
+    "w": " And"
+   },
+   {
+    "t": 104.08,
+    "w": " put"
+   },
+   {
+    "t": 104.26,
+    "w": " autopilot"
+   },
+   {
+    "t": 104.74,
+    "w": " back"
+   },
+   {
+    "t": 104.88,
+    "w": " on."
+   },
+   {
+    "t": 114.75,
+    "w": " That"
+   },
+   {
+    "t": 115.11,
+    "w": " was"
+   },
+   {
+    "t": 115.21,
+    "w": " it."
+   },
+   {
+    "t": 115.43,
+    "w": " You"
+   },
+   {
+    "t": 115.79,
+    "w": " know,"
+   },
+   {
+    "t": 116.03,
+    "w": " I'm"
+   },
+   {
+    "t": 116.57,
+    "w": " going"
+   },
+   {
+    "t": 116.61,
+    "w": " to"
+   },
+   {
+    "t": 116.65,
+    "w": " do"
+   },
+   {
+    "t": 116.77,
+    "w": " my"
+   },
+   {
+    "t": 116.91,
+    "w": " own"
+   },
+   {
+    "t": 117.07,
+    "w": " thing"
+   },
+   {
+    "t": 117.27,
+    "w": " for"
+   },
+   {
+    "t": 117.45,
+    "w": " a"
+   },
+   {
+    "t": 117.55,
+    "w": " minute,"
+   },
+   {
+    "t": 117.75,
+    "w": " because"
+   },
+   {
+    "t": 117.99,
+    "w": " I"
+   },
+   {
+    "t": 118.37,
+    "w": " have"
+   },
+   {
+    "t": 118.85,
+    "w": " a"
+   },
+   {
+    "t": 118.93,
+    "w": " chance"
+   },
+   {
+    "t": 119.11,
+    "w": " to."
+   }
+  ]
+ },
+ {
+  "start": 119.85,
+  "end": 122.61,
+  "text": "So, what say we do a...",
+  "words": [
+   {
+    "t": 119.85,
+    "w": " So,"
+   },
+   {
+    "t": 120.21,
+    "w": " what"
+   },
+   {
+    "t": 120.57,
+    "w": " say"
+   },
+   {
+    "t": 120.93,
+    "w": " we"
+   },
+   {
+    "t": 121.35,
+    "w": " do"
+   },
+   {
+    "t": 122.13,
+    "w": " a..."
+   }
+  ]
+ },
+ {
+  "start": 123.47,
+  "end": 183.07,
+  "text": "Turn. Can I? I guess all of the movement moved over to the navigation. So, let's course pitch until we're sideways. And then I'll speed through time so we can get there. And now, we'll pulse. I don't know how good that pulse is, because it showed up on the side. Oh, because sandstone is the only meaningful thing. There's... Yeah, in the future, maybe we'll have that point cloud shit I was talking about, where, like, you can just always see the density of the line.",
+  "words": [
+   {
+    "t": 123.47,
+    "w": " Turn."
+   },
+   {
+    "t": 124.13,
+    "w": " Can"
+   },
+   {
+    "t": 131.22,
+    "w": " I?"
+   },
+   {
+    "t": 132.06,
+    "w": " I"
+   },
+   {
+    "t": 132.46,
+    "w": " guess"
+   },
+   {
+    "t": 132.62,
+    "w": " all"
+   },
+   {
+    "t": 132.78,
+    "w": " of"
+   },
+   {
+    "t": 132.88,
+    "w": " the"
+   },
+   {
+    "t": 132.98,
+    "w": " movement"
+   },
+   {
+    "t": 133.48,
+    "w": " moved"
+   },
+   {
+    "t": 133.82,
+    "w": " over"
+   },
+   {
+    "t": 134.1,
+    "w": " to"
+   },
+   {
+    "t": 134.24,
+    "w": " the"
+   },
+   {
+    "t": 134.34,
+    "w": " navigation."
+   },
+   {
+    "t": 135.9,
+    "w": " So,"
+   },
+   {
+    "t": 136.34,
+    "w": " let's"
+   },
+   {
+    "t": 136.8,
+    "w": " course"
+   },
+   {
+    "t": 137.44,
+    "w": " pitch"
+   },
+   {
+    "t": 137.7,
+    "w": " until"
+   },
+   {
+    "t": 138.96,
+    "w": " we're"
+   },
+   {
+    "t": 140.1,
+    "w": " sideways."
+   },
+   {
+    "t": 141.62,
+    "w": " And"
+   },
+   {
+    "t": 142.02,
+    "w": " then"
+   },
+   {
+    "t": 142.18,
+    "w": " I'll"
+   },
+   {
+    "t": 142.34,
+    "w": " speed"
+   },
+   {
+    "t": 142.54,
+    "w": " through"
+   },
+   {
+    "t": 142.72,
+    "w": " time"
+   },
+   {
+    "t": 142.98,
+    "w": " so"
+   },
+   {
+    "t": 143.42,
+    "w": " we"
+   },
+   {
+    "t": 143.56,
+    "w": " can"
+   },
+   {
+    "t": 143.66,
+    "w": " get"
+   },
+   {
+    "t": 143.76,
+    "w": " there."
+   },
+   {
+    "t": 159.12,
+    "w": " And"
+   },
+   {
+    "t": 159.52,
+    "w": " now,"
+   },
+   {
+    "t": 160.32,
+    "w": " we'll"
+   },
+   {
+    "t": 164.0,
+    "w": " pulse."
+   },
+   {
+    "t": 164.72,
+    "w": " I"
+   },
+   {
+    "t": 168.67,
+    "w": " don't"
+   },
+   {
+    "t": 168.85,
+    "w": " know"
+   },
+   {
+    "t": 168.97,
+    "w": " how"
+   },
+   {
+    "t": 169.17,
+    "w": " good"
+   },
+   {
+    "t": 169.53,
+    "w": " that"
+   },
+   {
+    "t": 169.73,
+    "w": " pulse"
+   },
+   {
+    "t": 169.99,
+    "w": " is,"
+   },
+   {
+    "t": 170.31,
+    "w": " because"
+   },
+   {
+    "t": 170.39,
+    "w": " it"
+   },
+   {
+    "t": 170.53,
+    "w": " showed"
+   },
+   {
+    "t": 170.71,
+    "w": " up"
+   },
+   {
+    "t": 170.89,
+    "w": " on"
+   },
+   {
+    "t": 171.03,
+    "w": " the"
+   },
+   {
+    "t": 171.13,
+    "w": " side."
+   },
+   {
+    "t": 174.23,
+    "w": " Oh,"
+   },
+   {
+    "t": 174.67,
+    "w": " because"
+   },
+   {
+    "t": 174.85,
+    "w": " sandstone"
+   },
+   {
+    "t": 175.33,
+    "w": " is"
+   },
+   {
+    "t": 175.51,
+    "w": " the"
+   },
+   {
+    "t": 175.61,
+    "w": " only"
+   },
+   {
+    "t": 175.71,
+    "w": " meaningful"
+   },
+   {
+    "t": 176.03,
+    "w": " thing."
+   },
+   {
+    "t": 176.47,
+    "w": " There's..."
+   },
+   {
+    "t": 176.63,
+    "w": " Yeah,"
+   },
+   {
+    "t": 177.13,
+    "w": " in"
+   },
+   {
+    "t": 177.21,
+    "w": " the"
+   },
+   {
+    "t": 177.33,
+    "w": " future,"
+   },
+   {
+    "t": 177.65,
+    "w": " maybe"
+   },
+   {
+    "t": 177.85,
+    "w": " we'll"
+   },
+   {
+    "t": 178.09,
+    "w": " have"
+   },
+   {
+    "t": 178.23,
+    "w": " that"
+   },
+   {
+    "t": 178.39,
+    "w": " point"
+   },
+   {
+    "t": 178.63,
+    "w": " cloud"
+   },
+   {
+    "t": 178.83,
+    "w": " shit"
+   },
+   {
+    "t": 179.13,
+    "w": " I"
+   },
+   {
+    "t": 179.25,
+    "w": " was"
+   },
+   {
+    "t": 179.37,
+    "w": " talking"
+   },
+   {
+    "t": 179.57,
+    "w": " about,"
+   },
+   {
+    "t": 179.99,
+    "w": " where,"
+   },
+   {
+    "t": 180.25,
+    "w": " like,"
+   },
+   {
+    "t": 180.65,
+    "w": " you"
+   },
+   {
+    "t": 181.29,
+    "w": " can"
+   },
+   {
+    "t": 181.45,
+    "w": " just"
+   },
+   {
+    "t": 181.63,
+    "w": " always"
+   },
+   {
+    "t": 181.89,
+    "w": " see"
+   },
+   {
+    "t": 182.25,
+    "w": " the"
+   },
+   {
+    "t": 182.41,
+    "w": " density"
+   },
+   {
+    "t": 182.67,
+    "w": " of"
+   },
+   {
+    "t": 182.91,
+    "w": " the"
+   },
+   {
+    "t": 182.99,
+    "w": " line."
+   }
+  ]
+ },
+ {
+  "start": 183.07,
+  "end": 212.35,
+  "text": "And I would know that barrier's there, but there's not, like, a material thing that we're hitting over there at boundary lines. Don't love that. I see that the boundary line is developing, and you're doing some slash thing to show, like, this is probably where it is. And that's kind of cool, and I would like to see that kind of like a technical illustration, but we should definitely see pulses everywhere we pulse, and it should return data for the area we've scanned, not just thresholds. So, cool. I'm going to do just the longest dive I can do.",
+  "words": [
+   {
+    "t": 183.07,
+    "w": " And"
+   },
+   {
+    "t": 183.21,
+    "w": " I"
+   },
+   {
+    "t": 183.69,
+    "w": " would"
+   },
+   {
+    "t": 183.85,
+    "w": " know"
+   },
+   {
+    "t": 184.03,
+    "w": " that"
+   },
+   {
+    "t": 184.21,
+    "w": " barrier's"
+   },
+   {
+    "t": 184.73,
+    "w": " there,"
+   },
+   {
+    "t": 184.93,
+    "w": " but"
+   },
+   {
+    "t": 185.01,
+    "w": " there's"
+   },
+   {
+    "t": 185.19,
+    "w": " not,"
+   },
+   {
+    "t": 185.39,
+    "w": " like,"
+   },
+   {
+    "t": 185.67,
+    "w": " a"
+   },
+   {
+    "t": 186.15,
+    "w": " material"
+   },
+   {
+    "t": 186.47,
+    "w": " thing"
+   },
+   {
+    "t": 186.79,
+    "w": " that"
+   },
+   {
+    "t": 186.97,
+    "w": " we're"
+   },
+   {
+    "t": 187.07,
+    "w": " hitting"
+   },
+   {
+    "t": 187.31,
+    "w": " over"
+   },
+   {
+    "t": 187.65,
+    "w": " there"
+   },
+   {
+    "t": 188.03,
+    "w": " at"
+   },
+   {
+    "t": 188.43,
+    "w": " boundary"
+   },
+   {
+    "t": 188.83,
+    "w": " lines."
+   },
+   {
+    "t": 190.03,
+    "w": " Don't"
+   },
+   {
+    "t": 190.43,
+    "w": " love"
+   },
+   {
+    "t": 190.65,
+    "w": " that."
+   },
+   {
+    "t": 191.01,
+    "w": " I"
+   },
+   {
+    "t": 191.15,
+    "w": " see"
+   },
+   {
+    "t": 191.31,
+    "w": " that"
+   },
+   {
+    "t": 191.45,
+    "w": " the"
+   },
+   {
+    "t": 191.55,
+    "w": " boundary"
+   },
+   {
+    "t": 191.77,
+    "w": " line"
+   },
+   {
+    "t": 191.99,
+    "w": " is"
+   },
+   {
+    "t": 192.13,
+    "w": " developing,"
+   },
+   {
+    "t": 192.59,
+    "w": " and"
+   },
+   {
+    "t": 192.73,
+    "w": " you're"
+   },
+   {
+    "t": 192.85,
+    "w": " doing"
+   },
+   {
+    "t": 192.99,
+    "w": " some"
+   },
+   {
+    "t": 193.15,
+    "w": " slash"
+   },
+   {
+    "t": 193.45,
+    "w": " thing"
+   },
+   {
+    "t": 193.77,
+    "w": " to"
+   },
+   {
+    "t": 193.91,
+    "w": " show,"
+   },
+   {
+    "t": 194.17,
+    "w": " like,"
+   },
+   {
+    "t": 194.41,
+    "w": " this"
+   },
+   {
+    "t": 194.93,
+    "w": " is"
+   },
+   {
+    "t": 195.05,
+    "w": " probably"
+   },
+   {
+    "t": 195.33,
+    "w": " where"
+   },
+   {
+    "t": 195.55,
+    "w": " it"
+   },
+   {
+    "t": 195.65,
+    "w": " is."
+   },
+   {
+    "t": 195.85,
+    "w": " And"
+   },
+   {
+    "t": 195.93,
+    "w": " that's"
+   },
+   {
+    "t": 196.19,
+    "w": " kind"
+   },
+   {
+    "t": 196.27,
+    "w": " of"
+   },
+   {
+    "t": 196.43,
+    "w": " cool,"
+   },
+   {
+    "t": 196.77,
+    "w": " and"
+   },
+   {
+    "t": 196.87,
+    "w": " I"
+   },
+   {
+    "t": 196.95,
+    "w": " would"
+   },
+   {
+    "t": 197.49,
+    "w": " like"
+   },
+   {
+    "t": 197.67,
+    "w": " to"
+   },
+   {
+    "t": 197.85,
+    "w": " see"
+   },
+   {
+    "t": 198.07,
+    "w": " that"
+   },
+   {
+    "t": 198.25,
+    "w": " kind"
+   },
+   {
+    "t": 198.49,
+    "w": " of"
+   },
+   {
+    "t": 198.59,
+    "w": " like"
+   },
+   {
+    "t": 198.71,
+    "w": " a"
+   },
+   {
+    "t": 198.85,
+    "w": " technical"
+   },
+   {
+    "t": 199.13,
+    "w": " illustration,"
+   },
+   {
+    "t": 199.69,
+    "w": " but"
+   },
+   {
+    "t": 200.11,
+    "w": " we"
+   },
+   {
+    "t": 200.93,
+    "w": " should"
+   },
+   {
+    "t": 201.13,
+    "w": " definitely"
+   },
+   {
+    "t": 201.45,
+    "w": " see"
+   },
+   {
+    "t": 201.69,
+    "w": " pulses"
+   },
+   {
+    "t": 202.03,
+    "w": " everywhere"
+   },
+   {
+    "t": 202.47,
+    "w": " we"
+   },
+   {
+    "t": 202.85,
+    "w": " pulse,"
+   },
+   {
+    "t": 203.17,
+    "w": " and"
+   },
+   {
+    "t": 203.31,
+    "w": " it"
+   },
+   {
+    "t": 203.41,
+    "w": " should"
+   },
+   {
+    "t": 203.53,
+    "w": " return"
+   },
+   {
+    "t": 203.79,
+    "w": " data"
+   },
+   {
+    "t": 204.25,
+    "w": " for"
+   },
+   {
+    "t": 204.57,
+    "w": " the"
+   },
+   {
+    "t": 205.19,
+    "w": " area"
+   },
+   {
+    "t": 205.41,
+    "w": " we've"
+   },
+   {
+    "t": 205.73,
+    "w": " scanned,"
+   },
+   {
+    "t": 206.17,
+    "w": " not"
+   },
+   {
+    "t": 206.35,
+    "w": " just"
+   },
+   {
+    "t": 206.57,
+    "w": " thresholds."
+   },
+   {
+    "t": 207.91,
+    "w": " So,"
+   },
+   {
+    "t": 208.31,
+    "w": " cool."
+   },
+   {
+    "t": 209.77,
+    "w": " I'm"
+   },
+   {
+    "t": 210.01,
+    "w": " going"
+   },
+   {
+    "t": 210.09,
+    "w": " to"
+   },
+   {
+    "t": 210.21,
+    "w": " do"
+   },
+   {
+    "t": 210.37,
+    "w": " just"
+   },
+   {
+    "t": 210.57,
+    "w": " the"
+   },
+   {
+    "t": 210.73,
+    "w": " longest"
+   },
+   {
+    "t": 211.13,
+    "w": " dive"
+   },
+   {
+    "t": 211.61,
+    "w": " I"
+   },
+   {
+    "t": 211.87,
+    "w": " can"
+   },
+   {
+    "t": 212.11,
+    "w": " do."
+   }
+  ]
+ },
+ {
+  "start": 213.69,
+  "end": 253.97,
+  "text": "Or glide, rather. So, we're going to get quiet. Doing all my pulse-y shit. I'm going to just hit glide plot. No. I wonder why I can't get a glide going here. It seems like a glide becomes possible glide. The scan shows no rock ahead to glide. I didn't think we needed rock ahead to glide. I guess we do. Weird. Okay.",
+  "words": [
+   {
+    "t": 213.69,
+    "w": " Or"
+   },
+   {
+    "t": 214.15,
+    "w": " glide,"
+   },
+   {
+    "t": 214.67,
+    "w": " rather."
+   },
+   {
+    "t": 214.97,
+    "w": " So,"
+   },
+   {
+    "t": 215.23,
+    "w": " we're"
+   },
+   {
+    "t": 215.55,
+    "w": " going"
+   },
+   {
+    "t": 215.63,
+    "w": " to"
+   },
+   {
+    "t": 215.65,
+    "w": " get"
+   },
+   {
+    "t": 215.75,
+    "w": " quiet."
+   },
+   {
+    "t": 221.23,
+    "w": " Doing"
+   },
+   {
+    "t": 221.69,
+    "w": " all"
+   },
+   {
+    "t": 221.87,
+    "w": " my"
+   },
+   {
+    "t": 222.03,
+    "w": " pulse"
+   },
+   {
+    "t": 222.29,
+    "w": "-y"
+   },
+   {
+    "t": 222.45,
+    "w": " shit."
+   },
+   {
+    "t": 225.62,
+    "w": " I'm"
+   },
+   {
+    "t": 226.08,
+    "w": " going"
+   },
+   {
+    "t": 226.1,
+    "w": " to"
+   },
+   {
+    "t": 226.18,
+    "w": " just"
+   },
+   {
+    "t": 226.32,
+    "w": " hit"
+   },
+   {
+    "t": 226.42,
+    "w": " glide"
+   },
+   {
+    "t": 226.7,
+    "w": " plot."
+   },
+   {
+    "t": 227.22,
+    "w": " No."
+   },
+   {
+    "t": 228.72,
+    "w": " I"
+   },
+   {
+    "t": 229.18,
+    "w": " wonder"
+   },
+   {
+    "t": 229.4,
+    "w": " why"
+   },
+   {
+    "t": 229.54,
+    "w": " I"
+   },
+   {
+    "t": 229.78,
+    "w": " can't"
+   },
+   {
+    "t": 229.98,
+    "w": " get"
+   },
+   {
+    "t": 230.12,
+    "w": " a"
+   },
+   {
+    "t": 230.24,
+    "w": " glide"
+   },
+   {
+    "t": 230.42,
+    "w": " going"
+   },
+   {
+    "t": 230.66,
+    "w": " here."
+   },
+   {
+    "t": 243.53,
+    "w": " It"
+   },
+   {
+    "t": 243.91,
+    "w": " seems"
+   },
+   {
+    "t": 244.11,
+    "w": " like"
+   },
+   {
+    "t": 244.27,
+    "w": " a"
+   },
+   {
+    "t": 244.37,
+    "w": " glide"
+   },
+   {
+    "t": 244.63,
+    "w": " becomes"
+   },
+   {
+    "t": 244.93,
+    "w": " possible"
+   },
+   {
+    "t": 245.71,
+    "w": " glide."
+   },
+   {
+    "t": 246.27,
+    "w": " The"
+   },
+   {
+    "t": 246.37,
+    "w": " scan"
+   },
+   {
+    "t": 246.55,
+    "w": " shows"
+   },
+   {
+    "t": 246.77,
+    "w": " no"
+   },
+   {
+    "t": 247.01,
+    "w": " rock"
+   },
+   {
+    "t": 247.29,
+    "w": " ahead"
+   },
+   {
+    "t": 247.49,
+    "w": " to"
+   },
+   {
+    "t": 247.73,
+    "w": " glide."
+   },
+   {
+    "t": 248.87,
+    "w": " I"
+   },
+   {
+    "t": 249.33,
+    "w": " didn't"
+   },
+   {
+    "t": 249.71,
+    "w": " think"
+   },
+   {
+    "t": 249.87,
+    "w": " we"
+   },
+   {
+    "t": 250.07,
+    "w": " needed"
+   },
+   {
+    "t": 250.37,
+    "w": " rock"
+   },
+   {
+    "t": 250.69,
+    "w": " ahead"
+   },
+   {
+    "t": 250.97,
+    "w": " to"
+   },
+   {
+    "t": 251.23,
+    "w": " glide."
+   },
+   {
+    "t": 251.75,
+    "w": " I"
+   },
+   {
+    "t": 252.01,
+    "w": " guess"
+   },
+   {
+    "t": 252.13,
+    "w": " we"
+   },
+   {
+    "t": 252.27,
+    "w": " do."
+   },
+   {
+    "t": 252.91,
+    "w": " Weird."
+   },
+   {
+    "t": 253.61,
+    "w": " Okay."
+   }
+  ]
+ },
+ {
+  "start": 254.53,
+  "end": 263.48,
+  "text": "So, what I'll do is I will go ahead and pitch us facing rock. I guess we'll take a minute to do that turn.",
+  "words": [
+   {
+    "t": 254.53,
+    "w": " So,"
+   },
+   {
+    "t": 255.09,
+    "w": " what"
+   },
+   {
+    "t": 255.15,
+    "w": " I'll"
+   },
+   {
+    "t": 255.27,
+    "w": " do"
+   },
+   {
+    "t": 255.45,
+    "w": " is"
+   },
+   {
+    "t": 255.93,
+    "w": " I"
+   },
+   {
+    "t": 256.29,
+    "w": " will"
+   },
+   {
+    "t": 256.65,
+    "w": " go"
+   },
+   {
+    "t": 256.91,
+    "w": " ahead"
+   },
+   {
+    "t": 257.15,
+    "w": " and"
+   },
+   {
+    "t": 257.49,
+    "w": " pitch"
+   },
+   {
+    "t": 257.73,
+    "w": " us"
+   },
+   {
+    "t": 258.05,
+    "w": " facing"
+   },
+   {
+    "t": 259.13,
+    "w": " rock."
+   },
+   {
+    "t": 261.66,
+    "w": " I"
+   },
+   {
+    "t": 262.12,
+    "w": " guess"
+   },
+   {
+    "t": 262.26,
+    "w": " we'll"
+   },
+   {
+    "t": 262.4,
+    "w": " take"
+   },
+   {
+    "t": 262.56,
+    "w": " a"
+   },
+   {
+    "t": 262.66,
+    "w": " minute"
+   },
+   {
+    "t": 262.82,
+    "w": " to"
+   },
+   {
+    "t": 262.96,
+    "w": " do"
+   },
+   {
+    "t": 263.08,
+    "w": " that"
+   },
+   {
+    "t": 263.24,
+    "w": " turn."
+   }
+  ]
+ },
+ {
+  "start": 263.58,
+  "end": 284.66,
+  "text": "Turn off quiet ship. I'm using time manip to turn faster. Cool. And then we pitch ahead. Pitch, pitch, pitch, pitch, pitch, pitch, pitch, pitch, pitch, pitch, pitch, pitch.",
+  "words": [
+   {
+    "t": 263.58,
+    "w": " Turn"
+   },
+   {
+    "t": 263.74,
+    "w": " off"
+   },
+   {
+    "t": 263.94,
+    "w": " quiet"
+   },
+   {
+    "t": 264.2,
+    "w": " ship."
+   },
+   {
+    "t": 264.68,
+    "w": " I'm"
+   },
+   {
+    "t": 276.69,
+    "w": " using"
+   },
+   {
+    "t": 276.87,
+    "w": " time"
+   },
+   {
+    "t": 277.41,
+    "w": " manip"
+   },
+   {
+    "t": 277.61,
+    "w": " to"
+   },
+   {
+    "t": 277.83,
+    "w": " turn"
+   },
+   {
+    "t": 278.05,
+    "w": " faster."
+   },
+   {
+    "t": 280.9,
+    "w": " Cool."
+   },
+   {
+    "t": 281.48,
+    "w": " And"
+   },
+   {
+    "t": 281.84,
+    "w": " then"
+   },
+   {
+    "t": 281.98,
+    "w": " we"
+   },
+   {
+    "t": 282.12,
+    "w": " pitch"
+   },
+   {
+    "t": 282.28,
+    "w": " ahead."
+   },
+   {
+    "t": 282.66,
+    "w": " Pitch,"
+   },
+   {
+    "t": 282.88,
+    "w": " pitch,"
+   },
+   {
+    "t": 283.02,
+    "w": " pitch,"
+   },
+   {
+    "t": 283.16,
+    "w": " pitch,"
+   },
+   {
+    "t": 283.38,
+    "w": " pitch,"
+   },
+   {
+    "t": 283.66,
+    "w": " pitch,"
+   },
+   {
+    "t": 283.82,
+    "w": " pitch,"
+   },
+   {
+    "t": 283.96,
+    "w": " pitch,"
+   },
+   {
+    "t": 284.12,
+    "w": " pitch,"
+   },
+   {
+    "t": 284.3,
+    "w": " pitch,"
+   },
+   {
+    "t": 284.44,
+    "w": " pitch,"
+   },
+   {
+    "t": 284.54,
+    "w": " pitch."
+   }
+  ]
+ },
+ {
+  "start": 287.26,
+  "end": 297.26,
+  "text": "And I'm going to just go as far as I can, and cool. I guess that will be a glide. So, I'm going to now jump over to here, and just send it.",
+  "words": [
+   {
+    "t": 287.26,
+    "w": " And"
+   },
+   {
+    "t": 287.62,
+    "w": " I'm"
+   },
+   {
+    "t": 287.84,
+    "w": " going"
+   },
+   {
+    "t": 287.84,
+    "w": " to"
+   },
+   {
+    "t": 288.0,
+    "w": " just"
+   },
+   {
+    "t": 288.16,
+    "w": " go"
+   },
+   {
+    "t": 288.38,
+    "w": " as"
+   },
+   {
+    "t": 288.56,
+    "w": " far"
+   },
+   {
+    "t": 288.74,
+    "w": " as"
+   },
+   {
+    "t": 288.84,
+    "w": " I"
+   },
+   {
+    "t": 288.92,
+    "w": " can,"
+   },
+   {
+    "t": 289.22,
+    "w": " and"
+   },
+   {
+    "t": 289.38,
+    "w": " cool."
+   },
+   {
+    "t": 289.72,
+    "w": " I"
+   },
+   {
+    "t": 289.86,
+    "w": " guess"
+   },
+   {
+    "t": 290.04,
+    "w": " that"
+   },
+   {
+    "t": 290.28,
+    "w": " will"
+   },
+   {
+    "t": 290.52,
+    "w": " be"
+   },
+   {
+    "t": 290.68,
+    "w": " a"
+   },
+   {
+    "t": 290.8,
+    "w": " glide."
+   },
+   {
+    "t": 291.42,
+    "w": " So,"
+   },
+   {
+    "t": 291.84,
+    "w": " I'm"
+   },
+   {
+    "t": 291.98,
+    "w": " going"
+   },
+   {
+    "t": 292.1,
+    "w": " to"
+   },
+   {
+    "t": 292.26,
+    "w": " now"
+   },
+   {
+    "t": 292.42,
+    "w": " jump"
+   },
+   {
+    "t": 292.84,
+    "w": " over"
+   },
+   {
+    "t": 293.2,
+    "w": " to"
+   },
+   {
+    "t": 294.28,
+    "w": " here,"
+   },
+   {
+    "t": 294.6,
+    "w": " and"
+   },
+   {
+    "t": 294.98,
+    "w": " just"
+   },
+   {
+    "t": 295.3,
+    "w": " send"
+   },
+   {
+    "t": 297.12,
+    "w": " it."
+   }
+  ]
+ },
+ {
+  "start": 297.8,
+  "end": 309.9,
+  "text": "That is cool. I like that. Okay. Done everything I can here.",
+  "words": [
+   {
+    "t": 297.8,
+    "w": " That"
+   },
+   {
+    "t": 306.32,
+    "w": " is"
+   },
+   {
+    "t": 306.68,
+    "w": " cool."
+   },
+   {
+    "t": 307.0,
+    "w": " I"
+   },
+   {
+    "t": 307.36,
+    "w": " like"
+   },
+   {
+    "t": 307.58,
+    "w": " that."
+   },
+   {
+    "t": 308.04,
+    "w": " Okay."
+   },
+   {
+    "t": 308.88,
+    "w": " Done"
+   },
+   {
+    "t": 309.24,
+    "w": " everything"
+   },
+   {
+    "t": 309.46,
+    "w": " I"
+   },
+   {
+    "t": 309.66,
+    "w": " can"
+   },
+   {
+    "t": 309.76,
+    "w": " here."
+   }
+  ]
+ }
+]
