@@ -1,7 +1,7 @@
 # Screenshot recipes
 
 - The evidence for a screen is its recipe, a list for the screenshot tool's sheet mode (`running-and-testing.md`, "Ad-hoc checks") kept in `tools/screenshot/recipes/`, one per Station screen and per view a ticket checked by eye:
-  `reactor.txt`, `thermal.txt`, `drive.txt`, `navigation.txt`, `stations.txt` (every Station from the Arm's hold), `habitat.txt` (the room, the ring at each end and mid-slide, and hull sparks), `column.txt` (features in the Column) and `checklist.txt` (the Checklist panel).
+  `reactor.txt`, `thermal.txt`, `drive.txt`, `navigation.txt`, `stations.txt` (every Station from the Arm's hold), `habitat.txt` (the room, the ring at each end and mid-slide, and hull sparks), `column.txt` (features in the Column), `glide.txt` (the Glide in the Bore, the room lit by it, and the tunnel it leaves) and `checklist.txt` (the Checklist panel).
 - `--checklist` opens the Checklist panel over any look, surface control's messages at its foot, without reading the orders; the panel is the only overlay the crew uses, so it is the one a shot shows.
 - From the repo root, `tools/screenshot/shot.sh --sheet tools/screenshot/recipes/reactor.txt` makes its sheet, `tools/screenshot/out/reactor-sheet.png`.
   Each takes under a minute; the folder is ignored by git and by Godot, and no sheet is ever committed.
