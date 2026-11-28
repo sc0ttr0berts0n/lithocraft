@@ -253,10 +253,15 @@ func test_the_display_names_the_candidate_the_simulation_holds() -> void:
 	assert_str(display.caption()).is_not_equal(first)
 
 
+## The display's own source, for the checks that read it.
+static func _display_source() -> String:
+	return (load("res://view/scan_display.gd") as GDScript).source_code
+
+
 func test_the_display_reads_the_scan_and_never_the_layout_or_a_clock() -> void:
 	# Every view is drawn from the simulation's queries alone, and nothing in
 	# it runs on its own time, so a view changes only as the vessel does.
-	var source: String = (load("res://view/scan_display.gd") as GDScript).source_code
+	var source: String = _display_source()
 	for word in ["MediumLayout", "_layout", "medium_at", "boundary_depths", "Time.", "get_ticks", "randf", "randi"]:
 		assert_bool(source.contains(word)) \
 				.override_failure_message("scan_display.gd names %s" % word) \
@@ -412,7 +417,7 @@ func test_a_rock_is_named_only_as_surface_control_s_expectation_until_the_column
 	assert_str(ScanDisplay.expected_label(shown, true)).not_contains("?")
 	# The display has no other way to a rock's name: not the Medium the Head
 	# is in, not the Column, not the Bore Station's record.
-	var source: String = (load("res://view/scan_display.gd") as GDScript).source_code
+	var source: String = _display_source()
 	for word in ["medium()", "column_at", "survey()", "composition"]:
 		assert_bool(source.contains(word)) \
 				.override_failure_message("scan_display.gd names %s" % word) \

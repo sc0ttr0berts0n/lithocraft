@@ -805,10 +805,12 @@ func _draw_rock_beyond(canvas: Control, patch: BoundaryPatch, corners: PackedVec
 			lines.append(at)
 			lines.append(at + (Vector2(ROCK_TICK_PX, -ROCK_TICK_PX) * 0.7 if end_on else shift))
 			continue
-		for share: float in [0.3, 0.75]:
-			var dot := at + (Vector2(ROCK_TICK_PX, ROCK_TICK_PX) * share if end_on else shift * share)
-			lines.append(dot)
-			lines.append(dot + Vector2(ROCK_DOT_PX, 0.0))
+		# One dot a mark, by turns nearer and further into the band, so the
+		# stipple stays open where patches lie side by side.
+		var share := 0.3 if i % 2 == 0 else 0.75
+		var dot := at + (Vector2(ROCK_TICK_PX, ROCK_TICK_PX) * share if end_on else shift * share)
+		lines.append(dot)
+		lines.append(dot + Vector2(ROCK_DOT_PX, 0.0))
 	canvas.draw_multiline(lines, colour, 1.5 if hatched else ROCK_DOT_PX)
 
 
