@@ -64,6 +64,13 @@ const UPLOAD_OLDEST_FIRST := &"oldest_first"
 const UPLOAD_NEWEST_FIRST := &"newest_first"
 const UPLOAD_MOST_VALUABLE_FIRST := &"most_valuable_first"
 
+## The walls of the tunnel behind (tunnel_walls()): lined with glass by the
+## Crawl in porous rock, left lumpy and rough by a Glide in porous rock, or
+## filled with melt in dense rock, however it was cut.
+const TUNNEL_GLASS := &"glass"
+const TUNNEL_ROUGH := &"rough"
+const TUNNEL_SEALED := &"sealed"
+
 ## Earth's surface gravity, m/s^2.
 const _GRAVITY := 9.81
 
@@ -80,6 +87,15 @@ const _FAST_LINK_RATE := 2.0
 ## Survey metres per second sound through rock carries, in a Medium whose
 ## sound_carrying is 1. Far below the fast link. Tuned for play (ADR 0001).
 const _SLOW_LINK_RATE := 0.02
+## The light a glass-lined tunnel carries is guided as down a fibre; a Glide's
+## lumpy walls scatter it. The share of the light that gets past each rough run
+## of tunnel at its start, and the metres of rough wall over which what is left
+## falls by a factor of e. Real basis: a rough-walled light guide loses light
+## where it begins and along its length. Tuned for play (ADR 0001): a Glide of a
+## few hundred metres leaves about 80% (the developer's "80% quality vs 100%
+## glass perfection"), and each one more a little less.
+const _ROUGH_RUN_SHARE := 0.9
+const _ROUGH_SCATTER_M := 4000.0
 ## What the link draws while sending, in the units of set_power(). Counted
 ## only once the plasma is lost, when it runs on the emergency store. Real
 ## basis: a sound source strong enough to carry through rock takes power.
@@ -386,6 +402,17 @@ var _tunnel_sealed := false
 ## the path the Tail has left the tunnel so far.
 var _sealed_metres := 0.0
 var _tail_at := 0.0
+## The tunnel behind, from where the Tail first left it to the Tail, as pieces
+## of one wall each (TUNNEL_GLASS, TUNNEL_ROUGH, TUNNEL_SEALED): where each
+## begins and ends by path distance, and its wall. A new piece starts only
+## where the wall changes.
+var _wall_from := PackedFloat64Array()
+var _wall_to := PackedFloat64Array()
+var _wall_kind: Array[StringName] = []
+## Metres of open rough (glided) wall behind the Tail, and how many runs of it
+## there are, each begun where glass or the surface gave way to rough.
+var _rough_metres := 0.0
+var _rough_runs := 0
 ## Survey stretches whose data has reached the surface, in the order they
 ## arrived, and what was paid for them all.
 var _uploaded: Array[SurveyStretch] = []
@@ -519,6 +546,10 @@ var _acknowledged := {}
 ## Path distance at which the Head entered Medium that will seal the tunnel
 ## when the Tail leaves it, or NAN while none is coming.
 var _seal_coming_at := NAN
+## True once the Bore Station has called the seal coming: a Glide can carry
+## the Tail into the dense rock within the step the Head entered it, and the
+## call is still made, once.
+var _seal_called := false
 ## True once the Head has come back up to the surface: the dive is over and
 ## its survey sold. Nothing moves until new_dive().
 var _surfaced := false
@@ -1307,6 +1338,9 @@ func debug_strand() -> StringName:
 	if not _tunnel_sealed:
 		_tunnel_sealed = true
 		_sealed_metres = _tail_at
+		_wall_from = PackedFloat64Array([0.0])
+		_wall_to = PackedFloat64Array([_tail_at])
+		_wall_kind = [TUNNEL_SEALED]
 		_events.append({type = &"tunnel_sealed", distance = _tail_at})
 	return debug_lose_plasma()
 
@@ -1572,9 +1606,8 @@ func _glide_on(dt: float) -> void:
 ## What follows the vessel having glided `travelled` metres from
 ## `place_before`: the Column melted, so nothing is recorded and the features
 ## in it are gone unseen; the path remembered; Boundaries crossed (felt by no
-## Wobble, and with nothing announced); and the tunnel behind, as a crawled
-## one's (the Glide's own tunnel is ticket #125's: glided_stretches() marks
-## where).
+## Wobble, and with nothing announced); and the tunnel behind, rough in porous
+## rock and sealed in dense rock (_update_tunnel()).
 func _glided(place_before: Vector3, travelled: float) -> void:
 	for entry in _layout.features_between(-place_before.y, depth()):
 		_found_templates[entry[1]] = true  # Melted with the Column, never seen.
@@ -2618,8 +2651,7 @@ func glide_end() -> Vector3:
 
 ## Each Glide this dive, Vector2(path distance it began at, path distance it
 ## reached), oldest first: where the Column was melted and the tunnel was cut
-## by a Glide (whose own tunnel is ticket #125's; for now it is a crawled
-## one's). A copy.
+## by a Glide, rough where the rock was porous (tunnel_walls()). A copy.
 func glided_stretches() -> PackedVector2Array:
 	return _glide.stretches()
 
@@ -2941,9 +2973,10 @@ func seal_porosity() -> float:
 
 
 ## How fast survey data goes up to the surface now, in metres of survey per
-## second. Light up the open glass-lined tunnel is fast; once sealed, it is
-## sound through the rock: a trickle that follows how well the Medium the
-## Lithocraft is in carries sound. 0 while the link is stopped
+## second. Light up the open tunnel is fast, the more so the less of it a
+## Glide left rough (link_light_share()); once sealed, it is sound through the
+## rock: a trickle that follows how well the Medium the Lithocraft is in
+## carries sound. 0 while the link is stopped
 ## (set_uploading()), or stranded with the emergency store spent.
 func link_rate() -> float:
 	if not _uploading or (stranded() and _stranding.store() <= 0.0):
@@ -2956,8 +2989,51 @@ func link_rate() -> float:
 ## sealed rock. Surface control's messages come down at this rate.
 func link_capacity() -> float:
 	if not _tunnel_sealed:
-		return _FAST_LINK_RATE
+		return _FAST_LINK_RATE * link_light_share()
 	return _SLOW_LINK_RATE * medium().sound_carrying
+
+
+## The share of the light a tunnel lined with glass all the way up would carry
+## that reaches the surface up the open tunnel, 0 to 1: 1 with no rough wall
+## behind, less for each run of rough wall a Glide left (rough_tunnel_runs())
+## and for every metre of it (rough_tunnel_metres()), as a rough light guide
+## scatters light. 0 once the tunnel is sealed: the link is sound. O(1).
+func link_light_share() -> float:
+	if _tunnel_sealed:
+		return 0.0
+	return pow(_ROUGH_RUN_SHARE, _rough_runs) * exp(-_rough_metres / _ROUGH_SCATTER_M)
+
+
+## Metres of open tunnel behind the Tail a Glide left rough. O(1).
+func rough_tunnel_metres() -> float:
+	return _rough_metres
+
+
+## How many separate runs of rough wall the open tunnel behind has: one per
+## glided stretch, Glides with no glass between them counting as one. O(1).
+func rough_tunnel_runs() -> int:
+	return _rough_runs
+
+
+## The tunnel behind, from where the Tail first left it to the Tail, as
+## pieces of one wall each, oldest first: {from, to, wall}, `from` and `to`
+## path distances (as glided_stretches()), `wall` TUNNEL_GLASS (crawled in
+## porous rock), TUNNEL_ROUGH (glided in porous rock) or TUNNEL_SEALED (dense
+## rock, however it was cut). The newest piece's `to` grows as the Tail moves;
+## a new piece starts only where the wall changes, so there are a few per
+## Glide and per Boundary crossed. A copy, O(pieces): a view that draws it
+## reads it again when tunnel_wall_count() changes, and runs the newest piece
+## on to the Tail itself (vessel_length() behind the Head).
+func tunnel_walls() -> Array[Dictionary]:
+	var walls: Array[Dictionary] = []
+	for i in _wall_kind.size():
+		walls.append({from = _wall_from[i], to = _wall_to[i], wall = _wall_kind[i]})
+	return walls
+
+
+## How many pieces tunnel_walls() has. O(1).
+func tunnel_wall_count() -> int:
+	return _wall_kind.size()
 
 
 ## What this dive has been paid so far: by the link under way, and at the
@@ -3511,12 +3587,15 @@ func _update_calls() -> void:
 	for starved in [[STATION_THERMAL, thermal_supplied()], [STATION_NAVIGATION, navigation_supplied()]]:
 		if starved[1] < 1.0:
 			_offer_call(calls, starved[0], &"starved", _urgency(_STARVED_CALL, 1.0 - starved[1]))
-	if _tunnel_sealed:
-		_seal_coming_at = NAN
-	elif not is_nan(_seal_coming_at):
-		var tail_to_go := (_distance - _seal_coming_at) / _VESSEL_LENGTH_M
+	# Sealed within the step the seal began coming (a Glide is that fast), the
+	# call is made at its most urgent for that one step.
+	if not is_nan(_seal_coming_at) and not (_tunnel_sealed and _seal_called):
+		var tail_to_go := 1.0 if _tunnel_sealed else (_distance - _seal_coming_at) / _VESSEL_LENGTH_M
 		_offer_call(calls, STATION_BORE, &"tunnel_about_to_seal",
 				_urgency(_SEAL_COMING_CALL, tail_to_go))
+		_seal_called = true
+	if _tunnel_sealed:
+		_seal_coming_at = NAN
 	if _observed < 0:
 		for feature in _features:
 			if not feature.is_recorded() and _in_column(feature):
@@ -3915,21 +3994,49 @@ func _payment(arrival: Dictionary, carried_home: float, repairs: Repairs) -> Dic
 
 # --- The tunnel behind ----------------------------------------------------
 
-## The Tail leaves the tunnel behind it: lined and open in porous Medium,
-## filled with melt in dense Medium. Once filled, it stays filled; the filled
-## metres are counted, for the rescue to cut through.
+## The Tail leaves the tunnel behind it: open in porous Medium, lined with
+## glass where the Head crawled and rough where it glided
+## (Glide.glided_within()); filled with melt in dense Medium, however it was
+## cut, since the melt has nowhere else to go. Once filled, it stays filled;
+## the filled metres are counted, for the rescue to cut through, and the
+## rough ones, for the light up the open tunnel.
 func _update_tunnel() -> void:
 	var tail := _distance - _VESSEL_LENGTH_M
 	if tail <= _tail_at:
 		return  # The Tail has not yet left the surface, or not moved.
-	var left := tail - _tail_at
+	var from := _tail_at
 	_tail_at = tail
 	if _medium_at_distance(tail).porosity >= _SEAL_POROSITY:
+		var rough := _glide.glided_within(from, tail)
+		_lay_wall(from, rough[0], TUNNEL_GLASS)
+		_lay_wall(rough[0], rough[1], TUNNEL_ROUGH)
+		_lay_wall(rough[1], tail, TUNNEL_GLASS)
 		return
-	_sealed_metres += left
+	_sealed_metres += tail - from
+	_lay_wall(from, tail, TUNNEL_SEALED)
 	if not _tunnel_sealed:
 		_tunnel_sealed = true
 		_events.append({type = &"tunnel_sealed", distance = tail})
+
+
+## Adds the tunnel from `from` to `to` behind the Tail, with this wall, to
+## tunnel_walls(), lengthening the newest piece when it has the same wall. A
+## rough piece adds its metres, and one that follows another wall (or none)
+## begins a new rough run.
+func _lay_wall(from: float, to: float, wall: StringName) -> void:
+	if to <= from:
+		return
+	if wall == TUNNEL_ROUGH:
+		_rough_metres += to - from
+	var newest := _wall_kind.size() - 1
+	if newest >= 0 and _wall_kind[newest] == wall:
+		_wall_to[newest] = to
+		return
+	if wall == TUNNEL_ROUGH:
+		_rough_runs += 1
+	_wall_from.append(from)
+	_wall_to.append(to)
+	_wall_kind.append(wall)
 
 
 # --- The link to the surface --------------------------------------------
