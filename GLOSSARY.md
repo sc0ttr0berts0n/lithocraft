@@ -18,7 +18,7 @@ _Avoid_: Drill, bit, nose, cutter
 
 **Habitat**:
 The walkable middle section of the Lithocraft where the crew works at stations.
-_Avoid_: Cockpit, bridge, cabin, deck
+_Avoid_: Bridge, cabin, deck, cockpit (which is the Drive's seat)
 
 **Tail**:
 The aft section of the Lithocraft, where melt and exhaust leave.
@@ -193,6 +193,10 @@ The Station that controls the Head's plasma and the power it supplies.
 **Drive**:
 The Station that controls how the Lithocraft pushes itself through the Medium, and steers it along the Course.
 _Avoid_: Helm, engine
+
+**Cockpit**:
+The Drive's seat, the only one aboard: it always faces the Head, and in it the crew steers with full hands.
+_Avoid_: Seat (alone), chair, helm
 
 **Thermal**:
 The Station that controls where the Lithocraft's heat is sent.

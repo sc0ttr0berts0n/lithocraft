@@ -6,3 +6,5 @@
 - **Second checkpoint, 25 November 2026** (`docs/playtests/2026-11-25-second-checkpoint.md`): the plasma was lost at the second Boundary.
   The Checklist jumped to "Turn and climb" when a climb was plotted at the surface, and engaging the Reactor's autopilot while a Shift was overdue wore the Head from 41% to 89% in one silent moment.
   Videos are now analysed with `tools/playtest/playtest.py` (see `docs/playtests/README.md`).
+- **First full dive, 28 November 2026** (`docs/playtests/2026-11-28-first-full-dive.md`): the First dive done surface to surface and paid, the Glide the high point.
+  Steps that tick on an unseen deed stalled it once, and tuning STANDBY by copying its guess was tedious; the grill is in `24-after-first-full-dive.md`.
