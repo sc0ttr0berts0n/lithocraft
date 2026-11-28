@@ -166,7 +166,7 @@ const TARGET_ROUND := 16
 ## where the screen is seen small (#151): each stroke slants across the band
 ## (ROCK_SLANT, a share of its depth), and each mark of stipple is a cluster
 ## of ROCK_CLUSTER dots spread through the band, so softer rock has as much
-## ink as harder; both are drawn over the points, which would hide dots.
+## weight as harder; both are drawn over the points, which would hide dots.
 const ROCK_BAND_PX := 16.0
 const ROCK_SAME := 0.05
 const ROCK_DEGREES: Array[float] = [0.15, 0.4]
@@ -1100,7 +1100,7 @@ func _draw_rock_beyond(canvas: Control, patch: BoundaryPatch, corners: PackedVec
 					else shift + across.normalized() * shift.length() * ROCK_SLANT))
 			continue
 		# A cluster of dots a mark, spread through the band and either side,
-		# so the stipple carries as much ink as a stroke and stays open where
+		# so the stipple carries as much weight as a stroke and stays open where
 		# patches lie side by side.
 		for d in ROCK_CLUSTER:
 			# Staggered mark by mark, so the dots never line up into rows.

@@ -14,10 +14,10 @@ const PAD_PX := 1.0
 ## How opaque a label's backdrop is.
 const BACKDROP_ALPHA := 0.7
 ## A label's box, as shares of its font size: from its baseline up to the
-## top of a capital, and in all down to the foot of a descender (the ink, not
+## top of a capital, and in all down to the foot of a descender (the letters, not
 ## the font's line spacing, so lines a font size apart do not overlap).
 const CAP_SHARE := 0.76
-const INK_SHARE := 1.0
+const LINE_SHARE := 1.0
 
 var _within: Rect2
 var _font_size: int
@@ -44,7 +44,7 @@ func width(text: String, font_size := 0) -> float:
 ## The box a label covers written with its baseline starting at `at`.
 func box_at(at: Vector2, text: String, font_size := 0) -> Rect2:
 	var points := font_size if font_size > 0 else _font_size
-	return Rect2(at.x, at.y - points * CAP_SHARE, width(text, points), points * INK_SHARE)
+	return Rect2(at.x, at.y - points * CAP_SHARE, width(text, points), points * LINE_SHARE)
 
 
 ## Keeps every label off this rectangle (a marker: the vessel, the aim).
