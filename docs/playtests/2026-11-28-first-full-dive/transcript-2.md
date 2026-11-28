@@ -1,0 +1,490 @@
+# Transcript: Desktop 2026.11.28 - 11.25.44.19.mp4
+
+Narration, machine-transcribed (faster-whisper large-v3); timestamps are mm:ss into the video.
+
+- **00:10.5** Alright, hello, welcome to the Lithocraft speedrun. I've been told how to solve the problem, so I'm going to attempt to solve it.
+- **00:18.4** Reactor autopilot, thermal autopilot, plot the course to dive. Here's the course, and we'll set it to dive.
+- **00:34.0** Engage the drives autopilot, bam, and we're moving. Alright.
+- **00:39.4** Switch the beam's own pulse on, and we have to move 15 meters, which I didn't know, but you said you've taken note of that.
+- **00:46.1** So, let's find that screen. I feel like I've done five laps. Okay.
+- **00:52.3** Oh, pulse as it goes. Maybe it can say, like, next pulse, 10 meters.
+- **00:58.6** I don't know. This UI kind of stinks, because it's just text lines, you know, but I want to, I can learn it over time, but we need to get a little better.
+- **01:06.2** Maybe it even says when it's going to pulse next. It's 15 meters, so I'm just going to hop over to the drive, look at the depth,
+- **01:13.9** and see if this auto-calls.
+- **01:15.2** Completes. There, it did it. Okay.
+- **01:20.8** So now, I can quiet the ship with Q, and then hit P to do a pulse.
+- **01:26.8** Quiet down. Do some pulsing. Pulse, pulse, pulse, pulse, pulse.
+- **01:33.2** Yeah, found plenty.
+- **01:36.8** Quiet ship off.
+- **01:38.8** Reserve a feature as it passes through the bore. We'll go to the bore station.
+- **01:42.9** And, um, I think I just missed a feature, funny enough.
+- **01:55.5** It'd be cool if, um, W and S could move up along the bore.
+- **01:58.8** But there's no reason to do it yet.
+- **02:00.3** I was thinking the, uh, ring could have, like, all of the, uh, bore station features, like, somehow on the ring.
+- **02:09.2** On the inside, since you're, you know, doing bore science.
+- **02:12.4** Maybe even a left panel and a right panel.
+- **02:14.7** They would fold out when you turn around and give it attention.
+- **02:17.5** It's going to be cool when we come up with the final positions of these panels.
+- **02:23.7** So, I guess I'm going to speed up time to try and find a feature.
+- **02:29.9** Haha.
+- **02:30.3** Doing so has caused another issue.
+- **02:37.1** Oh, we're going to hit the boundary. That's crazy.
+- **02:39.9** Okay.
+- **02:40.7** Um, NMJK.
+- **02:44.5** I'm going to just...
+- **02:45.5** And I, again, I just know how to tune this because of the wobble guess.
+- **02:50.4** Um, when I was hoping it could be a more visual thing.
+- **02:54.1** Um, and then JK.
+- **02:55.6** We'll take this up to 63.
+- **02:57.5** Man, that's going to be good if we look at the band.
+- **03:00.4** So, I'm prepared to...
+- **03:01.5** I'm going to do my transition.
+- **03:02.5** So, I'm getting good at this, but...
+- **03:04.4** It's funny.
+- **03:04.8** Because I'm getting good at it, I want it to be a little harder.
+- **03:09.4** It even has a 2 Hz granularity when the wobble guess is 1 Hz.
+- **03:13.9** Alright.
+- **03:15.0** Shift.
+- **03:16.9** Bam, we're in.
+- **03:20.3** It looks like we're going to observe a feature in the sandstone.
+- **03:23.7** Back to the bore station.
+- **03:28.5** Oh, wait.
+- **03:29.1** Yeah, we hit sandstone.
+- **03:30.2** So, we're...
+- **03:30.8** I think we're in sandstone now.
+- **03:32.5** I think that's what's going on.
+- **03:36.0** Yep.
+- **03:38.1** Sandstone expected.
+- **03:39.4** Sandstone expected.
+- **03:39.8** We have all those scans.
+- **03:40.6** That's cool that we have those scans.
+- **03:45.7** Um, okay.
+- **03:47.4** Yeah, I'd like to get through the sandstone thing.
+- **03:49.8** It's funny.
+- **03:50.2** I think you're letting it happen by fate.
+- **03:52.1** But, like, my heart wants it to happen by, um...
+- **03:56.0** Something more forced since we're in a tutorial.
+- **03:59.3** Or, I could seek this out and you'd talk to me about seeking out a feature observation.
+- **04:03.8** So, I don't know.
+- **04:07.3** It is cool to see that the head and the tail just pass through the density.
+- **04:10.5** I never quite understood this head-tail diagram.
+- **04:13.0** But, I think it...
+- **04:14.2** It makes sense.
+- **04:15.4** Interesting to see glass.
+- **04:16.4** I wish I could read this better.
+- **04:17.4** Maybe the accesses need to be labeled or something.
+- **04:24.3** Okay.
+- **04:25.1** Um...
+- **04:25.5** I guess we gotta get this feature.
+- **04:27.5** So, I'm gonna speed forward in time.
+- **04:33.0** An iron thinger.
+- **04:37.1** I'm sure it's in here.
+- **04:38.0** There it is.
+- **04:40.6** I think, um...
+- **04:43.5** Yeah, we'll talk.
+- **04:44.2** We'll talk about the head tool and the front interface I'd like to get visually.
+- **04:48.3** But, we're at not quite visual time yet.
+- **04:52.2** Alright.
+- **04:52.7** I observed my thing.
+- **04:54.3** So, let's pre-tune a standby for the granite in the reactor.
+- **04:57.6** Um...
+- **04:58.0** Can I, though?
+- **04:58.9** Do I have, uh...
+- **05:00.8** The data.
+- **05:03.0** I have a 5% sure data.
+- **05:04.6** So, maybe at this point I should use my training to, like, prepare the next one.
+- **05:08.8** And, we have a nice tight beam.
+- **05:11.6** So, let's do some manual pulsing.
+- **05:17.5** Um...
+- **05:20.8** The sweep is 200 meters.
+- **05:22.8** Granite is further down.
+- **05:25.6** So, I guess I'm gonna go ahead of the tutorial a little.
+- **05:29.7** And, tighten the beam.
+- **05:30.6** This could be an opportunity to train beam tightening.
+- **05:34.2** So, I can...
+- **05:36.0** Kinda...
+- **05:37.2** Find that next step.
+- **05:38.3** And, I'm spamming it.
+- **05:39.2** And, it's coming up.
+- **05:40.3** You know?
+- **05:42.2** It still looks a little dense.
+- **05:44.9** That's good.
+- **05:45.8** Alright.
+- **05:46.5** Now, I got some dirt.
+- **05:48.0** So, I'm just gonna keep that wide scan.
+- **05:52.0** Um...
+- **05:52.4** What did I do?
+- **05:54.8** I just hit M.
+- **05:57.8** That is the glide plot all the scan shows.
+- **06:00.3** I don't know what that means.
+- **06:05.3** Huh.
+- **06:05.8** Seems like that middle click system isn't even working.
+- **06:09.3** Middle clicking on things in there.
+- **06:10.8** Not telling me anything.
+- **06:14.1** So, maybe that was all for nothing.
+- **06:15.6** Anywho, I've accidentally done a glide plot.
+- **06:17.5** And, um...
+- **06:18.2** I want it to turn off.
+- **06:20.1** Um...
+- **06:20.4** Can I hit M to toggle it back off?
+- **06:23.5** Nope.
+- **06:24.1** Okay.
+- **06:24.6** That happened.
+- **06:25.4** I don't really know what's up.
+- **06:26.8** But, uh...
+- **06:27.5** Let's do the pre-tune for the granite.
+- **06:30.6** 18% sure.
+- **06:31.9** Alright.
+- **06:32.2** Well, I mean, we can still tune against the...
+- **06:34.1** The best.
+- **06:35.1** What do we got?
+- **06:39.6** There's no kind of, like, hold key feature.
+- **06:41.2** But, again, I think we're gonna retune this to be a more tactile interface.
+- **06:48.2** There we go.
+- **06:48.9** That's the one tune.
+- **06:51.4** That's the other tune.
+- **06:53.5** Heard something beep.
+- **06:54.6** We'll look at some iron.
+- **07:03.2** There it is.
+- **07:06.3** Yeah, it would be fun, like, to analyze instead of pressing F.
+- **07:09.7** It's like, we're on this ring.
+- **07:11.2** We have a screen to the left and right.
+- **07:12.7** And then, like, we have to find it in the column.
+- **07:15.2** And then I can, like, click on it and we'll lock in and slide along the column.
+- **07:19.0** And then I probably should have drive control here, too, where we can stop so we can take, like, a good look at whatever the feature is we're trying to observe.
+- **07:27.2** Could be cool.
+- **07:27.9** Alright.
+- **07:32.5** So, we need to shift into granite next.
+- **07:35.9** I'm as well-tuned as I can be.
+- **07:38.9** So, we need to dive deeper.
+- **07:41.7** It's funny because, like, I feel like I would like to do a glide now, but we'll get there.
+- **07:46.4** So, we got 400 meters to go.
+- **07:47.7** So, I'm just gonna get in, like, 200 meter range.
+- **07:54.4** And, look, I can see new little beeps coming along.
+- **07:58.1** Granite expected.
+- **07:59.1** Oh, look at that.
+- **08:00.0** We got some data from the surface, I guess.
+- **08:03.2** Alright.
+- **08:03.8** Pulling back.
+- **08:04.9** Doing some fresh pings.
+- **08:12.3** It's funny.
+- **08:12.8** I can see this beyond much harder, denser.
+- **08:16.0** 35% sure.
+- **08:17.1** First time seeing that.
+- **08:17.9** Don't quite know what it means.
+- **08:19.0** I mean, I guess I know what it means, but I don't know why it's there or what feature brought it on.
+- **08:23.0** Alright.
+- **08:23.4** Our guess is getting tighter.
+- **08:24.7** So, I'm gonna make some adjustments to the frequencies.
+- **08:31.6** It's funny.
+- **08:32.3** Like, right now it says that the predictive band is kind of...
+- **08:34.7** In the good zone.
+- **08:35.8** See how it's yellow?
+- **08:36.3** It's out of band.
+- **08:37.3** And now it's...
+- **08:39.4** It's, like, in band.
+- **08:41.0** But, like...
+- **08:42.3** Look how big it is.
+- **08:43.5** Why is it saying it's in band?
+- **08:45.0** I would expect, based on my bad guess and okay tuning, I'd be like,
+- **08:50.8** Ah, that could be it, but it's not in band.
+- **08:53.6** Because it isn't.
+- **08:54.2** It's, like, out of band.
+- **08:55.6** So, I think you're kind of showing your hand when you say this is in band when it doesn't visually look like it is.
+- **09:02.3** We'll see.
+- **09:03.9** We're still out.
+- **09:04.6** We're still out five minutes.
+- **09:05.3** We'll get another scan.
+- **09:07.3** I might not need to touch it again, actually.
+- **09:09.2** That's my guess.
+- **09:10.1** And we'll see if I'm right.
+- **09:12.5** So, gonna blast us ahead a little.
+- **09:16.9** And then I pull back and we're, like, I don't know, 75 meters out.
+- **09:20.3** So, actually, I should get a fresh scan.
+- **09:23.3** Scan, scan, scan, scan.
+- **09:24.4** I love to see this tighten up.
+- **09:26.0** It is a cool visual.
+- **09:31.1** Jumping back.
+- **09:32.2** No.
+- **09:33.0** I'm out of band on the proper scan.
+- **09:34.8** Okay.
+- **09:35.9** Well, I guessed wrong there.
+- **09:37.2** But it's weird that it ever showed that.
+- **09:39.5** That that was going to work.
+- **09:42.9** There it is.
+- **09:44.3** Now we're in.
+- **09:48.3** Band is good.
+- **09:50.8** I guess we can kind of speed time along into the transition.
+- **09:54.5** Still five minutes or more, huh?
+- **09:57.2** Might have to figure out how to make this game just overall faster.
+- **10:00.2** But for now, I'll use time skip.
+- **10:13.8** So, I think since I have a minute left, I'm gonna go get a really precise scan.
+- **10:19.5** Scan, scan, scan.
+- **10:20.6** And I'll take that scan back here.
+- **10:29.2** And look at that.
+- **10:30.1** 94% guess.
+- **10:31.9** Oh, man.
+- **10:32.5** It does look satisfying when it's like the DNA double helix because you're canceling out.
+- **10:36.2** I like that.
+- **10:37.0** So, I'm a little impatient.
+- **10:38.5** So, I'm just gonna jump ahead to the boundary shift.
+- **10:42.4** Okay.
+- **10:42.8** And for 30 seconds, we do have to watch.
+- **10:44.7** I am a little bored.
+- **10:46.3** Oh, I can acknowledge.
+- **10:48.0** Does that mean I can also skip forward?
+- **10:49.9** It does.
+- **10:50.7** Okay.
+- **10:51.1** No problems there.
+- **10:52.0** I like that.
+- **10:55.2** Here we go.
+- **10:57.4** Now, I've noticed like the skip has to be frame perfect.
+- **11:00.3** There probably needs to be a little like window for the shift over.
+- **11:04.7** There we go.
+- **11:05.6** What's yelling at me?
+- **11:14.3** Oh, just the feature.
+- **11:16.4** Wait.
+- **11:19.0** Tunnel ceiling?
+- **11:19.9** Is that what it wants me to know?
+- **11:23.3** Well, let's see.
+- **11:24.1** I'll move forward until the tail leaves the rock.
+- **11:26.2** I'll acknowledge because that's annoying.
+- **11:29.3** Oh, but now I won't know.
+- **11:34.5** Does this mean it's like my last chance to transfer data?
+- **11:36.8** Is that why it's warning?
+- **11:41.4** Observe a feature in the granite sealed in.
+- **11:43.4** It goes up the link slowly.
+- **11:45.2** Okay.
+- **11:46.0** Okay.
+- **11:50.2** It would be cool if like, it probably wouldn't make any sense, but like, if we could leave
+- **11:55.4** a fiber optic line that would like, you know, be tipped into the old good glass.
+- **12:02.7** So theoretically, as we travel through this, there's actually some sort of protected fiber
+- **12:07.0** line that can then blast out and send light up the good tube.
+- **12:14.8** Man, this is intense.
+- **12:17.2** Is it that important that we know this?
+- **12:19.0** I guess so.
+- **12:21.0** All right.
+- **12:21.6** Tunnel sealed.
+- **12:22.4** Ooh.
+- **12:24.2** Observe a feature in the granite.
+- **12:25.5** It goes up the link slowly.
+- **12:27.0** Okay.
+- **12:27.4** Yeah.
+- **12:27.6** Let's fuck with that.
+- **12:29.4** Jumping forward until there's a feature.
+- **12:32.8** I'd like to like know that there's a object of interest, you know, somewhere.
+- **12:37.4** All right.
+- **12:38.5** We have some quartz.
+- **12:40.0** Observing it.
+- **12:50.8** Is it indeed in the column?
+- **13:05.8** Maybe, maybe not.
+- **13:07.1** All right.
+- **13:07.7** Um, I haven't really uplinked anything.
+- **13:10.4** Um, I guess you could start and stop the link.
+- **13:12.3** What's the difference?
+- **13:12.9** Like, why would you ever turn off the link?
+- **13:17.8** Link slow through rock is 0.2 meters a second.
+- **13:20.8** That's amusing.
+- **13:24.5** So there's an uplink.
+- **13:26.7** I guess since this is data transfer, maybe like we could just use kind of like the way an upload would go on a speed test.
+- **13:33.8** It's like we have to move through one megabyte of data.
+- **13:36.4** We have transmitted this much data.
+- **13:38.2** The transfer rate is this.
+- **13:40.3** Um, you will be paid and you should probably get paid in chunks.
+- **13:43.8** Like if you transfer like a subset of the data, it would be corrupted in my view.
+- **13:51.4** Um, yeah.
+- **13:52.4** Some visualization of, uh, the tube you've left.
+- **13:54.9** Or whatever.
+- **13:56.3** And again, maybe we can upgrade to that fiber optic line in the future.
+- **13:59.3** That could be interesting.
+- **14:00.7** I'm going to go do the next step, which is the quiet ship pulse.
+- **14:06.9** All right.
+- **14:07.6** So Q, we're going to go into quiet mode.
+- **14:13.3** Presumably the ship is sitting still.
+- **14:16.6** Um, sweep for target A and pulse.
+- **14:20.5** The beam sees ahead.
+- **14:22.1** The sweep roundabout.
+- **14:25.7** The sweep roundabout.
+- **14:28.3** The beam sees ahead.
+- **14:29.7** The sweep roundabout and its region narrows.
+- **14:33.5** Navigation VP.
+- **14:34.7** Let's see.
+- **14:36.0** V is a sweep.
+- **14:37.6** And then P is a pulse.
+- **14:38.9** Let's see what this looks like.
+- **14:42.1** We're going to sweep that range.
+- **14:43.4** Is that kind of what this is indicating?
+- **14:45.3** Okay.
+- **14:45.8** And then P to do it.
+- **14:49.0** Off goes the sweep.
+- **14:58.0** Since this takes a minute, I'm just going to jump ahead in time.
+- **15:01.0** And I'm going to turn off quiet ship.
+- **15:19.4** And then the target is dead ahead.
+- **15:21.1** So there was no maneuvering necessary to get to this target.
+- **15:23.8** I think.
+- **15:24.7** It's actually kind of tough to see.
+- **15:27.1** Uh, with this, it'd be cool if it would show up on the right panel, too, when we find the target and everything was zoomable, but we're not there yet.
+- **15:35.1** That's okay.
+- **15:35.7** All right.
+- **15:41.8** I guess I'll just speed up to get into this target.
+- **15:50.1** It does zoom in a little.
+- **15:51.3** Huh.
+- **15:52.0** Wish I had more control over that.
+- **15:54.9** All right.
+- **15:57.2** We are in the target, I think.
+- **16:00.9** Nope.
+- **16:01.2** Well, I guess it hasn't verified as, um, a thing we're trying to do.
+- **16:06.7** Oh, it's getting tighter.
+- **16:07.7** Cute.
+- **16:13.1** I'm going to say we're in the target.
+- **16:16.1** Okay.
+- **16:16.6** Yeah.
+- **16:16.8** Cool.
+- **16:17.3** Observe target as it passes through the board.
+- **16:20.3** Oh yeah.
+- **16:21.0** Look at that.
+- **16:22.3** Going to the board zone.
+- **16:29.5** Got it.
+- **16:30.4** If it isn't hematite brachia doing our observation plot, of course, climb.
+- **16:53.8** The lithograph goes forward only.
+- **16:55.7** So the way home as a turn.
+- **17:06.4** It's residual from when I didn't learn that lesson earlier.
+- **17:09.7** All right.
+- **17:12.8** I can figure this out.
+- **17:13.8** The turn, turn for home, um, drive follows the course round and deepens through the turn
+- **17:21.3** as it rises.
+- **17:21.9** Yeah, that's fair.
+- **17:29.4** All right.
+- **17:29.9** Well, I kind of want to control this turn a little myself and I'm nervous it's going
+- **17:37.0** to hurt something, but I'm going to go ahead and just, I like to burn the column so I can
+- **17:47.8** go here and we can put the heat into the column.
+- **17:57.2** That'll give us some bandwidth to turn aggressively, I think.
+- **18:23.7** Does that look like the column got hotter?
+- **18:25.4** I wonder.
+- **18:27.7** I'm going to switch it and take a look.
+- **18:33.3** Oh, I'm cooling off.
+- **18:40.8** Not visibly.
+- **18:46.7** Okay.
+- **18:50.8** I'll just go ahead and speed through this.
+- **19:05.1** It'd be cool if that gimbal had angle indicators on it just because as we turn.
+- **19:11.4** All right.
+- **19:12.5** Here we go.
+- **19:14.0** Um, we are now going to probably use glide home, which I'm excited to do.
+- **19:19.3** Narrow the beam.
+- **19:20.2** It reaches further.
+- **19:21.3** Um, so B and N to narrow the beam.
+- **19:25.0** Narrow, narrow, narrow.
+- **19:26.9** That's the narrowest the beam can go.
+- **19:28.7** I think I'm stuck.
+- **19:37.7** Unless I have the pulse too.
+- **19:39.7** It wasn't clear that you had the pulse, but I did get through it.
+- **19:42.9** Quiet ship.
+- **19:43.9** Clean scan for the way home.
+- **19:45.8** So we're quieting.
+- **19:46.8** No problem.
+- **20:04.5** Low power because we're not moving.
+- **20:06.1** That's perfect.
+- **20:08.5** The low power alarm needs to be way more chill, I think, especially if like it's a feature
+- **20:13.4** of the system.
+- **20:14.4** Um, let's plot the glide.
+- **20:21.6** That's just M. So I guess we, we have a glide path.
+- **20:24.9** I'm going to go ahead and do that.
+- **20:25.0** That's predicted.
+- **20:25.5** Is that how that works?
+- **20:26.4** Like we scan enough that we can glide.
+- **20:29.3** Does that just show up as like glide ready?
+- **20:31.6** I didn't quite see how it knew that I could glide.
+- **20:34.9** Um, so glide plot, all scans, all the scan shows.
+- **20:41.5** M. We start to glide here.
+- **20:45.7** No, the drive panel.
+- **20:46.9** That's good.
+- **20:48.7** Hold the glide on its line to the end.
+- **20:51.6** The drives autopilot holds it loosely.
+- **20:53.7** Nudge toward the ball's diamond to hold it closer.
+- **20:57.3** Let's get ready to do that.
+- **21:00.3** I kind of wish the steering was like W, A, S, D, Q, E, R, F for this.
+- **21:06.1** With W, A, S, D being, um, pit, W and S being pitch, A and D being, um, yaw, and Q and E
+- **21:14.9** being roll.
+- **21:16.1** That would be good.
+- **21:17.2** Again, that's W, S as pitch, A and D as, yes, roll, and Q and E being, no, Q and E being
+- **21:27.5** roll, and A and D being, uh, yaw.
+- **21:34.6** Let's do the glide.
+- **21:35.7** Um, glide start.
+- **21:37.3** Bam.
+- **21:44.2** This is actually really cool.
+- **21:58.9** Standby for, uh, ram the vessel.
+- **22:01.2** So, again, this is a low power moment that, like, is kind of planned, so I don't think
+- **22:04.9** it should just go that, as nuts as it has.
+- **22:08.7** Um, but I need to get in the reactor, and I'm confused.
+- **22:24.8** Um, NMJK.
+- **22:27.9** Because it's, like, showing a zero.
+- **22:29.5** I don't know.
+- **22:31.0** I'm sure I don't have to go down to zero.
+- **22:33.7** I'll tell ya.
+- **22:34.6** Tune standby on the rock ram the vessel.
+- **22:44.7** The head weights it idle.
+- **22:46.4** It's weird to be going down to zero.
+- **23:01.9** I'm going to assume this is a glitch.
+- **23:04.1** Oh, I'm mashing that button and working my way down to...
+- **23:10.2** I'm just going to do it.
+- **23:11.3** I don't know what happened, but, like, I think you saw it.
+- **23:21.4** I hit R, things went crazy, so I got nervous and put the old one back on, and then the
+- **23:24.9** old one just worked.
+- **23:26.0** What's that about?
+- **23:27.0** Don't know.
+- **23:29.1** Maybe now I can go back to...
+- **23:30.9** I think I hit R.
+- **23:31.1** Let's go back.
+- **23:31.2** I need to do a proper tuning.
+- **23:36.9** Apparently we're hitting a boundary.
+- **23:38.3** I'm getting a little tired of hitting this key over and over.
+- **23:44.5** Let's get up to 62.
+- **23:53.7** There you have it.
+- **23:54.9** And then, um, I'm just going to jump over to the- we're leaving it.
+- **24:02.6** And here comes the transition.
+- **24:23.6** Alright.
+- **24:34.8** Pulse until navigation shows the boundary ahead.
+- **24:37.3** I'm seeing the rhythm of the game.
+- **24:49.3** I guess it just decided that that was a good enough time.
+- **24:55.0** Pre-tune for stand.
+- **24:57.8** For sand.
+- **25:13.7** Let's do the tune.
+- **25:17.2** 68.
+- **25:21.4** down we head to 89
+- **25:23.4** could be right
+- **25:30.5** let's speed it up until we're about
+- **25:32.6** 2 minutes out, now it's predicted
+- **25:43.0** out of band with my latest scans
+- **25:44.5** look at that, I'm kind of getting the guess for free
+- **25:46.8** which I do like, because I'm just auto-pulsing
+- **25:49.1** it, so let's tune the band
+- **25:52.3** again, and then we'll go back
+- **26:02.8** into fast time
+- **26:05.2** then we'll see it sweep across the thing
+- **26:06.9** get our little
+- **26:08.7** master acknowledge
+- **26:11.9** yeah, I think we're good to go, let's just
+- **26:13.7** um, a little fast time
+- **26:15.7** a little fast time, 4, 3
+- **26:20.0** 2, 1, let's do the shift
+- **26:33.8** have we not shifted in the sand?
+- **26:46.7** I would assume we've shifted
+- **26:48.2** in the sand at this point and the day is almost over
+- **26:50.8** it's possible it didn't detect it
+- **26:54.3** I think we're done
+- **27:05.8** I'm just going to go up to the surface
+- **27:09.2** yeah, done
+- **27:11.2** uh, the surface should definitely
+- **27:12.9** be visual on the navigation
+- **27:14.6** like you should be able to just, I don't know
+- **27:16.9** um, see it
+- **27:18.6** I don't know what it would look like
+- **27:20.3** um, I would reference maybe
+- **27:21.7** cloud data in
+- **27:24.8** A320
+- **27:26.2** visuals or something
+- **27:28.4** do they show the sea versus the land?
+- **27:30.5** I don't know, something like that
+- **27:33.0** alright, we did this scenario
+- **27:36.5** I'm going to try the glide drill
+- **27:41.6** actually, I'll break it here
