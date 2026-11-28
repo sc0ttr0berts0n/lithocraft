@@ -157,7 +157,7 @@ static func argued(sim: DiveSimulation) -> Dictionary:
 	var arguments := {
 		"attended": [station], "autopilot": [station], "call_urgency": [station], "call_reason": [station],
 		"call_sounding": [station], "call_warns": [station],
-		"column_at": [sim.distance() / 2.0],
+		"column_at": [sim.distance() / 2.0], "column_absent": [sim.vessel_length() / 2.0],
 		"counter_wave_frequency": [channel], "counter_wave_amplitude": [channel],
 		"residual_steady": [channel], "residual_beat": [channel], "residual_beat_frequency": [channel],
 		"residual": [channel],

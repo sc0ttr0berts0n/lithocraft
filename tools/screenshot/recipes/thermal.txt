@@ -14,3 +14,7 @@ warning range: --look Thermal --time 90 --do "0 set_power 1"
 
 # Most of the heat sent into the Column from 60 s: the split bar divided at the cyan mark, the trend FALLING.
 heat sent to the Column: --look Thermal --time 75 --do "0 set_power 1" --do "60 set_heat_split 0.7"
+
+# The Glide (#123), on the First dive from the surface, started at 1 s: "GLIDE: the jet carries the heat
+# away, no Column" under the power line; the hull a little warmer than at rest, far from amber.
+gliding: --look Thermal --time 4 --do "1 plot_glide 600" --do "1 start_glide"

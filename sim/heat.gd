@@ -61,6 +61,8 @@ const _LONGEST_CLOCK_S := 1.0e6
 var _produced := 0.0
 ## Heat sent into the Column in the last step, per second.
 var _to_column := 0.0
+## Heat a Glide's jet carried away aft in the last step, per second.
+var _carried_aft := 0.0
 ## The hull's temperature in kelvin. Heat sent outward passes through it.
 var _temperature := 0.0
 ## The temperature the hull is heading for at the heat now sent outward.
@@ -88,15 +90,18 @@ static func surroundings(medium: Medium, depth: float) -> float:
 
 ## One step of dt seconds. Every system that draws power makes heat
 ## (`power_drawn`), plus `grind_heat`, the extra heat per second of the Head's
-## grinding (its Residual outside the Band). Heat reaches the Column only as far as Thermal's pumps are
+## grinding (its Residual outside the Band). The share `aft_share` of it (0
+## to 1) leaves with a Glide's jet and never touches the hull. Of the rest, heat
+## reaches the Column only as far as Thermal's pumps are
 ## powered (`split` times `thermal_supplied`); the rest goes out through the
 ## hull into surroundings at `surroundings_k`. The overheated hull creeps
 ## faster at greater `depth`, under the rock's pressure.
 func step(power_drawn: float, grind_heat: float, split: float, thermal_supplied: float,
-		surroundings_k: float, depth: float, dt: float) -> void:
+		surroundings_k: float, depth: float, dt: float, aft_share := 0.0) -> void:
 	_produced = power_drawn * _HEAT_PER_POWER + grind_heat
-	_to_column = _produced * split * thermal_supplied
-	_shed_outward(_produced - _to_column, surroundings_k, dt)
+	_carried_aft = _produced * clampf(aft_share, 0.0, 1.0)
+	_to_column = (_produced - _carried_aft) * split * thermal_supplied
+	_shed_outward(_produced - _carried_aft - _to_column, surroundings_k, dt)
 	_creep(depth, dt)
 
 
@@ -111,6 +116,7 @@ func step(power_drawn: float, grind_heat: float, split: float, thermal_supplied:
 func soak(surroundings_k: float, cooling: float, depth: float, dt: float,
 		dumped := 0.0) -> void:
 	_produced = dumped * _HEAT_PER_POWER
+	_carried_aft = 0.0
 	_to_column = cooling * _DARK_COOLING
 	_settling_at = _soak_settling(surroundings_k, cooling, dumped)
 	var toward := exp(-dt * _HULL_SHED_PER_K / _HULL_HEAT_PER_K)
@@ -176,7 +182,13 @@ func to_column() -> float:
 
 ## Heat sent outward through the hull in the last step, per second.
 func outward() -> float:
-	return _produced - _to_column
+	return _produced - _to_column - _carried_aft
+
+
+## Heat a Glide's jet carried away aft in the last step, per second: it never
+## touched the hull.
+func carried_aft() -> float:
+	return _carried_aft
 
 
 ## The hull's temperature in kelvin.

@@ -408,3 +408,9 @@ func test_the_plus_or_minus_draws_in_the_screens_font() -> void:
 
 func test_the_dash_draws_in_the_screens_font() -> void:
 	assert_bool(ThemeDB.fallback_font.has_char("—".unicode_at(0))).is_true()
+
+
+func test_with_no_wobble_on_the_plasma_activess_residual_reads_as_none() -> void:
+	# A Glide, and the idle after it (ticket #123): ACTIVE has nothing to cancel.
+	assert_str(PlasmaDisplay.residual_text(NAN)).not_contains("nan")
+	assert_str(PlasmaDisplay.verdict(NAN, 0.2, 0.0, false)[0]).is_equal("NO WOBBLE ON THE PLASMA")

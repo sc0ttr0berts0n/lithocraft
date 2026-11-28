@@ -8,3 +8,7 @@ Drive: --look Drive --time 20 --do "0 set_power 0.5" --do "10 pulse"
 Navigation: --look Navigation --time 20 --do "0 set_power 0.5" --do "10 pulse"
 Thermal: --look Thermal --time 20 --do "0 set_power 0.5" --do "10 pulse"
 Bore Station: --look "Bore Station" --time 20 --do "0 set_power 0.5" --do "10 pulse"
+
+# The Bore Station in a Glide (#123): "No Column in the Bore: melted by the Glide" in amber under the
+# survey's value, and no features listed.
+Bore Station, gliding: --look "Bore Station" --time 3 --do "1 plot_glide 300" --do "1 start_glide"

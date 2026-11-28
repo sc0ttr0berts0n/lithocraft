@@ -230,6 +230,27 @@ func test_passing_the_target_by_neither_identifies_it_nor_pays_for_it() -> void:
 	assert_float(_paid(sim).target_worth).is_equal(0.0)
 
 
+func test_a_target_glided_through_is_never_in_the_column_nor_identified() -> void:
+	# A Boundary well below the body, so the scan shows rock beyond it to glide through.
+	var below := START_M + BELOW_M + 40.0
+	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, DiveTestKit.rock(2.0, 2.0, 0.3)],
+			[below, DiveTestKit.rock(4.0, 4.0, 0.1)]]).with_targets(
+			[_body(Vector3(0.0, -(START_M + BELOW_M), 0.0))]))
+	sim.start_below(START_M)
+	sim.start_surveyed()
+	_go_quiet(sim)
+	sim.pulse()
+	DiveTestKit.run(sim, 2.0, 0.1)
+	sim.set_quiet_ship(false)
+	sim.plot_glide(BELOW_M * 2.0)
+	sim.start_glide()
+	DiveTestKit.run_until(sim, &"glide_ended", 600.0, [], 0.1)
+	# Through the body and out of it: it melted with the Column, never seen.
+	assert_float(sim.depth()).is_greater(START_M + BELOW_M + 10.0)
+	assert_object(_target_feature(sim)).is_null()
+	assert_array(sim.identified_targets()).is_empty()
+
+
 func test_crawling_through_it_unobserved_neither_identifies_it_nor_pays_for_it() -> void:
 	var sim := _dive()
 	_dive_on(sim, BELOW_M + 20.0, false)

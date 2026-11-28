@@ -30,6 +30,7 @@ The old "Extension points" and "Subsystems" sections are spread by topic; their 
 - [conventions/rock-estimate.md](conventions/rock-estimate.md): The rock beyond a Boundary. Read when touching what an echo carries of the rock (`ScanPoint.contrast`), how wrong it is, `rock_ahead()`, surface control's expected rocks, or how the scan views draw and name the rock.
 - [conventions/targets.md](conventions/targets.md): Targets. Read when touching a target: its body (`TargetBody`), the Orders' fuzzy place and its narrowing (`TargetRegion`), its echoes, finding and identifying it in the Column, its pay, its drawing, or the Prospecting drill.
 - [conventions/scenarios-and-checklist.md](conventions/scenarios-and-checklist.md): Scenarios, Phase triggers. Read when touching a Scenario, its start state, the Orders, the Checklist's phases, steps and triggers, or surface control's messages.
+- [conventions/glide.md](conventions/glide.md): The Glide. Read when touching the Glide, or anything it meets: the step, the Wobble on the plasma, the Column in the Bore, power and heat in a Glide, or the seams left for #125 to #128.
 - [conventions/debug-commands.md](conventions/debug-commands.md): Debug commands. Read when adding or using a `debug_*` command or a debug menu key.
 
 ## The view

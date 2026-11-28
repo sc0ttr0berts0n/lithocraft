@@ -3,7 +3,8 @@
 Tests assert relationships, so a query that is correct but slow passes them all; the cost budget is what catches it.
 `tools/cost/cost.sh` (from Git Bash at the repo root, `GODOT_BIN` set as for the tests) prints `COST OK` and exits 0, or `COST OVER BUDGET` and exits 1; it takes about half a minute and is no part of `./test.sh`.
 
-- It plays the Shift drill headless in a real Habitat, in the game's own 1/60 s steps, through eight conditions of 4 s of dive time each (`--seconds` changes that), the first six with the crew seated at Navigation: under way with a Boundary ahead (the quiet frame), a slow turn, steering effort at zero, low power, a full point cloud with pulses still coming, and a Sweep running.
+- It plays the Shift drill headless in a real Habitat, in the game's own 1/60 s steps, through nine conditions of 4 s of dive time each (`--seconds` changes that), the first seven with the crew seated at Navigation: under way with a Boundary ahead (the quiet frame), a Glide, a slow turn, steering effort at zero, low power, a full point cloud with pulses still coming, and a Sweep running.
+  The Glide is dropped out of afterwards, the Head spun up with a Shift and the Crawl waited for, so the next condition crawls.
   The Sweep is at its shortest range (its rays and batches come quickest), started on that full cloud and left running through the rest.
   The seventh seats the crew at the Reactor instead, so its screen is timed watched as well as unwatched.
   The eighth has the hull at its worst: heated at full power until it takes damage (`debug_skip`), then worn (`debug_wear_hull`) until it would fail within `HULL_WORST_S`, so every spark emitter spits and the groans come thick; the run fails if the sparks are short of their fullest as it ends.

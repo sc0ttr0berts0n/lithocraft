@@ -27,7 +27,8 @@ It never sees the body, so points from anything else inside the report narrow it
 So the Beam, an aimed pulse and the Sweep all return points off it, and the Inferred Boundaries fit its points as they fit any (a patch over its top is as true as the scan can be).
 
 **Identified in the Column.**
-`_find_targets()` runs in `_follow_the_head()` beside `_find_features()`: when a step's piece of path passes into a body, the body becomes a `ColumnFeature` of its own kind, its `target` the label, placed where the Head met it and as long as a straight cut through it from there; a body passed by is never found, and a Glide, having no Column, finds none.
+`_find_targets()` runs in `_follow_the_head()` beside `_find_features()`: when a step's piece of path passes into a body, the body becomes a `ColumnFeature` of its own kind, its `target` the label, placed where the Head met it and as long as a straight cut through it from there; a body passed by is never found.
+A Glide, having no Column, finds none: `_glided()` (#123) never calls it, so a body glided through melts unseen (`target_test`).
 From then it is a feature of interest like any: observed (`set_observed_feature()`), recorded at `_recording_quality()`, called for, sent up the link as a `SurveyStretch.feature_record()` whose `target` is the label.
 `identified_targets()` lists the labels whose feature is recorded in full; the goal reads it.
 `&"paid"` carries `targets` (the labels) and `target_worth` as a line of its own, not among `features`; the outcome's breakdown writes "Targets identified: A, worth ...".

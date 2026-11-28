@@ -440,6 +440,9 @@ class _Canvas extends Control:
 			draw_polyline(points, colour, 2.0)
 
 	func _power(sim: DiveSimulation, box: Rect2) -> void:
+		if sim.gliding():
+			_glide_power(sim, box)
+			return
 		var font := ThemeDB.fallback_font
 		var full := sim.reactor_full_output()
 		var requested := sim.drive_request()
@@ -460,6 +463,23 @@ class _Canvas extends Control:
 		if starved:
 			draw_string(font, box.position + Vector2(10, 28), "STARVED", HORIZONTAL_ALIGNMENT_RIGHT,
 					box.size.x - 20, FlightDisplay.FONT_SMALL, StationTheme.CAUTION_COLOUR)
+		draw_rect(box, StationTheme.RULE_COLOUR, false, 2.0)
+
+	## The power box in a Glide: the jet takes the Reactor's whole output,
+	## many times the Crawl's full output, so it reads as that multiple, and
+	## the throttle has no say.
+	func _glide_power(sim: DiveSimulation, box: Rect2) -> void:
+		var font := ThemeDB.fallback_font
+		var times := sim.reactor_output() / sim.reactor_full_output()
+		_title(box, "POWER")
+		draw_string(font, box.position + Vector2(10, 28), "GLIDE", HORIZONTAL_ALIGNMENT_RIGHT,
+				box.size.x - 20, FlightDisplay.FONT_SMALL, StationTheme.ENGAGED_COLOUR)
+		draw_string(font, box.position + Vector2(10, 76), "jet x%d" % roundi(times),
+				HORIZONTAL_ALIGNMENT_LEFT, -1, FlightDisplay.FONT, StationTheme.ENGAGED_COLOUR)
+		draw_string(font, box.position + Vector2(10, 106), "of full output", HORIZONTAL_ALIGNMENT_LEFT, -1,
+				FlightDisplay.FONT_SMALL, StationTheme.LEGEND_COLOUR)
+		draw_string(font, box.position + Vector2(10, 136), "%d m left" % roundi(sim.glide_range_left()),
+				HORIZONTAL_ALIGNMENT_LEFT, -1, FlightDisplay.FONT, StationTheme.NOW_COLOUR)
 		draw_rect(box, StationTheme.RULE_COLOUR, false, 2.0)
 
 	func _grip(sim: DiveSimulation, box: Rect2) -> void:
