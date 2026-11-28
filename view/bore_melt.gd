@@ -2,8 +2,8 @@
 ## river of incandescent rock melt instead, and its light floods the Habitat
 ## through the glass (ticket #127).
 ##
-## The melt is drawn on the Column's own tube: the Column strip leaves the
-## bands with no Column (DiveSimulation.column_absent()) clear, and the tube's
+## The melt is drawn on the Column's own surface: the Column strip leaves the
+## bands with no Column (DiveSimulation.column_absent()) clear, and the surface's
 ## shader paints melt wherever the strip is clear, so the melt replaces the
 ## Column exactly where the simulation says there is none. Everything here
 ## follows the simulation's state and dive_time(): how hot the melt is (the
@@ -149,7 +149,7 @@ var _was_gliding := false
 var _ended_at := -INF
 
 
-## The material for the Column's tube: the Column strip's texture where there
+## The material for the Column's surface: the Column strip's texture where there
 ## is Column, the melt where the strip is clear.
 static func material(column_texture: Texture2D) -> ShaderMaterial:
 	var shader := Shader.new()
@@ -162,7 +162,7 @@ static func material(column_texture: Texture2D) -> ShaderMaterial:
 	return m
 
 
-## Sets the melt up on the Column tube's material, the room's environment
+## Sets the melt up on the Column surface's material, the room's environment
 ## (whose ambient light and glow it tints) and lights at these places along
 ## the Bore (Habitat z), each `behind_head` metres behind the Head.
 func attach(on: ShaderMaterial, environment: Environment, light_z: Array[float],

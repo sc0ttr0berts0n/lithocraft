@@ -7,7 +7,7 @@ The simulation's side is `glide.md`; this file is the view's.
 ## The melt in the Bore
 
 - `BoreMelt` (`view/bore_melt.gd`) is a node of the Habitat (`Habitat.bore_melt()`), stepped by `_physics_process` after `advance()`: it reads `gliding()`, `glide_thrust()`, `column_absent()` and `dive_time()` and nothing else, so a staged shot repeats.
-- The melt is drawn on the Column's own tube, never on a second mesh: the Column strip's SubViewport is transparent (`transparent_bg`), `ColumnStrip` leaves every band where `column_absent()` is true undrawn, and the tube's shader (`BoreMelt.material()`) paints melt wherever the strip is clear.
+- The melt is drawn on the Column's own surface, never on a second mesh: the Column strip's SubViewport is transparent (`transparent_bg`), `ColumnStrip` leaves every band where `column_absent()` is true undrawn, and that surface's shader (`BoreMelt.material()`) paints melt wherever the strip is clear.
   So the melt replaces the Column exactly where the simulation has none, band by band, and the Column coming back in at the Head end after a Glide pushes it out toward the Tail with nothing more done.
 - Its temperature is the one number behind the look (`BoreMelt.temperature()`): with the thrust while a Glide runs, then cooling toward a crust from the dive time the Glide ended, which `step()` notes when `gliding()` turns false.
   Colour is a hot body's at that temperature (`BoreMelt.colour()`), brightness its fourth power (`radiance()`).
