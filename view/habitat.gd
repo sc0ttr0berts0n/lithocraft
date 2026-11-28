@@ -473,6 +473,22 @@ func _key_beam_pulsing(_index: int) -> void:
 	_sim.set_beam_pulsing(not _sim.beam_pulsing())
 
 
+## Navigation: start a Sweep (V), or cut the running one short.
+func _key_sweep(_index: int) -> void:
+	if _sim.sweep_running():
+		_sim.stop_sweep()
+	else:
+		_sim.start_sweep()
+
+
+## Navigation: the next Sweep's range one step shorter (G) / longer (T),
+## stopping at the shortest and the longest.
+func _key_sweep_range(index: int) -> void:
+	var ranges := DiveSimulation.SWEEP_RANGES
+	var at := clampi(ranges.find(_sim.sweep_range()) + int(_minus_plus(index)), 0, ranges.size() - 1)
+	_sim.set_sweep_range(ranges[at])
+
+
 ## Drive: power up (T) / down (G).
 func _key_power_step(index: int) -> void:
 	_set_power(_power_setting - _minus_plus(index) * POWER_STEP)

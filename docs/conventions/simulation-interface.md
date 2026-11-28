@@ -41,7 +41,8 @@ The shape is in the class's header comment; copy it.
 
 ## Subsystems
 
-Heat, the plasma, stranding, the look-ahead, the ring of Stations' slide and Navigation's Beam each live in their own plain class in `sim/`, owned by `DiveSimulation` (`_heat`, `_plasma`, `_stranding`, `_look`, `_ring`, `_beam`: `Heat`, `Plasma`, `Stranding`, `LookAhead`, `RingSlide`, `Beam`).
+Heat, the plasma, stranding, the look-ahead, the ring of Stations' slide and Navigation's Beam and Sweep each live in their own plain class in `sim/`, owned by `DiveSimulation` (`_heat`, `_plasma`, `_stranding`, `_look`, `_ring`, `_beam`, `_sweep`: `Heat`, `Plasma`, `Stranding`, `LookAhead`, `RingSlide`, `Beam`, `Sweep`).
+How an echo is heard, whichever tool sent it, is `Echoes` (`sim/echoes.gd`): static functions with no state, as `ProjectedPath` is.
 The turning rule and the projected path are a sixth, `ProjectedPath` (`sim/projected_path.gd`): it keeps no state, so it is static functions and the simulation owns no instance; the Head's place, direction, bearing and steering stay the simulation's, handed over as a `ProjectedPath.Turning`.
 They are not seams: tests never build or read them, only `DiveSimulation`'s interface.
 The one exception is the look-ahead, which is also tested on patches alone (`look_ahead_test.gd`), as `BoundaryFit` is on points alone: a scan that shows a Boundary where none is cannot be made through a layout.
