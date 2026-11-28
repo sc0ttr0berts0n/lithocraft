@@ -65,6 +65,7 @@ Agent's choices, the developer away. The class is `Glide` (`sim/glide.gd`); how 
 - **Drawn as a fuzzy cyan region** in every scan view, cyan being what the crew aims for: the region's outline filled faintly at four sizes, so it is densest in its middle, with a faint rim and "TARGET A" beside it.
 - **The Prospecting drill, third on the start menu.**
   Nothing placed a target before #128 reworks the First dive, so the drill gives the screenshots their state and the developer the loop to play now, without the Glide: halted at Quiet Ship 60 m into the granite, target A 120 m below and 12 m east, off the straight line down.
+  *Overtaken by #161: 32 m east, on the line one pitch step off straight down, since the tighter turn comes onto it within metres (see 23).*
   Its Checklist: narrow the region, aim the Beam, plot the Course one step off straight down, crawl in on the Drive's autopilot (whose gentle turns reach it from there), observe and record it.
   The Sweep begins at the Beam's edge, so a target nearly ahead is the Beam's to narrow and one off to the side the Sweep's; the drill's lies inside the Beam's cone.
 - **For #128.** Place the body with `MediumLayout.first_dive().with_targets([TargetBody.hematite_breccia(&"A", centre)])` in the Scenario, name it in the Orders with `Scenario.identify_target(&"A")`, keep `start_surveyed()` in `prepare`, and tick steps on `Scenario.target_narrowed()`, `target_in_column()`, `observing_target()` and `target_identified()`.

@@ -13,6 +13,8 @@ A step that does not tick within its time limit, or is left `MISSED`, fails nami
 - **A press each look until the step ticks**: a key held, in effect, until a condition the Checklist names (`_quiet_pulse()` until Navigation shows the Glide home, `_narrow_the_beam()` until a narrow pulse, `_lengthen_glide()` until the plot is long enough, the tuning keys).
 - **Wait**: a step that names no key (`_wait()`): the crew waits for the Lithocraft to do it (come round onto the Course, cut into target A, record it).
 - **Fly the Glide**: `_hold_the_line()` reads only what the Drive shows (the ball's OFF LINE figure, `glide_off_line()`, and the range left) and nudges back toward the line a few presses a look, as `DiveTestKit.fly_glide()` does; the Glide drill's step names the Drive's autopilot instead, and its entry engages it.
+  Its first nudge takes the Glide off the Drive's autopilot, which starting it left engaged (#161).
+  The First dive's `start_glide` is worked at the normal rate: on the autopilot the Glide's wander off its line only reports, so at a raised rate the whole Glide would pass between two looks.
 - An entry with `fast = false` is worked at the normal time rate (nobody tunes, or flies a Glide, with time running fast); one with `look` looks that often in place of `LOOK_S` (`GLIDE_LOOK_S` while a Glide is flown).
 - It never acknowledges a call, since no step says to: a warning that holds the time rate at 1 only slows it.
   It keeps the normal rate while its phase has a feature still to observe (`_observing_ahead()`).

@@ -36,9 +36,11 @@ Agent's choices, the developer away ("It is flown by hand, and wear comes from b
 - **How loosely the autopilot holds.** It does nothing until the Glide is 1.25 m off, then nudges back in proportion to how far past that, not knowing the push: safe but mediocre, it rides just past the slack and wears a little.
   Measured in the test layout (hard rock, 300 m vertical): no hand, the Head wears about 0.054 and the hull 0.027; on the autopilot about 0.014 and 0.007; held, nothing. Over 800 m: no hand 0.35 and 0.18, the autopilot 0.035 and 0.018.
 - **The call.** Off the line past the slack the Drive warns, `&"off_glide_line"`, more urgent the harder against the wall; as a warning it drops the time rate (it puts the vessel at risk). On the autopilot it may begin and end as the Glide wanders across the slack; a Glide lasts seconds, so the dropped rate costs little.
+  *Overtaken by #161: while the Drive's autopilot holds the Glide the call only reports, and leaves the time rate alone; by hand it still warns (see 23).*
 - **The ball.** The line to hold is a hollow cyan diamond at where the line is 50 m ahead: on it the Glide rejoins its line, so it shows both the line and the way back; the bottom right corner reads OFF LINE in metres, green within the slack, amber wearing, red half way to hard against the wall.
 - **Where it ends.** A Glide still halts at its plotted length measured along its line, and never past what the scan has shown along it; only its offset across the line differs. Halted, the vessel settles along its line again, so the next Glide may start without crawling straight.
 - **For #128.** A 300 m Glide left to the Drive's autopilot wears about a hundredth of the Head and less of the hull, and may sound `off_glide_line`; the Checklist-follower test should engage the Drive's autopilot after starting a Glide (starting one disengages it) and acknowledge.
+  *Overtaken by #161: starting a Glide leaves the Drive's autopilot engaged (see 23).*
 
 ## The Glide seen, heard and felt (#127)
 

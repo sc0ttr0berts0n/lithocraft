@@ -23,8 +23,11 @@ const CONDITIONS := [
 	{name = "under way, a Boundary ahead", send = []},
 	{name = "a Glide plotted and waiting", send = [[&"plot_glide", [100000.0]]]},
 	{name = "gliding", send = [[&"plot_glide", [100000.0]], [&"start_glide", []]], glide = true},
+	# Steering so gently that its arc is about as wide as the projection follows
+	# (ProjectedPath._TURN_M): the dearest projected path (2,400 m of radius at
+	# the 60 m tightest turn, #161; it was 0.1 of a 250 m one).
 	{name = "a slow turn", send = [[&"set_course", [90.0, 20.0]], [&"set_power", [0.3]],
-			[&"set_steering_effort", [0.1]]]},
+			[&"set_steering_effort", [0.025]]]},
 	{name = "steering effort at zero", send = [[&"set_steering_effort", [0.0]]]},
 	{name = "low power", send = [[&"set_steering_effort", [1.0]], [&"set_power", [0.05]]]},
 	{name = "a full point cloud", send = [[&"set_power", [0.5]]], fill = true, pulse_every = 30},

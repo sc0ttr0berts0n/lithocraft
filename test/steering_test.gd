@@ -120,6 +120,9 @@ func test_turning_makes_more_heat_than_going_straight_at_the_same_power() -> voi
 func test_once_on_its_heading_the_extra_heat_dies_away() -> void:
 	var sim := _travelling_level(0.5)
 	var straight_heat := sim.heat_produced()
+	# A gentle turn: a hard one heats the hull to a warning, and Thermal's
+	# autopilot then keeps its raised split, which draws more for good.
+	sim.set_steering_effort(0.25)
 
 	sim.set_course(90.0, sim.course_pitch())
 	DiveTestKit.run(sim, 3000.0)

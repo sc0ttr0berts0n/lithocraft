@@ -65,6 +65,7 @@ The follower (`test/checklist_follower_test.gd`), by the Checklist alone:
 
 - **The First dive**: about 30,900 s of dive time; Head wear about 0.6%, hull wear about 0.01%; paid about 4,700 (target A identified, worth 400, two features); the Glide about 670 m, from 790 m deep in the granite up to about 125 m in the sandstone, flown by hand at almost no wear.
   Before #128 it was about 31,600 s, Head wear 7.6% and pay about 4,800: the Glide spares the Head the crawled climb through the granite.
+  *Overtaken by #161: about 7,700 s, Head wear about 0.9%, hull wear nil, paid about 1,900 with the tighter turn (see 23).*
 - **The Glide drill**: about 330 s; the Glide 300 m on the autopilot; Head wear about 1.4%, hull wear about 0.7%; the link's light about 84% after it; paid about 40.
 - **Left to the autopilots**, the First dive still comes home by Crawl, with no Glide (#71, story 24).
 
@@ -72,6 +73,7 @@ The follower (`test/checklist_follower_test.gd`), by the Checklist alone:
 ### What felt wrong, for the developer
 
 - **The crawled turn is very long.** On its autopilot the Drive steers at a quarter effort, a turn about 1 km across in the granite, about 25,000 s of the dive's 30,900 s even at the top time rate. A turn at full effort would be a quarter as long; it is #126's and the Drive's, not changed here.
+  *Overtaken by #161: a 60 m tightest turn at half effort, about 380 m and 3,200 s of turn (see 23).*
 - **The Sweep for a target dead ahead teaches the key but not why**: the Beam already sees it.
 - **Several steps tick at once** when the crew has done well: tune ACTIVE after a good pretune, tune STANDBY at idle (it still holds the sandstone's wave from the Shift down), Quiet Ship at rest.
 - **The Glide ends in the sandstone, not near the surface**, since it stops short of the sand's Boundary; the last 125 m are crawled with a Shift.

@@ -32,10 +32,13 @@ const _TURNING_STEERING := 0.01
 ## granite, its target's middle this far below the start and this far to one
 ## side (east): within the reach of the shortest turn on the way down, and
 ## off the straight line down by more than the body is wide, so the dive must
-## be steered into it. Tuned for play (ADR 0001).
+## be steered into it. Tuned for play (ADR 0001). Since the tighter turn
+## (#161) the vessel comes onto a Course one pitch step (15 degrees) off
+## straight down within metres, so the target lies on that line (32 m off at
+## 120 m below; it was 12 m, which only a turn of a kilometre's radius cut).
 const _PROSPECT_INTO_GRANITE_M := 60.0
 const _PROSPECT_TARGET_BELOW_M := 120.0
-const _PROSPECT_TARGET_OFF_M := 12.0
+const _PROSPECT_TARGET_OFF_M := 32.0
 ## The First dive's target A lies this many metres of depth into the granite
 ## (its middle), on the line straight down: past the granite's first
 ## features, so the crew has settled into the rock before it, and far enough
@@ -330,6 +333,17 @@ static func glide_shown_above(medium_name: StringName) -> Callable:
 		return false)
 
 
+## Holds on a clean pulse (at Quiet Ship, not drowned) after which the scan
+## shows the Glide home past the top of the Medium of this name
+## (glide_shown_above()): a pulse, the crew's deed, even where surface
+## control's survey already showed the way (#161: the turn for home now
+## climbs inside it).
+static func pulsed_showing_glide_above(medium_name: StringName) -> Callable:
+	var shown := glide_shown_above(medium_name)
+	return on_event(&"pulse_sent", func(event: Dictionary, sim: DiveSimulation) -> bool:
+		return event.quiet_ship and not event.get("drowned", false) and shown.call(sim, []))
+
+
 ## Holds while a Glide is plotted.
 static func glide_plotted() -> Callable:
 	return when(func(sim: DiveSimulation) -> bool: return sim.glide_plotted() > 0.0)
@@ -508,13 +522,14 @@ static func first_dive() -> Scenario:
 		Step.new(&"quiet_glide_scan", "Quiet Ship: halt for a clean scan of the way home", DiveSimulation.STATION_NAVIGATION,
 				&"quiet_ship", halted_at_quiet_ship()),
 		Step.new(&"pulse_way_home", "Pulse until Navigation shows the Glide home up through the %s" % middle.name,
-				DiveSimulation.STATION_NAVIGATION, &"pulse", glide_shown_above(bottom.name)),
+				DiveSimulation.STATION_NAVIGATION, &"pulse", pulsed_showing_glide_above(bottom.name)),
 		Step.new(&"plot_glide", "Plot the Glide: all the scan shows", DiveSimulation.STATION_NAVIGATION,
 				&"plot_glide_all", glide_plotted()),
 		Step.new(&"quiet_off_glide", "Quiet Ship off: a Glide cannot start at Quiet Ship", DiveSimulation.STATION_NAVIGATION,
 				&"quiet_ship", when(func(sim: DiveSimulation) -> bool: return not sim.quiet_ship())),
 		Step.new(&"start_glide", "Start the Glide", DiveSimulation.STATION_DRIVE, &"glide", gliding()),
-		Step.new(&"hold_glide", "Hold the Glide on its line to its end: nudge toward the ball's diamond, or engage the Drive's autopilot, which holds it loosely",
+		Step.new(&"hold_glide", ("Hold the Glide on its line to its end: the Drive's autopilot holds it loosely; "
+				+ "nudge toward the ball's diamond to hold it closer, which takes it off the autopilot"),
 				DiveSimulation.STATION_DRIVE, &"nudge_pitch", on_event(&"glide_ended")).and_also(&"nudge_heading"),
 	]
 

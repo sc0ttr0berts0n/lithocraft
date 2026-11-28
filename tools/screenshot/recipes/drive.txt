@@ -1,7 +1,7 @@
 # The Drive's screen (FlightDisplay) and its attitude ball (#119): following the Course and off it, as ticket #65 named, the lean straight down (#91), and a climb.
 # From the repo root: tools/screenshot/shot.sh --sheet tools/screenshot/recipes/drive.txt
 # Navigation's screen in the same two states is in navigation.txt: the Course and the deviation must match.
-# Debug commands: debug_skip, only for the climb, which is otherwise a 2400 s turn away.
+# Debug commands: debug_skip, only for the climb, which is otherwise minutes of turning away.
 
 # Course 090, 60 deg down, plotted at the start; the Drive turns toward it: the Course's cross on the vessel's mark at the ball's middle, PITCH +60 and COURSE +60 in the top corners, FOLLOWS THE COURSE in green in the foot.
 following the Course: --look Drive --time 30 --do "0 set_power 0.5" --do "0 set_course 90 60"

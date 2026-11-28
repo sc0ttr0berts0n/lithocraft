@@ -80,7 +80,7 @@ func test_two_dives_crossing_the_same_boundary_at_different_places_cross_it_at_d
 	var deep := MEAN * 5.0
 	var wavy := _wavy(3, deep)
 	var straight := _cross(wavy, 90.0)
-	var slanted := _cross(wavy, 40.0)
+	var slanted := _cross(wavy, 50.0)
 
 	assert_dict(straight).contains_keys(["depth"])
 	assert_dict(slanted).contains_keys(["depth"])

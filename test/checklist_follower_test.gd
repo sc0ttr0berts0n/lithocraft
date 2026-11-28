@@ -274,7 +274,10 @@ static func _first_dive_table() -> Dictionary:
 		&"pulse_way_home": {action = &"pulse", follow = _quiet_pulse},
 		&"plot_glide": {action = &"plot_glide_all", follow = _plot_glide_all},
 		&"quiet_off_glide": {action = &"quiet_ship", follow = _quiet_off},
-		&"start_glide": {action = &"glide", follow = _start_glide},
+		# Started at the normal rate by the hand that will fly it: on the Drive's
+		# autopilot its wander off the line only reports (#161), so at a raised
+		# rate the whole Glide would pass between two looks.
+		&"start_glide": {action = &"glide", follow = _start_glide, fast = false, look = GLIDE_LOOK_S},
 		&"hold_glide": {action = &"nudge_pitch", follow = _hold_the_line.bind({}), fast = false, look = GLIDE_LOOK_S},
 		StringName("pulse_boundary_%s" % top): {action = &"pulse", follow = _pulse},
 		StringName("pretune_standby_%s" % top): {action = &"tune_frequency", follow = _pretune, fast = false},

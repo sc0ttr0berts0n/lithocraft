@@ -222,8 +222,10 @@ func test_more_speed_projects_a_wider_turn() -> void:
 
 func test_a_climb_is_projected_no_further_than_the_surface() -> void:
 	var sim := _diving()
+	# Deep enough that the turn up comes round below the surface.
+	DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.depth() > s.minimum_turn_radius())
 	sim.set_course(0.0, -90.0)
-	DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.pitch() < -80.0)
+	DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.pitch() < -80.0, 3000.0, 1.0, false)
 	sim.advance(1.0)
 	assert_float(sim.depth()).is_greater(0.0)
 
