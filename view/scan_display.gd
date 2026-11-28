@@ -13,6 +13,9 @@
 ## status lines say what lies beyond the Boundary ahead (rock_label()).
 ## Aimed off the vessel's axis, the Beam's cone is drawn about its aim, with
 ## a small diamond (_draw_aim()) along it and the aim in the Beam's label.
+## Each target the Orders name is a fuzzy cyan region where the scan has it
+## (_draw_targets()), denser toward its middle and named as the Orders name
+## it ("TARGET A"), narrowing as the points heard from it do.
 ##
 ##   forward scope     the vessel's own vertical plane with ahead up the
 ##                     screen and range rings about the Head, as a
@@ -45,7 +48,8 @@
 ## rock_ahead(), rock_ahead_confidence() and expected_rocks() for the rock;
 ## head_position(), heading()
 ## and heading_degrees() for the vessel; course_direction() for the Course;
-## projected_path() for where this turn takes the vessel.
+## projected_path() for where this turn takes the vessel; target_regions()
+## for the targets, fetched with the points.
 class_name ScanDisplay
 extends SubViewport
 
@@ -133,6 +137,18 @@ const SWEEP_FILL_ALPHA := 0.12
 const SWEEP_EDGE_ALPHA := 0.8
 ## How opaque the backdrop under the labels in the lower left is.
 const LABEL_BACKDROP_ALPHA := 0.85
+## A target's region: cyan, what the crew aims for; drawn as nested outlines
+## of the region scaled by these shares, each filled this faint, so it builds
+## up toward the middle and fades out at its edge, with its outermost rim at
+## this strength.
+const TARGET_COLOUR := StationTheme.SELECTED_COLOUR
+const TARGET_SHARES: Array[float] = [1.0, 0.8, 0.6, 0.4]
+const TARGET_FILL_ALPHA := 0.08
+const TARGET_RIM_ALPHA := 0.35
+## How finely a region's ellipsoid is sampled for its outline on the screen:
+## rings of latitude and points round each.
+const TARGET_RINGS := 7
+const TARGET_ROUND := 16
 ## The rock beyond each Inferred Boundary, as the scan estimates it against
 ## the rock on the Head's side (BoundaryPatch.beyond()): a band this many
 ## pixels deep, straight down or up the screen, on the far side of the patch
@@ -188,6 +204,7 @@ var _over := Control.new()
 ## batch of a Sweep's points), and the patches fitted to them.
 var _points: Array[ScanPoint] = []
 var _patches: Array[BoundaryPatch] = []
+var _regions: Array[TargetRegion] = []
 var _revision_shown := -1
 ## The forward scope's range and ring spacing, metres (one of
 ## SCOPE_RANGES_M), stepped only when the scan changes.
@@ -228,6 +245,7 @@ func _process(_delta: float) -> void:
 		_revision_shown = sim.scan_revision()
 		_points = sim.points()
 		_patches = sim.inferred_boundaries()
+		_regions = sim.target_regions()
 		_scope = scope_range(BoundaryFit.ahead(_patches, sim.head_position(), sim.heading()).x)
 	_frames_to_redraw -= 1
 	if _frames_to_redraw > 0:
@@ -460,6 +478,7 @@ func _draw_scan(canvas: Control, place: Callable, heading_m := HEADING_M) -> voi
 	var head := sim.head_position()
 	_draw_beam(canvas, place)
 	_draw_sweep(canvas, place)
+	_draw_targets(canvas, place)
 	var rock_band := _rock_band(place)
 	for patch in _patches:
 		var sureness := patch.confidence * exp(-sim.patch_age(patch) / FADE_S)
@@ -609,6 +628,54 @@ func _draw_sweep(canvas: Control, place: Callable) -> void:
 			if _face(band) >= SURFACE_LEAST_FACE_PX:
 				canvas.draw_colored_polygon(band, fill)
 			canvas.draw_line(origin, band[band.size() - 1], edge, 2.0)
+
+
+## Each target's region (target_regions()) as the scan has it: a fuzzy cyan
+## patch, the outline of its ellipsoid on the screen at each of
+## TARGET_SHARES of its size filled faintly, so the fill builds toward the
+## middle, a faint rim at its edge and its name beside it ("TARGET A").
+## Under the points and the Inferred Boundaries, so the echoes heard from it
+## show over it.
+func _draw_targets(canvas: Control, place: Callable) -> void:
+	var head := sim.head_position()
+	for region in _regions:
+		var rim := PackedVector2Array()
+		for share in TARGET_SHARES:
+			var outline := region_outline(region, head, place, share)
+			if outline.size() < 3:
+				continue
+			canvas.draw_colored_polygon(outline, StationTheme.faded(TARGET_COLOUR, TARGET_FILL_ALPHA))
+			if rim.is_empty():
+				rim = outline
+		if rim.is_empty():
+			continue
+		var closed := rim.duplicate()
+		closed.append(rim[0])
+		canvas.draw_polyline(closed, StationTheme.faded(TARGET_COLOUR, TARGET_RIM_ALPHA), 1.5)
+		var right := rim[0]
+		for corner in rim:
+			if corner.x > right.x:
+				right = corner
+		canvas.draw_string(ThemeDB.fallback_font, right + Vector2(6.0, FONT_SIZE * 0.35),
+				"TARGET %s" % region.label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, FONT_SIZE, TARGET_COLOUR)
+
+
+## The outline on the screen of a target's region scaled to `share` of its
+## size about its middle, through a view's `place` (a place from the Head at
+## `head`, metres, to pixels): the convex hull of points sampled over its
+## ellipsoid, so it is its true outline seen from any view; not closed.
+static func region_outline(region: TargetRegion, head: Vector3, place: Callable, share: float) -> PackedVector2Array:
+	var drawn := PackedVector2Array()
+	for ring in TARGET_RINGS:
+		var up := lerpf(-PI / 2.0, PI / 2.0, (ring + 0.5) / TARGET_RINGS)
+		for i in TARGET_ROUND:
+			var around := TAU * i / TARGET_ROUND
+			var on := Vector3(cos(up) * cos(around), sin(up), cos(up) * sin(around))
+			drawn.append(place.call(region.centre + on * region.half_size * share - head))
+	var hull := Geometry2D.convex_hull(drawn)
+	if hull.size() > 1 and hull[0] == hull[hull.size() - 1]:
+		hull.remove_at(hull.size() - 1)
+	return hull
 
 
 ## The vessel: its heading line and an arrowhead along it; seen end-on (the
@@ -867,4 +934,3 @@ func _draw_expected(canvas: Control, place: Callable, band: Vector2) -> void:
 				StationTheme.faded(StationTheme.SCREEN_COLOUR, EXPECTED_BACKDROP_ALPHA))
 		canvas.draw_string(font, corner + Vector2(3.0, FONT_SIZE), text, HORIZONTAL_ALIGNMENT_LEFT, -1.0,
 				FONT_SIZE, CERTAIN if expected.confirmed else DOUBTFUL)
-

@@ -42,18 +42,30 @@ Agent's choices, the developer away. The class is `Glide` (`sim/glide.gd`); how 
   The view leaves a melted Column out of the Column strip; the look and sound are #127's.
 - **The cost budget** plays a Glide as its second condition.
 
+## Targets (#124; agent's choices, the developer away)
 
-## The Glide's tunnel (#125)
-
-Agent's choices, the developer away. How it meets the code is `docs/conventions/glide.md`, "The tunnel and the link (#125)".
-
-- **One rule for both ways of moving.** Each metre of tunnel the Tail leaves is sealed if the rock is dense, whoever cut it (the melt has to go somewhere, ADR 0001), and open if porous: glass where the Head crawled, rough where it glided. The wall is what the Head made of the rock as it passed, so the last vessel length of a glided stretch is rough even though the Tail leaves it crawling.
-  So the seal's call and event, the sealed metres, the rescue and the stranding rules are the Crawl's, unchanged; a rough open tunnel is open to a rescue as a glass one is.
-- **The light, how the loss adds.** The link up an open tunnel carries the glass rate times the share of light that arrives: each separate run of rough wall passes 90% of the light reaching it, and along rough wall the light falls by a factor of e every 4 km.
-  Real basis: a rough-walled light guide loses light where the smooth guide gives way to it and along its length. So one Glide of a few hundred metres leaves about 80 to 87% (the developer's "80% quality vs 100% glass perfection"), a longer one less, and each Glide more a little less again: two of 60 m are worse than one of 120 m.
-  Glides with no glass between them are one run. Light is the whole of the open link however dim it gets; it never falls back to sound while the tunnel is open (a dive would need tens of Glides to dim it to sound's trickle).
-- **How much slower** follows from that: about a tenth slower after a short Glide, a fifth after one of 500 m; the rate falls as the Tail leaves the glided stretch, through the Glide and the vessel length after it.
-- **The call in one step.** At the top time rate a Glide can carry the Tail into dense rock within the step the Head entered it; the Bore Station's "tunnel about to seal" is then still made, once, at its most urgent, and drops the time rate as any warning does.
-- **The screen.** The Bore Station's tunnel panel, which showed the link, says why: "Link fast, glass tunnel  2.00 m/s", "Link 87%, 1 rough stretch  1.74 m/s", or "Link slow, through rock". The header stays TUNNEL OPEN in green: a rough tunnel is open, only dimmer. The stations recipe has the tile "Bore Station, after a Glide".
-- **For the look (#127).** `tunnel_walls()` lists the tunnel behind as pieces of glass, rough or sealed wall by path distance; the view draws a glided tunnel from it.
-- **A Glide home up the First dive's climb (#128).** The way down already sealed the tunnel in the granite, so the link is sound all the way home, glided or crawled, and the rough sandstone and sand change nothing for it. A rescue counts the glided climb as the crawled one: sealed through the granite, open through the sandstone and sand.
+- **One kind: a lens of hematite breccia in the granite.**
+  Granite shattered and cemented by iron oxide, with a little copper sulphide; the survey sees a dense, magnetic body and cannot say what it is.
+  Real basis: Olympic Dam, hosted in granite under cover, was found in 1975 by boring into a coincident gravity and magnetic high; what it was became known only from the rock that came up.
+  It is stiffer than granite (acoustic impedance about 1.6 times: some 4 g/cc at 6 km/s against 2.65 at 5.5), so its surface returns echoes, weaker than the Boundaries'.
+- **Its size: a flattened lens 18 m across and 10 m tall.**
+  Wider than the Column, so a cut through it fills the Column all round; about as tall as the vessel is long, so a crawl through it takes the Bore Station's time to record.
+- **A body in its host, not a Medium.**
+  Cutting through it leaves the Wobble the granite's and raises no Boundary: the spec makes it a feature of interest of its own kind, and a Medium of its own would ask a Shift into and out of every target.
+  Its points still make Inferred Boundary patches over its top, as any reflector's do, and carry the contrast #122 gave echoes: going in it is stiffer than the granite, so the rock beyond its top reads harder; coming out the sign turns.
+- **The first error: a share of its depth, wider in depth than across.**
+  The Orders' place is an ellipsoid with half-extents of 4% of the depth across the ground and 6% in depth (at least 15 m), the true middle within half of each: at 780 m, 31 m across and 47 m deep against a body 9 m and 5 m.
+  Real basis: a gravity or magnetic anomaly places a buried body across the ground better than in depth, both to a share of the depth (the half-width rule); tuned tighter for play.
+- **How it narrows: round the points, as sure as they are.**
+  The vessel's own points inside the Orders' place are taken as the body's near surface; their middle is where it is, their widest spread how wide, and the body is taken as about as deep as it is wide, plus how far its points may stray.
+  Few and faint points barely move it; it never grows past the Orders' place, and it never sees the body, so a reflector that is not the target would pull it too: honest, never snapped to the truth.
+- **What it pays: 400, several features' worth, as a line of its own** ("Targets identified: A, worth 400"), once its record is up the link or brought home.
+- **Found when the Head cuts into it**, placed where it met it and as long as a straight cut through it; a target passed by, glided through (melted with the Column, #123), or crawled through and not recorded in full, achieves nothing and pays nothing.
+  Since it is found only by the Column, a Glide (#123), which has none, never finds it.
+- **Drawn as a fuzzy cyan region** in every scan view, cyan being what the crew aims for: the region's outline filled faintly at four sizes, so it is densest in its middle, with a faint rim and "TARGET A" beside it.
+- **The Prospecting drill, third on the start menu.**
+  Nothing placed a target before #128 reworks the First dive, so the drill gives the screenshots their state and the developer the loop to play now, without the Glide: halted at Quiet Ship 60 m into the granite, target A 120 m below and 12 m east, off the straight line down.
+  Its Checklist: narrow the region, aim the Beam, plot the Course one step off straight down, crawl in on the Drive's autopilot (whose gentle turns reach it from there), observe and record it.
+  The Sweep begins at the Beam's edge, so a target nearly ahead is the Beam's to narrow and one off to the side the Sweep's; the drill's lies inside the Beam's cone.
+- **For #128.** Place the body with `MediumLayout.first_dive().with_targets([TargetBody.hematite_breccia(&"A", centre)])` in the Scenario, name it in the Orders with `Scenario.identify_target(&"A")`, keep `start_surveyed()` in `prepare`, and tick steps on `Scenario.target_narrowed()`, `target_in_column()`, `observing_target()` and `target_identified()`.
+  Keep its Orders' place clear of the Boundaries' folds; reaching it on the Drive's autopilot from a Course plotted in 15-degree steps needs a long approach, which is the Glide's.

@@ -18,6 +18,8 @@ const LOOKS := {
 	&"iron_concretions": {across = 0.8, paint = &"_concretions"},
 	&"quartz_vein": {across = 0.0, paint = &"_quartz_vein"},
 	&"pegmatite": {across = 0.6, paint = &"_pegmatite"},
+	# A target's body: far wider than the Column, so it fills it all round.
+	&"hematite_breccia": {across = 12.0, paint = &"_breccia"},
 }
 ## How wide a kind with no look is drawn, so a missing one is plain to see.
 const UNKNOWN_ACROSS_M := 0.3
@@ -219,3 +221,40 @@ static func _pegmatite(canvas: CanvasItem, box: Rect2, ppm: float, rng: RandomNu
 				rng.randf_range(-0.35, 0.35) * box.size.y)
 		var r := maxf(0.03 * ppm, 1.5)
 		canvas.draw_circle(at, r, Color(0.5, 0.04, 0.1))
+
+
+## Hematite breccia, the first slice's target: granite shattered and cemented
+## by iron oxide. Wider than the Column, so it fills it all round over the
+## length the cut passed through: a dark steel-grey and red-brown matrix of
+## hematite holding angular clasts of the pale granite, with glints of
+## specular hematite and brassy specks of copper sulphide.
+static func _breccia(canvas: CanvasItem, box: Rect2, ppm: float, rng: RandomNumberGenerator) -> void:
+	canvas.draw_rect(box, Color(0.22, 0.17, 0.17))
+	# Red-brown earthy hematite in streaks through the steel-grey.
+	for i in 10:
+		var at := box.position + Vector2(rng.randf(), rng.randf()) * box.size
+		var r := Vector2(rng.randf_range(0.2, 0.5), rng.randf_range(0.1, 0.3)) * ppm
+		_oval(canvas, at, r, Color(0.45, 0.14, 0.09, 0.8))
+	# Angular clasts of granite on a loose grid, so they spread without piling up.
+	var columns := maxi(roundi(box.size.x / (0.45 * ppm)), 1)
+	var rows := maxi(roundi(box.size.y / (0.45 * ppm)), 1)
+	for i in columns * rows:
+		if rng.randf() < 0.35:
+			continue
+		var middle := box.position + Vector2((i % columns + rng.randf_range(0.2, 0.8)) / columns,
+				(i / columns + rng.randf_range(0.2, 0.8)) / rows) * box.size
+		var r := rng.randf_range(0.06, 0.16) * ppm
+		var corners := PackedVector2Array()
+		var sides := rng.randi_range(3, 5)
+		var turn := rng.randf() * TAU
+		for s in sides:
+			var a := turn + TAU * s / sides + rng.randf_range(-0.3, 0.3)
+			corners.append(middle + Vector2(cos(a), sin(a)) * r * rng.randf_range(0.6, 1.0))
+		var granite := Color(0.86, 0.74, 0.7) if rng.randf() < 0.6 else Color(0.7, 0.66, 0.64)
+		canvas.draw_colored_polygon(corners, granite)
+	for g in 14:
+		var at := box.position + Vector2(rng.randf(), rng.randf()) * box.size
+		canvas.draw_circle(at, maxf(0.012 * ppm, 1.0), Color(0.75, 0.78, 0.82))
+	for g in 6:
+		var at := box.position + Vector2(rng.randf(), rng.randf()) * box.size
+		canvas.draw_circle(at, maxf(0.018 * ppm, 1.2), Color(0.85, 0.7, 0.2))

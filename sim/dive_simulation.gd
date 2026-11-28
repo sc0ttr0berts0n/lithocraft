@@ -176,6 +176,22 @@ const _SURVEY_GIVES_WAY_DEPTH_M := 25.0
 const _SURVEY_GIVES_WAY_AT := 0.5
 ## Fixed seed, so a layout's survey is the same every dive.
 const _SURVEY_SEED := 47
+## How far out the survey's place of a target may be, as a share of the
+## target's depth: half-extents of the Orders' fuzzy place across the ground
+## and in depth, the true middle somewhere within half of each. Real basis: a
+## gravity or magnetic anomaly places a buried body across the ground better
+## than in depth, both to a share of how deep it lies (the half-width rule).
+## Tuned for play (ADR 0001): far wider than the body, so it must be prospected.
+const _TARGET_ACROSS_ERROR := 0.04
+const _TARGET_DEPTH_ERROR := 0.06
+## The least either half-extent is, however shallow the target: a survey
+## from the surface never places a body closer than this. Tuned for play
+## (ADR 0001).
+const _TARGET_LEAST_ERROR_M := 15.0
+## Where a ray passes into or out of a target's body, in the index place of
+## what it meets (_reflectors_along()), where a Boundary's own index goes.
+const _ENTERING := -1
+const _LEAVING := -2
 
 ## Boundaries. A Boundary this many metres of depth ahead along the Head's
 ## line is announced, so the Reactor Station can prepare for the Shift. Tuned
@@ -367,6 +383,12 @@ var _stretch_quality := 0.0
 var _features: Array[ColumnFeature] = []
 ## Layout feature templates already found, so crossing one again adds nothing.
 var _found_templates := {}
+## Labels of the layout's targets the Head has cut into (each now a feature),
+## so cutting one again adds nothing.
+var _found_targets := {}
+## Labels of the targets identified this dive (identified_targets()), in the
+## order their features were recorded in full.
+var _identified_targets: Array[StringName] = []
 ## The id of the feature the Bore Station is observing, or -1 for none.
 var _observed := -1
 ## Running total of what the recorded survey is worth (completed stretches and
@@ -478,6 +500,13 @@ var _scan_revision := 0
 ## changed and someone asks.
 var _inferred: Array[BoundaryPatch] = []
 var _inferred_at_revision := -1
+## The Orders' fuzzy place of each target surface control's survey saw
+## (start_surveyed()), and the regions the scan has narrowed them to
+## (target_regions()), narrowed only when the cloud has changed and someone
+## asks.
+var _target_reports: Array[TargetRegion] = []
+var _target_regions: Array[TargetRegion] = []
+var _regions_at_revision := -1
 ## Fixed seed, so a dive's scan is the same every run.
 var _scan_random := RandomNumberGenerator.new()
 ## Which of SCAN_VIEWS Navigation's scan display draws: a debug setting
@@ -1050,10 +1079,12 @@ func start_dark(head_wear: float) -> void:
 ## survey is coarse and wrong (_SURVEY_DEPTH_ERROR); the vessel's own echoes
 ## replace it where they outweigh it, and it is held apart from
 ## point_capacity(), so it neither crowds out the vessel's points nor is
-## crowded out by them. Ignored unless the dive has not begun, and once a
-## survey is held.
+## crowded out by them. The survey also places each target of the layout
+## within its square, wide of the truth (_report_targets()): the Orders'
+## fuzzy place of it, where target_regions() begins. Ignored unless the dive
+## has not begun, and once a survey is held.
 func start_surveyed() -> void:
-	if not _at_dive_start() or not _soundings.is_empty():
+	if not _at_dive_start() or not _soundings.is_empty() or not _target_reports.is_empty():
 		return
 	var random := RandomNumberGenerator.new()
 	random.seed = _SURVEY_SEED
@@ -1080,8 +1111,26 @@ func start_surveyed() -> void:
 				if not _sounding_cells.has(key):
 					_sounding_cells[key] = []
 				_sounding_cells[key].append(point)
+	_report_targets(random)
 	_scan_revision += 1  # The cloud has changed with no pulse sent.
 	_look_ahead()
+
+
+## The survey's place of each target of the layout within its square, for the
+## Orders: a region about the body far wider than it (_TARGET_ACROSS_ERROR,
+## _TARGET_DEPTH_ERROR), its middle off the body's by up to half of that,
+## seeded with the survey. The scan side sees only these and its points.
+func _report_targets(random: RandomNumberGenerator) -> void:
+	for body in _layout.targets():
+		var off := body.centre - _position
+		if absf(off.x) > _SURVEY_HALF_SIDE_M or absf(off.z) > _SURVEY_HALF_SIDE_M:
+			continue
+		var depth := -body.centre.y
+		var half := (Vector3(_TARGET_ACROSS_ERROR, _TARGET_DEPTH_ERROR, _TARGET_ACROSS_ERROR) * depth) \
+				.max(Vector3.ONE * _TARGET_LEAST_ERROR_M)
+		var out := Vector3(random.randf_range(-0.5, 0.5), random.randf_range(-0.5, 0.5),
+				random.randf_range(-0.5, 0.5)) * half
+		_target_reports.append(TargetRegion.new(body.label, body.centre + out, half))
 
 
 ## True while a dive has not begun: no time has run and it has not ended.
@@ -1621,6 +1670,7 @@ func _follow_the_head(place_before: Vector3, travelled: float, dt: float) -> voi
 	_record_survey(_distance, _distance + travelled)
 	_record_observed_feature(dt, travelled)
 	_find_features(-place_before.y, depth(), travelled)
+	_find_targets(place_before)
 	_distance += travelled
 	_remember_path()
 	_watch_boundaries(place_before)
@@ -2420,6 +2470,46 @@ func _fit_boundaries() -> void:
 		_inferred = BoundaryFit.fit(points())
 
 
+## Where each target the Orders name lies, as far as the scan knows: the
+## survey's fuzzy place of it (start_surveyed()), narrowed by the vessel's own
+## points inside it (TargetRegion.narrowed()), in the order the layout placed
+## them; empty with no survey. Copies. Narrowed again only once
+## scan_revision() has changed, so a view may call it every frame: a call
+## that narrows costs a pass over points() for each target, at most
+## point_capacity() points and the survey's, and none otherwise.
+func target_regions() -> Array[TargetRegion]:
+	if _regions_at_revision != _scan_revision:
+		_regions_at_revision = _scan_revision
+		_target_regions = []
+		var cloud := points()
+		for report in _target_reports:
+			_target_regions.append(TargetRegion.narrowed(report, cloud))
+	var copies: Array[TargetRegion] = []
+	for region in _target_regions:
+		copies.append(TargetRegion.new(region.label, region.centre, region.half_size, region.support))
+	return copies
+
+
+## The labels of the targets whose region the vessel's own points have
+## narrowed (TargetRegion.support above 0), in the order the layout placed
+## them: what the scan has learned of each beyond the Orders' place. Costs
+## what target_regions() does.
+func narrowed_targets() -> Array[StringName]:
+	var labels: Array[StringName] = []
+	for region in target_regions():
+		if region.support > 0.0:
+			labels.append(region.label)
+	return labels
+
+
+## The labels of the targets identified so far this dive: each cut into, so a
+## feature in the Column (ColumnFeature.target), and recorded there in full by
+## the Bore Station. In the order recorded; a target passed by, or passed
+## through unobserved, is not here. A copy, as long as the layout's targets.
+func identified_targets() -> Array[StringName]:
+	return _identified_targets.duplicate()
+
+
 ## Seconds since the points this patch was fitted to returned, on average. It
 ## fades as they do.
 func patch_age(patch: BoundaryPatch) -> float:
@@ -2657,7 +2747,8 @@ func survey_value() -> float:
 ##       surfacing (surfaced() is true); new_dive() starts another.
 ##   &"paid" {arrival, amount, by_link, carried_home, hull_repair,
 ##       head_repair, rescue, covered, stretches, metres, mean_quality, features,
-##       feature_worth, lost_to_quality, by_medium, total_paid}: right after
+##       feature_worth, targets, target_worth, lost_to_quality, by_medium,
+##       total_paid}: right after
 ##       the Lithocraft reaches the surface (`arrival`, the &"surfaced",
 ##       &"rescued" or &"brought_home" event just raised), what this dive was
 ##       paid (`amount` = `by_link`, paid while under way, + `carried_home`,
@@ -2667,7 +2758,8 @@ func survey_value() -> float:
 ##       `covered`, what those bills came to beyond what the dive earned,
 ##       which is not charged: `amount` is never below 0) and why:
 ##       Column recorded and its length-weighted quality, features recorded
-##       and their worth, the value heat and shuttering took off pristine
+##       and their worth, the targets identified (their labels) and their
+##       worth as a line of its own (not among the features), the value heat and shuttering took off pristine
 ##       records, and pay per Medium name. `total_paid` is paid() across
 ##       every dive.
 ##   &"hull_failed" {cause, depth, distance, lost, lost_stretches, rebuy,
@@ -3333,6 +3425,8 @@ func _queue_feature_record(feature: ColumnFeature) -> void:
 	_waiting.append(record)
 	_sending = null  # It may now be the one to send first.
 	_survey_value += record.value()
+	if feature.target != &"":
+		_identified_targets.append(feature.target)
 
 
 ## Adds the features the Head cut past in this step, placed along the path
@@ -3348,6 +3442,28 @@ func _find_features(depth_before: float, depth_after: float, travelled: float) -
 		var share := inverse_lerp(depth_before, depth_after, entry[0])
 		feature.at = _distance + travelled * share
 		_features.append(feature)
+
+
+## Adds a feature for each target whose body the Head cut into in this step,
+## from `place_before` to where it is now: of the target's own kind, as long
+## as a straight cut through it from there, placed along the path where the
+## Head met it. A target only passed by is never found.
+func _find_targets(place_before: Vector3) -> void:
+	for body in _layout.targets():
+		if _found_targets.has(body.label):
+			continue
+		for crossing in body.crossings(place_before, _position):
+			if not crossing[1]:
+				continue
+			_found_targets[body.label] = true
+			var way := (_position - place_before).normalized()
+			var met: Vector3 = place_before + way * crossing[0]
+			var feature := ColumnFeature.new(body.kind, body.chord(met, way), body.worth)
+			feature.target = body.label
+			feature.id = _features.size()
+			feature.at = _distance + float(crossing[0])
+			_features.append(feature)
+			break
 
 
 func _in_column(feature: ColumnFeature) -> bool:
@@ -3848,12 +3964,17 @@ func _payment(arrival: Dictionary, carried_home: float, repairs: Repairs) -> Dic
 	var quality_metres := 0.0
 	var features := 0
 	var feature_worth := 0.0
+	var targets: Array[StringName] = []
+	var target_worth := 0.0
 	var lost_to_quality := 0.0
 	for i in range(_dive_uploaded_from, _uploaded.size()):
 		var stretch := _uploaded[i]
 		by_medium[stretch.medium_name] = by_medium.get(stretch.medium_name, 0.0) + stretch.value()
 		lost_to_quality += stretch.pristine_value() - stretch.value()
-		if stretch.is_feature_record():
+		if stretch.target != &"":
+			targets.append(stretch.target)
+			target_worth += stretch.feature_worth
+		elif stretch.is_feature_record():
 			features += 1
 			feature_worth += stretch.feature_worth
 		else:
@@ -3867,6 +3988,7 @@ func _payment(arrival: Dictionary, carried_home: float, repairs: Repairs) -> Dic
 			metres = metres,
 			mean_quality = quality_metres / metres if metres > 0.0 else 0.0,
 			features = features, feature_worth = feature_worth,
+			targets = targets, target_worth = target_worth,
 			lost_to_quality = lost_to_quality, by_medium = by_medium, total_paid = _paid}
 
 
@@ -4232,38 +4354,70 @@ func _echoes_along(origin: Vector3, direction: Vector3, gain: float, reach: floa
 	var faded := 0.0
 	var passed := 1.0
 	var travelled := 0.0
-	for met in _layout.meets(origin, origin + direction * reach):
+	var here := _layout.medium_at_point(origin)
+	for met in _reflectors_along(origin, origin + direction * reach):
 		var r: float = met[0]
 		if r <= 0.0:
 			continue
-		var before: Medium = met[2]
-		var after: Medium = met[3]
+		var before: Medium = met[2] if met[2] != null else here
 		faded += Echoes.fading(r - travelled, before.sound_carrying)
 		travelled = r
 		var strength := Echoes.strength(gain, faded)
 		if strength <= 0.0:
 			break
-		var reflected := _reflection(before, after)
+		var contrast: float
+		var seed: int
+		var below: float
+		if met[3] is TargetBody:
+			var body: TargetBody = met[3]
+			contrast = _target_contrast(here, body) * (1.0 if met[1] == _ENTERING else -1.0)
+			seed = hash(body.label)
+			below = 1.0 if direction.y <= 0.0 else -1.0
+		else:
+			var after: Medium = met[3]
+			here = after
+			contrast = _contrast(before, after)
+			seed = _boundary_seed(met[1])
+			below = 1.0 if after == _layout.medium_at(_layout.boundary_depths()[met[1]] + 1.0) else -1.0
+		var reflected := absf(contrast)
 		if reflected <= 0.0:
 			continue  # Rock that sounds the same either side returns no echo.
-		var below := 1.0 if after == _layout.medium_at(_layout.boundary_depths()[met[1]] + 1.0) else -1.0
-		echoes.append([r, passed * reflected * strength, _contrast(before, after),
-				_boundary_seed(met[1]), below])
+		echoes.append([r, passed * reflected * strength, contrast, seed, below])
 		passed *= 1.0 - reflected * reflected
 	return echoes
 
 
-## Share of sound a Boundary reflects, from the contrast in acoustic impedance
-## (density times sound speed) across it. Stiffer, less open rock is denser and
-## faster, so hardness times solid fraction stands in for impedance.
-static func _reflection(from: Medium, to: Medium) -> float:
-	return absf(_contrast(from, to))
+## Everything the straight ray from `from` to `to` passes through that may
+## reflect, nearest first: each Boundary it meets ([metres, index, Medium
+## before, Medium after], as MediumLayout.meets()) and each time it passes in
+## or out of a target's body ([metres, _ENTERING or _LEAVING, null, the
+## TargetBody]).
+func _reflectors_along(from: Vector3, to: Vector3) -> Array:
+	var found := _layout.meets(from, to)
+	var bodies := _layout.targets()
+	if bodies.is_empty():
+		return found
+	for body in bodies:
+		for crossing in body.crossings(from, to):
+			found.append([crossing[0], _ENTERING if crossing[1] else _LEAVING, null, body])
+	found.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	return found
 
 
-## The contrast in acoustic impedance from one Medium into the next, as an
-## echo's polarity gives it: -1 to 1, positive when `to` is the stiffer, less
-## open rock (harder and denser), negative when it is softer and more porous.
-## Its size is the share of sound reflected (_reflection()).
+## The contrast from a target's host Medium into its body, as _contrast()
+## works it across a Boundary: positive when the body is the stiffer (a
+## breccia in granite is). Coming out of the body the sign turns.
+static func _target_contrast(host: Medium, body: TargetBody) -> float:
+	var z1 := host.hardness * (1.0 - host.porosity)
+	return (body.stiffness - z1) / (body.stiffness + z1)
+
+
+## The contrast in acoustic impedance (density times sound speed) from one
+## Medium into the next, as an echo's polarity gives it: -1 to 1, positive when
+## `to` is the stiffer, less open rock (harder and denser), negative when it is
+## softer and more porous. Its size is the share of sound the Boundary reflects.
+## Stiffer, less open rock is denser and faster, so hardness times solid
+## fraction stands in for impedance.
 static func _contrast(from: Medium, to: Medium) -> float:
 	var z1 := from.hardness * (1.0 - from.porosity)
 	var z2 := to.hardness * (1.0 - to.porosity)

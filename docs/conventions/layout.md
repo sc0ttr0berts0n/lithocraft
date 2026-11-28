@@ -5,6 +5,7 @@
   `DiveSimulation` is the one seam; `Medium`, `MediumLayout`, `SurveyStretch`, `ColumnFeature` and `ScanPoint` are data it reads or hands out.
   `Heat`, `Plasma`, `Stranding`, `LookAhead`, `ProjectedPath` and `RingSlide` are subsystems it owns (see Subsystems).
   `Scenario` is the data of a Scenario and `Checklist` the dive's progress through it (see Scenarios).
+  `TargetBody` is a target's body, the layout's truth, and `TargetRegion` where the scan has it, scan side (see `targets.md`).
 - `view/`: scenes and view logic.
   `view/start_menu.tscn` (`StartMenu`) is the main scene; it starts `view/habitat.tscn` with the chosen Scenario.
   `Arm` (`view/arm.gd`), `HullGroans` (`view/hull_groans.gd`), `KeyMap` (`view/key_map.gd`), `PowerLine` (`view/power_line.gd`), `ChecklistPanel` (`view/checklist_panel.gd`; `ChecklistPanel.text_of()` is the Tab panel's text, tested directly), `KeyPrompt` (`view/key_prompt.gd`;

@@ -20,3 +20,8 @@ warned of the turn, still diving: --look Drive --time 30 --checklist --do "0 sta
 # next with "Reactor" in cyan, the turn for home after it. (With the autopilot engaged all three tick at
 # once and the Checklist moves straight on to "Surface".)
 turn and climb, its three steps: --look Drive --time 1010 --checklist --do "0 start_below 300" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "1 set_course 0 -90" --do "2 debug_skip 1000"
+
+# The Prospecting drill (#124): the Orders name target A ("Find target A, crawl through it and record it in the
+# Column"), the Checklist's Prospect phase next, and surface control's opening message still coming down the link
+# at the foot: sealed in the granite, the link is slow.
+prospecting drill, the orders name target A: --scenario "Prospecting drill" --look Navigation --time 20 --checklist
