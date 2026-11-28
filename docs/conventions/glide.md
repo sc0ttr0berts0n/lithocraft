@@ -16,12 +16,15 @@ Its choices and their reasons are in the design record, "The Glide (#123)" (`doc
 - **The step.** `_step()` runs `_glide_on()` in place of `_crawl()` while `gliding()`; everything after the move (the link, surfacing, pulses, autopilots, stranding, calls) is shared.
   A Glide moves in pieces of `Glide.piece()` metres through `_glided()`, so a long step at a raised time rate meets both surfaces of a thin layer, and never past its end.
 - **What it was shown.** `glide_reach()` reads the scan alone, `BoundaryFit.furthest()` along the Course's line from the Head, worked out again only when the fit, the line or the Course changes; never read the layout for it.
+  `glide_refusal()` and `start_glide()` ask along the Head's line instead: each way keeps its own `ReachWorked`, so polling both costs no more than one (`glide_reach_workings()` counts the workings for the tests; #159).
+- **The rock it ends in.** `start_glide()` hands `Glide.began_in()` what the crew knows of the rock it starts in: the guess held (at a Glide's idle, or settling after a crossing), else the Wobble felt on the plasma. Each crossing replaces it (`Glide.crossed()`) and `_end_glide()` holds the last; the layout's Wobble is never handed to the scan side (#159).
+  In a Glide `_watch_boundaries()` looks ahead again at each crossing, so two Boundaries met in one long step hand on the guess of the rock beyond the second.
 - **The Wobble.** Everything that reads the Wobble on the plasma goes through `_wobble_on_plasma()`: false in a Glide and at the idle after it, so `out_of_band()` is false, `tend_off_rock()` replaces `Plasma.tend()`, `wobble_frequency()` reads 0 and ACTIVE's Residual is NAN (the Reactor screen says NO WOBBLE ON THE PLASMA).
   A new reading of the Wobble on the plasma uses `_felt_wobble()`, not `_wobble()`, which stays the rock's for what the rock does (a relight, the guess).
 - **The Column.** `column_absent()` is the one test of whether a place in the Bore has a Column; `_in_column()`, the Bore Station's lines and `ColumnStrip` follow it. A glided stretch records nothing and its features are marked found and never added.
 - **Power and heat.** In a Glide `_share_power()` gives Navigation its draw and Thermal its base draw and the Drive the rest of an output that builds with the jet's thrust; `Heat.step()`'s `aft_share` carries all but `Glide.hull_share()` of the heat away, none into the Column.
 - **The scan.** A Glide is deaf: `_send_pulse()` counts a drowned pulse and returns nothing (no `scan_revision()` change), `start_glide()` ends a running Sweep (`_end_sweep(false)`) and `start_sweep()` is ignored while `Glide.active()`.
-- **Halts.** `_strand()`, `_die()` and `_rest_at_surface()` call `Glide.halt()` (no idle); self-destruct drops out and spins the Head up.
+- **Halts.** `_strand()`, `_die()` and `_rest_at_surface()` call `Glide.halt()` (no idle); the last two also end a running Sweep (`_end_sweep(false)`, #159), as a stranded step does; self-destruct drops out and spins the Head up.
 
 ## Flown by hand (#126)
 

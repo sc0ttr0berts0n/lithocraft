@@ -310,6 +310,42 @@ func test_starting_a_sweep_is_a_reading_and_its_range_a_setting() -> void:
 	assert_bool(other.autopilot(DiveSimulation.STATION_NAVIGATION)).is_false()
 
 
+func test_a_sweep_running_when_the_crew_dies_ends_with_the_dive() -> void:
+	# Full power, all the heat kept in the hull, a Sweep always running.
+	var sim := DiveTestKit.heating(1.0)
+	sim.set_sweep_range(_longest())
+	var seen := []
+	var failed := DiveTestKit.run_until(sim, &"hull_failed", 20000.0, seen, 1.0, func() -> void:
+		if not sim.sweep_running():
+			sim.start_sweep())
+	assert_dict(failed).is_not_empty()
+	var types := DiveTestKit.types(seen)
+
+	assert_bool(sim.dead()).is_true()
+	assert_bool(sim.sweep_running()).is_false()
+	# The last Sweep begun was ended.
+	assert_int(types.rfind(&"sweep_ended")).is_greater(types.rfind(&"sweep_started"))
+
+
+func test_a_sweep_running_when_the_vessel_surfaces_ends_with_the_dive() -> void:
+	# Open rock, so a lost plasma brings the crew home up the tunnel; the
+	# Sweep started just before ACTIVE is driven far off on a worn Head.
+	var sim := DiveSimulation.new(MediumLayout.uniform(DiveTestKit.rock(2.0, 2.0, 0.3)))
+	sim.start_below(START_M)
+	sim.set_power(0.0)
+	DiveTestKit.wear_head_gently(sim, 0.51)
+	sim.set_sweep_range(_longest())
+	sim.start_sweep()
+	assert_bool(sim.sweep_running()).is_true()
+	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_ACTIVE, DiveTestKit.wobble(sim) + Vector2(0.0, 10.0))
+	var seen := []
+	DiveTestKit.run_until(sim, &"paid", 60.0, seen, 0.1)
+
+	assert_bool(sim.surfaced()).is_true()
+	assert_bool(sim.sweep_running()).is_false()
+	assert_array(DiveTestKit.types(seen)).contains([&"sweep_ended"])
+
+
 func test_a_running_sweep_keeps_its_range() -> void:
 	var sim := _below(_close())
 	sim.set_sweep_range(_shortest())

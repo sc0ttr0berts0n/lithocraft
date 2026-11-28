@@ -140,6 +140,8 @@ const AIM_MARK_PX := 7.0
 const SWEEP_COLOUR := StationTheme.ENGAGED_COLOUR
 const SWEEP_FILL_ALPHA := 0.12
 const SWEEP_EDGE_ALPHA := 0.8
+## The pieces the ring a running Sweep has swept round its axis is drawn in.
+const SWEEP_RING_PIECES := 32
 ## A target's region: cyan, what the crew aims for; drawn as nested outlines
 ## of the region scaled by these shares, each filled this faint, so it builds
 ## up toward the middle and fades out at its edge, with its outermost rim at
@@ -591,7 +593,8 @@ func _pane_labels(index: int, area: Vector2, frame: Dictionary) -> ScanLabels:
 ## Course, the projected path and the vessel, in that order, so the vessel
 ## and what the crew has selected are never under the rock; the Beam's cone
 ## and the Sweep's progress first, under everything; the rock beyond each
-## Boundary over the points, which would hide its dots. The vessel's heading
+## Boundary over the points, which would hide its dots, and the Sweep's
+## leading edge over that, so the points never bury it. The vessel's heading
 ## line is `heading_m` long. The words are the pane's own (_pane_labels()).
 func _draw_scan(canvas: Control, place: Callable, heading_m := HEADING_M) -> void:
 	var head := sim.head_position()
@@ -634,6 +637,7 @@ func _draw_scan(canvas: Control, place: Callable, heading_m := HEADING_M) -> voi
 		canvas.draw_multiline(crosses, StationTheme.faded(DOUBTFUL, SURVEY_ALPHA), 1.0)
 	for i in _patches.size():
 		_draw_rock_beyond(canvas, _patches[i], outlines[i], sure[i], rock_band)
+	_draw_sweep_edge(canvas, place)
 
 	var vessel: Vector2 = place.call(Vector3.ZERO)
 	_draw_aim(canvas, place)
@@ -736,33 +740,73 @@ func _aim_at(place: Callable) -> Vector2:
 ## faint band each side of its axis from where it started (the Beam's edge)
 ## out to where it has reached, at its range, and that reach as a strong
 ## leading edge, sweeping outward to square across as the Sweep goes on.
-## Every view draws both through its own `place`; a band seen edge-on is not
-## filled.
+## The cone swept so far is drawn too, round its axis at its range: a faint
+## ring between where it started and where it has reached, so a view that
+## looks along the axis (the plan diving, #159), where both bands are
+## edge-on, still shows it growing outward. Every view draws both through its
+## own `place`; a band or a piece of ring seen edge-on is not filled. Under
+## everything; its leading edge goes over the points (_draw_sweep_edge()).
 func _draw_sweep(canvas: Control, place: Callable) -> void:
 	if not sim.sweep_running():
 		return
-	var head := sim.head_position()
-	var from := sim.sweep_origin() - head
+	var cone := _sweep_cone(place)
+	var fill := StationTheme.faded(SWEEP_COLOUR, SWEEP_FILL_ALPHA)
+	for band: PackedVector2Array in cone.bands:
+		if _face(band) >= SURFACE_LEAST_FACE_PX:
+			canvas.draw_colored_polygon(band, fill)
+	var inner: PackedVector2Array = cone.inner
+	var outer: PackedVector2Array = cone.outer
+	for i in outer.size() - 1:
+		var piece := PackedVector2Array([inner[i], outer[i], outer[i + 1], inner[i + 1]])
+		if _face(piece) >= SURFACE_LEAST_FACE_PX:
+			canvas.draw_colored_polygon(piece, fill)
+
+
+## A running Sweep's leading edge, strong and over the points so it is never
+## lost under them: the four edges of its bands and the ring it has reached
+## round its axis (_draw_sweep()).
+func _draw_sweep_edge(canvas: Control, place: Callable) -> void:
+	if not sim.sweep_running():
+		return
+	var cone := _sweep_cone(place)
+	var edge := StationTheme.faded(SWEEP_COLOUR, SWEEP_EDGE_ALPHA)
+	for band: PackedVector2Array in cone.bands:
+		canvas.draw_line(band[0], band[band.size() - 1], edge, 2.0)
+	canvas.draw_polyline(cone.outer, edge, 2.0)
+
+
+## The running Sweep's cone through a view's `place`: `bands`, the four fans
+## from its origin from where it started to where it has reached, each side
+## of its axis in its two planes, and `inner` and `outer`, the rings round
+## its axis at its range where it started and where it has reached, closed.
+func _sweep_cone(place: Callable) -> Dictionary:
+	var from := sim.sweep_origin() - sim.head_position()
 	var axis := sim.sweep_axis()
-	var right := _right(sim.heading_degrees())
-	var square_down := right.cross(axis)
+	var square_down := _right(sim.heading_degrees()).cross(axis)
 	if square_down.length() < 0.01:
 		square_down = Vector3.UP.cross(axis)
+	square_down = square_down.normalized()
+	var square_across := axis.cross(square_down).normalized()
 	var start := deg_to_rad(sim.sweep_from_angle())
 	var reached := deg_to_rad(sim.sweep_reached_angle())
 	var reach := sim.sweep_range()
-	var fill := StationTheme.faded(SWEEP_COLOUR, SWEEP_FILL_ALPHA)
-	var edge := StationTheme.faded(SWEEP_COLOUR, SWEEP_EDGE_ALPHA)
 	var origin: Vector2 = place.call(from)
-	for square: Vector3 in [square_down.normalized(), axis.cross(square_down).normalized()]:
+	var bands: Array[PackedVector2Array] = []
+	for square: Vector3 in [square_down, square_across]:
 		for side: float in [-1.0, 1.0]:
 			var band := PackedVector2Array([origin])
 			for i in 9:
 				var angle := lerpf(start, reached, i / 8.0) * side
 				band.append(place.call(from + (axis * cos(angle) + square * sin(angle)) * reach))
-			if _face(band) >= SURFACE_LEAST_FACE_PX:
-				canvas.draw_colored_polygon(band, fill)
-			canvas.draw_line(origin, band[band.size() - 1], edge, 2.0)
+			bands.append(band)
+	var inner := PackedVector2Array()
+	var outer := PackedVector2Array()
+	for i in SWEEP_RING_PIECES + 1:
+		var round_axis := TAU * i / SWEEP_RING_PIECES
+		var out := square_down * cos(round_axis) + square_across * sin(round_axis)
+		inner.append(place.call(from + (axis * cos(start) + out * sin(start)) * reach))
+		outer.append(place.call(from + (axis * cos(reached) + out * sin(reached)) * reach))
+	return {bands = bands, inner = inner, outer = outer}
 
 
 ## Each target's region (target_regions()) as the scan has it: a fuzzy cyan

@@ -152,7 +152,8 @@ var _thrust := 0.0
 var _began := PackedFloat64Array()
 var _reached := PackedFloat64Array()
 ## The scan's guess of the Wobble of the rock this Glide last entered, as it
-## stood just before the crossing; null while it has crossed none.
+## stood just before the crossing; while it has crossed none, the guess it
+## began with (began_in()), or null if it was given none.
 var _rock_entered: WobbleGuess = null
 ## The running Glide's two axes across its line, unit length: to the right
 ## (the way a heading nudge turns) and steeper (the way a pitch nudge tips),
@@ -454,13 +455,19 @@ func crossed(guess: WobbleGuess) -> void:
 	_rock_entered = guess
 
 
+## The Glide just started began in rock the scan's guess of which stood as
+## `guess`: what rock_entered() gives until it crosses a Boundary (#159).
+func began_in(guess: WobbleGuess) -> void:
+	_rock_entered = guess
+
+
 ## The jet's thrust now, 0 (the Crawl's output) to 1.
 func thrust() -> float:
 	return _thrust
 
 
-## The scan's guess of the rock the Glide last entered, or null if it crossed
-## no Boundary.
+## The scan's guess of the rock the Glide last entered, or, if it crossed no
+## Boundary, the one it began with (began_in()); null with neither.
 func rock_entered() -> WobbleGuess:
 	return _rock_entered
 

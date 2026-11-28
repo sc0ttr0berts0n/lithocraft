@@ -21,6 +21,7 @@ extends SceneTree
 ## path is a turn under every one after the first.
 const CONDITIONS := [
 	{name = "under way, a Boundary ahead", send = []},
+	{name = "a Glide plotted and waiting", send = [[&"plot_glide", [100000.0]]]},
 	{name = "gliding", send = [[&"plot_glide", [100000.0]], [&"start_glide", []]], glide = true},
 	{name = "a slow turn", send = [[&"set_course", [90.0, 20.0]], [&"set_power", [0.3]],
 			[&"set_steering_effort", [0.1]]]},
