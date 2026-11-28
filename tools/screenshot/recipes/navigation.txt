@@ -40,7 +40,7 @@ Beam pulsing by itself, under way: --look Navigation --time 60 --do "0 set_power
 # Surface control's survey beside the vessel's own points (ticket #118): the First dive from the surface,
 # Quiet Ship at 20 s some 40 m down and one clean pulse at 35 s. Under the pulse's cone the vessel's own
 # filled squares have replaced the survey's; round them, and at the granite below, the survey's faint
-# hollow grey squares and its faint patches remain. Every other tile above starts surveyed too.
+# grey crosses (an open x, never a filled square) and its faint patches remain. Every other tile above starts surveyed too.
 forward scope, survey beside own: --look Navigation --time 40 --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
 plan and section, survey beside own: --look Navigation --time 40 --do "0 debug_next_scan_view" --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
 world-up 3D, survey beside own: --look Navigation --time 40 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
@@ -60,7 +60,7 @@ forward scope, wide Beam aimed square across: --scenario "Shift drill" --look Na
 # Halted: Quiet Ship from the start, the Head spun down before the Sweep begins. Under way: the drill's own slow
 # dive on the Drive's autopilot, the Reactor's minding the sandstone. Part-way (36 s): the green band each side of
 # the axis from the Beam's edge out to where the spiral has reached, its leading edge strong, only the inner turns'
-# points in, and the SWEEP label's percentage and time left over the Beam's. Finished (70 s): no band, the label
+# points in, and the SWEEP label's percentage and time left on the strip's line over the Beam's. Finished (70 s): no band, the label
 # back to its range and key, the points out to square across; under way they lie smeared short of the sandstone.
 forward scope, Sweep part-way, halted: --scenario "Shift drill" --look Navigation --time 36 --do "0 set_quiet_ship true" --do "0 set_sweep_range 100" --do "6 start_sweep"
 forward scope, Sweep finished, halted: --scenario "Shift drill" --look Navigation --time 70 --do "0 set_quiet_ship true" --do "0 set_sweep_range 100" --do "6 start_sweep"
@@ -68,6 +68,12 @@ forward scope, Sweep part-way, under way: --scenario "Shift drill" --look Naviga
 forward scope, Sweep finished, under way: --scenario "Shift drill" --look Navigation --time 70 --do "0 set_autopilot reactor true" --do "0 set_sweep_range 100" --do "6 start_sweep"
 plan and section, Sweep part-way, halted: --scenario "Shift drill" --look Navigation --time 36 --do "0 debug_next_scan_view" --do "0 set_quiet_ship true" --do "0 set_sweep_range 100" --do "6 start_sweep"
 world-up 3D, Sweep part-way, halted: --scenario "Shift drill" --look Navigation --time 36 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 set_quiet_ship true" --do "0 set_sweep_range 100" --do "6 start_sweep"
+# The Beam aimed with a Sweep running (#151), halted as above, the narrow Beam aimed before the Sweep starts: the
+# green band and the cyan cone and diamond both drawn, the diamond clear of the band's edge, and the strip under the
+# view holding the SWEEP line over the BEAM line with its aim, neither over the scan nor a scale.
+forward scope, Beam aimed up 45, Sweep running: --scenario "Shift drill" --look Navigation --time 36 --do "0 set_quiet_ship true" --do "0 set_beam_width narrow" --do "0 set_beam_aim 0 45" --do "0 set_sweep_range 100" --do "4 pulse" --do "6 start_sweep"
+plan and section, Beam aimed right 45 up 30, Sweep running: --scenario "Shift drill" --look Navigation --time 36 --do "0 debug_next_scan_view" --do "0 set_quiet_ship true" --do "0 set_beam_width narrow" --do "0 set_beam_aim 45 30" --do "0 set_sweep_range 100" --do "4 pulse" --do "6 start_sweep"
+world-up 3D, Beam aimed right 45, Sweep running: --scenario "Shift drill" --look Navigation --time 36 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 set_quiet_ship true" --do "0 set_beam_width narrow" --do "0 set_beam_aim 45 0" --do "0 set_sweep_range 100" --do "4 pulse" --do "6 start_sweep"
 # The Glide (#123), as in drive.txt: plotted at 300 m, a broad cyan bar down the Course from the vessel to
 # a bar across its end, and the Glide line "Glide 300 m plotted of ... m shown  [-/=]" in cyan.
 Glide plotted: --look Navigation --time 3 --do "1 plot_glide 300"
@@ -111,3 +117,9 @@ plan and section, target before prospecting: --scenario "Prospecting drill" --lo
 plan and section, target after prospecting: --scenario "Prospecting drill" --look Navigation --time 9 --do "0 debug_next_scan_view" --do "5 pulse" --do "6 set_beam_width narrow" --do "6 set_beam_aim 8 0" --do "7 pulse"
 world-up 3D, target before prospecting: --scenario "Prospecting drill" --look Navigation --time 4 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view"
 world-up 3D, target after prospecting: --scenario "Prospecting drill" --look Navigation --time 9 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "5 pulse" --do "6 set_beam_width narrow" --do "6 set_beam_aim 8 0" --do "7 pulse"
+# A target's region beside the rock bands (#151): the Prospecting drill after prospecting, as above, seen in the
+# section, where the drill's one Boundary in reach (the granite's top, some 54 m behind the vessel and known only from
+# the survey) has its band beyond it, the faint grey stipple of softer rock, near the top of the pane, with GRANITE
+# under it, and the target's cyan region and TARGET A below; no word over another, the band or the vessel's marker.
+# No Scenario puts a scanned Boundary nearer a target than this.
+section, target beside the rock bands: --scenario "Prospecting drill" --look Navigation --time 9 --do "0 debug_next_scan_view" --do "5 pulse" --do "6 set_beam_width narrow" --do "6 set_beam_aim 8 0" --do "7 pulse"

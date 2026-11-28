@@ -8,9 +8,12 @@
 ## (surface control's survey hollow and fainter than the vessel's own) and
 ## the Inferred Boundaries, with the rock beyond each as the scan estimates
 ## it (a band hatched for harder rock, stippled for softer) and surface
-## control's names for the rocks it expects; labels in the lower left name
-## the Beam's width and the Sweep's range and progress; Navigation's
-## status lines say what lies beyond the Boundary ahead (rock_label()).
+## control's names for the rocks it expects; a strip under the views names
+## the Sweep's range and progress over the Beam's width, each on a line of
+## its own (tool_labels()); Navigation's status lines say what lies beyond
+## the Boundary ahead (rock_label()). No word on the display overlaps
+## another, a scale's mark, the vessel's marker or the aim's (ScanLabels,
+## label_boxes()).
 ## Aimed off the vessel's axis, the Beam's cone is drawn about its aim, with
 ## a small diamond (_draw_aim()) along it and the aim in the Beam's label.
 ## Each target the Orders name is a fuzzy cyan region where the scan has it
@@ -69,12 +72,14 @@ const CERTAIN := StationTheme.NOW_COLOUR
 const POINT_PX := Vector2(3.0, 6.0)
 const POINT_ALPHA := Vector2(0.7, 1.0)
 const POINT_LEAST_ALPHA := 0.3
-## A point of surface control's survey (ScanPoint.surveyed): a hollow square
-## of the legend's grey, this many pixels on a side and this opaque, fainter
-## than any of the vessel's own echoes and never filled, so the crew sees
-## where its own scan has replaced the survey.
-const SURVEY_PX := 5.0
-const SURVEY_ALPHA := 0.45
+## A point of surface control's survey (ScanPoint.surveyed): a small open
+## cross of the legend's grey, this many pixels across and this opaque,
+## fainter than any of the vessel's own echoes and never filled, so the crew
+## sees where its own scan has replaced the survey; a cross, not a square,
+## so it still reads apart from an echo's filled square where the screen is
+## seen small (#151).
+const SURVEY_PX := 6.0
+const SURVEY_ALPHA := 0.5
 ## Seconds for a point to fade to about a third of its brightness: an old echo
 ## describes rock the vessel has since moved relative to.
 const FADE_S := 90.0
@@ -135,8 +140,6 @@ const AIM_MARK_PX := 7.0
 const SWEEP_COLOUR := StationTheme.ENGAGED_COLOUR
 const SWEEP_FILL_ALPHA := 0.12
 const SWEEP_EDGE_ALPHA := 0.8
-## How opaque the backdrop under the labels in the lower left is.
-const LABEL_BACKDROP_ALPHA := 0.85
 ## A target's region: cyan, what the crew aims for; drawn as nested outlines
 ## of the region scaled by these shares, each filled this faint, so it builds
 ## up toward the middle and fades out at its edge, with its outermost rim at
@@ -159,7 +162,11 @@ const TARGET_ROUND := 16
 ## none under ROCK_SAME. Drawn in the points' colours, white as the patch is
 ## sure and the legend's grey as it is a guess, so it says nothing the
 ## colour language keeps for cautions; a stroke seen end-on (the plan) is a
-## short slant of ROCK_TICK_PX, so it still differs from a dot.
+## short slant of ROCK_TICK_PX, so it still differs from a dot. Told apart
+## where the screen is seen small (#151): each stroke slants across the band
+## (ROCK_SLANT, a share of its depth), and each mark of stipple is a cluster
+## of ROCK_CLUSTER dots spread through the band, so softer rock has as much
+## ink as harder; both are drawn over the points, which would hide dots.
 const ROCK_BAND_PX := 16.0
 const ROCK_SAME := 0.05
 const ROCK_DEGREES: Array[float] = [0.15, 0.4]
@@ -168,9 +175,8 @@ const ROCK_ALPHA := 0.8
 const ROCK_LEAST_ALPHA := 0.3
 const ROCK_TICK_PX := 6.0
 const ROCK_DOT_PX := 3.0
-## Surface control's names are written at the right of the pane, just into
-## the rock below the Boundary, on a backdrop this opaque.
-const EXPECTED_BACKDROP_ALPHA := 0.7
+const ROCK_SLANT := 0.6
+const ROCK_CLUSTER := 3
 ## The plan and section pair, side by side at one scale: the metres the
 ## section shows under the vessel, where the vessel sits across both and down
 ## the section (shares; in the plan it is half way down), and the plan's
@@ -193,6 +199,18 @@ const WORLD_PLUMB_M := 200.0
 
 const FONT_SIZE := StationTheme.FONT_SIZE_SMALL
 const CAPTION_PX := 28.0
+## The strip under the views for the tools' labels (#151): a line each, the
+## Sweep's over the Beam's, this many pixels apart, so neither ever lies over
+## the scan, a scale or another label; the smallest their font may shrink to
+## in a pane too narrow for the longest whole.
+const TOOL_LINE_PX := 22.0
+const TOOL_STRIP_PX := 2.0 * TOOL_LINE_PX + 4.0
+const FONT_SIZE_LEAST := 12
+## How far a rock's name may be moved further into the rock, in lines, to
+## clear a label already there; and the room kept clear round the vessel's
+## marker, pixels.
+const EXPECTED_SHIFTS := 3
+const MARKER_CLEAR_PX := 3.0
 
 var sim: DiveSimulation
 
@@ -270,7 +288,7 @@ func caption() -> String:
 			views.size(), KeyMap.label(&"scan_view")]
 
 
-## The Beam's width and cone, written in the display's lower left corner over
+## The Beam's width and cone, written on the bottom line of the strip under
 ## every view: "BEAM NARROW 30 deg", with its aim once it is aimed off the
 ## vessel's axis: "BEAM NARROW 30 deg  AIM R45 U15".
 func beam_label() -> String:
@@ -290,9 +308,10 @@ static func aim_words(aim: Vector2) -> String:
 	return "AHEAD" if words.is_empty() else " ".join(words)
 
 
-## The Sweep's range and how far it has got, written over every view above
-## the Beam's label: "SWEEP 200 m  45%  1:06 left" while one runs, else its
-## range, how long it would take and the key that starts it.
+## The Sweep's range and how far it has got, written on the strip under
+## every view, on the line over the Beam's: "SWEEP 200 m  45%  1:06 left"
+## while one runs, else its range, how long it would take and the key that
+## starts it.
 func sweep_label() -> String:
 	if sim.sweep_running():
 		return "SWEEP %d m  %d%%  %s left" % [roundi(sim.sweep_range()),
@@ -330,9 +349,67 @@ static func scope_scale(pane: Vector2, range_m: float) -> float:
 
 
 ## The size of the pane a single-pane view (the forward scope, world-up) is
-## drawn in: the whole display under the caption.
+## drawn in: the whole display between the caption and the tools' strip.
 func single_pane() -> Vector2:
-	return Vector2(size.x, size.y - CAPTION_PX)
+	return Vector2(size.x, size.y - CAPTION_PX - TOOL_STRIP_PX)
+
+
+## The tools' labels on the strip under the views, top line first, each
+## [text, colour]: the Sweep's (green while it runs), then the Beam's.
+func tool_labels() -> Array:
+	return [[sweep_label(), SWEEP_COLOUR if sim.sweep_running() else StationTheme.SELECTED_COLOUR],
+			[beam_label(), StationTheme.SELECTED_COLOUR]]
+
+
+## The words over the panes, laid out (#151): the caption in the strip over
+## them, and each tool's label on its own line of the strip under them, so
+## each keeps one place whatever the view shows. All at the small font, or
+## smaller only as the display is too narrow for the longest whole.
+func over_labels() -> ScanLabels:
+	var texts := PackedStringArray([caption()])
+	var colours: Array[Color] = [StationTheme.LEGEND_COLOUR]
+	for label: Array in tool_labels():
+		texts.append(label[0])
+		colours.append(label[1])
+	var labels := ScanLabels.new(Rect2(Vector2.ZERO, Vector2(size)), FONT_SIZE)
+	var points := FONT_SIZE
+	for text in texts:
+		while points > FONT_SIZE_LEAST and labels.width(text, points) > size.x - 12.0:
+			points -= 1
+	var strip := size.y - TOOL_STRIP_PX + 2.0 + points * ScanLabels.CAP_SHARE
+	var places: Array[Vector2] = [Vector2(6.0, CAPTION_PX - 8.0), Vector2(8.0, strip),
+			Vector2(8.0, strip + TOOL_LINE_PX)]
+	for i in texts.size():
+		labels.place(texts[i], [places[i]], colours[i], points)
+	return labels
+
+
+## Every word on the display as laid out now, in the display's pixels
+## (#151): `labels`, each [text, box]; `tools`, the tools' labels' boxes;
+## `markers`, the vessel's and the aim's marks that words are kept off; and
+## `panes`, each pane's rectangle.
+func label_boxes() -> Dictionary:
+	_lay_out_panes()
+	var over := over_labels()
+	var words := []
+	var tools: Array[Rect2] = []
+	var markers: Array[Rect2] = []
+	var panes: Array[Rect2] = []
+	for i in over.boxes().size():
+		words.append([over.texts()[i], over.boxes()[i]])
+		if i > 0:
+			tools.append(over.boxes()[i])
+	for index in _panes.size():
+		var pane := _panes[index]
+		if not pane.visible:
+			continue
+		panes.append(Rect2(pane.position, pane.size))
+		var laid := _pane_labels(index, pane.size, _frame(index, pane.size))
+		for i in laid.boxes().size():
+			words.append([laid.texts()[i], Rect2(laid.boxes()[i].position + pane.position, laid.boxes()[i].size)])
+		for marker in laid.markers():
+			markers.append(Rect2(marker.position + pane.position, marker.size))
+	return {labels = words, tools = tools, markers = markers, panes = panes}
 
 
 # --- Where a place in the world lies on the screen ---------------------------
@@ -394,7 +471,7 @@ static func _right(bearing_degrees: float) -> Vector3:
 ## Gives each pane its rectangle for the view shown: one pane under the
 ## caption, or for the pair the plan beside the section.
 func _lay_out_panes() -> void:
-	var whole := Rect2(0.0, CAPTION_PX, size.x, size.y - CAPTION_PX)
+	var whole := Rect2(Vector2(0.0, CAPTION_PX), single_pane())
 	var rects: Array[Rect2] = [whole, Rect2()]
 	if sim.scan_view() == DiveSimulation.SCAN_VIEW_PLAN_AND_SECTION:
 		var plan := roundf(whole.size.x * PLAN_SHARE)
@@ -407,23 +484,9 @@ func _lay_out_panes() -> void:
 		(_panes[i].get_child(0) as Control).size = rects[i].size
 
 
-## The caption, the Sweep's and the Beam's labels, and a rule round each pane.
+## The caption, the tools' strip (over_labels()), and a rule round each pane.
 func _draw_over() -> void:
-	var font := ThemeDB.fallback_font
-	_over.draw_string(font, Vector2(6.0, CAPTION_PX - 8.0), caption(), HORIZONTAL_ALIGNMENT_LEFT,
-			size.x - 12.0, FONT_SIZE, StationTheme.LEGEND_COLOUR)
-	# The two labels on the screen's own backdrop, so the points never hide them.
-	var labels := [[sweep_label(), SWEEP_COLOUR if sim.sweep_running() else StationTheme.SELECTED_COLOUR],
-			[beam_label(), StationTheme.SELECTED_COLOUR]]
-	var widest := 0.0
-	for label: Array in labels:
-		widest = maxf(widest, font.get_string_size(label[0], HORIZONTAL_ALIGNMENT_LEFT, -1.0, FONT_SIZE).x)
-	var line := FONT_SIZE + 4.0
-	_over.draw_rect(Rect2(4.0, size.y - 4.0 - line * labels.size(), widest + 8.0, line * labels.size()),
-			StationTheme.faded(StationTheme.SCREEN_COLOUR, LABEL_BACKDROP_ALPHA))
-	for i in labels.size():
-		_over.draw_string(font, Vector2(8.0, size.y - 8.0 - line * (labels.size() - 1 - i)), labels[i][0],
-				HORIZONTAL_ALIGNMENT_LEFT, size.x - 16.0, FONT_SIZE, labels[i][1])
+	over_labels().draw(_over)
 	for pane in _panes:
 		if pane.visible:
 			_over.draw_rect(Rect2(pane.position, pane.size).grow(-1.0), StationTheme.RULE_COLOUR, false, 2.0)
@@ -434,58 +497,113 @@ func _draw_pane(canvas: Control, index: int) -> void:
 	# Nothing to draw in until the panes are laid out.
 	if sim == null or area.x < 2.0 * CAPTION_PX or area.y < 2.0 * CAPTION_PX:
 		return
-	var bearing := sim.heading_degrees()
-	var heading := sim.heading()
+	var frame := _frame(index, area)
+	var place: Callable = frame.place
 	match sim.scan_view():
 		DiveSimulation.SCAN_VIEW_FORWARD_SCOPE:
-			var vessel := Vector2(area.x * 0.5, area.y * SCOPE_VESSEL_AT)
-			var scale := scope_scale(area, _scope.x)
-			var place := func(offset: Vector3) -> Vector2:
-				return vessel + scope_place(offset, heading, bearing) * scale
-			_draw_scope_marks(canvas, vessel, scale, place)
-			_draw_scan(canvas, place, _scope.x * SCOPE_HEADING_SHARE)
+			_draw_scope_marks(canvas, frame.vessel, frame.scale, place)
 		DiveSimulation.SCAN_VIEW_PLAN_AND_SECTION:
-			var scale := area.y * (1.0 - PAIR_VESSEL_AT.y) / PAIR_BELOW_M
-			if index == 0:
-				var vessel := Vector2(area.x * PAIR_VESSEL_AT.x, area.y * 0.5)
-				var place := func(offset: Vector3) -> Vector2:
-					return vessel + plan_place(offset, bearing) * scale
-				_draw_grid(canvas, vessel, scale, false)
-				_label(canvas, Vector2(8.0, FONT_SIZE + 4.0), "PLAN")
-				_draw_scan(canvas, place)
-			else:
-				var vessel := Vector2(area.x * PAIR_VESSEL_AT.x, area.y * PAIR_VESSEL_AT.y)
-				var place := func(offset: Vector3) -> Vector2:
-					return vessel + section_place(offset, bearing) * scale
-				_draw_grid(canvas, vessel, scale, true)
-				_label(canvas, Vector2(8.0, FONT_SIZE + 4.0), "SECTION")
-				_draw_scan(canvas, place)
+			_draw_grid(canvas, frame.vessel, frame.scale, index == 1)
 		DiveSimulation.SCAN_VIEW_WORLD_UP:
-			var vessel := area * WORLD_VESSEL_AT
-			var scale := minf(area.x / WORLD_SPAN_M, area.y * (1.0 - WORLD_VESSEL_AT.y) / WORLD_BELOW_M)
-			var place := func(offset: Vector3) -> Vector2:
-				return vessel + world_up_place(offset, bearing) * scale
 			_draw_world_marks(canvas, place)
-			_draw_scan(canvas, place)
+	_draw_scan(canvas, place, frame.heading_m)
+	_pane_labels(index, area, frame).draw(canvas)
+
+
+## How one pane of the view shown draws the world, in a pane this big:
+## `place` (a place from the Head, metres, to the pane's pixels), `vessel`
+## (where the Head is drawn), `scale` (pixels per metre) and `heading_m`
+## (the heading line's length, metres).
+func _frame(index: int, area: Vector2) -> Dictionary:
+	var bearing := sim.heading_degrees()
+	var heading := sim.heading()
+	var heading_m := HEADING_M
+	var vessel := area * WORLD_VESSEL_AT
+	var scale := minf(area.x / WORLD_SPAN_M, area.y * (1.0 - WORLD_VESSEL_AT.y) / WORLD_BELOW_M)
+	var place := func(offset: Vector3) -> Vector2:
+		return vessel + world_up_place(offset, bearing) * scale
+	match sim.scan_view():
+		DiveSimulation.SCAN_VIEW_FORWARD_SCOPE:
+			vessel = Vector2(area.x * 0.5, area.y * SCOPE_VESSEL_AT)
+			scale = scope_scale(area, _scope.x)
+			heading_m = _scope.x * SCOPE_HEADING_SHARE
+			place = func(offset: Vector3) -> Vector2:
+				return vessel + scope_place(offset, heading, bearing) * scale
+		DiveSimulation.SCAN_VIEW_PLAN_AND_SECTION:
+			scale = area.y * (1.0 - PAIR_VESSEL_AT.y) / PAIR_BELOW_M
+			if index == 0:
+				vessel = Vector2(area.x * PAIR_VESSEL_AT.x, area.y * 0.5)
+				place = func(offset: Vector3) -> Vector2:
+					return vessel + plan_place(offset, bearing) * scale
+			else:
+				vessel = Vector2(area.x * PAIR_VESSEL_AT.x, area.y * PAIR_VESSEL_AT.y)
+				place = func(offset: Vector3) -> Vector2:
+					return vessel + section_place(offset, bearing) * scale
+	return {place = place, vessel = vessel, scale = scale, heading_m = heading_m}
+
+
+## The words in one pane, each clear of the others and of the vessel's and
+## the aim's marks (ScanLabels), placed in the order they matter: the pane's
+## title, the scale's numbers (so a view never loses its scale), surface
+## control's names for the rocks, then the targets' names. `frame` is _frame() of the pane.
+func _pane_labels(index: int, area: Vector2, frame: Dictionary) -> ScanLabels:
+	var labels := ScanLabels.new(Rect2(Vector2.ZERO, area), FONT_SIZE)
+	var place: Callable = frame.place
+	var vessel: Vector2 = frame.vessel
+	var around := Vector2.ONE * (VESSEL_PX + MARKER_CLEAR_PX)
+	labels.block(Rect2(vessel - around, around * 2.0))
+	var aim := _aim_at(place)
+	if aim.is_finite():
+		around = Vector2.ONE * (AIM_MARK_PX + MARKER_CLEAR_PX)
+		labels.block(Rect2(aim - around, around * 2.0))
+	var legend := StationTheme.LEGEND_COLOUR
+	var top := FONT_SIZE + 4.0
+	match sim.scan_view():
+		DiveSimulation.SCAN_VIEW_FORWARD_SCOPE:
+			var ahead := "AHEAD  m"
+			labels.place(ahead, [Vector2(vessel.x + 8.0, top), Vector2(vessel.x - 8.0 - labels.width(ahead), top)],
+					legend)
+		DiveSimulation.SCAN_VIEW_PLAN_AND_SECTION:
+			# At the top left, else wherever its corners are clear of the vessel.
+			var title := "PLAN" if index == 0 else "SECTION"
+			var right := area.x - labels.width(title) - 6.0
+			labels.place(title, [Vector2(8.0, top), Vector2(right, top), Vector2(8.0, area.y - 6.0),
+					Vector2(right, area.y - 6.0)], legend)
+	match sim.scan_view():
+		DiveSimulation.SCAN_VIEW_FORWARD_SCOPE:
+			_scope_scale_labels(labels, vessel, frame.scale, place, area)
+		DiveSimulation.SCAN_VIEW_PLAN_AND_SECTION:
+			if index == 1:
+				_section_scale_labels(labels, vessel, frame.scale, area)
+		DiveSimulation.SCAN_VIEW_WORLD_UP:
+			_world_scale_labels(labels, place)
+	_expected_labels(labels, place, area)
+	_target_labels(labels, place)
+	return labels
 
 
 ## What every view shows, through its own `place` (a place from the Head, in
 ## metres, to the pane's pixels): the Inferred Boundaries, the points, the
 ## Course, the projected path and the vessel, in that order, so the vessel
 ## and what the crew has selected are never under the rock; the Beam's cone
-## and the Sweep's progress first, under everything. The vessel's heading line is `heading_m` long.
+## and the Sweep's progress first, under everything; the rock beyond each
+## Boundary over the points, which would hide its dots. The vessel's heading
+## line is `heading_m` long. The words are the pane's own (_pane_labels()).
 func _draw_scan(canvas: Control, place: Callable, heading_m := HEADING_M) -> void:
 	var head := sim.head_position()
 	_draw_beam(canvas, place)
 	_draw_sweep(canvas, place)
 	_draw_targets(canvas, place)
 	var rock_band := _rock_band(place)
+	var outlines: Array[PackedVector2Array] = []
+	var sure: Array[float] = []
 	for patch in _patches:
 		var sureness := patch.confidence * exp(-sim.patch_age(patch) / FADE_S)
 		var corners := PackedVector2Array()
 		for corner in patch.corners():
 			corners.append(place.call(corner - head))
-		_draw_rock_beyond(canvas, patch, corners, sureness, rock_band)
+		outlines.append(corners.duplicate())
+		sure.append(sureness)
 		if _face(corners) >= SURFACE_LEAST_FACE_PX:
 			canvas.draw_colored_polygon(corners, StationTheme.faded(SURFACE_COLOUR, SURFACE_MOST_ALPHA * sureness))
 		corners.append(corners[0])
@@ -493,20 +611,25 @@ func _draw_scan(canvas: Control, place: Callable, heading_m := HEADING_M) -> voi
 				SURFACE_EDGE_ALPHA * maxf(sureness, POINT_LEAST_ALPHA)), 1.5)
 
 	var within := Rect2(Vector2.ZERO, canvas.size).grow(POINT_PX.y)
+	var crosses := PackedVector2Array()
+	var arm := SURVEY_PX * 0.5
 	for point in _points:
 		var at: Vector2 = place.call(point.position - head)
 		if not within.has_point(at):
 			continue
 		if point.surveyed:
-			canvas.draw_rect(Rect2(at - Vector2.ONE * SURVEY_PX * 0.5, Vector2.ONE * SURVEY_PX),
-					StationTheme.faded(DOUBTFUL, SURVEY_ALPHA), false, 1.0)
+			crosses.append_array([at - Vector2(arm, arm), at + Vector2(arm, arm),
+					at + Vector2(-arm, arm), at + Vector2(arm, -arm)])
 			continue
 		var colour := DOUBTFUL.lerp(CERTAIN, point.confidence)
 		colour.a = maxf(lerpf(POINT_ALPHA.x, POINT_ALPHA.y, point.confidence)
 				* exp(-sim.point_age(point) / FADE_S), POINT_LEAST_ALPHA)
 		var side := roundf(lerpf(POINT_PX.x, POINT_PX.y, point.confidence))
 		canvas.draw_rect(Rect2(at - Vector2(side, side) * 0.5, Vector2(side, side)), colour)
-	_draw_expected(canvas, place, rock_band)
+	if not crosses.is_empty():
+		canvas.draw_multiline(crosses, StationTheme.faded(DOUBTFUL, SURVEY_ALPHA), 1.0)
+	for i in _patches.size():
+		_draw_rock_beyond(canvas, _patches[i], outlines[i], sure[i], rock_band)
 
 	var vessel: Vector2 = place.call(Vector3.ZERO)
 	_draw_aim(canvas, place)
@@ -583,16 +706,24 @@ static func aim_squares(heading: Vector3, right: Vector3, aim: Vector2) -> Array
 ## at any view's scale; seen end-on, round the Head itself. Nothing while it
 ## is dead ahead, where the vessel's own heading line says the same.
 func _draw_aim(canvas: Control, place: Callable) -> void:
-	if sim.beam_aim() == Vector2.ZERO:
+	var at := _aim_at(place)
+	if not at.is_finite():
 		return
-	var vessel: Vector2 = place.call(Vector3.ZERO)
-	var along: Vector2 = (place.call(sim.beam_axis() * sim.beam_reach()) as Vector2) - vessel
-	var at := vessel
-	if along.length() > AIM_MARK_PX:
-		at = vessel + along.normalized() * minf(AIM_MARK_AT_PX, along.length())
 	var r := AIM_MARK_PX
 	canvas.draw_polyline(PackedVector2Array([at + Vector2(0.0, -r), at + Vector2(r, 0.0),
 			at + Vector2(0.0, r), at + Vector2(-r, 0.0), at + Vector2(0.0, -r)]), BEAM_COLOUR, 2.0)
+
+
+## Where the aim's marker is drawn through a view's `place`, or
+## Vector2.INF while the Beam is dead ahead and none is.
+func _aim_at(place: Callable) -> Vector2:
+	if sim.beam_aim() == Vector2.ZERO:
+		return Vector2.INF
+	var vessel: Vector2 = place.call(Vector3.ZERO)
+	var along: Vector2 = (place.call(sim.beam_axis() * sim.beam_reach()) as Vector2) - vessel
+	if along.length() <= AIM_MARK_PX:
+		return vessel
+	return vessel + along.normalized() * minf(AIM_MARK_AT_PX, along.length())
 
 
 ## A running Sweep's progress, as the Beam's cone is drawn: in the plane of
@@ -633,7 +764,7 @@ func _draw_sweep(canvas: Control, place: Callable) -> void:
 ## Each target's region (target_regions()) as the scan has it: a fuzzy cyan
 ## patch, the outline of its ellipsoid on the screen at each of
 ## TARGET_SHARES of its size filled faintly, so the fill builds toward the
-## middle, a faint rim at its edge and its name beside it ("TARGET A").
+## middle, a faint rim at its edge; its name beside it is _target_labels().
 ## Under the points and the Inferred Boundaries, so the echoes heard from it
 ## show over it.
 func _draw_targets(canvas: Control, place: Callable) -> void:
@@ -652,12 +783,28 @@ func _draw_targets(canvas: Control, place: Callable) -> void:
 		var closed := rim.duplicate()
 		closed.append(rim[0])
 		canvas.draw_polyline(closed, StationTheme.faded(TARGET_COLOUR, TARGET_RIM_ALPHA), 1.5)
-		var right := rim[0]
+
+
+## Each target's name beside its region (_draw_targets()): to its right,
+## else its left, above or below it, else over its middle, wherever is first
+## clear of the pane's other words.
+func _target_labels(labels: ScanLabels, place: Callable) -> void:
+	var head := sim.head_position()
+	for region in _regions:
+		var rim := region_outline(region, head, place, TARGET_SHARES[0])
+		if rim.size() < 3:
+			continue
+		var around := Rect2(rim[0], Vector2.ZERO)
 		for corner in rim:
-			if corner.x > right.x:
-				right = corner
-		canvas.draw_string(ThemeDB.fallback_font, right + Vector2(6.0, FONT_SIZE * 0.35),
-				"TARGET %s" % region.label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, FONT_SIZE, TARGET_COLOUR)
+			around = around.expand(corner)
+		var text := "TARGET %s" % region.label
+		var wide := labels.width(text)
+		var middle := around.get_center()
+		var baseline := middle.y + FONT_SIZE * 0.35
+		labels.place(text, [Vector2(around.end.x + 6.0, baseline), Vector2(around.position.x - 6.0 - wide, baseline),
+				Vector2(middle.x - wide * 0.5, around.position.y - 6.0),
+				Vector2(middle.x - wide * 0.5, around.end.y + FONT_SIZE), Vector2(middle.x - wide * 0.5, baseline)],
+				TARGET_COLOUR)
 
 
 ## The outline on the screen of a target's region scaled to `share` of its
@@ -695,36 +842,61 @@ func _draw_vessel(canvas: Control, vessel: Vector2, heading_end: Vector2) -> voi
 
 
 ## The forward scope's marks: range rings about the Head at the range's ring
-## spacing, each second one with its range, the fan's centre line, and a
-## plumb line to where down is.
+## spacing, the fan's centre line, and a plumb line to where down is, a tick
+## mark on each ring it crosses. Their words: _scope_scale_labels().
 func _draw_scope_marks(canvas: Control, vessel: Vector2, scale: float, place: Callable) -> void:
 	var tick_m := _scope.y
 	for ring in range(1, ceili(canvas.size.length() / (tick_m * scale))):
-		var range_m := ring * tick_m
-		canvas.draw_arc(vessel, range_m * scale, 0.0, TAU, 96, StationTheme.RULE_COLOUR, 1.5)
-		if ring % 2 == 0 and vessel.x + range_m * scale < canvas.size.x:
-			_label(canvas, vessel + Vector2(range_m * scale - 40.0, FONT_SIZE), "%d" % roundi(range_m))
+		canvas.draw_arc(vessel, ring * tick_m * scale, 0.0, TAU, 96, StationTheme.RULE_COLOUR, 1.5)
 	canvas.draw_line(Vector2(vessel.x, 0.0), Vector2(vessel.x, canvas.size.y), StationTheme.RULE_COLOUR, 1.0)
-	_label(canvas, Vector2(vessel.x + 8.0, FONT_SIZE + 4.0), "AHEAD  m")
-	# Where straight down lies: a tick mark on each ring it crosses.
+	var down := _scope_down(vessel, place)
+	if down == Vector2.ZERO:
+		return
+	var reach := (_scope.x - tick_m * 0.5) * scale
+	canvas.draw_line(vessel, vessel + down * reach, StationTheme.LEGEND_COLOUR, 1.0)
+	var square := Vector2(-down.y, down.x)
+	for tick in range(1, floori(reach / (tick_m * scale)) + 1):
+		canvas.draw_line(vessel + down * tick * tick_m * scale - square * 5.0,
+				vessel + down * tick * tick_m * scale + square * 5.0, StationTheme.LEGEND_COLOUR, 1.5)
+
+
+## Which way straight down lies on the forward scope from the vessel's
+## marker, a unit on the screen, or nothing.
+static func _scope_down(vessel: Vector2, place: Callable) -> Vector2:
 	var down: Vector2 = (place.call(Vector3.DOWN) as Vector2) - vessel
-	if down.length() > 0.0:
-		down = down.normalized()
-		var reach := (_scope.x - tick_m * 0.5) * scale
-		canvas.draw_line(vessel, vessel + down * reach, StationTheme.LEGEND_COLOUR, 1.0)
-		var square := Vector2(-down.y, down.x)
-		for tick in range(1, floori(reach / (tick_m * scale)) + 1):
-			canvas.draw_line(vessel + down * tick * tick_m * scale - square * 5.0,
-					vessel + down * tick * tick_m * scale + square * 5.0, StationTheme.LEGEND_COLOUR, 1.5)
-		var label_at := vessel + down * reach + Vector2(-66.0, 6.0)
-		label_at.x = clampf(label_at.x, 6.0, canvas.size.x - 64.0)
-		label_at.y = clampf(label_at.y, 2.0 * FONT_SIZE + 6.0, canvas.size.y - 6.0)
-		_label(canvas, label_at, "DOWN")
+	return down.normalized() if down.length() > 0.0 else Vector2.ZERO
+
+
+## The forward scope's numbers: each second ring's range, beside the vessel's
+## row (under it, else over it), and DOWN at the plumb line's end.
+func _scope_scale_labels(labels: ScanLabels, vessel: Vector2, scale: float, place: Callable, area: Vector2) -> void:
+	var legend := StationTheme.LEGEND_COLOUR
+	var tick_m := _scope.y
+	var down := _scope_down(vessel, place)
+	if down != Vector2.ZERO:
+		var end := vessel + down * (_scope.x - tick_m * 0.5) * scale
+		var wide := labels.width("DOWN")
+		labels.place("DOWN", [end + Vector2(-wide - 8.0, 6.0), end + Vector2(8.0, 6.0),
+				end + Vector2(-wide - 8.0, -6.0), end + Vector2(8.0, FONT_SIZE)], legend)
+	# Every second ring's range, or every fourth (eighth...) where they would
+	# crowd, so the numbers stay apart enough to read.
+	var every := 2
+	while every * tick_m * scale < labels.width("%d" % roundi(_scope.x)) + 3.0 * FONT_SIZE / 2.0:
+		every *= 2
+	for ring in range(every, ceili(area.length() / (tick_m * scale)), every):
+		var x := vessel.x + ring * tick_m * scale
+		if x >= area.x:
+			break
+		var text := "%d" % roundi(ring * tick_m)
+		var left := x - labels.width(text) - 4.0
+		labels.place(text, [Vector2(left, vessel.y + FONT_SIZE), Vector2(left, vessel.y - 6.0),
+				Vector2(left, vessel.y - 8.0 - FONT_SIZE)], legend)
 
 
 ## The pair's grid: a line every TICK_M ahead and behind the Head, the same
 ## in the plan and the section so the eye carries between them; in the
-## section a line at every TICK_M of depth with its depth, and the surface.
+## section a line at every TICK_M of depth, and the surface. Their words:
+## _section_scale_labels().
 func _draw_grid(canvas: Control, vessel: Vector2, scale: float, section: bool) -> void:
 	var faint := StationTheme.RULE_COLOUR
 	var steps := ceili(canvas.size.x / (TICK_M * scale)) + 1
@@ -734,25 +906,41 @@ func _draw_grid(canvas: Control, vessel: Vector2, scale: float, section: bool) -
 	if not section:
 		canvas.draw_line(Vector2(0.0, vessel.y), Vector2(canvas.size.x, vessel.y), faint, 1.0)
 		return
+	for line: Vector2 in _depth_lines(vessel, scale, canvas.size):
+		if line.x == 0.0:
+			canvas.draw_rect(Rect2(0.0, 0.0, canvas.size.x, line.y), StationTheme.SURFACEWARD_COLOUR)
+			canvas.draw_line(Vector2(0.0, line.y), Vector2(canvas.size.x, line.y), StationTheme.LEGEND_COLOUR, 2.0)
+		else:
+			canvas.draw_line(Vector2(0.0, line.y), Vector2(canvas.size.x, line.y), faint, 1.0)
+
+
+## The section's depth lines in a pane this big: each Vector2(its depth,
+## metres, where it is down the pane), every TICK_M from the surface.
+func _depth_lines(vessel: Vector2, scale: float, area: Vector2) -> Array[Vector2]:
 	var depth := -sim.head_position().y
 	var first := floori((depth - vessel.y / scale) / TICK_M)
-	for line in range(maxi(first, 0), first + ceili(canvas.size.y / (TICK_M * scale)) + 2):
-		var line_depth := line * TICK_M
-		var y := vessel.y + (line_depth - depth) * scale
-		if line == 0:
-			canvas.draw_rect(Rect2(0.0, 0.0, canvas.size.x, y), StationTheme.SURFACEWARD_COLOUR)
-			canvas.draw_line(Vector2(0.0, y), Vector2(canvas.size.x, y), StationTheme.LEGEND_COLOUR, 2.0)
-			_label(canvas, Vector2(canvas.size.x - 84.0, y - 5.0), "surface")
-			continue
-		canvas.draw_line(Vector2(0.0, y), Vector2(canvas.size.x, y), faint, 1.0)
-		if line % 2 == 0:
-			_label(canvas, Vector2(8.0, y - 4.0), "%d m" % roundi(line_depth))
+	var lines: Array[Vector2] = []
+	for line in range(maxi(first, 0), first + ceili(area.y / (TICK_M * scale)) + 2):
+		lines.append(Vector2(line * TICK_M, vessel.y + (line * TICK_M - depth) * scale))
+	return lines
+
+
+## The section's words: each second depth line's depth at the left, just
+## over it, and "surface" at the right over the surface line, else under it.
+func _section_scale_labels(labels: ScanLabels, vessel: Vector2, scale: float, area: Vector2) -> void:
+	var legend := StationTheme.LEGEND_COLOUR
+	for line: Vector2 in _depth_lines(vessel, scale, area):
+		if line.x == 0.0:
+			var right := area.x - labels.width("surface") - 6.0
+			labels.place("surface", [Vector2(right, line.y - 5.0), Vector2(right, line.y + FONT_SIZE)], legend)
+		elif roundi(line.x / TICK_M) % 2 == 0:
+			labels.place("%d m" % roundi(line.x), [Vector2(8.0, line.y - 4.0)], legend)
 
 
 ## The world-up view's marks: a level ring round the vessel with north on it
 ## (it goes round as the compass heading does), and a plumb line under the
 ## vessel with a tick every TICK_M, to read depth by and to show which way is
-## down.
+## down. Their words: _world_scale_labels().
 func _draw_world_marks(canvas: Control, place: Callable) -> void:
 	var ring := PackedVector2Array()
 	for i in 65:
@@ -761,20 +949,30 @@ func _draw_world_marks(canvas: Control, place: Callable) -> void:
 	canvas.draw_polyline(ring, StationTheme.RULE_COLOUR, 1.5)
 	var north: Vector2 = place.call(Vector3.FORWARD * WORLD_RING_M)
 	canvas.draw_line(place.call(Vector3.FORWARD * WORLD_RING_M * 0.85), north, StationTheme.LEGEND_COLOUR, 2.0)
-	_label(canvas, (place.call(Vector3.FORWARD * WORLD_RING_M * 1.15) as Vector2) + Vector2(-5.0, 7.0), "N")
 	var vessel: Vector2 = place.call(Vector3.ZERO)
 	var foot: Vector2 = place.call(Vector3.DOWN * WORLD_PLUMB_M)
 	canvas.draw_line(vessel, foot, StationTheme.LEGEND_COLOUR, 1.0)
 	for tick in range(1, floori(WORLD_PLUMB_M / TICK_M) + 1):
 		var at: Vector2 = place.call(Vector3.DOWN * tick * TICK_M)
 		canvas.draw_line(at - Vector2(6.0, 0.0), at + Vector2(6.0, 0.0), StationTheme.LEGEND_COLOUR, 1.5)
-		if tick % 2 == 0:
-			_label(canvas, at + Vector2(10.0, 6.0), "+%d m" % roundi(tick * TICK_M))
 
 
-func _label(canvas: Control, at: Vector2, text: String) -> void:
-	canvas.draw_string(ThemeDB.fallback_font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, FONT_SIZE,
-			StationTheme.LEGEND_COLOUR)
+## The world-up view's words: N beyond the ring's north tick, and each second
+## tick's depth below the vessel beside the plumb line, right of it, else
+## left.
+func _world_scale_labels(labels: ScanLabels, place: Callable) -> void:
+	var legend := StationTheme.LEGEND_COLOUR
+	# Beyond the north tick, else as near it either side as clears the vessel.
+	var north: Vector2 = place.call(Vector3.FORWARD * WORLD_RING_M * 1.15)
+	var places := []
+	for x: float in [-5.0, 4.0, -14.0, 13.0, -23.0, 22.0, -32.0]:
+		places.append(north + Vector2(x, 7.0))
+		places.append(north + Vector2(x, 18.0))
+	labels.place("N", places, legend)
+	for tick in range(2, floori(WORLD_PLUMB_M / TICK_M) + 1, 2):
+		var at: Vector2 = place.call(Vector3.DOWN * tick * TICK_M)
+		var text := "+%d m" % roundi(tick * TICK_M)
+		labels.place(text, [at + Vector2(10.0, 6.0), at + Vector2(-10.0 - labels.width(text), 6.0)], legend)
 
 
 ## The area a four-cornered outline covers on the screen, square pixels.
@@ -890,47 +1088,54 @@ func _draw_rock_beyond(canvas: Control, patch: BoundaryPatch, corners: PackedVec
 	var colour := DOUBTFUL.lerp(CERTAIN, sureness)
 	colour.a = ROCK_ALPHA * maxf(sureness, ROCK_LEAST_ALPHA)
 	var hatched := rock_hatched(beyond)
+	# Across the band: strokes slant this way, a cluster's dots spread both.
+	var across := Vector2(ROCK_DOT_PX, ROCK_DOT_PX) if end_on else shift.orthogonal().normalized() * ROCK_DOT_PX
 	var lines := PackedVector2Array()
 	for i in marks:
 		var along := (i + 0.5) / marks
 		var at: Vector2 = corners[0].lerp(corners[2], along) if i % 2 == 0 else corners[1].lerp(corners[3], along)
 		if hatched:
 			lines.append(at)
-			lines.append(at + (Vector2(ROCK_TICK_PX, -ROCK_TICK_PX) * 0.7 if end_on else shift))
+			lines.append(at + (Vector2(ROCK_TICK_PX, -ROCK_TICK_PX) * 0.7 if end_on
+					else shift + across.normalized() * shift.length() * ROCK_SLANT))
 			continue
-		# One dot a mark, by turns nearer and further into the band, so the
-		# stipple stays open where patches lie side by side.
-		var share := 0.3 if i % 2 == 0 else 0.75
-		var dot := at + (Vector2(ROCK_TICK_PX, ROCK_TICK_PX) * share if end_on else shift * share)
-		lines.append(dot)
-		lines.append(dot + Vector2(ROCK_DOT_PX, 0.0))
+		# A cluster of dots a mark, spread through the band and either side,
+		# so the stipple carries as much ink as a stroke and stays open where
+		# patches lie side by side.
+		for d in ROCK_CLUSTER:
+			# Staggered mark by mark, so the dots never line up into rows.
+			var share := (d + (0.25 if i % 2 == 0 else 0.75)) / ROCK_CLUSTER
+			var side := across * (1.0 if (i + d) % 2 == 0 else -1.0)
+			var dot := at + (Vector2(ROCK_TICK_PX * share, 0.0) + side * 0.5 if end_on else shift * share + side)
+			lines.append(dot)
+			lines.append(dot + Vector2(ROCK_DOT_PX, 0.0))
 	canvas.draw_multiline(lines, colour, 1.5 if hatched else ROCK_DOT_PX)
 
 
 ## Surface control's names for the rocks it expects, each at the right of
 ## the pane at the depth it surveyed (straight under or over the Head), just
-## into the rock below, on a backdrop so the points never hide it: the
-## legend's grey while a guess, white once the Column has shown it
-## (expected_label()). Not in the plan, which shows no depth (`band` is
-## nothing there).
-func _draw_expected(canvas: Control, place: Callable, band: Vector2) -> void:
+## into the rock below, or as little further into it as clears the pane's
+## words already placed (EXPECTED_SHIFTS lines at most): the legend's grey
+## while a guess, white once the Column has shown it (expected_label()),
+## shortened in a narrow pane. Not in the plan, which shows no depth.
+func _expected_labels(labels: ScanLabels, place: Callable, area: Vector2) -> void:
+	var band := _rock_band(place)
 	if band == Vector2.ZERO:
 		return
+	var into := band.normalized()
+	var step := signf(into.y) if into.y != 0.0 else 1.0
 	var head := sim.head_position()
-	var font := ThemeDB.fallback_font
 	for expected in sim.expected_rocks():
 		var at: Vector2 = place.call(Vector3(0.0, -expected.depth - head.y, 0.0))
 		# Just into the rock below the Boundary, whichever way down goes.
-		var line := at + band.normalized() * (FONT_SIZE * 0.5 + 4.0)
-		if line.y < FONT_SIZE or line.y > canvas.size.y - 4.0:
-			continue
+		var line := at + into * (FONT_SIZE * 0.5 + 4.0)
 		var text := expected_label(expected)
-		var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, FONT_SIZE).x
-		if width > canvas.size.x * 0.6:
+		if labels.width(text) > area.x * 0.6:
 			text = expected_label(expected, true)
-			width = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, FONT_SIZE).x
-		var corner := Vector2(maxf(2.0, canvas.size.x - width - 8.0), line.y - FONT_SIZE * 0.5 - 2.0)
-		canvas.draw_rect(Rect2(corner, Vector2(width + 6.0, FONT_SIZE + 4.0)),
-				StationTheme.faded(StationTheme.SCREEN_COLOUR, EXPECTED_BACKDROP_ALPHA))
-		canvas.draw_string(font, corner + Vector2(3.0, FONT_SIZE), text, HORIZONTAL_ALIGNMENT_LEFT, -1.0,
-				FONT_SIZE, CERTAIN if expected.confirmed else DOUBTFUL)
+		var left := maxf(2.0, area.x - labels.width(text) - 5.0)
+		# At the right, else at the left; only then back over the Boundary.
+		var places := []
+		for shift: int in range(EXPECTED_SHIFTS + 1) + range(-1, -EXPECTED_SHIFTS - 1, -1):
+			for x: float in [left, 8.0]:
+				places.append(Vector2(x, line.y + FONT_SIZE * 0.5 - 2.0 + step * shift * FONT_SIZE))
+		labels.place(text, places, CERTAIN if expected.confirmed else DOUBTFUL)

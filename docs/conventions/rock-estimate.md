@@ -27,8 +27,8 @@ The scan never names a rock: no point or patch carries a name.
 A view writes a name only from it, marked as a guess until confirmed (`ScanDisplay.expected_label()`), and `scan_display_test.gd` keeps every other way to a name out of the display's source.
 
 **How it is drawn and said.**
-Every candidate view draws, for each patch, a band `ROCK_BAND_PX` deep on the screen on the far side from the Head (`_draw_rock_beyond()`, called from the patch loop of `_draw_scan()`).
-It has strokes through it for harder rock and dots for softer, as a geological section draws hard rock and sand, more of them the stronger the contrast (`rock_degree()`, `rock_marks()`), none for much the same.
+Every candidate view draws, for each patch, a band `ROCK_BAND_PX` deep on the screen on the far side from the Head (`_draw_rock_beyond()`, called from `_draw_scan()` after the points, which would hide its dots).
+It has strokes through it for harder rock and dots for softer, as a geological section draws hard rock and sand (#151: each stroke slanting across the band, each mark of dots a cluster of `ROCK_CLUSTER`, so the two carry like ink and read apart on a small screen), more of them the stronger the contrast (`rock_degree()`, `rock_marks()`), none for much the same.
 It is drawn in the points' colours, white as the patch is sure and the legend's grey as it is a guess, faded with age, so it stays inside the colour language and never reads as a caution; seen end-on (the plan) a stroke is a short slant, so it still differs from a dot.
-Surface control's names are written at the right of the pane, just into the rock below the Boundary at its surveyed depth, on a backdrop (`_draw_expected()`), shortened to "GRANITE?" where the pane is narrow; the plan shows none, having no depth.
+Surface control's names are written at the right of the pane, just into the rock below the Boundary at its surveyed depth, on a backdrop (`_expected_labels()`, moved a line or two further into the rock, or to the left, to clear a word already there), shortened to "GRANITE?" where the pane is narrow; the plan shows none, having no depth.
 Navigation's sixth status line is `ScanDisplay.rock_label()`: "Beyond: MUCH HARDER, DENSER  71% sure", in the words the bands use (`rock_words()`).

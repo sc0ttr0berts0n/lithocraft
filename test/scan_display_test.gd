@@ -467,3 +467,95 @@ func test_a_target_s_region_is_drawn_in_every_view_round_its_middle_and_smaller_
 		assert_float(_area(ScanDisplay.region_outline(narrow, head, place, 1.0))).is_less(_area(outline))
 		# Its inner shares lie inside its rim, so the fill builds toward the middle.
 		assert_float(_area(ScanDisplay.region_outline(wide, head, place, 0.5))).is_less(_area(outline))
+
+
+# --- The words on the display (#151) ----------------------------------------
+
+## The crowded states the words must keep clear in, each a simulation: a
+## dive with its pulses in; mid-turn; the narrow Beam aimed with a Sweep
+## running; the First dive above the granite surface control expects; and
+## the Prospecting drill's target, before and after a pulse.
+func _crowded() -> Array[DiveSimulation]:
+	var diving := _diving()
+	_pulse(diving)
+	_pulse(diving)
+	var turning := _mid_turn()
+	_pulse(turning)
+	var aimed := _diving()
+	aimed.set_beam_width(&"narrow")
+	aimed.set_beam_aim(45.0, 30.0)
+	_pulse(aimed)
+	aimed.set_sweep_range(DiveSimulation.SWEEP_RANGES[0])
+	aimed.start_sweep()
+	DiveTestKit.run(aimed, aimed.sweep_duration() * 0.4, 0.5)
+	assert_bool(aimed.sweep_running()).is_true()
+	var expecting := Scenario.first_dive().start()
+	expecting.start_below(400.0)
+	var target := Scenario.prospecting_drill().start()
+	target.read_orders()
+	var prospected := Scenario.prospecting_drill().start()
+	prospected.read_orders()
+	_pulse(prospected)
+	return [diving, turning, aimed, expecting, target, prospected]
+
+
+## Every word laid out on a display this big reading `sim`, in each view:
+## [view, ScanDisplay.label_boxes()] for each.
+func _laid_out_in_every_view(sim: DiveSimulation, px: Vector2i) -> Array:
+	var display: ScanDisplay = auto_free(ScanDisplay.new())
+	display.size = px
+	display.sim = sim
+	add_child(display)
+	var laid := []
+	for view in sim.scan_views():
+		while sim.scan_view() != view:
+			sim.debug_next_scan_view()
+		display._process(0.0)
+		laid.append([view, display.label_boxes()])
+	while sim.scan_view() != sim.scan_views()[0]:
+		sim.debug_next_scan_view()
+	remove_child(display)
+	return laid
+
+
+func test_no_word_on_the_scan_display_overlaps_another_a_marker_or_the_scan_in_any_view() -> void:
+	# At the game's own size and in a narrow pane, every label lies wholly on
+	# the display, clear of every other label (the scales' numbers and the
+	# titles among them) and of the vessel's and the aim's marks; the tools'
+	# labels lie off every pane, so never over the scan; and each view keeps
+	# its titles, the caption and both tools' labels.
+	var game: Vector2i = (load("res://view/habitat.gd") as GDScript).call(&"_navigation_display_px")
+	var titles := {
+		DiveSimulation.SCAN_VIEW_FORWARD_SCOPE: ["AHEAD  m"],
+		DiveSimulation.SCAN_VIEW_PLAN_AND_SECTION: ["PLAN", "SECTION"],
+		DiveSimulation.SCAN_VIEW_WORLD_UP: ["N"],
+	}
+	for sim in _crowded():
+		for px: Vector2i in [game, Vector2i(int(game.x * 0.6), game.y)]:
+			for shown: Array in _laid_out_in_every_view(sim, px):
+				var laid: Dictionary = shown[1]
+				var words: Array = laid.labels
+				var texts := words.map(func(word: Array) -> String: return word[0])
+				var where := "%s at %s" % [shown[0], px]
+				assert_int(laid.tools.size()).override_failure_message("tools' labels in %s" % where).is_equal(2)
+				assert_array(texts).override_failure_message("titles in %s: %s" % [where, texts]) \
+						.contains(titles[shown[0]])
+				# The scope never loses its range: a ring's number stays.
+				if shown[0] == DiveSimulation.SCAN_VIEW_FORWARD_SCOPE:
+					assert_bool(texts.any(func(text: String) -> bool: return text.is_valid_int())) \
+							.override_failure_message("no range on the scope in %s: %s" % [where, texts]).is_true()
+				for i in words.size():
+					var box: Rect2 = words[i][1]
+					assert_bool(Rect2(Vector2.ZERO, Vector2(px)).encloses(box)) \
+							.override_failure_message("%s off the display in %s" % [words[i][0], where]).is_true()
+					for j in range(i + 1, words.size()):
+						assert_bool(box.intersects(words[j][1])) \
+								.override_failure_message("%s overlaps %s in %s" % [words[i][0], words[j][0], where]) \
+								.is_false()
+					for marker: Rect2 in laid.markers:
+						assert_bool(box.intersects(marker)) \
+								.override_failure_message("%s over a marker in %s" % [words[i][0], where]).is_false()
+				for tool: Rect2 in laid.tools:
+					for pane: Rect2 in laid.panes:
+						assert_bool(tool.intersects(pane)) \
+								.override_failure_message("a tool's label over the scan in %s" % where).is_false()
