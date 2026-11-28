@@ -41,3 +41,14 @@ Beam pulsing by itself, under way: --look Navigation --time 60 --do "0 set_power
 forward scope, survey beside own: --look Navigation --time 40 --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
 plan and section, survey beside own: --look Navigation --time 40 --do "0 debug_next_scan_view" --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
 world-up 3D, survey beside own: --look Navigation --time 40 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
+
+# The Glide (#123), as in drive.txt: plotted at 300 m, a broad cyan bar down the Course from the vessel to
+# a bar across its end, and the Glide line "Glide 300 m plotted of ... m shown  [-/=]" in cyan.
+Glide plotted: --look Navigation --time 3 --do "1 plot_glide 300"
+
+# Started at 1 s: the bar green from the vessel to the Glide's end, the line "GLIDING  ... m left" in green,
+# Navigation still powered (the jet takes all but the base loads) and no new points.
+gliding, range left: --look Navigation --time 3 --do "1 plot_glide 300" --do "1 start_glide"
+
+# Over at 150 m by 6 s: no bar; the Glide line back to "none plotted, scan shows ... m".
+out at idle: --look Navigation --time 8 --do "1 plot_glide 150" --do "1 start_glide"

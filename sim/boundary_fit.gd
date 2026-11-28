@@ -89,6 +89,21 @@ static func ahead(patches: Array[BoundaryPatch], origin: Vector3, direction: Vec
 	return Vector2(metres / weight, confidence)
 
 
+## How far along the line from `origin` along `direction` (a unit vector) the
+## scan has shown the rock, from these patches alone: metres to the furthest
+## Inferred Boundary the line meets ahead, each surface found in turn by
+## ahead() and passed; 0 when it meets none. An echo from that far means the
+## rock on the way to it was sounded; beyond it nothing is shown. Its cost is
+## ahead()'s once for each surface along the line.
+static func furthest(patches: Array[BoundaryPatch], origin: Vector3, direction: Vector3) -> float:
+	var reached := 0.0
+	var found := ahead(patches, origin, direction)
+	while not is_inf(found.x):
+		reached = maxf(reached, found.x)
+		found = ahead(patches, origin, direction, found.x + _AHEAD_SAME_M)
+	return reached
+
+
 ## The patches the points imply, in no order. No points, no patches.
 static func fit(points: Array[ScanPoint]) -> Array[BoundaryPatch]:
 	var cells := {}

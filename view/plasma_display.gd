@@ -101,8 +101,11 @@ static func wave_text(frequency: float, amplitude: float) -> String:
 	return "%.2f Hz x%.2f" % [frequency, amplitude]
 
 
-## ACTIVE's Residual at its fullest, over its plot.
+## ACTIVE's Residual at its fullest, over its plot; none while no Wobble
+## reaches the plasma (a Glide, and the idle after it: NAN).
 static func residual_text(residual: float) -> String:
+	if is_nan(residual):
+		return "RESIDUAL —"
 	return "RESIDUAL %.2f" % residual
 
 
@@ -131,6 +134,8 @@ static func sure_text(frequency: float, confidence: float) -> String:
 ## scan: with no scan (NAN) there is none, and while the scan's spurious
 ## sines could take it outside the Band it is not called inside.
 static func verdict(residual: float, band: float, spurious: float, predicted: bool) -> Array:
+	if not predicted and is_nan(residual):
+		return ["NO WOBBLE ON THE PLASMA", StationTheme.LEGEND]
 	if not predicted:
 		return ["RESIDUAL OUT OF THE BAND", StationTheme.CAUTION] if residual > band \
 				else ["RESIDUAL INSIDE THE BAND", StationTheme.NOW]

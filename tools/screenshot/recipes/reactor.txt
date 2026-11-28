@@ -27,3 +27,11 @@ wrong frequency: --look Reactor --time 20 --do "0 set_power 0.5" --do "14 select
 
 # ACTIVE tuned off the Wobble in amplitude alone: the Residual is a wave of one size.
 wrong amplitude: --look Reactor --time 20 --do "0 set_power 0.5" --do "14 select_channel active" --do "14 tune_amplitude 0.8"
+
+# The Glide (#123), on the First dive from the surface: started at 1 s, 2 s in. No Wobble on the plasma:
+# ACTIVE's lane a flat Wobble and no Residual; the first line "Head GLIDE: no Wobble"; Drv far past full.
+gliding: --look Reactor --time 3 --do "1 plot_glide 300" --do "1 start_glide"
+
+# A Glide of 150 m, over by 6 s, the Head at idle: "Head AT IDLE: tune STANDBY here, [R] spins up"; STANDBY's
+# lane reads against the rock round the vessel.
+out at idle: --look Reactor --time 8 --do "1 plot_glide 150" --do "1 start_glide"

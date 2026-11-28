@@ -8,8 +8,8 @@
 ##                   Each a Dictionary with a `type` StringName plus fields.
 ## Heat (Heat), the plasma and its Counter-wave (Plasma), stranding (Stranding),
 ## the look-ahead (LookAhead), the turning rule and the projected path
-## (ProjectedPath), the ring of Stations' slide (RingSlide) and Navigation's
-## Beam (Beam) are its own
+## (ProjectedPath), the ring of Stations' slide (RingSlide), Navigation's
+## Beam (Beam) and the Glide (Glide) are its own
 ## subsystems, reached only through this interface; see
 ## docs/conventions/simulation-interface.md, "Subsystems".
 class_name DiveSimulation
@@ -217,7 +217,7 @@ const _EMERGENCY_CALL_URGENCY := 1.0
 const _CALL_SOUNDS_AGAIN_RISE := 0.25
 ## The calls that only report: they never touch the time rate (every other
 ## call is a warning, the vessel at risk). Science does not stop the clock.
-const _REPORTS := [&"feature_in_column"]
+const _REPORTS := [&"feature_in_column", &"glide_ending", &"head_at_idle"]
 ## Seconds before the crossing, by the Boundary countdown, at which the
 ## Boundary call begins while STANDBY is inside the Band against the scan's
 ## guess: a crew already tuned needs only this long. The developer's "30
@@ -255,6 +255,22 @@ const BEAM_WIDE := Beam.WIDE
 const BEAM_MIDDLE := Beam.MIDDLE
 const BEAM_NARROW := Beam.NARROW
 const BEAM_WIDTHS: Array[StringName] = Beam.WIDTHS
+## What the Glide is doing (glide_state()): none (the Crawl), gliding
+## (spinning up or at speed), dropping out (the jet dying) and idle (halted
+## after a Glide, the Head at idle until a Shift spins it up).
+const GLIDE_NONE := Glide.NONE
+const GLIDE_GLIDING := Glide.GLIDING
+const GLIDE_DROPPING_OUT := Glide.DROPPING_OUT
+const GLIDE_IDLE := Glide.IDLE
+## How the Drive's report of a Glide ending (&"glide_ending") and the
+## Reactor's report of the Head waiting at idle after one (&"head_at_idle")
+## are made, 0 to 1, as the other calls (_HEAT_WARNING_CALL ...): neither puts
+## the vessel at risk, so both only report. Tuned for play (ADR 0001).
+const _GLIDE_ENDING_CALL := Vector2(0.2, 0.4)
+const _HEAD_AT_IDLE_CALL := Vector2(0.2, 0.2)
+## Metres off its line, across it, the Head may have moved before the Glide's
+## reach along the Course is worked out afresh (glide_reach()). Not tuned.
+const _REACH_OFF_LINE_M := 1.0
 ## Debug commands (see "Debug commands" below). The hull's wear at the brink
 ## of failure, all but worn through. Not tuned for play: a debug setting.
 const _DEBUG_BRINK_WEAR := 0.98
@@ -405,6 +421,15 @@ var _pulse_by_itself := false
 ## Navigation's Beam: its width, its switch and the ground since its last pulse.
 var _beam := Beam.new()
 var _pulses_sent := 0
+## The Glide (sim/glide.gd): the one plotted, the one running, and where
+## every Glide of this dive ran.
+var _glide := Glide.new()
+## The Glide's reach as last worked out (glide_reach()): from where, along
+## which way, against which fit of the scan, and how far.
+var _reach_from := Vector3.ZERO
+var _reach_along := Vector3.ZERO
+var _reach_patches: Array[BoundaryPatch] = []
+var _reach_m := -1.0
 ## The Boundaries inferred from the cloud (BoundaryFit), and the pulses_sent()
 ## they were fitted at: refitted only when a pulse has changed the cloud and
 ## someone asks.
@@ -508,7 +533,8 @@ func set_power(power: float) -> void:
 ## the Head straight down (diving), 0 level, -90 straight up (climbing). The
 ## vessel turns toward it along an arc no tighter than minimum_turn_radius(),
 ## and only while it moves. Heading has no effect while the pitch is straight
-## up or down.
+## up or down. A Glide plotted along the old Course is given up; a Glide
+## running holds its own line, and the vessel turns only once it has ended.
 func set_course(heading_degrees: float, pitch_degrees: float) -> void:
 	if _off_the_crew():
 		return
@@ -516,6 +542,7 @@ func set_course(heading_degrees: float, pitch_degrees: float) -> void:
 	_lean = lean()
 	_course_heading = fposmod(heading_degrees, 360.0)
 	_course_pitch = clampf(pitch_degrees, -90.0, 90.0)
+	_glide.plot(0.0, 0.0)  # A Glide plotted along the old Course is given up.
 	_settle_override()
 	_events.append({type = &"course_plotted", heading = _course_heading, pitch = _course_pitch})
 
@@ -585,6 +612,43 @@ func end_override() -> void:
 	_disengage_on_command(STATION_DRIVE)
 	_lean = lean()
 	_overriding = false
+
+
+## Drive: starts the Glide Navigation plotted (plot_glide()), on the next
+## step: the jet builds over a few seconds and the vessel runs dead straight
+## along the way the Head points for the plotted length, or as far as the
+## scan shows from here if that is less. Refused (glide_refusal() says why)
+## unless a Glide is plotted, the plasma lit, Quiet Ship off and the vessel
+## straight on the Course (not turning toward it, nor nudged off it); from
+## the idle a Glide ends in it needs no tuning. The crew taking the Drive's
+## controls: it disengages the Drive's autopilot. Raises &"glide_started".
+func start_glide() -> void:
+	if _off_the_crew() or not glide_refusal().is_empty():
+		return
+	_disengage_on_command(STATION_DRIVE)
+	# The Column is melted from here on: what was being recorded closes as a
+	# stretch of its own, and the Bore Station's observing ends.
+	var part := _distance - _stretch_start
+	if part > 0.0:
+		_close_stretch(part)
+	_observed = -1
+	_glide.spin_up()
+	_glide.start(_position, _direction, _glide_reach_along(_direction), _distance)
+	_steering = 0.0
+	_announced_boundary = NAN  # No Shift is due in a Glide: nothing to announce.
+	_announced_index = -1
+	_events.append({type = &"glide_started", length = _glide.length(), distance = _distance})
+
+
+## Drive: drops out of the running Glide: the jet dies over a couple of
+## seconds and the vessel halts short of the plotted end, the Head at idle,
+## as at the end. Ignored with no Glide running. A command: it disengages the
+## Drive's autopilot.
+func drop_out_of_glide() -> void:
+	if _off_the_crew() or _glide.state() != GLIDE_GLIDING:
+		return
+	_disengage_on_command(STATION_DRIVE)
+	_glide.drop_out()
 
 
 ## Bore Station: which feature in the Column to observe and record, by id
@@ -663,12 +727,29 @@ func set_beam_pulsing(on: bool) -> void:
 ## Navigation: Quiet Ship on or off. On, the Head spins down to idle and the
 ## vessel halts whatever the Drive asks, so a pulse is not drowned by the
 ## vessel's own noise; the Bore instruments are shuttered while it lasts. Off,
-## the Head spins back up and the Drive's power setting applies again.
+## the Head spins back up and the Drive's power setting applies again. In a
+## Glide, Quiet Ship drops out of it (drop_out_of_glide()), and the idle the
+## Glide ends in is held by Quiet Ship once a Shift ends it.
 func set_quiet_ship(on: bool) -> void:
 	if _off_the_crew():
 		return
 	_disengage_on_command(STATION_NAVIGATION)
 	_quiet_ship = on
+	if on:
+		_glide.drop_out()
+
+
+## Navigation: plots a Glide of `metres` along the Course from where the Head
+## is, held to glide_reach(), the most the scan has shown along it (0 clears
+## the plot). The Drive starts it (start_glide()); plotting a new Course gives
+## it up. Ignored while a Glide runs. A setting: it disengages Navigation's
+## autopilot. Raises &"glide_plotted".
+func plot_glide(metres: float) -> void:
+	if _off_the_crew() or _glide.active():
+		return
+	_disengage_on_command(STATION_NAVIGATION)
+	_glide.plot(metres, glide_reach())
+	_events.append({type = &"glide_plotted", length = _glide.plotted()})
 
 
 ## Whether a crew member is at this Station (one of STATIONS) to work it.
@@ -938,11 +1019,16 @@ func tune_amplitude(amplitude: float) -> void:
 ## so a second Shift swaps back. The swap itself costs nothing: what tells is
 ## the Residual the new ACTIVE leaves of the Wobble from then on, so a swap
 ## made early, still in the old Medium, puts the Residual outside the Band
-## until the Boundary. Raises &"shift_result".
+## until the Boundary. Raises &"shift_result". In a Glide no Shift is due (no
+## Wobble reaches the plasma) and it is ignored. At the idle a Glide ends in
+## it also spins the Head up: the Wobble of the rock round the vessel reaches
+## the plasma again, read against the new ACTIVE, and the Crawl can begin
+## (Quiet Ship, if set, still holds the Head at idle).
 func shift() -> void:
-	if _off_the_crew():
+	if _off_the_crew() or _glide.active():
 		return
 	_disengage_on_command(STATION_REACTOR)
+	_glide.spin_up()
 	_plasma.ask_shift()
 
 
@@ -1023,7 +1109,8 @@ func _off_the_crew() -> bool:
 # debug_* and returns why it could not act, or &"" when it did, so the menu
 # can say so: &"dive_over" once the dive is over (surfaced() or dead(), for
 # every one of them), &"plasma_lost", &"stranded", &"tail_at_surface",
-# &"self_destructing", &"store_empty", &"level", &"no_boundary_ahead". One
+# &"self_destructing", &"store_empty", &"level", &"no_boundary_ahead",
+# &"gliding". One
 # is a setting of the view, not of the dive: debug_next_scan_view(). See
 # docs/conventions/debug-commands.md.
 
@@ -1162,12 +1249,15 @@ func debug_detune() -> StringName:
 ## in no time: the Column it passed is recorded, its features found, the
 ## tunnel behind made (and sealed in dense rock), the Boundary crossed (the
 ## Wobble changes), but no heat is made and no survey goes up the link.
-## Refused while stranded, travelling level, or with no Boundary ahead.
+## Refused while stranded, gliding, travelling level, or with no Boundary
+## ahead.
 func debug_next_boundary() -> StringName:
 	if _debug_dive_over():
 		return &"dive_over"
 	if stranded():
 		return &"stranded"
+	if _glide.active():
+		return &"gliding"
 	var down := -_direction.y
 	if absf(down) < _DEBUG_LEAST_DESCENT:
 		return &"level"
@@ -1251,11 +1341,44 @@ func _step(dt: float) -> void:
 	_relight_asked = false  # Only a lost plasma can be relit.
 	if _self_destructing:
 		_mismanage()
-	_head_activity = move_toward(_head_activity, 0.0 if _quiet_ship else 1.0,
-			_HEAD_SPIN_RATE * dt)
-	_plasma.tend(dt, _wobble(), autopilot(STATION_REACTOR) or _self_destructing,
-			_heat.hull_heat_share(surroundings_temperature()), _events, depth(), _distance)
+	var head_target := 0.0 if (_quiet_ship or _glide.idle()) and not _glide.active() else 1.0
+	_head_activity = move_toward(_head_activity, head_target, _HEAD_SPIN_RATE * dt)
+	if _wobble_on_plasma():
+		_plasma.tend(dt, _wobble(), autopilot(STATION_REACTOR) or _self_destructing,
+				_heat.hull_heat_share(surroundings_temperature()), _events, depth(), _distance)
+	else:
+		_plasma.tend_off_rock(dt, _heat.hull_heat_share(surroundings_temperature()))
 	_share_power()
+	var depth_before := depth()
+	if _glide.active():
+		_glide_on(dt)
+	else:
+		_crawl(dt)
+	_upload(link_rate() * dt)
+	# A hull that fails on the step the Head surfaces is death all the same
+	# (_check_stranded() below), not a surfacing.
+	if depth_before > 0.0 and depth() <= 0.0 and not _heat.failed():
+		_surface()
+		return
+	# The Beam pulses by itself over new ground, but not in a Glide: its jet
+	# drowns every echo.
+	if not _glide.active() and _beam.covered(_speed * dt) and not _pulse_pending:
+		_pulse_pending = true
+		_pulse_by_itself = true
+	if _pulse_pending:
+		_pulse_pending = false
+		_send_pulse()
+		_look_ahead()
+	_steady_autopilots(dt)
+	_check_stranded()
+	if _surfaced or dead():
+		return  # Brought home through the open tunnel, or the hull failed.
+	_update_calls()
+
+
+## One step of the Crawl: the Drive's power pushes through the grip waves,
+## heat and noise follow, and the Head moves along its arc.
+func _crawl(dt: float) -> void:
 	# Steering heats one side of the Head harder; that share of the Drive's
 	# draw goes into heat, not into pushing.
 	var power := _drive_draw / (1.0 + _STEER_HEAT * _steering)
@@ -1275,28 +1398,75 @@ func _step(dt: float) -> void:
 	_hull_warming = (_heat.vessel_temperature() - hull_before) / dt
 	_noise = _head_activity * _HEAD_HUM + _DRIVE_NOISE * power * (1.0 + _slip)
 	var place_before := _position
-	var depth_before := depth()
 	# The Head moves along its arc, turning toward the Drive's settings.
 	_steer(_speed, dt)
 	_follow_the_head(place_before, _speed * dt, dt)
-	_upload(link_rate() * dt)
-	# A hull that fails on the step the Head surfaces is death all the same
-	# (_check_stranded() below), not a surfacing.
-	if depth_before > 0.0 and depth() <= 0.0 and not _heat.failed():
-		_surface()
-		return
-	if _beam.covered(_speed * dt) and not _pulse_pending:
-		_pulse_pending = true
-		_pulse_by_itself = true
-	if _pulse_pending:
-		_pulse_pending = false
-		_send_pulse()
-		_look_ahead()
-	_steady_autopilots(dt)
-	_check_stranded()
-	if _surfaced or dead():
-		return  # Brought home through the open tunnel, or the hull failed.
-	_update_calls()
+
+
+## One step of a Glide: the jet builds or dies, the whole of the Reactor's
+## output melts the face, the vessel runs dead straight along the Glide's line
+## no further than its end, in pieces short enough to meet every Boundary on
+## the way, and halts with the Head at idle once it is over. Nothing grips, so
+## nothing slips and nothing steers; the jet carries most of the heat away aft
+## and roars.
+func _glide_on(dt: float) -> void:
+	var power := _drive_draw
+	_speed = Glide.speed(power, _medium_here().hardness)
+	_glide.spin(dt, _glide.left(_position), _speed)
+	_slip = 0.0
+	_steering = 0.0
+	var hull_before := _heat.vessel_temperature()
+	_heat.step(power_drawn(), 0.0, 0.0, 0.0, surroundings_temperature(), depth(), dt,
+			1.0 - Glide.hull_share())
+	_hull_warming = (_heat.vessel_temperature() - hull_before) / dt
+	_noise = Glide.jet_noise() * _glide.thrust() + _HEAD_HUM
+	var travel := minf(_speed * dt, _glide.left(_position))
+	while travel > 0.0:
+		var piece := minf(Glide.piece(), travel)
+		travel -= piece
+		var before := _position
+		_position = _position + _glide.direction() * piece
+		_glided(before, piece)
+	_direction = _glide.direction()
+	_look_ahead()
+	if _glide.finished(_glide.left(_position)):
+		_end_glide()
+
+
+## What follows the vessel having glided `travelled` metres from
+## `place_before`: the Column melted, so nothing is recorded and the features
+## in it are gone unseen; the path remembered; Boundaries crossed (felt by no
+## Wobble, and with nothing announced); and the tunnel behind, as a crawled
+## one's (the Glide's own tunnel is ticket #125's: glided_stretches() marks
+## where).
+func _glided(place_before: Vector3, travelled: float) -> void:
+	for entry in _layout.features_between(-place_before.y, depth()):
+		_found_templates[entry[1]] = true  # Melted with the Column, never seen.
+	_distance += travelled
+	_stretch_start = _distance  # The survey begins again where the Glide ends.
+	_glide.moved(_distance)
+	_remember_path()
+	_watch_boundaries(place_before)
+	_update_tunnel()
+
+
+## The Glide is over: halted, the Head at idle and the plasma lit. The scan's
+## guess of the rock it entered last (or, having crossed none, the Wobble of
+## the rock it began in, which ACTIVE was cutting) is held for STANDBY, so the
+## crew tune STANDBY against the rock round the vessel and Shift to spin up.
+## Raises &"glide_ended".
+func _end_glide() -> void:
+	var by := _glide.finish(_glide.left(_position))
+	_speed = 0.0
+	_slip = 0.0
+	_head_activity = 0.0
+	_share_power()  # The idle's share, so nothing reads as starved by the jet.
+	var entered := _glide.rock_entered()
+	_look.hold(entered if entered != null else WobbleGuess.of(_wobble(), 1.0, 0))
+	_announced_boundary = NAN
+	_announced_index = -1
+	_events.append({type = &"glide_ended", by = by, distance = _distance,
+			glided = _glide.glided()})
 
 
 ## The share of this much pushing power the grip waves can put into this
@@ -1630,18 +1800,35 @@ func _wobble() -> Vector2:
 	return Plasma.wobble_in(_medium_here())
 
 
+## The Wobble the plasma feels now: the rock's (_wobble()), or nothing in a
+## Glide and at the idle it ends in (wobble_on_plasma()).
+func _felt_wobble() -> Vector2:
+	return _wobble() if _wobble_on_plasma() else Vector2.ZERO
+
+
+## False in a Glide, where the plasma touches only the melt, and at the idle a
+## Glide ends in, until the crew spin the Head up: no Wobble reaches it, so
+## nothing wears, nothing is out of the Band and ACTIVE has nothing to cancel.
+func wobble_on_plasma() -> bool:
+	return _wobble_on_plasma()
+
+
+func _wobble_on_plasma() -> bool:
+	return not (_glide.active() or _glide.idle())
+
+
 ## The frequency, in hertz, of the Wobble the Medium puts on the Head's plasma
 ## now. Harder rock loads the Head more and wobbles it faster, so crossing a
 ## Boundary changes it.
 func wobble_frequency() -> float:
-	return _wobble().x
+	return _felt_wobble().x
 
 
 ## The amplitude of the Wobble now (no unit; about 1 at its biggest). Stronger
 ## rock pushes back on the Head harder and wobbles it bigger, so crossing a
 ## Boundary changes it too.
 func wobble_amplitude() -> float:
-	return _wobble().y
+	return _felt_wobble().y
 
 
 ## The channel of the Shift dial the Reactor's controls tune: CHANNEL_STANDBY
@@ -1666,7 +1853,9 @@ func counter_wave_amplitude(channel: StringName) -> float:
 ## the scan's guess of the Wobble ahead (NAN in both parts with no scan of the
 ## Boundary ahead).
 func _wobble_for(channel: StringName) -> Vector2:
-	return _wobble() if channel == CHANNEL_ACTIVE else _look.guess().wobble
+	if channel == CHANNEL_ACTIVE:
+		return _wobble() if _wobble_on_plasma() else Vector2(NAN, NAN)
+	return _look.guess().wobble
 
 
 ## The steady part of a channel's Residual: what the difference between the
@@ -1733,7 +1922,7 @@ func settling_in() -> bool:
 ## long as it lasts. After crossing a Boundary it is so until ACTIVE's
 ## Counter-wave cancels the new Wobble (a Shift, or tuning ACTIVE).
 func out_of_band() -> bool:
-	return _plasma.out_of_band(_wobble())
+	return _wobble_on_plasma() and _plasma.out_of_band(_wobble())
 
 
 ## The causes pulling the plasma's steadiness (plasma_stability()) down now,
@@ -1743,7 +1932,9 @@ func out_of_band() -> bool:
 ## now. Empty while it is steady or lost. Each is a Caution lamp on the
 ## Reactor.
 func steadiness_causes() -> Array[StringName]:
-	return _plasma.causes(_wobble(), _heat.hull_heat_share(surroundings_temperature()))
+	# Off the rock ACTIVE cancels nothing: read against itself, never out of the Band.
+	var wobble := _wobble() if _wobble_on_plasma() else _plasma.counter_wave(CHANNEL_ACTIVE)
+	return _plasma.causes(wobble, _heat.hull_heat_share(surroundings_temperature()))
 
 
 ## The Wobble as a wave, `seconds` from now (negative: ago), for a channel's
@@ -1751,7 +1942,7 @@ func steadiness_causes() -> Array[StringName]:
 ## the scan's guess of the Wobble ahead, its true component summed with its
 ## spurious sines (those alone with no scan of the Boundary ahead).
 func wobble_wave(channel: StringName, seconds: float) -> float:
-	return _wobble_wave_at(channel, _wobble(), _look.guess(), seconds)
+	return _wobble_wave_at(channel, _felt_wobble(), _look.guess(), seconds)
 
 
 ## A channel's Counter-wave as a wave, `seconds` from now, against its Wobble
@@ -1783,9 +1974,9 @@ func residual_wave(channel: StringName, seconds: float) -> float:
 ## sines each (and the guess's spurious sines on STANDBY), however long the
 ## dive.
 func waves(channel: StringName, span_s: float, steps: int) -> Dictionary:
-	var wobble := _wobble()
+	var wobble := _felt_wobble()
 	var guess := _look.guess()
-	var against := wobble if channel == CHANNEL_ACTIVE else guess.wobble
+	var against := _wobble_for(channel)
 	var wobbles := PackedFloat64Array()
 	var counters := PackedFloat64Array()
 	var residuals := PackedFloat64Array()
@@ -2038,8 +2229,111 @@ func heading() -> Vector3:
 func projected_path() -> PackedVector3Array:
 	if _speed <= 0.0 or stranded() or _surfaced or dead():
 		return PackedVector3Array([_position])
+	if _glide.active():
+		return PackedVector3Array([_position, _glide.end()])  # Dead straight to its end.
 	return ProjectedPath.ahead(_turning(), _wanted_direction(), _effective_steering_effort(),
 			_speed_while_steering)
+
+
+# --- The Glide ------------------------------------------------------------
+
+## True while a Glide runs, from its start until it halts (spinning up, at
+## speed, or dropping out).
+func gliding() -> bool:
+	return _glide.active()
+
+
+## What the Glide is doing: GLIDE_NONE (the Crawl, or halted by other means),
+## GLIDE_GLIDING, GLIDE_DROPPING_OUT, or GLIDE_IDLE (halted after a Glide, the
+## Head at idle until a Shift spins it up).
+func glide_state() -> StringName:
+	return _glide.state()
+
+
+## The Glide Navigation has plotted and the Drive has not yet started, in
+## metres along the Course; 0 for none.
+func glide_plotted() -> float:
+	return _glide.plotted()
+
+
+## The longest Glide the scan has shown along the Course from here, metres:
+## short of the furthest Inferred Boundary the Course's line meets
+## (BoundaryFit.furthest()), held below the surface on a climb, and 0 with no
+## Boundary on the line. A better scan of the rock ahead (a narrower Beam's
+## further reach, a pulse at Quiet Ship) hears a further Boundary and allows a
+## longer Glide. From the scan alone. Worked out afresh only when the fit, the
+## Course or the Head's line change, so a view may read it every frame.
+func glide_reach() -> float:
+	return _glide_reach_along(course_direction())
+
+
+## glide_reach() along `direction` (unit length) from the Head.
+func _glide_reach_along(direction: Vector3) -> float:
+	_fit_boundaries()
+	var offset := _position - _reach_from
+	var along := offset.dot(direction)
+	var off_line := (offset - direction * along).length()
+	if _reach_m < 0.0 or not is_same(_reach_patches, _inferred) \
+			or not direction.is_equal_approx(_reach_along) or along < 0.0 \
+			or off_line > _REACH_OFF_LINE_M:
+		_reach_patches = _inferred
+		_reach_along = direction
+		_reach_from = _position
+		_reach_m = BoundaryFit.furthest(_inferred, _position, direction)
+		along = 0.0
+	var furthest := _reach_m - along if _reach_m > 0.0 else 0.0
+	return Glide.reach(furthest, depth(), direction)
+
+
+## Why start_glide() would be refused now, or &"" if it would start: &"dive_over",
+## &"stranded", &"plasma_lost", &"gliding" (one runs), &"not_plotted",
+## &"quiet_ship", &"off_the_course" (the Drive overriding, or the Head more
+## than Glide.straight_degrees() off the Course: turns are the Crawl's) or
+## &"no_range" (the scan shows nothing along the Course).
+func glide_refusal() -> StringName:
+	var off_course := _overriding \
+			or rad_to_deg(_direction.angle_to(course_direction())) > Glide.straight_degrees()
+	var refusals := [
+		[_surfaced or dead(), &"dive_over"], [stranded(), &"stranded"], [plasma_lost(), &"plasma_lost"],
+		[_glide.active(), &"gliding"], [_glide.plotted() <= 0.0, &"not_plotted"],
+		[_quiet_ship, &"quiet_ship"], [off_course, &"off_the_course"],
+	]
+	for refusal: Array in refusals:
+		if refusal[0]:
+			return refusal[1]
+	return &"no_range" if _glide_reach_along(_direction) <= 0.0 else &""
+
+
+## Metres of the running Glide left to its end; 0 with none running.
+func glide_range_left() -> float:
+	return _glide.left(_position) if _glide.active() else 0.0
+
+
+## Where the running Glide ends, in the world frame (as head_position()); the
+## Head's place with none running.
+func glide_end() -> Vector3:
+	return _glide.end() if _glide.active() else _position
+
+
+## Each Glide this dive, Vector2(path distance it began at, path distance it
+## reached), oldest first: where the Column was melted and the tunnel was cut
+## by a Glide (whose own tunnel is ticket #125's; for now it is a crawled
+## one's). A copy.
+func glided_stretches() -> PackedVector2Array:
+	return _glide.stretches()
+
+
+## True when there is no Column at `behind_head` metres behind the Head: a
+## Glide melted it, from the Column already in the Bore as it began to where
+## it reached. Every place while a Glide runs.
+func column_absent(behind_head: float) -> bool:
+	return _glide.column_gone(_distance - behind_head, _VESSEL_LENGTH_M)
+
+
+## Heat a Glide's jet carried away aft in the last step, per second: it never
+## touched the hull. 0 in the Crawl.
+func heat_carried_aft() -> float:
+	return _heat.carried_aft()
 
 
 ## The Bore Station's survey so far: one SurveyStretch per completed stretch of
@@ -2147,9 +2441,17 @@ func survey_value() -> float:
 ##       `cause` AUTOPILOT_OFF_BY_COMMAND (a crew command changed its
 ##       setting) or AUTOPILOT_OFF_BY_SWITCH (the crew switched it off).
 ##   &"course_plotted" {heading, pitch}: Navigation plotted the Course.
-##   &"pulse_sent" {quiet_ship, width, by_itself}: Navigation's Beam pulsed,
-##       under Quiet Ship or not, at its width (one of BEAM_WIDTHS), sent by
-##       hand (pulse()) or by itself (set_beam_pulsing()).
+##   &"pulse_sent" {quiet_ship, width, by_itself, drowned}: Navigation's Beam
+##       pulsed, under Quiet Ship or not, at its width (one of BEAM_WIDTHS),
+##       sent by hand (pulse()) or by itself (set_beam_pulsing()); `drowned`
+##       when sent in a Glide, whose jet drowns it, so nothing returns.
+##   &"glide_plotted" {length}: Navigation plotted a Glide (plot_glide()),
+##       `length` metres as held to glide_reach(); 0 cleared it.
+##   &"glide_started" {length, distance}: the Drive started a Glide of
+##       `length` metres at path distance `distance`.
+##   &"glide_ended" {by, distance, glided}: the Glide halted, the Head at
+##       idle, `by` &"plotted_length" or &"crew", at path distance
+##       `distance` after `glided` metres.
 ##   &"orders_read": see read_orders().
 ##   &"checklist_step", &"checklist_phase", &"goal_achieved",
 ##       &"surface_message": the Scenario's progress; see Checklist.tend().
@@ -2669,7 +2971,23 @@ func _place_at_distance(along_path: float) -> Vector3:
 ## asking more of the Drive only throttles the Drive, while Thermal or
 ## Navigation asking more takes power from the Drive, and only a Reactor short
 ## of even their needs starves them.
+##
+## In a Glide the jet takes the whole output, which builds with its thrust far
+## past the Crawl's, but for the Stations' base loads: Navigation keeps its
+## draw (its screens; the scanner is deaf in the jet all the same) and Thermal
+## its base draw and no more, there being no Column to pump heat into. Neither
+## is starved.
 func _share_power() -> void:
+	if _glide.active():
+		_reactor_output = _plasma.stability() * _glide.output(_REACTOR_FULL_OUTPUT)
+		_navigation_request = _NAVIGATION_DRAW
+		_thermal_request = _THERMAL_BASE_DRAW
+		_navigation_draw = minf(_navigation_request, _reactor_output)
+		_thermal_draw = minf(_thermal_request, _reactor_output - _navigation_draw)
+		_drive_supply = _reactor_output - _navigation_draw - _thermal_draw
+		_drive_request = _drive_supply
+		_drive_draw = _drive_supply
+		return
 	_reactor_output = _plasma.stability() * lerpf(_REACTOR_IDLE_OUTPUT,
 			_REACTOR_FULL_OUTPUT, _head_activity)
 	_navigation_request = _NAVIGATION_DRAW
@@ -2740,7 +3058,7 @@ func _find_features(depth_before: float, depth_after: float, travelled: float) -
 
 func _in_column(feature: ColumnFeature) -> bool:
 	var behind := _distance - feature.at
-	return behind >= 0.0 and behind <= _VESSEL_LENGTH_M
+	return behind >= 0.0 and behind <= _VESSEL_LENGTH_M and not column_absent(behind)
 
 
 # --- Boundaries -----------------------------------------------------------
@@ -2755,13 +3073,15 @@ func _watch_boundaries(place_before: Vector3) -> void:
 	if after != before:
 		_announced_boundary = NAN
 		_announced_index = -1
+		if _glide.active():
+			_glide.crossed(_look.guess())  # The rock it is in now, as the scan had it.
 		_look.felt_crossing(_distance)
 		_events.append({type = &"boundary_crossed", from = before.name, to = after.name,
 				depth = depth(), distance = _distance})
 		_on_boundary_crossed(before, after)
 	var down := -_direction.y
-	if is_equal_approx(depth(), -place_before.y) or absf(down) < 1e-6:
-		return
+	if _glide.active() or is_equal_approx(depth(), -place_before.y) or absf(down) < 1e-6:
+		return  # In a Glide no Shift is due, so nothing is announced.
 	var met := _layout.meets(_position, _position + _direction * _BOUNDARY_APPROACH_M / absf(down))
 	met = met.filter(func(m: Array) -> bool: return m[0] > 0.0)
 	if met.is_empty():
@@ -2787,8 +3107,8 @@ func _watch_boundaries(place_before: Vector3) -> void:
 func _look_ahead() -> void:
 	_fit_boundaries()
 	if _look.holding():
-		if out_of_band():
-			return
+		if out_of_band() or _glide.idle():
+			return  # At a Glide's idle the guess of the rock round it holds.
 		_look.settle()
 	var boundary := _boundary_ahead()
 	# The guess's errors are fixed by which Boundary it is (its mean depth),
@@ -2850,6 +3170,11 @@ func _update_calls() -> void:
 		var over := (vessel_temperature() - hull_warning_temperature()) \
 				/ (hull_damage_temperature() - hull_warning_temperature())
 		_offer_call(calls, STATION_THERMAL, &"heat_warning", _urgency(_HEAT_WARNING_CALL, over))
+	if _glide.active():
+		var seconds_left := _glide.left(_position) / maxf(_speed, 1e-6)
+		if _glide.dropping_out() or seconds_left <= Glide.ending_call_seconds():
+			_offer_call(calls, STATION_DRIVE, &"glide_ending", _urgency(_GLIDE_ENDING_CALL,
+					1.0 - seconds_left / Glide.ending_call_seconds()))
 	for starved in [[STATION_THERMAL, thermal_supplied()], [STATION_NAVIGATION, navigation_supplied()]]:
 		if starved[1] < 1.0:
 			_offer_call(calls, starved[0], &"starved", _urgency(_STARVED_CALL, 1.0 - starved[1]))
@@ -2896,7 +3221,9 @@ func _warning_sounds() -> bool:
 
 
 func _reactor_call(calls: Dictionary) -> void:
-	if stranded():
+	if _glide.idle() and not stranded():
+		_offer_call(calls, STATION_REACTOR, &"head_at_idle", _HEAD_AT_IDLE_CALL.x)
+	elif stranded():
 		_offer_call(calls, STATION_REACTOR, &"stranded", _EMERGENCY_CALL_URGENCY)
 	elif plasma_lost():
 		_offer_call(calls, STATION_REACTOR, &"plasma_lost", _EMERGENCY_CALL_URGENCY)
@@ -2946,6 +3273,9 @@ func _mismanage() -> void:
 	_power = 1.0
 	_quiet_ship = false
 	_heat_split = 0.0
+	# Out of any Glide and its idle: the Head runs hot against the rock.
+	_glide.drop_out()
+	_glide.spin_up()
 
 
 # --- Stranding -----------------------------------------------------------
@@ -2984,6 +3314,7 @@ func _check_stranded() -> void:
 ## aboard: the link can still send it, on the store, as insurance against the
 ## hull failing before the rescue arrives.
 func _strand() -> void:
+	_glide.halt()
 	_speed = 0.0
 	_slip = 0.0
 	# Thermal's pumps stop with the Head; the crew restarts them on the store.
@@ -3067,6 +3398,7 @@ func _die() -> void:
 	_death_cause = cause
 	_outcome = _ended(&"dead", cause, _stranding.stranded_for(), depth())
 	_self_destructing = false
+	_glide.halt()
 	_speed = 0.0
 	_slip = 0.0
 	_calls = {}
@@ -3147,6 +3479,7 @@ func _come_home(arrival: Dictionary, rescue_seconds := 0.0) -> void:
 ## The dive is over with the Lithocraft at the surface: it stops, no Station
 ## calls, and time runs at normal rate until new_dive().
 func _rest_at_surface() -> void:
+	_glide.halt()
 	_speed = 0.0
 	_slip = 0.0
 	_surfaced = true
@@ -3370,6 +3703,13 @@ func _medium_at_distance(along_path: float) -> Medium:
 ## echoes are often missed (sparse at range) and stray from where they came
 ## from (uncertain at range).
 func _send_pulse() -> void:
+	if _glide.active():
+		# The jet drowns every echo: the pulse is sent and nothing returns.
+		_pulses_sent += 1
+		_beam.sent()
+		_events.append({type = &"pulse_sent", quiet_ship = _quiet_ship, width = _beam.width(),
+				by_itself = _pulse_by_itself, drowned = true})
+		return
 	var origin := head_position()
 	var replaced := {}
 	for direction in _beam.rays(heading(), _scan_random):
@@ -3396,7 +3736,7 @@ func _send_pulse() -> void:
 			_unfile_point(point)
 		_points = _points.slice(over)
 	_events.append({type = &"pulse_sent", quiet_ship = _quiet_ship, width = _beam.width(),
-			by_itself = _pulse_by_itself})
+			by_itself = _pulse_by_itself, drowned = false})
 
 
 ## Adds a point to the cloud, first taking out every point an earlier pulse

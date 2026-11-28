@@ -106,6 +106,17 @@ func felt_crossing(distance: float) -> void:
 	_sighting_at = INF
 
 
+## The vessel has come to rest in rock it reached without a Wobble on the
+## plasma (a Glide): `guess` is the scan's guess of that rock, and it is held,
+## as after a crossing felt, until settle(), so STANDBY reads against the rock
+## round the vessel while the crew tune it.
+func hold(guess: WobbleGuess) -> void:
+	_holding = true
+	_guess = guess
+	_sighting = Sighting.new()
+	_sighting_at = INF
+
+
 ## True from a crossing felt until settle().
 func holding() -> bool:
 	return _holding

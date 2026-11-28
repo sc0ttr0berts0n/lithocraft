@@ -28,6 +28,7 @@ The old "Extension points" and "Subsystems" sections are spread by topic; their 
 - [conventions/survey-and-payment.md](conventions/survey-and-payment.md): Survey quality, Payment, New minerals. Read when touching the Column's record, the link, what a dive pays, the repair bill or a mineral.
 - [conventions/scan.md](conventions/scan.md): The point cloud, Drawing the scan, Inferred Boundaries, The projected path. Read when touching pulses, `points()`, the Boundary fit, the projected path, or any view that shows Boundaries or the rock ahead.
 - [conventions/scenarios-and-checklist.md](conventions/scenarios-and-checklist.md): Scenarios, Phase triggers. Read when touching a Scenario, its start state, the Orders, the Checklist's phases, steps and triggers, or surface control's messages.
+- [conventions/glide.md](conventions/glide.md): The Glide. Read when touching the Glide, or anything it meets: the step, the Wobble on the plasma, the Column in the Bore, power and heat in a Glide, or the seams left for #125 to #128.
 - [conventions/debug-commands.md](conventions/debug-commands.md): Debug commands. Read when adding or using a `debug_*` command or a debug menu key.
 
 ## The view

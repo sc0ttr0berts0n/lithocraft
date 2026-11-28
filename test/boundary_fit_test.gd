@@ -193,3 +193,21 @@ func test_the_fit_never_reads_the_layout() -> void:
 			assert_bool(source.contains(word)) \
 					.override_failure_message("%s names %s" % [path, word]) \
 					.is_false()
+
+
+func test_the_scan_shows_the_rock_as_far_as_the_furthest_boundary_on_the_line() -> void:
+	var near := _level_patch(40.0, 0.6)
+	var far := _level_patch(150.0, 0.6)
+	var aside := _level_patch(400.0, 0.9, 200.0)
+
+	var both := BoundaryFit.furthest([near, far, aside] as Array[BoundaryPatch], Vector3.ZERO,
+			Vector3.DOWN)
+	var one := BoundaryFit.furthest([near] as Array[BoundaryPatch], Vector3.ZERO, Vector3.DOWN)
+
+	assert_float(both).is_equal_approx(150.0, 1e-4)
+	assert_float(one).is_equal_approx(40.0, 1e-4)
+	assert_float(BoundaryFit.furthest([] as Array[BoundaryPatch], Vector3.ZERO, Vector3.DOWN)) \
+			.is_equal(0.0)
+	# Nothing ahead on the line, nothing shown.
+	assert_float(BoundaryFit.furthest([near, far] as Array[BoundaryPatch], Vector3.ZERO,
+			Vector3.UP)).is_equal(0.0)

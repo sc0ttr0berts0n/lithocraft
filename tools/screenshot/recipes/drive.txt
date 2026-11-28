@@ -20,3 +20,15 @@ tilted toward the lean: --look Drive --time 30 --do "0 set_power 0.5" --do "10 n
 
 # A climb as habitat.txt reaches one: from 800 m down (start_below), Course 000, 45 deg up, both autopilots that keep the Head alive on, then debug_skip through the turn: the ball mostly the surface's blue, the horizon below the middle, PITCH -45, FOLLOWS THE COURSE.
 in a climb: --look Drive --time 2402 --do "0 start_below 800" --do "0 set_power 0.6" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "0 set_course 0 -45" --do "1 debug_skip 2400"
+
+# The Glide (#123), on the First dive from the surface, which starts surveyed. A Glide of 300 m plotted at
+# Navigation at 1 s: the third status line reads "Glide 300 m plotted  [V] glide" in cyan; power as ever.
+Glide plotted: --look Drive --time 3 --do "1 plot_glide 300"
+
+# The same, started at 1 s, 2 s in: the power box reads POWER ... GLIDE, "jet x" many times the full output
+# and the metres left; the status line "GLIDE  ... m left  [V] drop out" in green; depth falling fast.
+gliding, range left: --look Drive --time 3 --do "1 plot_glide 300" --do "1 start_glide"
+
+# A Glide of 150 m, over by 6 s: halted at 150 m, speed 0, the power box back to the Crawl's (the Head at
+# idle: set and actual low), the status line "HEAD AT IDLE after the Glide: Shift at the Reactor" in amber.
+out at idle: --look Drive --time 8 --do "1 plot_glide 150" --do "1 start_glide"

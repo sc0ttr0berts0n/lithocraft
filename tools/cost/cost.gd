@@ -12,11 +12,14 @@ extends SceneTree
 ## Navigation, so the screen they watch is timed as well as those they do not,
 ## and (the hull at its worst) whether the hull is first heated until it takes
 ## damage and worn until it would fail within HULL_WORST_S, so every spark
-## emitter spits and the groans come thick.
+## emitter spits and the groans come thick, and (a Glide) whether the
+## Glide it starts is dropped out of after it, the Head spun up again with a
+## Shift and the Crawl waited for, so the next condition crawls.
 ## The Course is turned well off the way the drill dives, so the projected
 ## path is a turn under every one after the first.
 const CONDITIONS := [
 	{name = "under way, a Boundary ahead", send = []},
+	{name = "gliding", send = [[&"plot_glide", [100000.0]], [&"start_glide", []]], glide = true},
 	{name = "a slow turn", send = [[&"set_course", [90.0, 20.0]], [&"set_power", [0.3]],
 			[&"set_steering_effort", [0.1]]]},
 	{name = "steering effort at zero", send = [[&"set_steering_effort", [0.0]]]},
@@ -43,6 +46,8 @@ const WARM_UP_FRAMES := 30
 const QUERY_EVERY := 7
 ## The baseline is timed after one frame in this many.
 const BASELINE_EVERY := 10
+## The most frames waited for a Glide to halt, and for the Crawl after it.
+const GLIDE_WAIT_FRAMES := 1200
 ## The most pulses sent to fill the point cloud.
 const FILL_PULSES := 600
 
@@ -114,14 +119,9 @@ func _initialize() -> void:
 		states.append("  %-34s speed %.2f m/s, depth %.0f m, %d of %d points, %d projected path points" % [
 				condition.name, _sim.speed(), _sim.depth(), _sim.point_count(), _sim.point_capacity(),
 				_sim.projected_path().size()])
-		if _sim.plasma_lost() or _sim.dead() or _sim.surfaced() or _sim.speed() <= 0.0:
-			_fail("the dive stopped in \"%s\": nothing left to measure" % condition.name)
-			return
-		if condition.get("hull_worst", false) and HullFeel.how_severe(_sim.hull_creep_rate(), _sim.hull_integrity()) < 1.0:
-			_fail("the hull was not at its worst at the end of \"%s\": its sparks short of their fullest" % condition.name)
-			return
-		if condition.get("fill", false) and _sim.point_count() < _sim.point_capacity():
-			_fail("the point cloud never filled: %d of %d points" % [_sim.point_count(), _sim.point_capacity()])
+		var failure: String = await _condition_failure(condition)
+		if not failure.is_empty():
+			_fail(failure)
 			return
 	if _probe.twin_drift() > 1e-6:
 		_fail("the simulation timed alone came apart from the Habitat's: its step was another dive's")
@@ -147,6 +147,39 @@ func _initialize() -> void:
 
 
 ## Plays one frame of the Habitat and one of the engine's; returns its parts.
+## Why the condition just played left nothing fit to measure, or "" when it
+## did not: the dive stopped, the hull short of its worst, the cloud never
+## filled, or (a Glide) the Crawl never came back after it.
+func _condition_failure(condition: Dictionary) -> String:
+	if _sim.plasma_lost() or _sim.dead() or _sim.surfaced() or _sim.speed() <= 0.0:
+		return "the dive stopped in \"%s\": nothing left to measure" % condition.name
+	if condition.get("hull_worst", false) and HullFeel.how_severe(_sim.hull_creep_rate(), _sim.hull_integrity()) < 1.0:
+		return "the hull was not at its worst at the end of \"%s\": its sparks short of their fullest" % condition.name
+	if condition.get("fill", false) and _sim.point_count() < _sim.point_capacity():
+		return "the point cloud never filled: %d of %d points" % [_sim.point_count(), _sim.point_capacity()]
+	if condition.get("glide", false) and not await _out_of_the_glide():
+		return "the Glide never gave way to the Crawl after \"%s\"" % condition.name
+	return ""
+
+
+## Drops out of the Glide, waits for it to halt, spins the Head up with a
+## Shift (the Reactor's autopilot steadying the new ACTIVE on the rock round
+## the vessel) and waits for the Crawl: true once the vessel crawls.
+func _out_of_the_glide() -> bool:
+	_probe.send(&"drop_out_of_glide")
+	for frame in GLIDE_WAIT_FRAMES:
+		if not _sim.gliding():
+			break
+		await _frame()
+	_probe.send(&"shift")
+	_probe.send(&"set_autopilot", [DiveSimulation.STATION_REACTOR, true])
+	for frame in GLIDE_WAIT_FRAMES:
+		if _sim.speed() > 0.0:
+			return true
+		await _frame()
+	return false
+
+
 func _frame() -> Dictionary:
 	var cost: Dictionary = await _probe.frame()
 	await process_frame

@@ -1,7 +1,8 @@
 # The Drive's screen
 
 - The Drive's screen is a primary flight display (`FlightDisplay`, `view/flight_display.gd`), a picture drawn in its own `SubViewport`: the attitude ball, speed and depth tapes, heading tape, power, grip and steering, each read from the simulation's queries every frame;
-  its status lines are the Course, written as Navigation's screen writes it (`habitat.gd::_course_line()`), then whether the Drive follows it or how far off it steers (or how the dive ended).
+  its status lines are the Course, written as Navigation's screen writes it (`habitat.gd::_course_line()`), then whether the Drive follows it or how far off it steers (or how the dive ended), then the Glide (`_glide_drive_line()`: plotted, why it cannot start, the range left, dropping out, the Head at idle).
+  In a Glide the power box reads GLIDE and the jet's output as a multiple of the full output, with the metres left (`_glide_power()`).
   A tape's scale is a `FlightTape`: the reading stays at its middle, a value's place is `place(value, reading)` (the short way round on the compass), and a bug off the tape is `pinned()` to its nearer end.
 - **The attitude ball** (#119) is a sphere fixed to the world, marked in pitch and heading, seen along where the Head points, so the vessel's white mark is fixed at its middle; its geometry is `AttitudeBall` (`view/attitude_ball.gd`), plain data tested directly, places on the unit disc that `FlightDisplay` scales by `ball_radius()`.
   Its face is turned so the surface's way along the Head's own meridian is up, the Head's heading (the last one while vertical) running through the middle; straight down the rock's pole is the middle and the heading points up from it, so it has no dead spot.
