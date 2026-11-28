@@ -324,3 +324,42 @@ static func quiet_scan(sim: DiveSimulation, pulses := 3) -> void:
 ## Vector2(frequency in hertz, amplitude); NAN in both with no scan of it.
 static func wobble_ahead(sim: DiveSimulation) -> Vector2:
 	return Vector2(sim.wobble_ahead_frequency(), sim.wobble_ahead_amplitude())
+
+
+## Flies the running Glide to its end in steps of `step` and returns its
+## &"glide_ended" event (every event taken kept in `seen`). With `hand`, an
+## attended Drive holds it `off` metres off its line (Vector2(right, steeper),
+## ZERO for on it) as a careful crew would, reading only glide_off_line()
+## and glide_range_left(): each step it nudges toward the slope that rejoins
+## the line within a few tens of metres, as many nudges as the gap is wide.
+## Without, nobody touches the Drive. `last_off` gets the last
+## glide_off_line() before it ended. Gives up after `seconds`, returning {}.
+## `each` is called after every step.
+static func fly_glide(sim: DiveSimulation, hand: bool, off := Vector2.ZERO, seen: Array = [],
+		step := 0.02, last_off: Array = [], seconds := 600.0, each := Callable()) -> Dictionary:
+	if hand:
+		sim.set_attended(DiveSimulation.STATION_DRIVE, true)
+	var nudge := tan(deg_to_rad(sim.glide_nudge_degrees()))
+	var was := sim.glide_off_line()
+	var left := sim.glide_range_left()
+	for i in int(seconds / step):
+		sim.advance(step)
+		if each.is_valid():
+			each.call()
+		var events := sim.take_events()
+		seen.append_array(events)
+		for event in events:
+			if event.type == &"glide_ended":
+				return event
+		var now := sim.glide_off_line()
+		last_off.assign([now])
+		var along := left - sim.glide_range_left()
+		if hand and along > 1e-6:
+			var wanted := (off - now) / 20.0 - (now - was) / along
+			for i_nudge in clampi(roundi(absf(wanted.x) / nudge), 0, 4):
+				sim.nudge_heading(wanted.x)
+			for i_nudge in clampi(roundi(absf(wanted.y) / nudge), 0, 4):
+				sim.nudge_pitch(wanted.y)
+		was = now
+		left = sim.glide_range_left()
+	return {}

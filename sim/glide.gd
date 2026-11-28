@@ -11,10 +11,17 @@
 ## plotted length or when the crew drop out, either way halted with the Head
 ## at idle and the plasma lit, waiting for the crew to spin it up again.
 ##
+## It is flown (#126): pushed off its line by the sheath's own unsteadiness,
+## by rock harder on one side, and by being off it at all, it is held there by
+## the Drive's nudges (far finer in a Glide than in the Crawl) or loosely by its autopilot, and
+## the Head and hull wear only while it is further off than the sheath's
+## slack, faster the further off.
+##
 ## Real basis: supercavitation (a torpedo inside its own gas bubble meets
-## almost no drag); melting a metre of rock costs the same energy at any
-## speed, so many times the speed is at least as many times the power; a
-## rocket's exhaust carries most of its heat away.
+## almost no drag, is unstable in it, must be steered the whole way and is
+## damaged where it slaps the bubble's wall); melting a metre of rock costs
+## the same energy at any speed, so many times the speed is at least as many
+## times the power; a rocket's exhaust carries most of its heat away.
 ##
 ## Owned by DiveSimulation, which steps it and answers for it through its own
 ## queries (a subsystem: docs/conventions/simulation-interface.md). It knows
@@ -76,6 +83,49 @@ const _PIECE_M := 1.0
 ## How far off the Course, degrees, the Head may point for a Glide to start:
 ## the Glide runs straight, so turns are the Crawl's. Tuned for play (ADR 0001).
 const _STRAIGHT_DEG := 1.0
+## How far off its line, metres, the vessel may run without touching the
+## sheath's wall: the melt sheath is a little wider than the hull. Tuned for
+## play (ADR 0001).
+const _SLACK_M := 1.0
+## Past the slack, metres, at which the vessel is hard against the wall and
+## wears its fastest: further off it wears no faster. Tuned for play (ADR
+## 0001): a careless few hundred metres costs, but does not kill.
+const _HARD_AGAINST_M := 4.0
+## Head and hull wear for each metre glided, per metre past the slack. Tuned
+## for play (ADR 0001): a few hundred metres left alone wears a few hundredths
+## of the Head and fewer of the hull; on the autopilot, a fraction of that.
+const _HEAD_WEAR_PER_M2 := 1.5e-4
+const _HULL_WEAR_PER_M2 := 0.75e-4
+## The sheath's own unsteadiness: a sideways push, as the slope of the way
+## the vessel runs (metres across per metre along), up to this much on each
+## axis, changing smoothly over _WANDER_M of the line. Tuned for play (ADR
+## 0001): about a degree, a few nudges to hold.
+const _WANDER := 0.015
+const _WANDER_M := 200.0
+## Being off its line pushes the vessel further off, per metre off, up to
+## _WANDER at most: a body in its bubble is unstable. Tuned for play (ADR
+## 0001).
+const _UNSTABLE_PER_M := 1.0 / 250.0
+## Rock harder on one side than the other pushes the vessel toward the softer
+## side: the slope at the most different rock either side. Tuned for play
+## (ADR 0001): a felt kick through an oblique Boundary.
+const _ROCK_PUSH := 0.1
+## How far either side of the Head the rock is felt, metres: about the hull's
+## radius. Tuned for play (ADR 0001).
+const _SIDE_M := 3.0
+## One nudge of the Drive's in a Glide, degrees: far finer than a nudge in the
+## Crawl, since the Glide runs straight. Tuned for play (ADR 0001).
+const _NUDGE_DEG := 0.25
+## The line to hold is drawn as where the line is this far ahead, metres:
+## steering onto it rejoins the line within about as far. Tuned for play
+## (ADR 0001).
+const _AIM_M := 50.0
+## The Drive's autopilot lets the vessel wander this far off the line,
+## metres, before it nudges back, and then rejoins within about
+## _AUTOPILOT_REJOIN_M: safe but mediocre, it rides just past the slack and
+## wears a little. Tuned for play (ADR 0001).
+const _AUTOPILOT_LOOSE_M := 1.25
+const _AUTOPILOT_REJOIN_M := 20.0
 ## Metres from its end at which a Glide counts as there. Not tuned for play.
 const _ARRIVED_M := 0.01
 ## The least thrust a Glide dropping out at its plotted length keeps until it
@@ -104,6 +154,27 @@ var _reached := PackedFloat64Array()
 ## The scan's guess of the Wobble of the rock this Glide last entered, as it
 ## stood just before the crossing; null while it has crossed none.
 var _rock_entered: WobbleGuess = null
+## The running Glide's two axes across its line, unit length: to the right
+## (the way a heading nudge turns) and steeper (the way a pitch nudge tips),
+## as the attitude ball has them.
+var _right := Vector3.RIGHT
+var _steeper := Vector3.FORWARD
+## Metres along the line run so far, and metres off it on the two axes
+## (right, steeper).
+var _along := 0.0
+var _off := Vector2.ZERO
+## Where the Drive's nudges hold the Glide, as the slope they add on each axis
+## (right, steeper).
+var _held := Vector2.ZERO
+## The slope the vessel ran at over the last piece, on each axis.
+var _slope := Vector2.ZERO
+## Metres past the slack times metres of the last piece flown: what it wore.
+var _slapped := 0.0
+## The sheath's unsteadiness: its push at each _WANDER_M of the line, drawn
+## from `_random` as the Glide reaches it, so a Glide's push is the same each
+## time it is flown.
+var _knots := PackedVector2Array()
+var _random := RandomNumberGenerator.new()
 
 
 ## Navigation plots a Glide of `metres` along the Course, held to `reach`, the
@@ -140,10 +211,24 @@ func dropping_out() -> bool:
 
 ## Starts the plotted Glide from `origin` along `direction` (unit length),
 ## `reach` metres being the most the scan shows from there, at path distance
-## `distance`. The plot is spent.
-func start(origin: Vector3, direction: Vector3, reach: float, distance: float) -> void:
+## `distance`, the Head's compass heading `heading_degrees` (its last while
+## vertical) setting which way is right; `seed` seeds its push. The plot is
+## spent.
+func start(origin: Vector3, direction: Vector3, reach: float, distance: float,
+		heading_degrees: float, seed: int) -> void:
 	_origin = origin
 	_direction = direction
+	var h := deg_to_rad(heading_degrees)
+	var right := Vector3(cos(h), 0.0, sin(h))
+	_right = (right - direction * right.dot(direction)).normalized()
+	_steeper = direction.cross(_right).normalized()
+	_along = 0.0
+	_off = Vector2.ZERO
+	_held = Vector2.ZERO
+	_slope = Vector2.ZERO
+	_slapped = 0.0
+	_knots = PackedVector2Array()
+	_random.seed = seed
 	_length = minf(_plotted, reach)
 	_plotted = 0.0
 	_state = GLIDING
@@ -172,6 +257,108 @@ func direction() -> Vector3:
 ## Metres from `position` along the running Glide's line to its end.
 func left(position: Vector3) -> float:
 	return maxf(_length - (position - _origin).dot(_direction), 0.0)
+
+
+## The Drive nudges the Glide one step: right for a positive `right`, left for
+## a negative one, steeper for a positive `steeper`, shallower for a negative
+## one; only the signs count.
+func nudge(right: float, steeper: float) -> void:
+	_held += Vector2(signf(right), signf(steeper)) * tan(deg_to_rad(_NUDGE_DEG))
+
+
+## One nudge, degrees.
+static func nudge_degrees() -> float:
+	return _NUDGE_DEG
+
+
+## Flies `piece_m` metres along the line, pushed by `rock_push` (the slope
+## rock harder on one side gives, Glide.rock_push()), by the sheath's own
+## unsteadiness and by being off the line, and held where the Drive's nudges set it or,
+## if `autopilot`, by its autopilot's loose rule, which sets that hold (left
+## where it was when the autopilot lets go). Returns the way the vessel moved,
+## in the world frame; slapped() is what it wore.
+func fly(piece_m: float, rock_push: Vector2, autopilot: bool) -> Vector3:
+	if autopilot:
+		var beyond := _off.length() - _AUTOPILOT_LOOSE_M
+		_held = Vector2.ZERO if beyond <= 0.0 else -_off.normalized() * beyond / _AUTOPILOT_REJOIN_M
+	var unstable := (_off * _UNSTABLE_PER_M).limit_length(_WANDER)
+	_slope = _held + rock_push + _wander(_along + piece_m * 0.5) + unstable
+	_along += piece_m
+	_off += _slope * piece_m
+	_slapped = clampf(_off.length() - _SLACK_M, 0.0, _HARD_AGAINST_M) * piece_m
+	return (_direction + _right * _slope.x + _steeper * _slope.y) * piece_m
+
+
+## The sheath's own push `along` metres down the line: smooth between knots
+## drawn as the Glide first reaches them, so the same Glide flown again is
+## pushed the same.
+func _wander(along: float) -> Vector2:
+	var at := along / _WANDER_M
+	var knot := floori(at)
+	while _knots.size() < knot + 2:
+		_knots.append(Vector2(_random.randf_range(-1.0, 1.0), _random.randf_range(-1.0, 1.0)) * _WANDER)
+	var t := at - knot
+	return _knots[knot].lerp(_knots[knot + 1], t * t * (3.0 - 2.0 * t))
+
+
+## The way the vessel runs now, unit length: its line tipped by the slope it
+## ran at over the last piece.
+func running_way() -> Vector3:
+	return (_direction + _right * _slope.x + _steeper * _slope.y).normalized()
+
+
+## Metres off the line now, Vector2(to the right, steeper).
+func off_line() -> Vector2:
+	return _off
+
+
+## What the last piece flown wore, in metres past the slack times metres;
+## head_wear() and hull_wear() make each wear of it.
+func slapped() -> float:
+	return _slapped
+
+
+## How far off its line, metres, the vessel may run and wear nothing.
+static func slack() -> float:
+	return _SLACK_M
+
+
+## How hard against the sheath's wall the vessel is: 0 inside the slack, 1
+## hard against it.
+func contact_share() -> float:
+	return clampf((_off.length() - _SLACK_M) / _HARD_AGAINST_M, 0.0, 1.0) if active() else 0.0
+
+
+## The Head's wear for `slapped` (slapped()).
+static func head_wear(slapped: float) -> float:
+	return slapped * _HEAD_WEAR_PER_M2
+
+
+## The hull's wear for `slapped` (slapped()).
+static func hull_wear(slapped: float) -> float:
+	return slapped * _HULL_WEAR_PER_M2
+
+
+## The slope with which rock harder on one side pushes the vessel toward the
+## softer, Vector2(right, steeper), from the hardness either side of the Head:
+## right and left, steeper and shallower.
+static func rock_push(right: float, left: float, steeper: float, shallower: float) -> Vector2:
+	return Vector2((left - right) / maxf(left + right, 1e-6),
+			(shallower - steeper) / maxf(shallower + steeper, 1e-6)) * _ROCK_PUSH
+
+
+## Where the rock is felt either side of a Head at `position`: right, left,
+## steeper and shallower of it.
+func sides(position: Vector3) -> PackedVector3Array:
+	return PackedVector3Array([position + _right * _SIDE_M, position - _right * _SIDE_M,
+			position + _steeper * _SIDE_M, position - _steeper * _SIDE_M])
+
+
+## The line to hold, as a unit direction from a Head at `position`: toward
+## where the line is _AIM_M ahead, so steering onto it rejoins the line.
+func aim(position: Vector3) -> Vector3:
+	var ahead := _origin + _direction * ((position - _origin).dot(_direction) + _AIM_M)
+	return (ahead - position).normalized()
 
 
 ## The crew drop out: the jet dies and the vessel halts short of the end.

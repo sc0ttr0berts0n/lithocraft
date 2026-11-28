@@ -196,7 +196,14 @@ func vessel_temperature() -> float:
 	return _temperature
 
 
-## Damage heat has done to the vessel so far, 0 (none) to 1.
+## A Glide off its line slapped the hull against its sheath's wall: `wear`
+## more of the same wear heat does (a Glide's own rule, Glide.hull_wear()).
+func slap(wear: float) -> void:
+	_wear = minf(1.0, _wear + maxf(wear, 0.0))
+
+
+## Damage heat, and a Glide's slapping, have done to the vessel so far, 0
+## (none) to 1.
 func vessel_wear() -> float:
 	return _wear
 
