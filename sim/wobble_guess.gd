@@ -73,6 +73,16 @@ static func of(truth: Vector2, p_confidence: float, boundary_seed: int) -> Wobbl
 	return guess
 
 
+## Which way and how far this Boundary's guess errs in frequency, of the most
+## it can (-1 to -0.5 or 0.5 to 1): positive when it guesses the Wobble
+## beyond higher, so the rock beyond harder, than it is. The scan's contrast
+## of the rock beyond errs the same way (Echoes.contrast_heard()).
+static func error_of(boundary_seed: int) -> float:
+	var random := RandomNumberGenerator.new()
+	random.seed = boundary_seed
+	return _error(random)
+
+
 ## Which way and how far an error goes, of the most it can: -1 to -0.5 or 0.5
 ## to 1.
 static func _error(random: RandomNumberGenerator) -> float:

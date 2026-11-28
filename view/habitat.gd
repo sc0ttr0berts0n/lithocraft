@@ -104,7 +104,7 @@ const UPLOAD_PRIORITIES: Array[StringName] = [
 const BORE_PANEL_ZOOM := 1.7
 ## The status lines each Station's screen usually shows under its instrument:
 ## what its pictures' viewports are sized for (StationScreen.body_size()).
-const NAVIGATION_LINES := 6
+const NAVIGATION_LINES := 7
 ## Metres a press of Navigation's Glide keys lengthens or shortens the plot.
 const GLIDE_STEP_M := 50.0
 ## The debug menu's steps: wear per press (hull or Head), and time skipped.
@@ -854,8 +854,9 @@ func _course_line() -> Array:
 ## Navigation's status lines, under its point cloud and moving map (which
 ## show the Course): the Course plotted, whether the Drive follows it or how
 ## far off it steers (the Drive's own words, CourseDeviation), how quiet the
-## vessel is and the points heard, the Beam's width, reach and switch, and its
-## power.
+## vessel is and the points heard, the Beam's width, reach and switch, the
+## scan's estimate of the rock beyond the Boundary ahead (ScanDisplay's words),
+## and its power.
 func _show_navigation() -> void:
 	_navigation.show_lines([
 		_course_line(),
@@ -864,6 +865,7 @@ func _show_navigation() -> void:
 		"%s  noise %d%%  %d points" % ["QUIET SHIP" if _sim.quiet_ship() else "under way",
 			roundi(_sim.noise() * 100.0), _sim.point_count()],
 		[_beam_line(_sim), StationTheme.SELECTED],
+		ScanDisplay.rock_label(_sim),
 		_glide_plot_line(_sim),
 		_power_line(_sim.navigation_request(), _sim.navigation_draw()),
 	])

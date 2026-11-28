@@ -32,6 +32,7 @@ The panel, F1 and the dispatch follow with no other change.
 | Navigation | Plot the Course: 1 / 2 / 3 pitch dive / level / climb, Z / X pitch -/+15 deg, J / L heading -/+15 deg; P one pulse of the Beam by hand; Q Quiet Ship; B / N the Beam one width wider / narrower (wide, middle, narrow; stops at each end); O the Beam's switch: pulses by itself as the vessel covers ground, on / off |
 | Navigation | The Glide: - / = its plot -/+50 m, M a Glide of all the scan shows (both held to `glide_reach()`) |
 | Navigation | V the Sweep: start, or cut the running one short; G / T the next Sweep's range shorter / longer (100, 200, 300 m; stops at each end; ignored while one runs) |
+| Navigation | (No key: the rock beyond the Boundary ahead and surface control's expected rocks are readings, shown in every scan view and the sixth status line, #122.) |
 | Navigation | The Beam's aim: F / H left / right, K / I down / up (toward the vessel's underside / top), 15 deg a press (`AIM_STEP`), held at square across; R back to dead ahead |
 | Drive | T / G power +/-10%; Y / H steering effort +/-10%; Z / X nudge the pitch it steers for up / down, J / L its heading left / right (straight up or down: the lean, the ball's arrow), one nudge (`nudge_degrees()`) a press, off the Course from what the Drive steers for now; O returns to the Course. No key at the Drive plots or sets a pitch outright: 1 / 2 / 3 do nothing there |
 | Drive | V starts the plotted Glide, or drops out of a running one |
