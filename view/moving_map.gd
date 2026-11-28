@@ -12,6 +12,9 @@
 ## patch of an Inferred Boundary is placed across by how far ahead of the
 ## Head its corners lie along the heading now.
 ##
+## The path behind is drawn as the tunnel it left, glass, rough or sealed
+## (TunnelLook, from tunnel_walls()).
+##
 ## Reads only the simulation: remembered_path(), head_position(), heading(),
 ## heading_degrees(), projected_path(), course_direction(), target_depth() and
 ## inferred_boundaries().
@@ -48,6 +51,7 @@ const DASH_PX := 6.0
 var sim: DiveSimulation
 
 var _canvas := Control.new()
+var _tunnel := TunnelLook.new()
 var _until_redraw := 0.0
 
 
@@ -203,8 +207,7 @@ func _draw_map() -> void:
 	var drawn := PackedVector2Array()
 	for p in path:
 		drawn.append(at.call(p.x, p.y))
-	if drawn.size() > 1:
-		_canvas.draw_polyline(drawn, StationTheme.NOW_COLOUR, 2.0)
+	_draw_tunnel(sim.remembered_path(), drawn)
 
 	var vessel: Vector2 = drawn[drawn.size() - 1]
 	# Where this turn takes it: solid, beside the Course's dashes.
@@ -218,6 +221,32 @@ func _draw_map() -> void:
 	var side := Vector2(-facing.y, facing.x)
 	_canvas.draw_colored_polygon(PackedVector2Array([vessel + facing * 7.0,
 			vessel - facing * 4.0 + side * 4.0, vessel - facing * 4.0 - side * 4.0]), StationTheme.NOW_COLOUR)
+
+
+## The path behind as the tunnel it left (TunnelLook): glass, rough or
+## sealed by path distance; the vessel's own length, ahead of the Tail, as a
+## plain line. `raw` is the remembered path, `drawn` its points on the map.
+func _draw_tunnel(raw: PackedVector2Array, drawn: PackedVector2Array) -> void:
+	var pieces := _tunnel.pieces(sim)
+	for i in range(1, raw.size()):
+		var start := raw[i - 1].x
+		var end := raw[i].x
+		if end <= start:
+			continue
+		var cuts: Array[float] = [start, end]
+		for piece in pieces:
+			for edge: float in [piece.from, piece.to]:
+				if edge > start and edge < end:
+					cuts.append(edge)
+		cuts.sort()
+		for j in range(1, cuts.size()):
+			var from := drawn[i - 1].lerp(drawn[i], (cuts[j - 1] - start) / (end - start))
+			var to := drawn[i - 1].lerp(drawn[i], (cuts[j] - start) / (end - start))
+			var wall := TunnelLook.wall_at(pieces, (cuts[j - 1] + cuts[j]) / 2.0)
+			if wall == &"":
+				_canvas.draw_line(from, to, StationTheme.NOW_COLOUR, 2.0)
+			else:
+				TunnelLook.draw(_canvas, from, to, wall, 2.0)
 
 
 ## A world direction as the map draws it, unit length: across by its run

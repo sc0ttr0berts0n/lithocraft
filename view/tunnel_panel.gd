@@ -10,6 +10,8 @@
 ## leaves the tunnel behind it, so the Column between the Head and the Tail is
 ## exactly what the Tail will leave next: a dip below the seal line there is
 ## the point the tunnel will seal, coming toward the Tail at the vessel's speed.
+## Behind the Tail, a strip along the graph's foot shows the tunnel as it was
+## left: glass, rough or sealed (TunnelLook).
 class_name TunnelPanel
 extends Control
 
@@ -36,6 +38,7 @@ var zoom := 1.0
 ## Empty (the debug overlay): every frame.
 var watched_at := &""
 var _pace := ScreenPace.new()
+var _tunnel := TunnelLook.new()
 
 
 func _process(delta: float) -> void:
@@ -112,6 +115,28 @@ func _draw_trend(graph: Rect2, font: Font) -> void:
 			HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(10 * z), StationTheme.LEGEND_COLOUR)
 	draw_string(font, Vector2(tail_x + 3.0 * z, graph.position.y + 12.0 * z), "Tail",
 			HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(10 * z), StationTheme.LEGEND_COLOUR)
+	_draw_walls(graph, length, span, font)
+
+
+## The tunnel behind the Tail as it was left (TunnelLook): a strip along the
+## graph's foot, glass, rough or sealed, each stretch named where it fits.
+func _draw_walls(graph: Rect2, length: float, span: float, font: Font) -> void:
+	var z := zoom
+	var pieces := _tunnel.pieces(sim)
+	var y := graph.end.y - 5.0 * z
+	var x_at := func(behind: float) -> float: return graph.position.x + graph.size.x * behind / span
+	for piece in pieces:
+		var near := maxf(sim.distance() - piece.to, length)
+		var far := minf(sim.distance() - piece.from, span)
+		if far <= near:
+			continue
+		var from := Vector2(x_at.call(near), y)
+		var to := Vector2(x_at.call(far), y)
+		TunnelLook.draw(self, from, to, piece.wall, 3.0 * z)
+		var word: String = TunnelLook.WORDS.get(piece.wall, "")
+		if to.x - from.x > 44.0 * z:
+			draw_string(font, Vector2(from.x + 2.0 * z, y - 6.0 * z), word, HORIZONTAL_ALIGNMENT_LEFT,
+					to.x - from.x, roundi(10 * z), TunnelLook.colour(piece.wall))
 
 
 ## The link's rate and why it is that: light up a glass-lined tunnel, light

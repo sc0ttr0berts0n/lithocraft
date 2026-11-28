@@ -39,3 +39,19 @@ Agent's choices, the developer away ("It is flown by hand, and wear comes from b
 - **The ball.** The line to hold is a hollow cyan diamond at where the line is 50 m ahead: on it the Glide rejoins its line, so it shows both the line and the way back; the bottom right corner reads OFF LINE in metres, green within the slack, amber wearing, red half way to hard against the wall.
 - **Where it ends.** A Glide still halts at its plotted length measured along its line, and never past what the scan has shown along it; only its offset across the line differs. Halted, the vessel settles along its line again, so the next Glide may start without crawling straight.
 - **For #128.** A 300 m Glide left to the Drive's autopilot wears about a hundredth of the Head and less of the hull, and may sound `off_glide_line`; the Checklist-follower test should engage the Drive's autopilot after starting a Glide (starting one disengages it) and acknowledge.
+
+## The Glide seen, heard and felt (#127)
+
+Agent's choices, the developer away. How it meets the code is `docs/conventions/glide-look.md`.
+
+- **The melt is hot rock, drawn as a hot body.** Silicate melt heated by the Head's plasma, about 1750 K at full thrust (hotter than erupting lava at 1300 to 1450 K) and 1400 K as the jet starts or dies.
+  Its colour is a hot body's at that temperature, its brightness the fourth power of it (Stefan-Boltzmann), so it is yellow-white streaked with orange in a Glide, deep orange in the spin-up and spin-down.
+- **It moves too fast to see.** The face is many times the Bore's area, so the melt runs aft many times faster than the vessel; at full thrust it is drawn as long streaks along the Bore, as the eye sees anything that fast, and as slow lumps while the jet builds or dies. The two crossfade with the jet's thrust, so the spin-up and spin-down are seen.
+- **After the Glide it stops and crusts.** The halted slug's skin chills toward 850 K, a dull red, in some seconds (dark plates with glowing cracks between, as a lava lake's crust), while its body stays hot.
+  The Column coming in at the Head end as the Crawl resumes pushes it out toward the Tail, since the melt is drawn exactly where the simulation has no Column.
+- **It lights the room.** Four lights on the Bore's axis carry the melt's colour and its fourth-power brightness into the Habitat through the glass, each only where melt is beside it; the room's ambient light leans to the melt's colour, and the melt alone blooms. In a Glide the melt outshines the room's own lamps: the Habitat goes from cool grey-blue to orange.
+- **The roar.** A jet's noise is broadband, its peak frequency rising with the flow's speed (the Strouhal relation) and its power steeply with it (Lighthill's eighth power), so the spin-up is a roar rising in pitch and loudness together, the spin-down the same falling to the idle's silence.
+  Under it a low rumble of the hull carrying the thrust and a faint whine of the Head's power rising with the load, as a motor's does. Unlike the Crawl's juddering grind of slipping grip waves, it is steady.
+- **The feel.** The jet shakes the crew a little harder than slipping grip waves at full slip, in proportion to the thrust: a steady, hard rumble rather than a judder.
+- **The tunnel behind, wherever it is shown.** Glass is the plain white line it always was, a Glide's rough wall the same white drawn beaded (the developer's "lobe-like and lumpy"), sealed rock the legend's grey: on Navigation's moving map, the path behind; on the Bore Station's tunnel panel, a strip behind the Tail named glass, rough or sealed.
+- **Not shown yet: a climbing Glide.** On the First dive's layout a climb's line leaves the surveyed rock before the Head lines up with an upward Course, so no Glide up can be plotted; #128's Glide home will be the first, and its recipe tile is owed then. The melt runs toward the Tail end whichever way the Habitat hangs.

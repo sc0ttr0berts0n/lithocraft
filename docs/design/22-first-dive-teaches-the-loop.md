@@ -6,7 +6,9 @@ Agent's choices, the developer away. How they meet the code is `docs/conventions
 
 ## The First dive, reworked
 
-Its phases, in order: Startup (read the orders, the Reactor's and Thermal's autopilots, plot the dive, the Drive's autopilot); the sand (the Beam's own pulsing, a Quiet Ship scan, Quiet Ship off, observe a feature); the first Boundary and the sandstone (pulse, pretune, Shift, tune ACTIVE, observe, upload, and the same for the granite); the granite (observe); Target A (halt at Quiet Ship, Sweep, Quiet Ship off, crawl into it, observe it, identified); Turn and climb; Glide home; Out of the Glide; Into the sand; Surface.
+Its phases, in order: Startup (read the orders, the Reactor's and Thermal's autopilots, plot the dive, the Drive's autopilot); the sand (the Beam's own pulsing, a Quiet Ship scan, Quiet Ship off, observe a feature);
+the first Boundary and the sandstone (pulse, pretune, Shift, tune ACTIVE, observe, upload, and the same for the granite); the granite (observe); Target A (halt at Quiet Ship, Sweep, Quiet Ship off, crawl into it, observe it, identified);
+Turn and climb; Glide home; Out of the Glide; Into the sand; Surface.
 
 - **Target A lies on the line straight down**, 190 m into the granite, a hematite breccia as the Prospecting drill's. The crew finds it by doing what the dive already asks (crawl on down), halts and Sweeps for it, and crawls through it.
   The Prospecting drill keeps the harder lesson of a target off the line; the First dive teaches only that a target is there to be found.

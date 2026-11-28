@@ -2771,6 +2771,13 @@ func heat_carried_aft() -> float:
 	return _heat.carried_aft()
 
 
+## The Glide's jet now, 0 to 1: building through the spin-up, 1 at full
+## thrust, dying while it drops out; 0 in the Crawl and at the idle after a
+## Glide. What the view shows, sounds and shakes the Glide by. O(1).
+func glide_thrust() -> float:
+	return _glide.thrust()
+
+
 ## The Bore Station's survey so far: one SurveyStretch per completed stretch of
 ## the path, oldest first. A copy; changing it does not change the record.
 func survey() -> Array[SurveyStretch]:

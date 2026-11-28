@@ -88,6 +88,9 @@ const AMPLITUDE_STEP := 0.02
 const SHUDDER_SHAKE_M := 0.004
 ## How far slipping grip waves shake the crew's view at full slip, metres.
 const SLIP_SHAKE_M := 0.006
+## How far a Glide's jet shakes the crew's view at full thrust, metres: the
+## hull carrying the jet's thrust, a steadier, harder shake than the slip's.
+const GLIDE_SHAKE_M := 0.009
 ## How long a passing notice stays on screen, in seconds.
 const NOTICE_S := 8.0
 ## Hull creep as the Thermal screen shows it, percent of the hull a minute,
@@ -132,6 +135,9 @@ var _bore_station: GimballedStation
 var _feature_ring: MeshInstance3D
 ## The strip that draws the Column in the Bore.
 var _column_strip: ColumnStrip
+## The Column tube's material, and the melt a Glide leaves in its place.
+var _column_look: ShaderMaterial
+var _bore_melt := BoreMelt.new()
 var _thermal: GimballedStation
 ## Thermal Station setting: share of heat sent into the Column.
 var _heat_split := 0.0
@@ -188,6 +194,9 @@ func _ready() -> void:
 	var slip_sound := SlipSound.new()
 	slip_sound.sim = _sim
 	add_child(slip_sound)
+	var jet_roar := JetRoar.new()
+	jet_roar.sim = _sim
+	add_child(jet_roar)
 	_hull_feel.sim = _sim
 	_hull_feel.ring_radius = OUTER_RADIUS
 	_hull_feel.length = LENGTH
@@ -227,6 +236,11 @@ func simulation() -> DiveSimulation:
 ## The strip that draws the Column in the Bore, wrapped round its tube.
 func column_strip() -> ColumnStrip:
 	return _column_strip
+
+
+## The Glide's melt in the Bore, where it has no Column, and its light.
+func bore_melt() -> BoreMelt:
+	return _bore_melt
 
 
 ## Where the Bore Station hangs now (Habitat frame): the side of the Column
@@ -682,6 +696,7 @@ func _physics_process(delta: float) -> void:
 	# settling to still before the outcome shows. The sparks and groans
 	# keep to the wall near the crew, wherever along the Bore they are.
 	_hull_feel.step(delta, felt, _crew.position.z)
+	_bore_melt.step()
 	if _sim.surfaced() or _sim.dead():
 		_shake_m = _outcome_screen.step(delta)
 		if _outcome_screen.still() and not _outcome_lines.is_empty():
@@ -689,7 +704,7 @@ func _physics_process(delta: float) -> void:
 			_outcome_lines = []
 	else:
 		_shake_m = _sim.shudder() * SHUDDER_SHAKE_M + _sim.slip() * SLIP_SHAKE_M \
-				+ _hull_feel.shake_metres()
+				+ _hull_feel.shake_metres() + _sim.glide_thrust() * GLIDE_SHAKE_M
 	_crew.shake(_shake_m)
 	_drive.set_supplied(_sim.drive_supplied())
 	_thermal.set_supplied(_sim.thermal_supplied())
@@ -1240,7 +1255,7 @@ func _bore_reading() -> Array:
 	var in_column := _sim.features_in_column()
 	var lines := []
 	lines.append("Survey value %d" % roundi(_sim.survey_value()))
-	if _sim.gliding() or _sim.column_absent(0.0):
+	if _sim.gliding() or _sim.column_absent(behind_head_at(_bore_station.position.z)):
 		lines.append(["No Column in the Bore: melted by the Glide", StationTheme.CAUTION])
 	if _sim.call_reason(DiveSimulation.STATION_BORE) == &"tunnel_about_to_seal":
 		lines.append(["TUNNEL SEALS when the Tail leaves this rock", StationTheme.CAUTION])
@@ -1398,7 +1413,8 @@ func _build_room() -> void:
 	# glass is clear over the Column (BoreGlass), so its colours are as painted.
 	var column := MeshInstance3D.new()
 	column.mesh = _column_tube()
-	column.material_override = _column_material()
+	_column_look = _column_material()
+	column.material_override = _column_look
 	add_child(column)
 	var glass := CylinderMesh.new()
 	glass.top_radius = BORE_RADIUS
@@ -1453,9 +1469,24 @@ func _build_room() -> void:
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color(0.5, 0.55, 0.6)
 	environment.ambient_light_energy = 0.6
+	# Glow only while a Glide's melt is lit (BoreMelt): it blooms only what is
+	# brighter than the screens' white, which only the melt is.
+	environment.glow_hdr_threshold = 1.1
+	environment.glow_intensity = 0.9
+	environment.glow_bloom = 0.05
 	var world := WorldEnvironment.new()
 	world.environment = environment
 	add_child(world)
+	# The melt's lights along the Bore's axis, one in each quarter of it.
+	var melt_z: Array[float] = []
+	var melt_behind: Array[float] = []
+	for i in BoreMelt.LIGHTS:
+		var z := -LENGTH / 2.0 + (i + 0.5) * LENGTH / BoreMelt.LIGHTS
+		melt_z.append(z)
+		melt_behind.append(behind_head_at(z))
+	_bore_melt.sim = _sim
+	add_child(_bore_melt)
+	_bore_melt.attach(_column_look, environment, melt_z, melt_behind)
 
 
 ## A Station place's angle round the Bore axis, radians from +X toward +Y.
@@ -1605,13 +1636,16 @@ func _column_tube() -> ArrayMesh:
 ## round the Column tube. The strip's height is the Bore's length at the same
 ## metres as the room, so the Column slides past at exactly the simulation's
 ## speed(), and its width is the Column's circumference.
-func _column_material() -> StandardMaterial3D:
+func _column_material() -> ShaderMaterial:
 	var viewport := SubViewport.new()
 	viewport.size = Vector2i(
 			roundi(TAU * COLUMN_RADIUS * COLUMN_PIXELS_PER_METRE),
 			roundi(LENGTH * COLUMN_PIXELS_PER_METRE))
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	viewport.disable_3d = true
+	# Clear where the strip draws no Column: the tube's shader paints the
+	# Glide's melt there (BoreMelt).
+	viewport.transparent_bg = true
 	var strip := ColumnStrip.new()
 	_column_strip = strip
 	strip.sim = _sim
@@ -1623,13 +1657,10 @@ func _column_material() -> StandardMaterial3D:
 	strip.size = Vector2(viewport.size)
 	viewport.add_child(strip)
 	add_child(viewport)
-	var material := _surface(Color.WHITE)
-	material.albedo_texture = viewport.get_texture()
 	# The Bore lights its own Column, so its colours read true from anywhere
-	# in the room (the room's lamp sits on the axis, inside the Column).
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	return material
+	# in the room (the room's lamp sits on the axis, inside the Column): the
+	# material is unshaded, and paints melt where the strip is clear.
+	return BoreMelt.material(viewport.get_texture())
 
 
 func _add_cap(z: float, colour: Color, label: String, ink: Color) -> void:
