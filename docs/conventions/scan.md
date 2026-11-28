@@ -40,12 +40,12 @@ A deaf mode (the Glide, #123) ends it with `_end_sweep(false)` and refuses `star
 **Drawing the scan.**
 Navigation's scan display (`ScanDisplay`) draws the cloud as one of three candidate views (see `docs/conventions/screen-navigation.md`, "Navigation's point cloud").
 Every view is a flat drawing through one static function from a place's offset from the Head to its place on the screen (`scope_place()`, `plan_place()`, `section_place()`, `world_up_place()`: metres, x right, y down), and `_draw_scan()` draws the same things through whichever it is given.
-A mark every candidate must show goes in `_draw_scan()` (the Beam's cone, `_draw_beam()`: two faint cyan fans to `beam_reach()` about `beam_axis()`; while aimed, `_draw_aim()`; a running Sweep, `_draw_sweep()`) or, for words, `_draw_over()` (the caption, and `sweep_label()` over `beam_label()` in the lower left, on a backdrop); a view's own scale marks go in its `_draw_*_marks()`.
+A mark every candidate must show goes in `_draw_scan()` (the Beam's cone, `_draw_beam()`: two faint cyan fans to `beam_reach()` about `beam_axis()`; while aimed, `_draw_aim()`; a running Sweep, `_draw_sweep()`) or, for words, `_pane_labels()` or `over_labels()` (`screen-navigation.md`); a view's own scale marks go in its `_draw_*_marks()`.
 `_draw_sweep()` is a faint green band each side of the Sweep's axis in the Beam's two planes, from `sweep_origin()` out to `sweep_range()`, between `sweep_from_angle()` and `sweep_reached_angle()`, its leading edge strong.
 The forward scope's range steps between `SCOPE_RANGES_M` (`ScanDisplay.scope_range()` of `BoundaryFit.ahead()` along the heading), worked out only when `scan_revision()` changes, so it never zooms between soundings.
 No view may read a clock or the layout (`scan_display_test.gd` checks the source): a place is a function of the simulation's state alone, so a view turns only as the vessel does.
 The points and patches are fetched only when `scan_revision()` changes (never `points()` each frame); their fade is worked out at each redraw.
-A point is white as it is certain, the legend's grey as it is a guess, larger the surer, and never fades out altogether; a survey point (`surveyed`) is a small hollow square of the legend's grey, fainter still and never filled, in every view; a patch is its outline, its face filled faintly unless edge-on.
+A point is white as it is certain, the legend's grey as it is a guess, larger the surer, and never fades out altogether; a survey point (`surveyed`) is a small open cross of the legend's grey, fainter still, in every view; a patch is its outline, its face filled faintly unless edge-on.
 The survey is in the cloud before any pulse, so a view's first fetch (its `_revision_shown` starts at -1) has it.
 
 **Inferred Boundaries.**

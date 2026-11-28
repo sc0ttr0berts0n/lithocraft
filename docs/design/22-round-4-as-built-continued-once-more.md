@@ -1,10 +1,27 @@
-# The First dive teaches the loop, and the Glide drill (#128)
+# Round 4, as built, continued once more
 
-Round 4's tickets as built, continuing 21-round-4-as-built-continued-again.md once it was full.
+The tickets of round 4 (spec #113), as built, continuing 21-round-4-as-built-continued-again.md once it was full.
+
+
+## The scan views' words and marks (#151)
+
+Agent's choices, the developer away. Round 4's tickets each added words or marks to Navigation's three candidate scan views, and seen together they collided; nothing any view shows changed, only where its words sit and how its marks read. How it meets the code is `docs/conventions/screen-navigation.md`, "The words on the scan display".
+
+- **A strip under the views for the tools' state.** The Sweep's line over the Beam's, each in one place in every view, below the panes rather than over them, so a tool's label never covers the scan, a scale or the expected rock's name.
+  It costs the panes some 48 of the display's 209 pixels of height, about what the old labels already covered; the views keep their scales by their own rules, so they shrink a little and never turn or zoom on their own.
+- **Every other word placed, never drawn blind.** Inside a pane, the title goes first, then the forward scope's ring ranges, then surface control's rock names, then the other scale words (a depth, DOWN, N, "+100 m"), then a target's name; each takes the first of a few nearby places clear of the words before it and of the vessel's and aim's marks, or is left out.
+  The scope's range comes before a rock's name because a scope without its range cannot be read at all; a depth or "+100 m" has a place either side of its line, or a neighbour that says the same, so it gives way to the name, which may also move a line further into the rock, or to the pane's left, and still name the same depth.
+  Where every second range ring's number would crowd, every fourth is named.
+- **Words on faint backdrops**, as the rock's names already were, so the points never hide them.
+- **The survey's points are small open crosses**, not hollow squares: at the size the sheet shows the screen, a hollow square read as a filled one. A cross is still the legend's grey and faint, so nothing reads as a caution.
+- **Harder rock's strokes slant across the band and softer rock's dots come in staggered clusters**, drawn over the points: before, the dots lay under the points and were lost, and the strokes, straight down the band, read like the points' own smear. Slanted strokes against speckle is the geological section's own convention for hard rock and sand.
+- **A target beside the rock bands.** No Scenario puts a scanned Boundary near a target: the Prospecting drill's one Boundary in reach is the granite's top, some 54 m behind the vessel and known only from the survey. The recipe's tile shows that pairing in the section; a nearer one would need a Scenario change, left for when targets get a Scenario of their own.
+
+## The First dive teaches the loop, and the Glide drill (#128)
+
 Agent's choices, the developer away. How they meet the code is `docs/conventions/scenarios-and-checklist.md` and `docs/conventions/checklist-follower.md`.
 
-
-## The First dive, reworked
+### The First dive, reworked
 
 Its phases, in order: Startup (read the orders, the Reactor's and Thermal's autopilots, plot the dive, the Drive's autopilot); the sand (the Beam's own pulsing, a Quiet Ship scan, Quiet Ship off, observe a feature);
 the first Boundary and the sandstone (pulse, pretune, Shift, tune ACTIVE, observe, upload, and the same for the granite); the granite (observe); Target A (halt at Quiet Ship, Sweep, Quiet Ship off, crawl into it, observe it, identified);
@@ -24,14 +41,14 @@ Turn and climb; Glide home; Out of the Glide; Into the sand; Surface.
 - **"Into the sand" begins early only as the Lithocraft climbs across the sand's Boundary**, however it came up: a dive left to the autopilots never glides, and still sees the steps it missed marked so. Being in the sand alone never begins it: that is also the surface and a turn for home made in the sand.
 
 
-## Steps tick on deeds
+### Steps tick on deeds
 
 - A step that asks for a setting by name (read the orders, plot the Course, engage an autopilot, pretune standby, Quiet Ship with the vessel at rest) ticks on the setting held; a step that asks the Lithocraft to do something ticks only on the deed.
   The Beam's own pulsing ticks on a pulse it sent by itself (the switch set is only an intention until the vessel has covered the ground); coming round onto the climb on `straight_on_course()` (within the Glide's start tolerance, no override); starting the Glide on the vessel gliding; the spin-up on the Crawl begun.
 - **Quiet Ship at rest counts as halted.** "Halt at Quiet Ship" ticks on Quiet Ship with the vessel still; set at the surface it ticks at once, since the vessel is genuinely at rest. Accepted: halting is the vessel's deed, and it has done it.
 
 
-## The Glide drill
+### The Glide drill
 
 Second on the start menu, before the Shift drill: tuning at idle is untimed, so the drill is gentler than the Shift drill's tuning against a Boundary.
 It begins halted at Quiet Ship 40 m down in the sand (porous, so the Glide's rough tunnel stays open and its cost to the link shows), the survey in the scan, the Reactor's and Thermal's autopilots on.
@@ -42,7 +59,7 @@ It begins halted at Quiet Ship 40 m down in the sand (porous, so the Glide's rou
 - Surface control says the rough tunnel dims the link once the Glide ends, and "That is the drill" once the Crawl begins.
 
 
-## What the follower measured
+### What the follower measured
 
 The follower (`test/checklist_follower_test.gd`), by the Checklist alone:
 
@@ -52,7 +69,7 @@ The follower (`test/checklist_follower_test.gd`), by the Checklist alone:
 - **Left to the autopilots**, the First dive still comes home by Crawl, with no Glide (#71, story 24).
 
 
-## What felt wrong, for the developer
+### What felt wrong, for the developer
 
 - **The crawled turn is very long.** On its autopilot the Drive steers at a quarter effort, a turn about 1 km across in the granite, about 25,000 s of the dive's 30,900 s even at the top time rate. A turn at full effort would be a quarter as long; it is #126's and the Drive's, not changed here.
 - **The Sweep for a target dead ahead teaches the key but not why**: the Beam already sees it.
