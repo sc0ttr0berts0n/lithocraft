@@ -143,6 +143,19 @@ static func fitting_size(text: String, width: float) -> int:
 	return size
 
 
+## The ball's bottom right figure in a Glide: how far off its line the vessel
+## is, `off_m` metres, green within the sheath's slack (`slack_m`), amber
+## touching its wall and wearing, red half way to hard against it (`contact`,
+## DiveSimulation.glide_contact()). [legend, value, colour].
+static func glide_line_figure(off_m: float, slack_m: float, contact: float) -> Array:
+	var colour := StationTheme.ENGAGED_COLOUR
+	if contact >= 0.5:
+		colour = StationTheme.WARNING_COLOUR
+	elif off_m > slack_m:
+		colour = StationTheme.CAUTION_COLOUR
+	return ["OFF LINE", "%.1f m" % off_m, colour]
+
+
 class _Canvas extends Control:
 	## How far the Head's pitch or heading may move, degrees, before the
 	## ball's circles and labels are worked out again.
@@ -189,7 +202,10 @@ class _Canvas extends Control:
 			_cross(steered, StationTheme.SELECTED_COLOUR, false)
 		if sim.steers_straight_up_or_down():
 			_lean(ball, centre, radius, steered, sim)
-		# #126's line to hold goes here, drawn with _on_ball() as the others.
+		var gliding := sim.gliding()
+		if gliding:
+			var aim := sim.glide_aim()
+			_line_to_hold(_on_ball(ball, centre, radius, aim.x, aim.y))
 		_vessel_mark(centre)
 		var foot := FlightDisplay.foot(box)
 		var top := box.position.y + 26.0
@@ -198,7 +214,10 @@ class _Canvas extends Control:
 		_figure(box, true, top, "COURSE", "%+.0f" % sim.course_pitch(), StationTheme.SELECTED_COLOUR)
 		if sim.steers_straight_up_or_down():
 			_figure(box, false, bottom, "LEAN", "%03d" % roundi(sim.lean()), StationTheme.SELECTED_COLOUR)
-		# The bottom right corner is #126's: how far off the Glide's line.
+		if gliding:
+			var figure := FlightDisplay.glide_line_figure(sim.glide_off_line().length(),
+					sim.glide_slack(), sim.glide_contact())
+			_figure(box, true, bottom, figure[0], figure[1], figure[2])
 		_foot(sim, foot)
 		draw_rect(box, StationTheme.RULE_COLOUR, false, 2.0)
 
@@ -303,6 +322,17 @@ class _Canvas extends Control:
 		var side := ahead.orthogonal() * 10.0
 		draw_polyline(PackedVector2Array([tip, tip - ahead * 18.0 + side, tip - ahead * 18.0 - side, tip]),
 				colour, 2.0, true)
+
+	## The line to hold in a Glide (DiveSimulation.glide_aim()): a hollow cyan
+	## diamond with a tick either side, as the Course is cyan; bringing the
+	## vessel's mark onto it rejoins the line.
+	func _line_to_hold(at: Vector2) -> void:
+		var r := FlightDisplay.MARK_RADIUS
+		var colour := StationTheme.SELECTED_COLOUR
+		draw_polyline(PackedVector2Array([at + Vector2(0, -r), at + Vector2(r, 0), at + Vector2(0, r),
+				at + Vector2(-r, 0), at + Vector2(0, -r)]), colour, 3.0, true)
+		draw_line(at + Vector2(r + 4.0, 0), at + Vector2(r * 2.0 + 4.0, 0), colour, 3.0)
+		draw_line(at - Vector2(r + 4.0, 0), at - Vector2(r * 2.0 + 4.0, 0), colour, 3.0)
 
 	## The vessel's mark, fixed at the ball's middle: where the Head points.
 	func _vessel_mark(mid: Vector2) -> void:

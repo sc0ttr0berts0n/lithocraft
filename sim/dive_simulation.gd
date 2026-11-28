@@ -300,6 +300,17 @@ const GLIDE_IDLE := Glide.IDLE
 ## the vessel at risk, so both only report. Tuned for play (ADR 0001).
 const _GLIDE_ENDING_CALL := Vector2(0.2, 0.4)
 const _HEAD_AT_IDLE_CALL := Vector2(0.2, 0.2)
+## The Drive's warning that a Glide runs off its line (&"off_glide_line"),
+## from touching the sheath's wall to hard against it: it wears the Head and
+## the hull, so it warns. Tuned for play (ADR 0001).
+const _OFF_GLIDE_LINE_CALL := Vector2(0.35, 0.7)
+## Fixed seed of each Glide's push, so a dive flown the same is pushed the
+## same; each Glide of a dive is pushed differently. Not tuned for play.
+const _GLIDE_PUSH_SEED := 53
+## A Glide's line this far off straight up or down (the horizontal part of
+## its unit direction) has a heading of its own that the push may turn; nearer
+## vertical the heading stays the line's. Not tuned for play.
+const _GLIDE_OWN_HEADING := 0.05
 ## Metres off its line, across it, the Head may have moved before the Glide's
 ## reach along the Course is worked out afresh (glide_reach()). Not tuned.
 const _REACH_OFF_LINE_M := 1.0
@@ -481,6 +492,9 @@ var _pulses_sent := 0
 ## The Glide (sim/glide.gd): the one plotted, the one running, and where
 ## every Glide of this dive ran.
 var _glide := Glide.new()
+## True while the last step's Glide slapped its sheath's wall, wearing the
+## hull (hull_taking_damage()).
+var _glide_slapping := false
 ## The Glide's reach as last worked out (glide_reach()): from where, along
 ## which way, against which fit of the scan, and how far.
 var _reach_from := Vector3.ZERO
@@ -641,7 +655,9 @@ func set_steering_effort(effort: float) -> void:
 ## only way the Drive leaves the Course, which is Navigation's alone to plot.
 ## The override holds until end_override(), until a nudge or a newly plotted
 ## Course brings the two together again, or until the Drive's autopilot is
-## engaged. Ignored while nobody is at the Drive.
+## engaged. Ignored while nobody is at the Drive. In a Glide it turns the
+## Glide one glide_nudge_degrees() steeper or shallower instead (holding it on
+## its line, glide_off_line()), and what the Drive steers for stays as it was.
 func nudge_pitch(direction: float) -> void:
 	_nudge(0.0, signf(direction) * _NUDGE_DEG)
 
@@ -651,7 +667,8 @@ func nudge_pitch(direction: float) -> void:
 ## left for a negative one; otherwise as nudge_pitch(). While the Drive
 ## steers straight up or down, where heading means nothing, it turns the lean
 ## (lean()) instead and nothing else: the Drive steers for what it did, and
-## the next pitch nudge tilts toward the lean.
+## the next pitch nudge tilts toward the lean. In a Glide it turns the Glide
+## one glide_nudge_degrees() right or left, vertical or not (nudge_pitch()).
 func nudge_heading(direction: float) -> void:
 	_nudge(signf(direction) * _NUDGE_DEG, 0.0)
 
@@ -662,6 +679,11 @@ func _nudge(heading_degrees: float, pitch_degrees: float) -> void:
 	if not attended(STATION_DRIVE):
 		return
 	_disengage_on_command(STATION_DRIVE)
+	if _glide.active():
+		# In a Glide a nudge turns it, finely, and holds, and what the Drive steers for
+		# stays as it was: the Glide runs straight; turns are the Crawl's.
+		_glide.nudge(heading_degrees, pitch_degrees)
+		return
 	_lean = lean()
 	if steers_straight_up_or_down() and not is_zero_approx(heading_degrees):
 		_lean = fposmod(_lean + heading_degrees, 360.0)
@@ -711,7 +733,8 @@ func start_glide() -> void:
 	if _sweep.running():
 		_end_sweep(false)  # The jet's roar drowns it: a Glide is deaf.
 	_glide.spin_up()
-	_glide.start(_position, _direction, _glide_reach_along(_direction), _distance)
+	_glide.start(_position, _direction, _glide_reach_along(_direction), _distance, _bearing,
+			_GLIDE_PUSH_SEED * 1009 + _glide.stretches().size())
 	_steering = 0.0
 	_announced_boundary = NAN  # No Shift is due in a Glide: nothing to announce.
 	_announced_index = -1
@@ -1498,6 +1521,7 @@ func _step(dt: float) -> void:
 	if _surfaced or dead():
 		return  # The dive is over; nothing moves until new_dive().
 	_dive_time += dt
+	_glide_slapping = false  # Until a Glide's piece slaps its sheath's wall.
 	# The ring of Stations follows the floor. It is told pitch(), not
 	# felt_acceleration(), so the Head's shudder cannot start a slide; and it
 	# runs stranded too: the carriages need no plasma.
@@ -1574,11 +1598,14 @@ func _crawl(dt: float) -> void:
 
 
 ## One step of a Glide: the jet builds or dies, the whole of the Reactor's
-## output melts the face, the vessel runs dead straight along the Glide's line
-## no further than its end, in pieces short enough to meet every Boundary on
-## the way, and halts with the Head at idle once it is over. Nothing grips, so
-## nothing slips and nothing steers; the jet carries most of the heat away aft
-## and roars.
+## output melts the face, the vessel runs along the Glide's line no further
+## than its end, in pieces short enough to meet every Boundary on the way, and
+## halts with the Head at idle once it is over. Each piece it is pushed off
+## the line (by the rock either side of it, read from the layout, and by its
+## sheath) and held by the Drive's nudges or autopilot (Glide.fly()); off by
+## more than the sheath's slack it slaps the wall and wears the Head and the
+## hull. Nothing grips, so nothing slips and nothing steers in the Crawl's
+## way; the jet carries most of the heat away aft and roars.
 func _glide_on(dt: float) -> void:
 	var power := _drive_draw
 	_speed = Glide.speed(power, _medium_here().hardness)
@@ -1591,16 +1618,35 @@ func _glide_on(dt: float) -> void:
 	_hull_warming = (_heat.vessel_temperature() - hull_before) / dt
 	_noise = Glide.jet_noise() * _glide.thrust() + _HEAD_HUM
 	var travel := minf(_speed * dt, _glide.left(_position))
-	while travel > 0.0:
+	while travel > 0.0 and not _plasma.lost():
 		var piece := minf(Glide.piece(), travel)
 		travel -= piece
 		var before := _position
-		_position = _position + _glide.direction() * piece
-		_glided(before, piece)
-	_direction = _glide.direction()
+		_position = _position + _glide.fly(piece, _rock_push(), autopilot(STATION_DRIVE))
+		_glided(before, before.distance_to(_position))
+		var slapped := _glide.slapped()
+		if slapped > 0.0:
+			_glide_slapping = true
+			_plasma.slap(Glide.head_wear(slapped), _events, depth(), _distance)
+			_heat.slap(Glide.hull_wear(slapped))
+	_direction = _glide.running_way()
+	# On a line near straight up or down the heading is the line's, so the
+	# push does not swing the ball round its pole.
+	if Vector2(_glide.direction().x, _glide.direction().z).length() > _GLIDE_OWN_HEADING:
+		_bearing = fposmod(rad_to_deg(atan2(_direction.x, -_direction.z)), 360.0)
 	_look_ahead()
 	if _glide.finished(_glide.left(_position)):
 		_end_glide()
+
+
+## The slope with which the true rock either side of the Head pushes a
+## Glide toward the softer side (Glide.rock_push()).
+func _rock_push() -> Vector2:
+	var sides := _glide.sides(_position)
+	var hardness := PackedFloat64Array()
+	for place in sides:
+		hardness.append(_layout.medium_at_point(place).hardness)
+	return Glide.rock_push(hardness[0], hardness[1], hardness[2], hardness[3])
 
 
 ## What follows the vessel having glided `travelled` metres from
@@ -1630,6 +1676,12 @@ func _end_glide() -> void:
 	_slip = 0.0
 	_head_activity = 0.0
 	_share_power()  # The idle's share, so nothing reads as starved by the jet.
+	_glide_slapping = false
+	# Halted in its sheath, the vessel settles along its line again: the
+	# push only tipped the way it ran.
+	_direction = _glide.direction()
+	if Vector2(_direction.x, _direction.z).length() > _GLIDE_OWN_HEADING:
+		_bearing = fposmod(rad_to_deg(atan2(_direction.x, -_direction.z)), 360.0)
 	var entered := _glide.rock_entered()
 	_look.hold(entered if entered != null else WobbleGuess.of(_wobble(), 1.0, 0))
 	_announced_boundary = NAN
@@ -1706,9 +1758,10 @@ func call_urgency(station: StringName) -> float:
 
 
 ## Why this Station calls: &"boundary_approaching", &"out_of_band",
-## &"plasma_lost", &"stranded" (Reactor); &"heat_warning", &"starved" (Thermal);
-## &"starved" (Navigation); &"tunnel_about_to_seal", &"feature_in_column"
-## (Bore). &"" when not calling.
+## &"plasma_lost", &"stranded", &"head_at_idle" (Reactor); &"heat_warning",
+## &"starved" (Thermal); &"starved" (Navigation); &"off_glide_line" (a Glide
+## off its line, wearing the Head and hull), &"glide_ending" (Drive);
+## &"tunnel_about_to_seal", &"feature_in_column" (Bore). &"" when not calling.
 func call_reason(station: StringName) -> StringName:
 	return _calls[station][0] if _calls.has(station) else &""
 
@@ -2649,6 +2702,46 @@ func glide_end() -> Vector3:
 	return _glide.end() if _glide.active() else _position
 
 
+## How far off its line the running Glide is, metres, Vector2(to the right,
+## steeper): the right the way a heading nudge nudges it, steeper the way a
+## pitch nudge does. ZERO with none running. Constant work.
+func glide_off_line() -> Vector2:
+	return _glide.off_line() if _glide.active() else Vector2.ZERO
+
+
+## How far off its line, metres, a Glide may run and wear nothing: the slack
+## of the sheath round the hull. Constant work.
+func glide_slack() -> float:
+	return Glide.slack()
+
+
+## How hard the running Glide is against its sheath's wall: 0 within the slack
+## (and with none running), 1 hard against it, where it wears its fastest.
+## Constant work.
+func glide_contact() -> float:
+	return _glide.contact_share()
+
+
+## The line to hold in a Glide, Vector2(compass heading, pitch) in degrees as
+## course_heading() and course_pitch(): the way from the Head to where the
+## line is a little ahead, so steering the Head onto it rejoins the line. The
+## Head's own with none running. Constant work.
+func glide_aim() -> Vector2:
+	if not _glide.active():
+		return Vector2(_bearing, pitch())
+	var aim := _glide.aim(_position)
+	var heading := _bearing
+	if Vector2(aim.x, aim.z).length() > 1e-4:
+		heading = fposmod(rad_to_deg(atan2(aim.x, -aim.z)), 360.0)
+	return Vector2(heading, rad_to_deg(asin(clampf(-aim.y, -1.0, 1.0))))
+
+
+## How far one Drive nudge turns a Glide, degrees: far finer than in the Crawl (see
+## nudge_pitch()).
+func glide_nudge_degrees() -> float:
+	return Glide.nudge_degrees()
+
+
 ## Each Glide this dive, Vector2(path distance it began at, path distance it
 ## reached), oldest first: where the Column was melted and the tunnel was cut
 ## by a Glide, rough where the rock was porous (tunnel_walls()). A copy.
@@ -3227,7 +3320,7 @@ func hull_creep_rate() -> float:
 ## the crew is dead or surfaced, when advance() no longer steps. The view's
 ## sparks and shake play exactly while this holds.
 func hull_taking_damage() -> bool:
-	return _heat.taking_damage() and not (dead() or surfaced())
+	return (_heat.taking_damage() or _glide_slapping) and not (dead() or surfaced())
 
 
 ## The stress the rock's pressure puts on the hull now, 1 at the surface and
@@ -3579,6 +3672,9 @@ func _update_calls() -> void:
 		var over := (vessel_temperature() - hull_warning_temperature()) \
 				/ (hull_damage_temperature() - hull_warning_temperature())
 		_offer_call(calls, STATION_THERMAL, &"heat_warning", _urgency(_HEAT_WARNING_CALL, over))
+	if _glide.contact_share() > 0.0 or _glide_slapping:
+		_offer_call(calls, STATION_DRIVE, &"off_glide_line", _urgency(_OFF_GLIDE_LINE_CALL,
+				_glide.contact_share()))
 	if _glide.active():
 		var seconds_left := _glide.left(_position) / maxf(_speed, 1e-6)
 		if _glide.dropping_out() or seconds_left <= Glide.ending_call_seconds():

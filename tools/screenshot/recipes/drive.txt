@@ -32,3 +32,15 @@ gliding, range left: --look Drive --time 3 --do "1 plot_glide 300" --do "1 start
 # A Glide of 150 m, over by 6 s: halted at 150 m, speed 0, the power box back to the Crawl's (the Head at
 # idle: set and actual low), the status line "HEAD AT IDLE after the Glide: Shift at the Reactor" in amber.
 out at idle: --look Drive --time 8 --do "1 plot_glide 150" --do "1 start_glide"
+
+# Flown by hand (#126). A Glide of 300 m started at 1 s, 2.5 s in, nobody off the line yet: the line to hold, a hollow cyan
+# diamond with a tick either side, on the vessel's mark at the ball's middle; OFF LINE in the bottom right corner in green, under 1 m.
+gliding on its line: --look Drive --time 2.5 --do "1 plot_glide 300" --do "1 start_glide"
+
+# The same Glide nudged four times right at 1.5 s and left: by 3.5 s it has run off its line to the right, the diamond
+# left of the middle, the way back; OFF LINE over 1 m in amber or red; the Drive calls off_glide_line.
+off its line: --look Drive --time 3.5 --do "1 plot_glide 600" --do "1 start_glide" --do "1.5 nudge_heading 1" --do "1.5 nudge_heading 1" --do "1.5 nudge_heading 1" --do "1.5 nudge_heading 1"
+
+# The same four nudges, then the Drive's autopilot engaged at 2 s: it lets the Glide ride a little past the sheath's slack
+# and nudges it back, so OFF LINE reads near 1 m, amber at worst, and the diamond lies near the middle.
+held by the autopilot: --look Drive --time 4.5 --do "1 plot_glide 600" --do "1 start_glide" --do "1.5 nudge_heading 1" --do "1.5 nudge_heading 1" --do "1.5 nudge_heading 1" --do "1.5 nudge_heading 1" --do "2 set_autopilot drive true"

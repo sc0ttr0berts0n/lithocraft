@@ -22,7 +22,7 @@ Agent's choices, the developer away. The class is `Glide` (`sim/glide.gd`); how 
   At full thrust that is a little over three times the heat of standing still with the Head running, a quarter of a Crawl at full power: modestly hotter. Real basis: a rocket's exhaust carries most of its heat away.
   There is no Column, so Thermal's split does nothing in a Glide: none goes into the Column, whatever it is set to, and its pumps draw only their base load.
 - **Time rate**: the two multiply. A Glide moves in 1 m pieces, so a long step meets both surfaces of a thin layer, and never past its end.
-- **Turns**: a Glide starts only with the Head within 1 degree of the Course and the Drive not overriding; in it, nudges and the Course change nothing (the Drive steers again after it). `glide_refusal()` says why one cannot start.
+- **Turns**: a Glide starts only with the Head within 1 degree of the Course and the Drive not overriding; in it, the Course changes nothing and nudges only hold it on its line (#126, in 21-round-4-as-built-continued-again.md). `glide_refusal()` says why one cannot start.
 - **The Reactor**: in a Glide and at the idle after it no Wobble reaches the plasma; nothing wears and nothing is out of the Band, its autopilot holds nothing, and a worn Head is as unsteady as ever (less output).
   Its screen's first line says "Head GLIDE: no Wobble", ACTIVE's Residual reads "—" and its verdict NO WOBBLE ON THE PLASMA; at the idle, "Head AT IDLE: tune STANDBY here, [R] spins up".
 - **Calls**: no Boundary is announced in a Glide, so no Boundary call. The Drive reports "glide_ending" within 10 s of the end, or while dropping out; the Reactor reports "head_at_idle" at the idle. Both are reports: they keep the time rate.
