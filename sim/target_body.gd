@@ -22,7 +22,7 @@ var centre: Vector3
 ## Its half-extents along the world's x, y and z, metres: an ellipsoid.
 var half_size: Vector3
 ## How stiff and dense its rock is, on the scale the Media's echoes are
-## worked on (hardness times solid fraction, DiveSimulation._reflection()),
+## worked on (hardness times solid fraction, DiveSimulation._contrast()),
 ## so its surface reflects as the contrast with its host rock says.
 var stiffness: float
 ## What a full record of it adds to the survey's value, as ColumnFeature.worth.

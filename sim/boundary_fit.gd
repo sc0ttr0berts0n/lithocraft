@@ -47,15 +47,18 @@ const _AHEAD_SAME_M := 10.0
 
 
 ## The Inferred Boundary ahead of `origin` along `direction` (a unit vector),
-## from these patches alone: Vector2(metres to it along the line, its
-## confidence). Of the patches the line meets ahead, it is the nearest that
-## is at least _AHEAD_SHARE as sure as the surest, with the like patches just
-## beyond it: their mean distance, and the confidence of the surest of them.
-## Vector2(INF, 0) when the line meets none. Patches nearer than `from` metres
-## along the line are left out, as those behind the origin are.
+## from these patches alone: Vector3(metres to it along the line, its
+## confidence, the estimate of the rock beyond it against the rock before).
+## Of the patches the line meets ahead, it is the nearest that is at least
+## _AHEAD_SHARE as sure as the surest, with the like patches just beyond it:
+## their mean distance, the confidence of the surest of them, and their
+## estimates seen from the origin's side (BoundaryPatch.beyond()), weighted
+## by confidence (NAN when none carries one). Vector3(INF, 0, NAN) when the
+## line meets none. Patches nearer than `from` metres along the line are left
+## out, as those behind the origin are.
 static func ahead(patches: Array[BoundaryPatch], origin: Vector3, direction: Vector3,
-		from := 0.0) -> Vector2:
-	var hits: Array[Vector2] = []
+		from := 0.0) -> Vector3:
+	var hits: Array[Vector3] = []
 	var surest := 0.0
 	for patch in patches:
 		var closing := patch.normal.dot(direction)
@@ -68,25 +71,30 @@ static func ahead(patches: Array[BoundaryPatch], origin: Vector3, direction: Vec
 		if absf(off.x) > patch.size.x * 0.5 + _AHEAD_REACH_M \
 				or absf(off.z) > patch.size.y * 0.5 + _AHEAD_REACH_M:
 			continue
-		hits.append(Vector2(metres, patch.confidence))
+		hits.append(Vector3(metres, patch.confidence, -signf(closing) * patch.contrast))
 		surest = maxf(surest, patch.confidence)
 	var nearest := INF
 	for hit in hits:
 		if hit.y >= surest * _AHEAD_SHARE:
 			nearest = minf(nearest, hit.x)
 	if is_inf(nearest):
-		return Vector2(INF, 0.0)
+		return Vector3(INF, 0.0, NAN)
 	# Neighbouring patches of the one surface each put it a little
 	# differently: their mean, weighted by confidence, is the better figure.
 	var weight := 0.0
 	var metres := 0.0
 	var confidence := 0.0
+	var told := 0.0
+	var beyond := 0.0
 	for hit in hits:
 		if hit.y >= surest * _AHEAD_SHARE and hit.x - nearest <= _AHEAD_SAME_M:
 			weight += hit.y
 			metres += hit.x * hit.y
 			confidence = maxf(confidence, hit.y)
-	return Vector2(metres / weight, confidence)
+			if not is_nan(hit.z):
+				told += hit.y
+				beyond += hit.z * hit.y
+	return Vector3(metres / weight, confidence, beyond / told if told > 0.0 else NAN)
 
 
 ## The patches the points imply, in no order. No points, no patches.
@@ -115,7 +123,8 @@ static func fit(points: Array[ScanPoint]) -> Array[BoundaryPatch]:
 ## points support it. The plane is a weighted least-squares fit of height
 ## against ground position, each point weighted by its confidence, pulled
 ## toward level by _LEVEL_PULL_M2. The patch covers the ground its points
-## span, no further.
+## span, no further, and carries their contrasts' mean, weighted the same
+## way (BoundaryPatch.contrast).
 static func _add_patch(patches: Array[BoundaryPatch], layer: Array) -> void:
 	if layer.size() < _MIN_SUPPORT:
 		return
@@ -123,6 +132,8 @@ static func _add_patch(patches: Array[BoundaryPatch], layer: Array) -> void:
 	var weight := 0.0
 	var mean := Vector3.ZERO
 	var returned := 0.0
+	var told := 0.0
+	var contrast := 0.0
 	var low: Vector3 = layer[0].position
 	var high: Vector3 = low
 	for point: ScanPoint in layer:
@@ -131,6 +142,9 @@ static func _add_patch(patches: Array[BoundaryPatch], layer: Array) -> void:
 		weight += w
 		mean += point.position * w
 		returned += point.returned_at * w
+		if not is_nan(point.contrast):
+			told += w
+			contrast += point.contrast * w
 		low = low.min(point.position)
 		high = high.max(point.position)
 	mean /= weight
@@ -158,4 +172,5 @@ static func _add_patch(patches: Array[BoundaryPatch], layer: Array) -> void:
 	middle.y = mean.y + rise_x * (middle.x - mean.x) + rise_z * (middle.z - mean.z)
 	var size := Vector2(maxf(high.x - low.x, _MIN_SIDE_M), maxf(high.z - low.z, _MIN_SIDE_M))
 	patches.append(BoundaryPatch.new(middle, Vector3(-rise_x, 1.0, -rise_z).normalized(), size,
-			layer.size(), weight / (weight + _HALF_SURE), returned))
+			layer.size(), weight / (weight + _HALF_SURE), returned,
+			contrast / told if told > 0.0 else NAN))

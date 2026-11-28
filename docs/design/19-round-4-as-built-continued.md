@@ -23,6 +23,29 @@ The tickets of round 4 (spec #113), as built, continuing 18-round-4-as-built.md,
   The Sweep winds about the heading and starts at the Beam's half-angle whatever the aim (#121).
 - **For targets (#124).** A body off the vessel's axis is sounded by `set_beam_aim()` toward it and a pulse; `beam_axis()` gives the aimed direction in the world.
 
+## The rock beyond a Boundary (#122; agent's choices, the developer away)
+
+The developer's question: "with all of the pulsing, there is no real visual or indication of rock type."
+The answer as built, each choice until the developer rules.
+
+- **One number, read two ways.**
+  An echo's polarity and strength give one thing, the contrast in acoustic impedance across the Boundary; the estimate carries that and nothing else, the rock beyond against the rock before, from -1 to 1.
+  The crew reads it as "harder, denser" or "softer, more porous" together: sound cannot pull hardness apart from porosity, and in the layouts built so far the stiffer rock is always the less open one.
+  Its size gives a degree: "A LITTLE" under 0.15, "MUCH" from 0.4, "MUCH THE SAME" under 0.05; the First dive's Boundaries both read "MUCH HARDER, DENSER" going down (true contrasts about 0.54 and 0.42).
+- **Wrong in how much, never which way.**
+  Each echo is off the truth by a share of its contrast that shrinks with the square of its doubt, up to 60% with no confidence, and errs the way STANDBY's guess errs for the same Boundary.
+  So an unsure scan can call the rock beyond much harder when it is a little harder, or the reverse, but never softer when it is harder: that would put "softer ahead" beside a guess whose Wobble is higher than the rock's now.
+  Real basis: polarity is the surest thing an echo carries; its strength is known only as well as the losses on the way, which a noisy echo tells worse.
+  The error follows each echo's own confidence, not how many echoes there are: a pile of noisy echoes under way stays as far out as each, and a halted, quiet scan is how to read the rock well.
+- **Drawn as a geological section draws it.**
+  In all three views, a band 16 px deep on the far side of each patch from the Head: strokes through it for harder rock, dots for softer (hard rock and sand in a section's convention), 3, 5 or 7 marks by degree, in the points' colours (white sure, grey a guess) so it reads as no caution.
+  A fixed depth on the screen, not in metres, so it reads at every range; on the plan, looking straight down, a stroke is a short slant against dots.
+- **Navigation's words.**
+  A sixth status line, "Beyond: MUCH HARDER, DENSER  71% sure", or "Beyond: no Boundary ahead in the scan"; a line over the picture was tried first, and the display is too narrow to hold it beside the caption.
+- **Names only as surface control's.**
+  The survey names the rock below each Boundary it surveyed, at the survey's depth for it; the views write "GRANITE EXPECTED" (or "GRANITE?" where the pane is narrow) in grey at the pane's right just under that depth, and "GRANITE" in white once the Bore Station's record has a stretch of it.
+  The depth is where the name is written rather than a figure beside it, so the words fit the scan views at their size.
+
 ## Targets (#124; agent's choices, the developer away)
 
 - **One kind: a lens of hematite breccia in the granite.**
@@ -33,7 +56,7 @@ The tickets of round 4 (spec #113), as built, continuing 18-round-4-as-built.md,
   Wider than the Column, so a cut through it fills the Column all round; about as tall as the vessel is long, so a crawl through it takes the Bore Station's time to record.
 - **A body in its host, not a Medium.**
   Cutting through it leaves the Wobble the granite's and raises no Boundary: the spec makes it a feature of interest of its own kind, and a Medium of its own would ask a Shift into and out of every target.
-  Its points still make Inferred Boundary patches over its top, as any reflector's do; telling a body's echoes from a layer's is #122's.
+  Its points still make Inferred Boundary patches over its top, as any reflector's do, and carry the contrast #122 gave echoes: going in it is stiffer than the granite, so the rock beyond its top reads harder; coming out the sign turns.
 - **The first error: a share of its depth, wider in depth than across.**
   The Orders' place is an ellipsoid with half-extents of 4% of the depth across the ground and 6% in depth (at least 15 m), the true middle within half of each: at 780 m, 31 m across and 47 m deep against a body 9 m and 5 m.
   Real basis: a gravity or magnetic anomaly places a buried body across the ground better than in depth, both to a share of the depth (the half-width rule); tuned tighter for play.

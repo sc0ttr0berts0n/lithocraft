@@ -172,6 +172,10 @@ const _TARGET_DEPTH_ERROR := 0.06
 ## from the surface never places a body closer than this. Tuned for play
 ## (ADR 0001).
 const _TARGET_LEAST_ERROR_M := 15.0
+## Where a ray passes into or out of a target's body, in the index place of
+## what it meets (_reflectors_along()), where a Boundary's own index goes.
+const _ENTERING := -1
+const _LEAVING := -2
 
 ## Boundaries. A Boundary this many metres of depth ahead along the Head's
 ## line is announced, so the Reactor Station can prepare for the Shift. Tuned
@@ -417,6 +421,11 @@ var _point_cells := {}
 var _soundings: Array[ScanPoint] = []
 var _sounding_cells := {}
 var _sounding_heard := {}
+## Surface control's names for the rock it expects below each Boundary it
+## surveyed, and where (expected_rocks()), as start_surveyed() made them; and
+## the Media the Column has shown, by name, from the Bore Station's record.
+var _expected: Array[Dictionary] = []
+var _confirmed := {}
 ## Seconds simulated this dive, stranded time included: what a point's age is
 ## counted from.
 var _dive_time := 0.0
@@ -947,8 +956,11 @@ func start_dark(head_wear: float) -> void:
 ## Scenario start: the dive begins with surface control's survey in the scan:
 ## every Boundary of the layout sounded from the surface over the ground about
 ## where the Head is, as points of low confidence marked as the survey's
-## (ScanPoint.surveyed), so the Inferred Boundaries, the Boundary countdown
-## and STANDBY's guess have something to work from before any pulse. The
+## (ScanPoint.surveyed) carrying the contrast as faintly heard, so the
+## Inferred Boundaries, the Boundary countdown, STANDBY's guess and the
+## estimate of the rock beyond have something to work from before any pulse;
+## and the rock surface control expects below each Boundary, by name, as a
+## guess (expected_rocks()). The
 ## survey is coarse and wrong (_SURVEY_DEPTH_ERROR); the vessel's own echoes
 ## replace it where they outweigh it, and it is held apart from
 ## point_capacity(), so it neither crowds out the vessel's points nor is
@@ -962,15 +974,23 @@ func start_surveyed() -> void:
 	var random := RandomNumberGenerator.new()
 	random.seed = _SURVEY_SEED
 	var across := int(_SURVEY_HALF_SIDE_M / _SURVEY_SPACING_M)
-	for mean in _layout.boundary_depths():
+	for index in _layout.boundary_depths().size():
+		var mean := _layout.boundary_depths()[index]
 		var off := random.randf_range(0.5, 1.0) * (1.0 if random.randf() < 0.5 else -1.0)
 		var surveyed := mean * (1.0 + off * _SURVEY_DEPTH_ERROR)
+		# Heard from above: the rock below against the rock above, as faintly
+		# as the survey hears it; and the rock surface control expects there.
+		var below := _layout.medium_at(mean + 1.0)
+		var contrast := Echoes.contrast_heard(_contrast(_layout.medium_at(mean - 1.0), below),
+				_SURVEY_CONFIDENCE, _boundary_seed(index))
+		_expected.append({name = below.name, depth = surveyed})
 		for i in range(-across, across):
 			for j in range(-across, across):
 				var depth := surveyed + random.randfn() * _SURVEY_SCATTER_M
 				var place := Vector3(_position.x + (i + 0.5) * _SURVEY_SPACING_M, -depth,
 						_position.z + (j + 0.5) * _SURVEY_SPACING_M)
-				var point := ScanPoint.new(place, _SURVEY_CONFIDENCE, depth, -1, _dive_time, true)
+				var point := ScanPoint.new(place, _SURVEY_CONFIDENCE, depth, -1, _dive_time, true,
+						contrast)
 				_soundings.append(point)
 				var key := _sounding_cell(place)
 				if not _sounding_cells.has(key):
@@ -2018,6 +2038,39 @@ func point_count() -> int:
 ## them. points() holds this many and point_count() more.
 func survey_point_count() -> int:
 	return _soundings.size()
+
+
+## Surface control's expectations from its survey (start_surveyed()): for
+## each Boundary it surveyed, shallowest first, {name: the rock it expects
+## below (StringName), depth: where it expects it, metres, as wrong as the
+## survey, confirmed: true once the Column has shown that rock (the Bore
+## Station's record, survey())}. A guess until confirmed: the scan itself
+## never names a rock, only how it compares (rock_ahead()). Empty for a dive
+## not surveyed. Costs a few lines per Boundary of the layout.
+func expected_rocks() -> Array[Dictionary]:
+	var found: Array[Dictionary] = []
+	for expected in _expected:
+		found.append({name = expected.name, depth = expected.depth,
+				confirmed = _confirmed.has(expected.name)})
+	return found
+
+
+## The scan's estimate of the rock beyond the Inferred Boundary ahead along
+## the Head's direction, against the rock the Head is in: the contrast in
+## acoustic impedance its points carry (BoundaryPatch.contrast), -1 to 1,
+## positive harder and denser, negative softer and more porous. From the
+## points alone, never the layout, so as sure as that Boundary
+## (rock_ahead_confidence()) and wrong by an error that shrinks as it is
+## surer, the same way as STANDBY's guess errs. NAN with no Inferred
+## Boundary ahead, or none that says. Held in the look-ahead: no work.
+func rock_ahead() -> float:
+	return _look.rock_ahead()
+
+
+## How sure the estimate of the rock ahead (rock_ahead()) is, 0 to 1: the
+## confidence of the Inferred Boundary ahead, 0 with none.
+func rock_ahead_confidence() -> float:
+	return _look.sighting_confidence()
 
 
 ## The Beam's width, one of BEAM_WIDTHS (BEAM_MIDDLE when a dive starts).
@@ -3068,9 +3121,8 @@ func _look_ahead() -> void:
 	var boundary := _boundary_ahead()
 	# The guess's errors are fixed by which Boundary it is (its mean depth),
 	# never by where the line meets it, so a guess never jitters as it moves.
-	var which: float = NAN if boundary.is_empty() else _layout.boundary_depths()[boundary[1]]
-	_look.look(_inferred, _position, _direction, _distance, _wobble_beyond(boundary),
-			hash(which))
+	var seed: int = hash(NAN) if boundary.is_empty() else _boundary_seed(boundary[1])
+	_look.look(_inferred, _position, _direction, _distance, _wobble_beyond(boundary), seed)
 
 
 ## The next Boundary the Head's line meets, as MediumLayout.next_meet() gives
@@ -3617,6 +3669,7 @@ func _close_stretch(length := _SURVEY_STRETCH_M) -> void:
 	var stretch := SurveyStretch.new(_stretch_start, length,
 			_stretch_quality / length, composition, main_medium, _stretch_shuttered)
 	_survey.append(stretch)
+	_confirmed[main_medium] = true
 	_waiting.append(stretch)
 	_sending = null  # The new stretch may now be the one to send first.
 	_survey_value += stretch.value()
@@ -3654,7 +3707,7 @@ func _send_pulse() -> void:
 	var replaced := {}
 	for direction in _beam.rays(beam_axis(), _scan_random, _direction):
 		for echo in _echoes_along(origin, direction, _beam.gain(), _beam.reach()):
-			var point := _heard(echo[0], echo[1], origin + direction * echo[0], _pulses_sent)
+			var point := _heard(echo, origin + direction * echo[0], _pulses_sent)
 			if point != null:
 				_add_point(point, replaced)
 	_pulses_sent += 1
@@ -3664,20 +3717,24 @@ func _send_pulse() -> void:
 			by_itself = _pulse_by_itself})
 
 
-## The point an echo heard `metres` away with this strength makes, placed at
-## `place` (where the tool takes it to have come from), as sounding `id`
-## found it; null when it is lost. Its confidence is its strength against the
-## vessel's own noise: weak echoes are often missed (sparse at range) and
-## stray from where they came from (uncertain at range).
-func _heard(metres: float, heard: float, place: Vector3, id: int) -> ScanPoint:
+## The point an echo (one of _echoes_along()'s) makes, placed at `place`
+## (where the tool takes it to have come from), as sounding `id` found it;
+## null when it is lost. Its confidence is its strength against the vessel's
+## own noise: weak echoes are often missed (sparse at range) and stray from
+## where they came from (uncertain at range). It carries the contrast across
+## the Boundary as heard at that confidence (Echoes.contrast_heard()), turned
+## to the rock below against the rock above (ScanPoint.contrast).
+func _heard(echo: Array, place: Vector3, id: int) -> ScanPoint:
+	var metres: float = echo[0]
 	# A starved scanner listens less keenly: its echoes come back weaker.
-	var strength := heard * navigation_supplied()
+	var strength: float = echo[1] * navigation_supplied()
 	var confidence := strength / (strength + _noise + _SCAN_NOISE_FLOOR)
 	if _scan_random.randf() > confidence:
 		return null
 	var stray := Vector3(_scan_random.randfn(), _scan_random.randfn(),
 			_scan_random.randfn()) * (1.0 - confidence) * metres * _SCAN_SCATTER
-	return ScanPoint.new(place + stray, confidence, metres, id, _dive_time)
+	var contrast: float = Echoes.contrast_heard(echo[2], confidence, echo[3]) * echo[4]
+	return ScanPoint.new(place + stray, confidence, metres, id, _dive_time, false, contrast)
 
 
 ## The cloud has taken in a sounding's points (_add_point()): sweeps out the
@@ -3710,7 +3767,7 @@ func _listen_to_sweep(dt: float) -> void:
 	for index in _sweep.due(dt):
 		var direction := _sweep.direction(index, heading())
 		for echo in _echoes_along(_position, direction, Sweep.gain(), reach):
-			var point := _heard(echo[0], echo[1], _sweep.where_placed(index, echo[0]), -1 - _sweeps_begun)
+			var point := _heard(echo, _sweep.where_placed(index, echo[0]), -1 - _sweeps_begun)
 			if point != null:
 				_sweep_heard.append(point)
 	if _sweep.hand_in_due():
@@ -3829,12 +3886,16 @@ func _scan_cell(position: Vector3) -> Vector3i:
 
 ## The echoes one ray from `origin` along `direction` returns, sent at this
 ## gain (Echoes.gain_of(): the Beam's or the Sweep's) and listened for out to
-## `reach` metres: [range m, strength] for each time it passes through a
-## Boundary, nearest first, where the ray meets the surface (a wavy one at the
-## depth it has there). Strength falls with the sound lost to each Medium on
-## the way out and back, and with what earlier Boundaries reflected. Every
-## tool that sounds the rock casts its rays here; a body that is not a
-## Boundary (a target) returns its echoes here too.
+## `reach` metres: [range m, strength, contrast, seed, side] for each time it
+## passes through a Boundary, nearest first, where the ray meets the surface
+## (a wavy one at the depth it has there). Strength falls with the sound lost
+## to each Medium on the way out and back, and with what earlier Boundaries
+## reflected. Contrast is the rock beyond against the rock the ray came
+## through (_contrast()), seed which Boundary it is (_boundary_seed()), and
+## side 1 when beyond is below, -1 when above, which turns the contrast to
+## the rock below against the rock above. Every tool that sounds the rock
+## casts its rays here; a body that is not a Boundary (a target) returns its
+## echoes here too, with a contrast of its own.
 func _echoes_along(origin: Vector3, direction: Vector3, gain: float, reach: float) -> Array:
 	var echoes := []
 	var faded := 0.0
@@ -3851,15 +3912,24 @@ func _echoes_along(origin: Vector3, direction: Vector3, gain: float, reach: floa
 		var strength := Echoes.strength(gain, faded)
 		if strength <= 0.0:
 			break
-		var reflected: float
+		var contrast: float
+		var seed: int
+		var below: float
 		if met[3] is TargetBody:
-			reflected = _target_reflection(here, met[3])
+			var body: TargetBody = met[3]
+			contrast = _target_contrast(here, body) * (1.0 if met[1] == _ENTERING else -1.0)
+			seed = hash(body.label)
+			below = 1.0 if direction.y <= 0.0 else -1.0
 		else:
-			here = met[3]
-			reflected = _reflection(before, met[3])
+			var after: Medium = met[3]
+			here = after
+			contrast = _contrast(before, after)
+			seed = _boundary_seed(met[1])
+			below = 1.0 if after == _layout.medium_at(_layout.boundary_depths()[met[1]] + 1.0) else -1.0
+		var reflected := absf(contrast)
 		if reflected <= 0.0:
 			continue  # Rock that sounds the same either side returns no echo.
-		echoes.append([r, passed * reflected * strength])
+		echoes.append([r, passed * reflected * strength, contrast, seed, below])
 		passed *= 1.0 - reflected * reflected
 	return echoes
 
@@ -3867,7 +3937,8 @@ func _echoes_along(origin: Vector3, direction: Vector3, gain: float, reach: floa
 ## Everything the straight ray from `from` to `to` passes through that may
 ## reflect, nearest first: each Boundary it meets ([metres, index, Medium
 ## before, Medium after], as MediumLayout.meets()) and each time it passes in
-## or out of a target's body ([metres, -1, null, the TargetBody]).
+## or out of a target's body ([metres, _ENTERING or _LEAVING, null, the
+## TargetBody]).
 func _reflectors_along(from: Vector3, to: Vector3) -> Array:
 	var found := _layout.meets(from, to)
 	var bodies := _layout.targets()
@@ -3875,22 +3946,34 @@ func _reflectors_along(from: Vector3, to: Vector3) -> Array:
 		return found
 	for body in bodies:
 		for crossing in body.crossings(from, to):
-			found.append([crossing[0], -1, null, body])
+			found.append([crossing[0], _ENTERING if crossing[1] else _LEAVING, null, body])
 	found.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
 	return found
 
 
-## Share of sound a target's surface reflects in its host Medium, from the
-## contrast in stiffness across it, as _reflection() works it for Boundaries.
-static func _target_reflection(host: Medium, body: TargetBody) -> float:
+## The contrast from a target's host Medium into its body, as _contrast()
+## works it across a Boundary: positive when the body is the stiffer (a
+## breccia in granite is). Coming out of the body the sign turns.
+static func _target_contrast(host: Medium, body: TargetBody) -> float:
 	var z1 := host.hardness * (1.0 - host.porosity)
-	return absf(body.stiffness - z1) / (body.stiffness + z1)
+	return (body.stiffness - z1) / (body.stiffness + z1)
 
 
-## Share of sound a Boundary reflects, from the contrast in acoustic impedance
-## (density times sound speed) across it. Stiffer, less open rock is denser and
-## faster, so hardness times solid fraction stands in for impedance.
-static func _reflection(from: Medium, to: Medium) -> float:
+## The contrast in acoustic impedance (density times sound speed) from one
+## Medium into the next, as an echo's polarity gives it: -1 to 1, positive when
+## `to` is the stiffer, less open rock (harder and denser), negative when it is
+## softer and more porous. Its size is the share of sound the Boundary reflects.
+## Stiffer, less open rock is denser and faster, so hardness times solid
+## fraction stands in for impedance.
+static func _contrast(from: Medium, to: Medium) -> float:
 	var z1 := from.hardness * (1.0 - from.porosity)
 	var z2 := to.hardness * (1.0 - to.porosity)
-	return absf(z2 - z1) / (z2 + z1)
+	return (z2 - z1) / (z2 + z1)
+
+
+## Which way the scan's errors for a Boundary go, fixed by which Boundary it
+## is (its mean depth), never by where it is met: the seed of STANDBY's guess
+## (_look_ahead()) and of the contrast its echoes carry (_echoes_along()), so
+## the two err alike and never jitter.
+func _boundary_seed(index: int) -> int:
+	return hash(_layout.boundary_depths()[index])

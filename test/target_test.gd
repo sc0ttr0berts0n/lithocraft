@@ -132,6 +132,26 @@ func test_a_pulse_that_reaches_the_target_narrows_its_region_round_the_body() ->
 	assert_array(sim.narrowed_targets()).contains_exactly([&"A"])
 
 
+func test_echoes_off_a_stiffer_body_say_harder_rock_below_its_top_and_softer_below_its_base() -> void:
+	var sim := _dive()
+	_go_quiet(sim)
+	sim.pulse()
+	sim.advance(0.1)
+	# The uniform host has no Boundary, so every echo is the body's top or base.
+	var middle := -(START_M + BELOW_M)
+	var tops := 0
+	var bases := 0
+	for point in sim.points():
+		if point.position.y > middle:
+			tops += 1
+			assert_float(point.contrast).is_greater(0.0)
+		else:
+			bases += 1
+			assert_float(point.contrast).is_less(0.0)
+	assert_int(tops).is_greater(0)
+	assert_int(bases).is_greater(0)
+
+
 func test_a_sweep_that_reaches_a_target_off_to_the_side_narrows_its_region() -> void:
 	# Some 55 degrees off the Head's line: outside the Beam's cone, inside the
 	# Sweep's spiral.

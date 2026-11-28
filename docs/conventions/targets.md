@@ -23,7 +23,7 @@ It never sees the body, so points from anything else inside the report narrow it
 `target_regions()` narrows each report against `points()` only once `scan_revision()` has changed, so a view may call it every frame; `narrowed_targets()` lists the labels whose region the vessel's points have narrowed.
 
 **Every tool hears it.**
-`_echoes_along()` asks `_reflectors_along()`, which merges the layout's `meets()` with each body's `crossings()`, nearest first; a body's surface reflects by `_target_reflection()`, the contrast of its stiffness with the host's, going in and coming out.
+`_echoes_along()` asks `_reflectors_along()`, which merges the layout's `meets()` with each body's `crossings()`, nearest first; a body's surface reflects by `_target_contrast()`, the contrast of its stiffness with the host's: positive going in, the sign turned coming out, so its echoes carry a contrast as a Boundary's do (#122) and the rock beyond its top reads harder.
 So the Beam, an aimed pulse and the Sweep all return points off it, and the Inferred Boundaries fit its points as they fit any (a patch over its top is as true as the scan can be).
 
 **Identified in the Column.**
