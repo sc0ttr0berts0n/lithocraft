@@ -46,10 +46,10 @@ static func _scenario_of(steps: Array, phases_after := []) -> Scenario:
 
 # --- The Orders and the Checklist are plain data -------------------------
 
-func test_the_first_dive_has_orders_and_a_checklist_in_seven_phases() -> void:
+func test_the_first_dive_has_orders_and_a_checklist_in_eleven_phases() -> void:
 	var scenario := Scenario.first_dive()
 	assert_array(scenario.orders).is_not_empty()
-	assert_int(scenario.phases.size()).is_equal(7)
+	assert_int(scenario.phases.size()).is_equal(11)
 	var ids := []
 	for phase in scenario.phases:
 		assert_array(phase.steps).is_not_empty()
@@ -206,7 +206,7 @@ func test_the_checklist_moves_on_once_under_way_even_with_the_orders_unread() ->
 	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.checklist_phase() == 1, 600.0, 0.5)).is_true()
 	assert_float(sim.depth()).is_greater(sim.vessel_length())
 	assert_str(DiveTestKit.step_state(sim, &"read_orders")).is_equal(DiveSimulation.STEP_MISSED)
-	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"pulse")
+	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"beam_pulsing")
 
 
 ## A first dive on the short layout with its startup done: the Reactor's and
@@ -228,10 +228,22 @@ func _started(surveyed := true) -> DiveSimulation:
 
 func test_the_sand_steps_tick_as_each_is_done() -> void:
 	var sim := _started()
-	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"pulse")
+	# The Beam's own pulsing: a pulse by hand is not it, and the switch set is
+	# not it either until the Lithocraft has covered the ground for a pulse.
+	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"beam_pulsing")
 	sim.pulse()
 	sim.advance(0.1)
-	assert_str(DiveTestKit.step_state(sim, &"pulse")).is_equal(DiveSimulation.STEP_DONE)
+	assert_str(DiveTestKit.step_state(sim, &"beam_pulsing")).is_equal(DiveSimulation.STEP_PENDING)
+	sim.set_quiet_ship(true)
+	sim.set_beam_pulsing(true)
+	DiveTestKit.run(sim, 10.0, 0.5)
+	assert_str(DiveTestKit.step_state(sim, &"beam_pulsing")).is_equal(DiveSimulation.STEP_PENDING)
+	sim.set_quiet_ship(false)
+	# The pulse by hand, already counted, is not looked for again.
+	sim.take_events()
+	assert_dict(DiveTestKit.run_until(sim, &"pulse_sent", 600.0, [], 0.5)).is_not_empty()
+	sim.advance(0.1)
+	assert_str(DiveTestKit.step_state(sim, &"beam_pulsing")).is_equal(DiveSimulation.STEP_DONE)
 
 	# A pulse with the vessel running is not a Quiet Ship scan.
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"quiet_scan")
@@ -263,8 +275,12 @@ func test_the_sand_steps_tick_as_each_is_done() -> void:
 ## The sand steps done too, on a dive from _started().
 func _through_the_sand() -> DiveSimulation:
 	var sim := _started()
-	sim.pulse()
+	sim.set_beam_pulsing(true)
+	DiveTestKit.run_until(sim, &"pulse_sent", 600.0, [], 0.5)
 	sim.advance(0.1)
+	# Switched off again once its step ticks, so the scan's guess of the rock
+	# ahead stays as rough as one quiet pulse makes it.
+	sim.set_beam_pulsing(false)
 	sim.set_quiet_ship(true)
 	sim.advance(0.1)
 	sim.pulse()
@@ -296,12 +312,16 @@ func test_the_first_boundary_begins_as_it_approaches_and_wants_standby_pretuned_
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"shift")
 	assert_dict(DiveTestKit.run_until(sim, &"boundary_crossed", 600.0, [], 0.1)).is_not_empty()
 	assert_str(DiveTestKit.step_state(sim, &"shift")).is_equal(DiveSimulation.STEP_PENDING)
+	DiveTestKit.tune(sim, DiveSimulation.CHANNEL_STANDBY, DiveTestKit.wobble_in(Medium.sand()))
 	sim.shift()
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"shift")).is_equal(DiveSimulation.STEP_DONE)
 
-	# The guess was off, so the Shift left the Residual outside the Band: the
-	# crew tunes ACTIVE until it is inside, and only then is the Boundary behind.
+	# Shifted onto a wrong wave (STANDBY put back on the sand's just before),
+	# the Residual outside the Band: the crew tunes ACTIVE until it is inside,
+	# and only then is the Boundary behind. (The Beam's pulses can make the
+	# scan's guess good enough that a Shift lands in the Band; that ticks this
+	# step at once.)
 	assert_bool(sim.out_of_band()).is_true()
 	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"tune_active")
 	assert_str(sim.checklist()[sim.checklist_phase()].title).is_equal(Scenario.first_dive().phases[2].title)
@@ -410,15 +430,15 @@ func test_the_sandstone_and_granite_steps_tick_as_each_is_done() -> void:
 	sim.set_observed_feature(sim.features_in_column()[0].id)
 	sim.advance(0.1)
 	assert_str(DiveTestKit.step_state(sim, &"observe_granite")).is_equal(DiveSimulation.STEP_DONE)
-	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"plot_climb")
+	# Target A next (#128): this short layout has none, so its steps wait.
+	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"quiet_sweep")
 
-	# The planned path (ticket #89): the climb plotted when the Checklist asks
-	# for it, surface control warns of the turn once the Lithocraft begins it.
+	# The planned path (ticket #89): surface control warns of the turn once
+	# the Lithocraft begins it, whatever the Checklist has next.
 	assert_int(_turn_warnings(sim)).is_equal(0)
 	sim.set_course(0.0, -90.0)
 	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return _turn_warnings(s) > 0, 3000.0, 0.5)).is_true()
 	assert_int(_turn_warnings(sim)).is_equal(1)
-	assert_str(DiveTestKit.step_state(sim, &"plot_climb")).is_equal(DiveSimulation.STEP_DONE)
 
 
 func test_turning_for_home_ticks_on_the_climb_and_surfacing_on_the_pay() -> void:
@@ -428,25 +448,30 @@ func test_turning_for_home_ticks_on_the_climb_and_surfacing_on_the_pay() -> void
 	sim.set_course(0.0, -90.0)
 	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.pitch() < 45.0, 3000.0)).is_true()
 	assert_str(DiveTestKit.step_state(sim, &"climbing")).is_equal(DiveSimulation.STEP_PENDING)
-	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return DiveTestKit.phase_title(s) == "Turn and climb", 3000.0)).is_true()
+	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return DiveTestKit.step_state(s, &"climbing") == DiveSimulation.STEP_DONE, 3000.0)).is_true()
 	assert_float(sim.pitch()).is_less(0.0)
 	assert_str(DiveTestKit.step_state(sim, &"plot_climb")).is_equal(DiveSimulation.STEP_DONE)
 	assert_str(DiveTestKit.step_state(sim, &"read_orders")).is_equal(DiveSimulation.STEP_MISSED)
-	# The Reactor's autopilot is asked for before the climb counts as made: it
-	# is what takes the Boundaries above, where the Checklist asks no Shift.
-	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"reactor_autopilot_climb")
-	DiveTestKit.run(sim, 5.0)
-	assert_str(DiveTestKit.step_state(sim, &"climbing")).is_equal(DiveSimulation.STEP_PENDING)
-	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
-	sim.advance(0.1)
-	assert_str(DiveTestKit.step_state(sim, &"reactor_autopilot_climb")).is_equal(DiveSimulation.STEP_DONE)
+	# The climb plotted and the Lithocraft climbing, the turn's steps tick as
+	# it begins, and the Checklist goes on with the way home (#128), never
+	# straight to "Surface" for the whole climb.
 	assert_str(DiveTestKit.step_state(sim, &"climbing")).is_equal(DiveSimulation.STEP_DONE)
-
-	assert_str(DiveTestKit.next_step_id(sim)).is_equal(&"paid")
+	assert_str(DiveTestKit.next_step_id(sim)).is_not_equal(&"paid")
+	assert_int(sim.checklist_phase()).is_greater(_phase_index("Turn and climb"))
+	assert_int(sim.checklist_phase()).is_less(_phase_index("Surface"))
 	assert_bool(DiveTestKit.achieved(sim, &"surfaced")).is_false()
 	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.surfaced(), 6000.0)).is_true()
 	assert_str(DiveTestKit.step_state(sim, &"paid")).is_equal(DiveSimulation.STEP_DONE)
 	assert_bool(DiveTestKit.achieved(sim, &"surfaced")).is_true()
+
+
+## Where the First dive's phase of this title is in its Checklist.
+static func _phase_index(title: String) -> int:
+	var phases := Scenario.first_dive().phases
+	for i in phases.size():
+		if phases[i].title == title:
+			return i
+	return -1
 
 
 # --- Phases begin on what the Lithocraft does (ticket #59) ---------------
@@ -488,10 +513,9 @@ func test_a_climb_plotted_mid_dive_begins_the_turn_only_once_the_lithocraft_clim
 	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.pitch() < 45.0, 3000.0)).is_true()
 	assert_int(sim.checklist_phase()).is_equal(before)
 	assert_str(DiveTestKit.step_state(sim, &"plot_climb")).is_equal(DiveSimulation.STEP_PENDING)
-	# The climb already plotted and the Reactor's autopilot already engaged,
-	# every one of the turn's steps ticks as it begins.
+	# The climb already plotted, both of the turn's steps tick as it begins.
 	assert_bool(DiveTestKit.fly_until(sim, func(s: DiveSimulation) -> bool: return s.checklist_phase() != before, 3000.0)).is_true()
-	assert_str(DiveTestKit.step_state(sim, &"reactor_autopilot_climb")).is_equal(DiveSimulation.STEP_DONE)
+	assert_str(DiveTestKit.step_state(sim, &"plot_climb")).is_equal(DiveSimulation.STEP_DONE)
 	assert_str(DiveTestKit.step_state(sim, &"climbing")).is_equal(DiveSimulation.STEP_DONE)
 	assert_float(sim.pitch()).is_less(0.0)
 	# It deepened through the turn before it rose.

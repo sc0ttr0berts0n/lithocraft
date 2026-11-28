@@ -39,6 +39,9 @@ The Bore Station's screen names it "Target A: Hematite Breccia"; `FeatureLook.LO
 No key was added: the Beam's aim, the Sweep and the Course's keys prospect for it.
 
 **The Prospecting drill.**
-`Scenario.prospecting_drill()`, third on the start menu: halted at Quiet Ship in the granite of the First dive's ground with target A below and a little east, off the straight line down; its Checklist asks to narrow the region, aim the Beam, plot the Course one step off straight down toward it, crawl into it on the Drive's autopilot and record it.
+`Scenario.prospecting_drill()`, fourth on the start menu: halted at Quiet Ship in the granite of the First dive's ground with target A below and a little east, off the straight line down; its Checklist asks to narrow the region, aim the Beam, plot the Course one step off straight down toward it, crawl into it on the Drive's autopilot and record it.
 `prospecting_drill_test.gd` finishes it that way, and a dive straight down passes the target by.
 The recipes show it: `navigation.txt`'s "target before / after prospecting", `column.txt`'s "target A" and `checklist.txt`'s "prospecting drill".
+
+**The First dive's target.**
+The First dive's Orders name target A too (#128): a hematite breccia in the granite on the line straight down, so the crew finds it by crawling on, halts, Sweeps and crawls through it; `first_dive_and_glide_drill_test.gd` holds where it lies.

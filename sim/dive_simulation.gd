@@ -2678,8 +2678,7 @@ func _glide_reach_along(direction: Vector3) -> float:
 ## than Glide.straight_degrees() off the Course: turns are the Crawl's) or
 ## &"no_range" (the scan shows nothing along the Course).
 func glide_refusal() -> StringName:
-	var off_course := _overriding \
-			or rad_to_deg(_direction.angle_to(course_direction())) > Glide.straight_degrees()
+	var off_course := not straight_on_course()
 	var refusals := [
 		[_surfaced or dead(), &"dive_over"], [stranded(), &"stranded"], [plasma_lost(), &"plasma_lost"],
 		[_glide.active(), &"gliding"], [_glide.plotted() <= 0.0, &"not_plotted"],
@@ -2689,6 +2688,16 @@ func glide_refusal() -> StringName:
 		if refusal[0]:
 			return refusal[1]
 	return &"no_range" if _glide_reach_along(_direction) <= 0.0 else &""
+
+
+## True while the Head points straight along the Course, as near as a Glide
+## needs to start (within Glide.straight_degrees()), and the Drive follows
+## the Course with no override: the turn toward it is done. Something the
+## Lithocraft does, not a setting: a Course plotted is not followed until the
+## vessel has come round to it. Constant work.
+func straight_on_course() -> bool:
+	return not _overriding \
+			and rad_to_deg(_direction.angle_to(course_direction())) <= Glide.straight_degrees()
 
 
 ## Metres of the running Glide left to its end; 0 with none running.

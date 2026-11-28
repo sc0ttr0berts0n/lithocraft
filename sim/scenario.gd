@@ -36,6 +36,19 @@ const _TURNING_STEERING := 0.01
 const _PROSPECT_INTO_GRANITE_M := 60.0
 const _PROSPECT_TARGET_BELOW_M := 120.0
 const _PROSPECT_TARGET_OFF_M := 12.0
+## The First dive's target A lies this many metres of depth into the granite
+## (its middle), on the line straight down: past the granite's first
+## features, so the crew has settled into the rock before it, and far enough
+## below the Boundary's folds that the survey's wide place of it stays clear
+## of them. Tuned for play (ADR 0001).
+const _FIRST_DIVE_TARGET_INTO_GRANITE_M := 190.0
+## The Glide drill begins halted this many metres down in the sand, and
+## asks for a Glide this long: down across the sandstone's Boundary and well
+## into the sandstone, short of the granite, so the tunnel it leaves is all
+## porous rock and the vessel comes out at idle in a rock it did not start in.
+## Tuned for play (ADR 0001).
+const _GLIDE_DRILL_START_M := 40.0
+const _GLIDE_DRILL_PLOT_M := 300.0
 
 
 ## A goal of the Orders, achieved once its condition has held.
@@ -275,6 +288,66 @@ static func course_is_a_climb() -> Callable:
 	return when(func(sim: DiveSimulation) -> bool: return sim.course_pitch() < 0.0)
 
 
+## Holds while the Lithocraft is halted at Quiet Ship: still, its Head at
+## idle, so a pulse or a Sweep is clean. Quiet Ship set but the vessel still
+## slowing is not yet halted.
+static func halted_at_quiet_ship() -> Callable:
+	return when(func(sim: DiveSimulation) -> bool: return sim.quiet_ship() and sim.speed() == 0.0)
+
+
+## Holds on a pulse of the Beam at this width (one of
+## DiveSimulation.BEAM_WIDTHS), by hand or by itself: what the Beam sent, not
+## the width set.
+static func pulsed_at_width(width: StringName) -> Callable:
+	return on_event(&"pulse_sent", func(event: Dictionary, _sim: DiveSimulation) -> bool:
+		return event.width == width and not event.get("drowned", false))
+
+
+## Holds on a Sweep run all the way out to square across, with the region of
+## the target of this label narrowed by the vessel's own points: the Sweep
+## done, whatever narrowed it.
+static func swept_for(label: StringName) -> Callable:
+	return on_event(&"sweep_ended", func(event: Dictionary, sim: DiveSimulation) -> bool:
+		return event.finished and label in sim.narrowed_targets())
+
+
+## Holds while the Head points straight along the Course, as a Glide needs to
+## start: the turn toward it done.
+static func straight_on_course() -> Callable:
+	return when(func(sim: DiveSimulation) -> bool: return sim.straight_on_course())
+
+
+## Holds while the Glide the scan has shown along the Course would take the
+## Head up past the depth surface control's survey expects the top of the
+## Medium of this name at: the scan shows the way through the rock above it,
+## not only to its Boundary. Read from the scan (glide_reach()) and the
+## survey's expected rocks, never the layout.
+static func glide_shown_above(medium_name: StringName) -> Callable:
+	return when(func(sim: DiveSimulation) -> bool:
+		for rock in sim.expected_rocks():
+			if rock.name == medium_name:
+				return sim.glide_reach() > 0.0 and sim.depth() - sim.glide_reach() < rock.depth
+		return false)
+
+
+## Holds while a Glide is plotted.
+static func glide_plotted() -> Callable:
+	return when(func(sim: DiveSimulation) -> bool: return sim.glide_plotted() > 0.0)
+
+
+## Holds while the Lithocraft glides: its jet running and the vessel moving.
+## A Glide only plotted, or refused, is not one.
+static func gliding() -> Callable:
+	return when(func(sim: DiveSimulation) -> bool: return sim.gliding() and sim.speed() > 0.0)
+
+
+## Holds while the Lithocraft crawls again: no Glide and no idle after one,
+## the Head spun up and the vessel moving.
+static func crawling() -> Callable:
+	return when(func(sim: DiveSimulation) -> bool:
+		return sim.glide_state() == DiveSimulation.GLIDE_NONE and not sim.quiet_ship() and sim.speed() > 0.0)
+
+
 ## Holds while the Lithocraft is turning for home and still diving: a climb
 ## is plotted and the Drive steers for one, and the Head, cutting below level
 ## and moving, is being steered round. Something the Lithocraft does: a climb
@@ -290,23 +363,30 @@ static func turning_for_home() -> Callable:
 
 # --- The Scenarios -----------------------------------------------------------
 
-## Every Scenario, in the order the start menu lists them.
+## Every Scenario, in the order the start menu lists them: the First dive,
+## then the drills in the order a new crew meets their lessons (the Glide's
+## untimed tuning at idle before the Shift drill's tuning under way, then
+## prospecting), then the stranding.
 static func all() -> Array[Scenario]:
-	return [first_dive(), shift_drill(), prospecting_drill(), stranded_in_the_granite()]
+	return [first_dive(), glide_drill(), shift_drill(), prospecting_drill(), stranded_in_the_granite()]
 
 
 ## The First dive: from the desert surface down through the sandstone into
-## the granite, and home with the data. Its Media are read from its layout,
-## shallowest first, so the steps follow the layout's own order.
+## the granite, through target A, and home with the data by a Glide. Its Media
+## are read from its layout, shallowest first, so the steps follow the
+## layout's own order.
 static func first_dive() -> Scenario:
 	var s := Scenario.new()
 	s.title = "First dive"
-	s.layout = MediumLayout.first_dive()
-	var boundaries := s.layout.boundary_depths()
-	var top := s.layout.medium_at(0.0)
-	var middle := s.layout.medium_at(boundaries[0] + 0.01)
-	var bottom := s.layout.medium_at(boundaries[1] + 0.01)
-	s.summary = "From the desert surface down through the %s into the %s, and home with the data." % [
+	var ground := MediumLayout.first_dive()
+	var boundaries := ground.boundary_depths()
+	var top := ground.medium_at(0.0)
+	var middle := ground.medium_at(boundaries[0] + 0.01)
+	var bottom := ground.medium_at(boundaries[1] + 0.01)
+	# Target A on the line straight down, deep in the granite.
+	s.layout = ground.with_targets([TargetBody.hematite_breccia(&"A",
+			Vector3(0.0, -(boundaries[1] + _FIRST_DIVE_TARGET_INTO_GRANITE_M), 0.0))])
+	s.summary = "From the desert surface down through the %s into the %s, through target A, and home by a Glide with the data." % [
 			middle.name, bottom.name]
 
 	# Surface control's own survey puts the top of the deepest Medium at its
@@ -316,6 +396,7 @@ static func first_dive() -> Scenario:
 	into_bottom.target_depth = boundaries[1]
 	s.orders = [
 		into_bottom,
+		identify_target(&"A"),
 		Goal.new(&"survey_paid", "Be paid for survey: uploaded, or brought home",
 				when(func(sim: DiveSimulation) -> bool: return sim.paid_this_dive() > 0.0)),
 		Goal.new(&"surfaced", "Surface with the data", on_event(&"surfaced")),
@@ -339,11 +420,14 @@ static func first_dive() -> Scenario:
 	var sand := Phase.new(String(top.name).capitalize(),
 			when(func(sim: DiveSimulation) -> bool: return sim.depth() > sim.vessel_length()))
 	sand.steps = [
-		Step.new(&"pulse", "Pulse to see what lies ahead", DiveSimulation.STATION_NAVIGATION,
-				&"pulse", on_event(&"pulse_sent")),
-		Step.new(&"quiet_scan", "Quiet Ship, then pulse again: a clean scan", DiveSimulation.STATION_NAVIGATION,
+		# Ticks on a pulse the Beam sends by itself: the switch set is only an
+		# intention until the Lithocraft has covered the ground for one.
+		Step.new(&"beam_pulsing", "Switch on the Beam's own pulsing: it pulses as the Lithocraft covers ground",
+				DiveSimulation.STATION_NAVIGATION, &"beam_pulsing",
+				on_event(&"pulse_sent", func(event: Dictionary, _sim: DiveSimulation) -> bool: return event.by_itself)),
+		Step.new(&"quiet_scan", "Quiet Ship, then pulse by hand: a clean scan", DiveSimulation.STATION_NAVIGATION,
 				&"quiet_ship", on_event(&"pulse_sent", func(event: Dictionary, _sim: DiveSimulation) -> bool:
-					return event.quiet_ship)),
+					return event.quiet_ship)).and_also(&"pulse"),
 		Step.new(&"quiet_off", "Quiet Ship off, under way again", DiveSimulation.STATION_NAVIGATION,
 				&"quiet_ship", when(func(sim: DiveSimulation) -> bool: return not sim.quiet_ship())),
 		Step.new(&"observe", "Observe a feature as it passes through the Bore", DiveSimulation.STATION_BORE,
@@ -381,41 +465,114 @@ static func first_dive() -> Scenario:
 				DiveSimulation.STATION_BORE, &"observe", observing_in(bottom.name)),
 	]
 
+	# Target A, below on the line down: halt, Sweep for it, crawl on into it
+	# and record it. Begins early once the Head has cut into it.
+	var target := Phase.new("Target A", target_in_column(&"A"))
+	target.steps = [
+		Step.new(&"quiet_sweep", "Quiet Ship: halt for a clean Sweep", DiveSimulation.STATION_NAVIGATION,
+				&"quiet_ship", halted_at_quiet_ship()),
+		Step.new(&"sweep_target", "Sweep for target A, and pulse: the Beam sees ahead, the Sweep round about, and its region narrows",
+				DiveSimulation.STATION_NAVIGATION, &"sweep", swept_for(&"A")).and_also(&"pulse"),
+		Step.new(&"quiet_off_target", "Quiet Ship off, under way again: the Course runs through the region",
+				DiveSimulation.STATION_NAVIGATION, &"quiet_ship", when(func(sim: DiveSimulation) -> bool: return not sim.quiet_ship())),
+		Step.new(&"in_column", "Crawl into target A: it passes into the Column", DiveSimulation.STATION_DRIVE,
+				&"", target_in_column(&"A")),
+		Step.new(&"observe_target", "Observe target A as it passes through the Bore", DiveSimulation.STATION_BORE,
+				&"observe", observing_target(&"A")),
+		Step.new(&"identified", "Record it in full before it leaves the Bore", DiveSimulation.STATION_BORE,
+				&"", target_identified(&"A")),
+	]
+
 	# The turn begins early once the Lithocraft is climbing, never on a climb
 	# plotted: a Course is an intention. Its first step reads the Course as it
-	# stands, so a climb already plotted when the phase begins ticks it.
+	# stands, so a climb already plotted when the phase begins ticks it; the
+	# climbing step ticks with it, and the Glide home's steps follow, so the
+	# Checklist always has the climb's next step to show.
 	var turn := Phase.new("Turn and climb", climbing())
 	turn.steps = [
 		Step.new(&"plot_climb", "Plot the Course: climb. The Lithocraft goes forward only, so the way home is a turn",
 				DiveSimulation.STATION_NAVIGATION, &"plot_pitch", course_is_a_climb()),
-		# The Shifts down let the Reactor's autopilot go, and the climb crosses
-		# both Boundaries again with no Shift asked: engaged, it tunes ACTIVE
-		# through them, at some wear of the Head.
-		Step.new(&"reactor_autopilot_climb", "Engage the Reactor's autopilot for the climb: it tunes active through the Boundaries above",
-				DiveSimulation.STATION_REACTOR, &"autopilot_reactor", _autopilot_on(DiveSimulation.STATION_REACTOR)),
 		Step.new(&"climbing", "Turn for home: the Drive follows the Course round, and deepens through the turn before it rises",
 				DiveSimulation.STATION_DRIVE, &"", climbing()),
 	]
 
-	var surface := Phase.new("Surface", on_event(&"surfaced"))
-	surface.steps = [
-		Step.new(&"paid", "Surface and be paid", &"", &"", on_event(&"paid")),
+	# The climb home through the rock above is a Glide: scanned, plotted,
+	# started straight on the Course and held on its line. No Shift is asked
+	# of it: it crosses the Boundary above with no Wobble on the plasma.
+	var glide := Phase.new("Glide home")
+	glide.steps = [
+		Step.new(&"narrow_beam", "Narrow the Beam: it reaches further, to the Boundaries above", DiveSimulation.STATION_NAVIGATION,
+				&"beam_width", pulsed_at_width(DiveSimulation.BEAM_NARROW)),
+		Step.new(&"straight_on", "Come round straight onto the climb: a Glide runs only straight along the Course",
+				DiveSimulation.STATION_DRIVE, &"", straight_on_course()),
+		Step.new(&"quiet_glide_scan", "Quiet Ship: halt for a clean scan of the way home", DiveSimulation.STATION_NAVIGATION,
+				&"quiet_ship", halted_at_quiet_ship()),
+		Step.new(&"pulse_way_home", "Pulse until Navigation shows the Glide home up through the %s" % middle.name,
+				DiveSimulation.STATION_NAVIGATION, &"pulse", glide_shown_above(bottom.name)),
+		Step.new(&"plot_glide", "Plot the Glide: all the scan shows", DiveSimulation.STATION_NAVIGATION,
+				&"plot_glide_all", glide_plotted()),
+		Step.new(&"quiet_off_glide", "Quiet Ship off: a Glide cannot start at Quiet Ship", DiveSimulation.STATION_NAVIGATION,
+				&"quiet_ship", when(func(sim: DiveSimulation) -> bool: return not sim.quiet_ship())),
+		Step.new(&"start_glide", "Start the Glide", DiveSimulation.STATION_DRIVE, &"glide", gliding()),
+		Step.new(&"hold_glide", "Hold the Glide on its line to its end: nudge toward the ball's diamond, or engage the Drive's autopilot, which holds it loosely",
+				DiveSimulation.STATION_DRIVE, &"nudge_pitch", on_event(&"glide_ended")).and_also(&"nudge_heading"),
 	]
 
-	s.phases = [startup, sand, first_boundary, sandstone, granite, turn, surface]
+	# Out of the Glide, halted with the Head at idle in whatever rock it
+	# ended in: begins as the Glide ends, however it ended.
+	var idle := Phase.new("Out of the Glide", on_event(&"glide_ended"))
+	idle.steps = _out_of_the_glide(middle.name)
+
+	# The Boundary into the top Medium, crawled: the Glide stopped short of it.
+	# Begins early as the Lithocraft climbs across that Boundary however it
+	# came up (a dive left to the autopilots never glides); never on being in
+	# the top Medium alone, which it also is at the surface and on a turn for
+	# home made in it.
+	var climbing_into_top := func(sim: DiveSimulation, events: Array) -> bool:
+		return climbing().call(sim, events) and on_event(&"boundary_crossed",
+				func(event: Dictionary, _sim: DiveSimulation) -> bool: return event.to == top.name).call(sim, events)
+	var into_top := Phase.new("Into the %s" % top.name, climbing_into_top)
+	into_top.steps = [
+		_pulse_for_the_boundary(StringName("pulse_boundary_%s" % top.name)),
+		Step.new(StringName("pretune_standby_%s" % top.name), "Pretune standby for the %s" % top.name,
+				DiveSimulation.STATION_REACTOR, &"tune_frequency", standby_pretuned()).and_also(&"tune_amplitude"),
+		Step.new(StringName("shift_%s" % top.name), "Shift into the %s" % top.name, DiveSimulation.STATION_REACTOR,
+				&"shift", shift_in(top.name)),
+		_tune_active(StringName("tune_active_%s" % top.name), top.name),
+	]
+
+	var surface := Phase.new("Surface", on_event(&"surfaced"))
+	surface.steps = [
+		Step.new(&"paid", "Crawl up to the surface and be paid", &"", &"", on_event(&"paid")),
+	]
+
+	s.phases = [startup, sand, first_boundary, sandstone, granite, target, turn, glide, idle, into_top, surface]
 	# Surface control surveyed the ground before the dive: its faint points
-	# are in the scan as the dive begins.
+	# are in the scan as the dive begins, and its wide place of target A.
 	s.prepare = func(sim: DiveSimulation) -> void: sim.start_surveyed()
 
 	s.messages = [
-		Message.new(("Orders for your first dive: survey down through the %s into the %s, then surface with the data. "
+		Message.new(("Orders for your first dive: survey down through the %s into the %s, find target A there and record it, "
+				+ "then surface with the data. Our survey of this ground is in your scan, faint. "
 				+ "You are paid for survey once it is uploaded, or brought home.") % [middle.name, bottom.name], always()),
 		Message.new("We have you nearing the %s. Pretune standby at the Reactor and swap it in as you cross." % middle.name,
 				on_event(&"boundary_approaching")),
 		Message.new("The tunnel has sealed behind you. You are on sound through the rock now: slow both ways.",
 				on_event(&"tunnel_sealed")),
-		Message.new("%s confirmed. Survey a feature, then turn for home." % String(bottom.name).capitalize(),
-				in_medium(bottom.name)),
+		Message.new(("%s confirmed. Survey a feature. Target A lies below you on your line: "
+				+ "something dense and magnetic that our survey cannot name. Halt and sweep for it, then crawl through it.")
+				% String(bottom.name).capitalize(), in_medium(bottom.name)),
+		Message.new("Target A is in the Column. Record it before it leaves the Bore.", target_in_column(&"A")),
+		Message.new(("Target A identified: hematite breccia, granite shattered and cemented by iron oxide, "
+				+ "with a little copper. It is paid for once its record is up the link or brought home. Turn for home."),
+				target_identified(&"A")),
+		# Before the Glide is first used: what it costs.
+		Message.new(("Come home by a Glide: the Head melts the whole face and the vessel runs fast and straight, "
+				+ "and crosses Boundaries with no Shift. It costs: no Column, so nothing surveyed or seen; "
+				+ "deaf to every pulse; the Reactor's whole output; and off its line it wears the Head and hull. "
+				+ "It runs only as far as your scan has shown, and ends halted with the Head at idle: "
+				+ "tune standby for the rock round you and Shift to spin it up."),
+				target_identified(&"A")),
 		# One for each turn for home: the same turn until the climb is given
 		# up for another Course, however the turn itself goes.
 		Message.new("Turning for home: you will deepen through the turn.", turning_for_home()) \
@@ -423,6 +580,68 @@ static func first_dive() -> Scenario:
 		Message.new("We hear you are dark. A rescue is coming down the tunnel. Keep the hull cool.",
 				on_event(&"stranded")),
 		Message.new("Welcome home. The survey is paid for.", on_event(&"paid")),
+	]
+	return s
+
+
+## The Glide drill: halted at Quiet Ship in the sand of the First dive's
+## ground, the Reactor's and Thermal's autopilots engaged. Scan, plot a Glide
+## down across the sandstone's Boundary, start it and hold its line, come out
+## at idle in the sandstone, tune STANDBY for it and Shift to spin the Head up
+## into the Crawl. All in porous rock, so the rough tunnel the Glide leaves
+## dims the link, which the Bore Station shows.
+static func glide_drill() -> Scenario:
+	var s := Scenario.new()
+	s.title = "Glide drill"
+	s.layout = MediumLayout.first_dive()
+	var boundary := s.layout.boundary_depths()[0]
+	var above := s.layout.medium_at(boundary - 0.01)
+	var below := s.layout.medium_at(boundary + 0.01)
+	s.summary = "Halted in the %s: scan, plot a Glide down into the %s, hold its line, come out at idle, tune standby and spin up." % [
+			above.name, below.name]
+	s.prepare = func(sim: DiveSimulation) -> void:
+		sim.start_below(_GLIDE_DRILL_START_M)
+		# The same ground as the First dive, surveyed from the surface alike.
+		sim.start_surveyed()
+		sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
+		sim.set_autopilot(DiveSimulation.STATION_THERMAL, true)
+		sim.set_quiet_ship(true)
+
+	s.orders = [
+		Goal.new(&"glide_and_crawl_on", "Glide down into the %s, come out at idle and crawl on" % below.name,
+				when(func(sim: DiveSimulation) -> bool:
+					return not sim.glided_stretches().is_empty() and sim.medium().name == below.name \
+							and sim.glide_state() == DiveSimulation.GLIDE_NONE and sim.speed() > 0.0 and not sim.out_of_band())),
+	]
+
+	var plot := Phase.new("Plot and glide")
+	plot.steps = [
+		Step.new(&"read_orders", "Read the orders", &"", &"toggle_checklist", on_event(&"orders_read")),
+		Step.new(&"quiet_scan", "Pulse at Quiet Ship: a Glide runs only as far as the scan has shown",
+				DiveSimulation.STATION_NAVIGATION, &"pulse", on_event(&"pulse_sent", func(event: Dictionary, _sim: DiveSimulation) -> bool:
+					return event.quiet_ship)),
+		Step.new(&"plot_glide", "Plot a Glide of %d m down the Course: each press lengthens it" % _GLIDE_DRILL_PLOT_M,
+				DiveSimulation.STATION_NAVIGATION, &"plot_glide_step",
+				when(func(sim: DiveSimulation) -> bool: return sim.glide_plotted() >= _GLIDE_DRILL_PLOT_M)),
+		Step.new(&"quiet_off", "Quiet Ship off: a Glide cannot start at Quiet Ship", DiveSimulation.STATION_NAVIGATION,
+				&"quiet_ship", when(func(sim: DiveSimulation) -> bool: return not sim.quiet_ship())),
+		Step.new(&"start_glide", "Start the Glide", DiveSimulation.STATION_DRIVE, &"glide", gliding()),
+		Step.new(&"hold_glide", "Hold the Glide on its line to its end: engage the Drive's autopilot, which holds it loosely, or nudge toward the ball's diamond",
+				DiveSimulation.STATION_DRIVE, &"autopilot_drive", on_event(&"glide_ended")).and_also(&"nudge_pitch"),
+	]
+	var idle := Phase.new("Out of the Glide", on_event(&"glide_ended"))
+	idle.steps = _out_of_the_glide(below.name)
+	s.phases = [plot, idle]
+
+	s.messages = [
+		Message.new(("Glide drill: you are halted at Quiet Ship in the %s, the Reactor and Thermal on their autopilots. "
+				+ "Scan, plot a Glide of %d m, start it and hold its line. It is fast and straight, crosses the %s's "
+				+ "Boundary with no Shift, and costs: no Column, deaf, the Reactor's whole output, and wear off its line.")
+				% [above.name, _GLIDE_DRILL_PLOT_M, below.name], always()),
+		Message.new(("Out of the Glide, in the %s. Its tunnel is rough-walled in this porous rock: our light up it is dimmer, "
+				+ "and your link slower. Tune standby for the rock round you and Shift to spin the Head up.") % below.name,
+				on_event(&"glide_ended")),
+		Message.new("Crawling again. That is the drill.", s.orders[0].achieved_when),
 	]
 	return s
 
@@ -656,6 +875,21 @@ static func _pulse_for_the_boundary(id: StringName) -> Step:
 static func _tune_active(id: StringName, medium_name: StringName) -> Step:
 	return Step.new(id, "Select active and tune it until the Residual is inside the Band",
 			DiveSimulation.STATION_REACTOR, &"tune_frequency", settled_in(medium_name)).and_also(&"tune_amplitude")
+
+
+## The steps out of a Glide, halted with the Head at idle in the Medium of
+## this name: STANDBY tuned for the rock round the vessel (it reads against
+## the scan's guess of the rock the Glide entered), the Shift that spins the
+## Head up into the Crawl, then ACTIVE tuned until the Residual is inside the
+## Band, as after any Shift.
+static func _out_of_the_glide(medium_name: StringName) -> Array[Step]:
+	return [
+		Step.new(&"tune_standby_idle", "Tune standby for the rock round the vessel: the Head waits at idle",
+				DiveSimulation.STATION_REACTOR, &"tune_frequency", standby_pretuned()).and_also(&"tune_amplitude"),
+		Step.new(&"spin_up", "Shift: the Head spins up and the Crawl begins", DiveSimulation.STATION_REACTOR,
+				&"shift", crawling()),
+		_tune_active(&"tune_active_idle", medium_name),
+	]
 
 
 static func _autopilot_on(station: StringName) -> Callable:

@@ -168,7 +168,10 @@ func test_left_to_the_reactors_autopilot_a_whole_first_dive_still_comes_home() -
 
 
 func test_left_to_every_autopilot_a_whole_first_dive_still_comes_home() -> void:
-	var sim := DiveSimulation.new(MediumLayout.first_dive())
+	# Story 24 of #71, on the First dive as the start menu has it (#128): its
+	# survey in the scan and target A on the line down. Nothing asks for a
+	# Glide, so it comes home by Crawl.
+	var sim := Scenario.first_dive().start()
 	for station in [DiveSimulation.STATION_REACTOR, DiveSimulation.STATION_THERMAL]:
 		sim.set_autopilot(station, true)
 	sim.set_course(0.0, 90.0)
@@ -183,6 +186,7 @@ func test_left_to_every_autopilot_a_whole_first_dive_still_comes_home() -> void:
 	assert_bool(sim.plasma_lost()).is_false()
 	assert_bool(sim.dead()).is_false()
 	assert_float(sim.head_wear()).is_greater(0.0)
+	assert_int(sim.glided_stretches().size()).is_equal(0)
 	for station in [DiveSimulation.STATION_REACTOR, DiveSimulation.STATION_THERMAL, DiveSimulation.STATION_DRIVE]:
 		assert_bool(sim.autopilot(station)).is_true()
 

@@ -18,6 +18,9 @@ const STEP_LIMIT_S := 20000.0
 ## Presses of each of the Reactor's two tuning keys the follower makes between
 ## looks: four a second, a hand's pace. A test value.
 const PRESSES_PER_LOOK := 2
+## Seconds between looks while a Glide is flown: at a Glide's speed a hand
+## watches the ball closely. A test value.
+const GLIDE_LOOK_S := 0.02
 
 ## The First dive followed with no key pressed first, flown once and shared by
 ## the tests that only read it.
@@ -124,6 +127,99 @@ static func _link(sim: DiveSimulation) -> void:
 		sim.set_uploading(true)
 
 
+## O at Navigation: the Beam's own pulsing switched on if it is off.
+static func _beam_pulsing_on(sim: DiveSimulation) -> void:
+	if not sim.beam_pulsing():
+		sim.set_beam_pulsing(true)
+
+
+## N at Navigation, a press each look: the Beam one width narrower until it
+## is at its narrowest.
+static func _narrow_the_beam(sim: DiveSimulation) -> void:
+	var widths := DiveSimulation.BEAM_WIDTHS
+	var at := widths.find(sim.beam_width())
+	if at < widths.size() - 1:
+		sim.set_beam_width(widths[at + 1])
+
+
+## Q at Navigation: Quiet Ship on, if it is off.
+static func _quiet(sim: DiveSimulation) -> void:
+	if not sim.quiet_ship():
+		sim.set_quiet_ship(true)
+
+
+## P at Navigation, held to a press each look until the step ticks, once the
+## vessel is still and silent at Quiet Ship: a clean pulse.
+static func _quiet_pulse(sim: DiveSimulation) -> void:
+	if sim.quiet_ship() and sim.speed() == 0.0 and sim.noise() == 0.0:
+		sim.pulse()
+
+
+## V at Navigation once the vessel is still and silent, and P beside it: a
+## Sweep round about and a pulse ahead, each clean. Started again only once
+## the last has ended, if the step has not ticked.
+static func _sweep_and_pulse(sim: DiveSimulation) -> void:
+	if sim.sweep_running() or not (sim.speed() == 0.0 and sim.noise() == 0.0):
+		return
+	sim.pulse()
+	sim.start_sweep()
+
+
+## F at the Bore Station: observe target A once it is in the Column, unless it
+## is already observed.
+static func _observe_target(sim: DiveSimulation) -> void:
+	for feature in sim.features_in_column():
+		if feature.target == &"A" and sim.observed_feature() != feature.id:
+			sim.set_observed_feature(feature.id)
+
+
+## M at Navigation: a Glide of all the scan shows along the Course.
+static func _plot_glide_all(sim: DiveSimulation) -> void:
+	if sim.glide_plotted() <= 0.0:
+		sim.plot_glide(sim.glide_reach())
+
+
+## = at Navigation, a press each look: the Glide's plot one step longer.
+static func _lengthen_glide(sim: DiveSimulation) -> void:
+	sim.plot_glide(sim.glide_plotted() + _Habitat.GLIDE_STEP_M)
+
+
+## V at the Drive: the plotted Glide started, if none runs.
+static func _start_glide(sim: DiveSimulation) -> void:
+	if not sim.gliding():
+		sim.start_glide()
+
+
+## Z / X and J / L at the Drive in a Glide, as a careful hand flies it: at the
+## Drive, reading the ball's OFF LINE figure and how fast it changes over the
+## ground the Drive's screen shows covered, each look nudging back toward the
+## line (the ball's diamond), a few presses at most. `held` keeps what the
+## hand saw at the last look.
+static func _hold_the_line(sim: DiveSimulation, held: Dictionary) -> void:
+	if not sim.gliding():
+		return
+	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
+	var off := sim.glide_off_line()
+	var left := sim.glide_range_left()
+	var along: float = held.get("left", left) - left
+	if along > 1e-6:
+		var press := tan(deg_to_rad(sim.glide_nudge_degrees()))
+		var wanted: Vector2 = -off / 20.0 - (off - (held.off as Vector2)) / along
+		for i in clampi(roundi(absf(wanted.x) / press), 0, 4):
+			sim.nudge_heading(wanted.x)
+		for i in clampi(roundi(absf(wanted.y) / press), 0, 4):
+			sim.nudge_pitch(wanted.y)
+	held.off = off
+	held.left = left
+
+
+## R at the Reactor at the idle after a Glide: the Shift that spins the Head
+## up. Only at the idle: a second press in the Crawl would swap back.
+static func _spin_up(sim: DiveSimulation) -> void:
+	if sim.glide_state() == DiveSimulation.GLIDE_IDLE:
+		sim.shift()
+
+
 ## A step that names no key: the crew waits for the Lithocraft to do it.
 static func _wait(_sim: DiveSimulation) -> void:
 	pass
@@ -133,22 +229,23 @@ static func _wait(_sim: DiveSimulation) -> void:
 ## the key-map action its command belongs to (it must be the one the step
 ## names) and how it is followed (`follow`, called with the simulation before
 ## every look while the step is next). An entry with `fast = false` is worked
-## at the normal time rate: nobody tunes with time running fast. A step with
-## no entry here fails the
-## follower by name, so a new step cannot be added without saying how it is
-## followed.
+## at the normal time rate: nobody tunes, or flies a Glide, with time running
+## fast; one with `look` looks that often, in seconds, in place of LOOK_S. A
+## step with no entry here fails the follower by name, so a new step cannot
+## be added without saying how it is followed.
 static func _first_dive_table() -> Dictionary:
 	var layout := MediumLayout.first_dive()
 	var boundaries := layout.boundary_depths()
+	var top := layout.medium_at(0.0).name
 	var middle := layout.medium_at(boundaries[0] + 0.01).name
 	var bottom := layout.medium_at(boundaries[1] + 0.01).name
-	return {
+	var table := {
 		&"read_orders": {action = &"toggle_checklist", follow = _read_orders},
 		&"reactor_autopilot": {action = &"autopilot_reactor", follow = _engage.bind(DiveSimulation.STATION_REACTOR)},
 		&"thermal_autopilot": {action = &"autopilot_thermal", follow = _engage.bind(DiveSimulation.STATION_THERMAL)},
 		&"plot_course": {action = &"plot_pitch", follow = _plot_pitch.bind(_Habitat.PITCHES[0])},
 		&"drive_autopilot": {action = &"autopilot_drive", follow = _engage.bind(DiveSimulation.STATION_DRIVE)},
-		&"pulse": {action = &"pulse", follow = _pulse},
+		&"beam_pulsing": {action = &"beam_pulsing", follow = _beam_pulsing_on},
 		&"quiet_scan": {action = &"quiet_ship", follow = _quiet_scan},
 		&"quiet_off": {action = &"quiet_ship", follow = _quiet_off},
 		&"observe": {action = &"observe", follow = _observe},
@@ -163,11 +260,56 @@ static func _first_dive_table() -> Dictionary:
 		&"shift_granite": {action = &"shift", follow = _shift_in.bind(bottom)},
 		&"tune_active_granite": {action = &"tune_frequency", follow = _tune_active, fast = false},
 		&"observe_granite": {action = &"observe", follow = _observe},
+		&"quiet_sweep": {action = &"quiet_ship", follow = _quiet},
+		&"sweep_target": {action = &"sweep", follow = _sweep_and_pulse},
+		&"quiet_off_target": {action = &"quiet_ship", follow = _quiet_off},
+		&"in_column": {action = &"", follow = _wait},
+		&"observe_target": {action = &"observe", follow = _observe_target},
+		&"identified": {action = &"", follow = _wait},
 		&"plot_climb": {action = &"plot_pitch", follow = _plot_pitch.bind(_Habitat.PITCHES[2])},
-		&"reactor_autopilot_climb": {action = &"autopilot_reactor", follow = _engage.bind(DiveSimulation.STATION_REACTOR)},
 		&"climbing": {action = &"", follow = _wait},
+		&"narrow_beam": {action = &"beam_width", follow = _narrow_the_beam},
+		&"straight_on": {action = &"", follow = _wait},
+		&"quiet_glide_scan": {action = &"quiet_ship", follow = _quiet},
+		&"pulse_way_home": {action = &"pulse", follow = _quiet_pulse},
+		&"plot_glide": {action = &"plot_glide_all", follow = _plot_glide_all},
+		&"quiet_off_glide": {action = &"quiet_ship", follow = _quiet_off},
+		&"start_glide": {action = &"glide", follow = _start_glide},
+		&"hold_glide": {action = &"nudge_pitch", follow = _hold_the_line.bind({}), fast = false, look = GLIDE_LOOK_S},
+		StringName("pulse_boundary_%s" % top): {action = &"pulse", follow = _pulse},
+		StringName("pretune_standby_%s" % top): {action = &"tune_frequency", follow = _pretune, fast = false},
+		StringName("shift_%s" % top): {action = &"shift", follow = _shift_in.bind(top)},
+		StringName("tune_active_%s" % top): {action = &"tune_frequency", follow = _tune_active, fast = false},
 		&"paid": {action = &"", follow = _wait},
 	}
+	table.merge(_out_of_the_glide_table())
+	return table
+
+
+## How the steps out of a Glide are followed, in either Scenario.
+static func _out_of_the_glide_table() -> Dictionary:
+	return {
+		&"tune_standby_idle": {action = &"tune_frequency", follow = _pretune, fast = false},
+		&"spin_up": {action = &"shift", follow = _spin_up},
+		&"tune_active_idle": {action = &"tune_frequency", follow = _tune_active, fast = false},
+	}
+
+
+## The follower's table for the Glide drill, as _first_dive_table() is the
+## First dive's. Its Glide is held on the Drive's autopilot, the step's own
+## key: the drill's way of holding the line, where the First dive's is by
+## hand.
+static func _glide_drill_table() -> Dictionary:
+	var table := {
+		&"read_orders": {action = &"toggle_checklist", follow = _read_orders},
+		&"quiet_scan": {action = &"pulse", follow = _quiet_pulse},
+		&"plot_glide": {action = &"plot_glide_step", follow = _lengthen_glide},
+		&"quiet_off": {action = &"quiet_ship", follow = _quiet_off},
+		&"start_glide": {action = &"glide", follow = _start_glide},
+		&"hold_glide": {action = &"autopilot_drive", follow = _engage.bind(DiveSimulation.STATION_DRIVE), fast = false, look = GLIDE_LOOK_S},
+	}
+	table.merge(_out_of_the_glide_table())
+	return table
 
 
 # --- The follower -------------------------------------------------------------
@@ -213,9 +355,10 @@ static func _follow(sim: DiveSimulation, table: Dictionary) -> Dictionary:
 		else:
 			table[id].follow.call(sim)
 			var fast: bool = table[id].get("fast", true) and not _observing_ahead(sim)
+			var look: float = table[id].get("look", LOOK_S)
 			sim.set_time_rate(sim.max_time_rate() if fast else 1.0)
-			waited += LOOK_S * sim.time_rate()
-			sim.advance(LOOK_S)
+			waited += look * sim.time_rate()
+			sim.advance(look)
 			for event in sim.take_events():
 				events.append(event)
 				if failure.is_empty() and event.type == &"checklist_step" and event.state == DiveSimulation.STEP_MISSED:
@@ -258,6 +401,19 @@ static func _step_ids(scenario: Scenario) -> Array:
 	return ids
 
 
+## Asserts this followed dive followed `scenario`'s Checklist to its end:
+## no failure, every step ticked in the Checklist's own order and none
+## missed. `named` says which dive in a failure.
+func _assert_every_step_ticked_in_order(dive: Dictionary, scenario: Scenario, named: String) -> void:
+	assert_str(dive.failure).override_failure_message("%s: %s" % [named, dive.failure]).is_empty()
+	var steps: Array = dive.events.filter(func(e: Dictionary) -> bool: return e.type == &"checklist_step")
+	var missed := steps.filter(func(e: Dictionary) -> bool: return e.state != DiveSimulation.STEP_DONE)
+	assert_array(missed.map(func(e: Dictionary) -> StringName: return e.id)) \
+			.override_failure_message("%s: steps not ticked: %s" % [named, missed]).is_empty()
+	assert_array(steps.map(func(e: Dictionary) -> StringName: return e.id)) \
+			.append_failure_message(named).is_equal(_step_ids(scenario))
+
+
 ## Asserts this followed dive is the play-test bar met: the Checklist followed
 ## to its end, every step ticked in order and none missed, the Lithocraft
 ## surfaced and paid with the Orders achieved. `named` says which dive in a
@@ -265,14 +421,10 @@ static func _step_ids(scenario: Scenario) -> Array:
 func _assert_finished_from_the_checklist_alone(dive: Dictionary, named: String) -> void:
 	var sim: DiveSimulation = dive.sim
 	var events: Array = dive.events
-	assert_str(dive.failure).override_failure_message("%s: %s" % [named, dive.failure]).is_empty()
-	# Every step ticked, in the Checklist's own order, and none was missed.
-	var steps := events.filter(func(e: Dictionary) -> bool: return e.type == &"checklist_step")
-	var missed := steps.filter(func(e: Dictionary) -> bool: return e.state != DiveSimulation.STEP_DONE)
-	assert_array(missed.map(func(e: Dictionary) -> StringName: return e.id)) \
-			.override_failure_message("%s: steps not ticked: %s" % [named, missed]).is_empty()
-	assert_array(steps.map(func(e: Dictionary) -> StringName: return e.id)) \
-			.append_failure_message(named).is_equal(_step_ids(Scenario.first_dive()))
+	_assert_every_step_ticked_in_order(dive, Scenario.first_dive(), named)
+	# Target A cut into, recorded and identified, never glided through.
+	assert_array(sim.identified_targets()).append_failure_message(named).contains([&"A"])
+	assert_array(DiveTestKit.types(events)).append_failure_message(named).contains([&"glide_started", &"glide_ended"])
 	# Surfaced under its own power, and paid.
 	assert_bool(sim.surfaced()).append_failure_message(named).is_true()
 	assert_bool(sim.plasma_lost()).append_failure_message(named).is_false()
@@ -330,6 +482,28 @@ func test_one_unasked_course_key_at_the_surface_first_and_the_checklist_still_fi
 func test_the_follower_has_an_entry_for_every_step_of_the_first_dive_and_no_other() -> void:
 	var ids := _step_ids(Scenario.first_dive())
 	var entries := _first_dive_table().keys()
+	ids.sort()
+	entries.sort()
+	assert_array(entries).is_equal(ids)
+
+
+func test_following_the_checklist_and_nothing_else_the_glide_drill_is_finished() -> void:
+	var dive := _follow(Scenario.glide_drill().start(), _glide_drill_table())
+	var sim: DiveSimulation = dive.sim
+	_assert_every_step_ticked_in_order(dive, Scenario.glide_drill(), "The Glide drill")
+	for goal in sim.orders():
+		assert_bool(goal.achieved).override_failure_message("the goal \"%s\" was not achieved" % goal.id).is_true()
+	# A Glide was made, and its rough tunnel through the porous rock dims the
+	# link up it.
+	assert_array(DiveTestKit.types(dive.events)).contains([&"glide_started", &"glide_ended"])
+	assert_int(sim.rough_tunnel_runs()).is_greater(0)
+	assert_float(sim.link_light_share()).is_less(1.0)
+	assert_bool(sim.tunnel_sealed()).is_false()
+
+
+func test_the_follower_has_an_entry_for_every_step_of_the_glide_drill_and_no_other() -> void:
+	var ids := _step_ids(Scenario.glide_drill())
+	var entries := _glide_drill_table().keys()
 	ids.sort()
 	entries.sort()
 	assert_array(entries).is_equal(ids)
