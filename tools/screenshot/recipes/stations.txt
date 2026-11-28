@@ -10,5 +10,11 @@ Thermal: --look Thermal --time 20 --do "0 set_power 0.5" --do "10 pulse"
 Bore Station: --look "Bore Station" --time 20 --do "0 set_power 0.5" --do "10 pulse"
 
 # The Bore Station in a Glide (#123): "No Column in the Bore: melted by the Glide" in amber under the
-# survey's value, and no features listed.
+# survey's value, and no features listed. The Tail already leaves the Glide's rough tunnel (#125):
+# the link line reads "1 rough stretch" and under 90%.
 Bore Station, gliding: --look "Bore Station" --time 3 --do "1 plot_glide 300" --do "1 start_glide"
+
+# The Bore Station after a Glide (#125), the Head at idle, the Tail still in the glided stretch: the
+# tunnel OPEN in green, and the link line "Link 87%, 1 rough stretch  1.74 m/s", slower than the
+# plain Bore Station tile's "fast, glass tunnel  2.00 m/s".
+Bore Station, after a Glide: --look "Bore Station" --time 12 --do "1 plot_glide 150" --do "1 start_glide"

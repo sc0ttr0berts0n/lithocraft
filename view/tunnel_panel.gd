@@ -1,6 +1,6 @@
 ## The tunnel behind and the link to the surface: whether the tunnel is open or
-## sealed, the porosity trend the Tail is heading into, how fast data goes up,
-## what is still aboard and what has been paid. Drawn on the Bore Station's own
+## sealed, the porosity trend the Tail is heading into, how fast data goes up
+## and why (glass, a Glide's rough walls, or sound), what is still aboard and what has been paid. Drawn on the Bore Station's own
 ## screen (habitat.gd `_bore_instrument`) and in the debug overlay. The upload
 ## priority key cycles the priority at the Bore Station. Its colours are
 ## StationTheme's: the tunnel open is working (green), sealed or about to be
@@ -65,7 +65,7 @@ func _draw() -> void:
 	draw_string(font, Vector2(8.0, 18.0) * z, "TUNNEL %s" % ("SEALED" if sealed else "OPEN"),
 			HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(14 * z),
 			StationTheme.CAUTION_COLOUR if sealed else StationTheme.ENGAGED_COLOUR)
-	draw_string(font, Vector2(8.0, 36.0) * z, _link_line(), HORIZONTAL_ALIGNMENT_LEFT,
+	draw_string(font, Vector2(8.0, 36.0) * z, link_line(), HORIZONTAL_ALIGNMENT_LEFT,
 			wide, roundi(12 * z), StationTheme.NOW_COLOUR)
 	draw_string(font, Vector2(8.0, 52.0) * z, _upload_line(), HORIZONTAL_ALIGNMENT_LEFT,
 			wide, roundi(12 * z), StationTheme.NOW_COLOUR)
@@ -114,8 +114,17 @@ func _draw_trend(graph: Rect2, font: Font) -> void:
 			HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(10 * z), StationTheme.LEGEND_COLOUR)
 
 
-func _link_line() -> String:
-	var kind := "slow, through rock" if sim.tunnel_sealed() else "fast, up the tunnel"
+## The link's rate and why it is that: light up a glass-lined tunnel, light
+## dimmed by the rough walls of glided stretches (the share that still
+## arrives, and how many), or sound through the rock once sealed.
+func link_line() -> String:
+	var kind := "fast, glass tunnel"
+	if sim.tunnel_sealed():
+		kind = "slow, through rock"
+	elif sim.rough_tunnel_runs() > 0:
+		var runs := sim.rough_tunnel_runs()
+		kind = "%d%%, %d rough stretch%s" % [roundi(100.0 * sim.link_light_share()), runs,
+				"" if runs == 1 else "es"]
 	if not sim.uploading():
 		return "Link STOPPED %s  (%s)" % [KeyMap.label(&"link"), kind]
 	var store := "  on the store" if sim.on_emergency_store() else ""

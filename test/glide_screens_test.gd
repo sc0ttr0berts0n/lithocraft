@@ -59,3 +59,14 @@ func test_a_running_glide_s_line_to_hold_is_a_place_on_the_drive_s_ball() -> voi
 
 	assert_bool(ball.on_face(aim.x, aim.y)).is_true()
 	assert_float(ball.place(aim.x, aim.y).length()).is_less(0.5)
+
+
+func test_after_a_glide_the_bore_station_says_why_the_link_is_slower() -> void:
+	var habitat := await _staged("Bore Station", 12.0, ["1 plot_glide 150", "1 start_glide"])
+	var sim: DiveSimulation = habitat.simulation()
+	assert_bool(sim.tunnel_sealed()).is_false()
+	var panel: TunnelPanel = habitat.find_children("*", "TunnelPanel", true, false)[0]
+
+	assert_str(panel.link_line()).contains("1 rough stretch")
+	assert_str(panel.link_line()).contains("%d%%" % roundi(100.0 * sim.link_light_share()))
+	assert_str(panel.link_line()).contains("%.2f m/s" % sim.link_rate())

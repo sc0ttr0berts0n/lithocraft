@@ -7,6 +7,7 @@ Its choices and their reasons are in the design record, "The Glide (#123)" (`doc
 
 - Commands: `plot_glide(metres)` (Navigation; held to `glide_reach()`, 0 clears), `start_glide()` and `drop_out_of_glide()` (the Drive). `set_course()` gives up a plot; `set_quiet_ship(true)` drops out; `shift()` ends the idle after a Glide.
 - Queries: `gliding()`, `glide_state()` (`GLIDE_NONE`, `GLIDE_GLIDING`, `GLIDE_DROPPING_OUT`, `GLIDE_IDLE`), `glide_plotted()`, `glide_reach()`, `glide_refusal()`, `glide_range_left()`, `glide_end()`, `glided_stretches()`, `column_absent(behind_head)`, `wobble_on_plasma()`, `heat_carried_aft()`.
+  The tunnel's (#125): `link_light_share()`, `rough_tunnel_metres()`, `rough_tunnel_runs()`, `tunnel_walls()`, `tunnel_wall_count()`.
 - Events: `glide_plotted {length}`, `glide_started {length, distance}`, `glide_ended {by, distance, glided}`; `pulse_sent` gains `drowned`.
 - Calls: the Drive's `glide_ending` and the Reactor's `head_at_idle` are reports (`_REPORTS`): they never drop the time rate.
 
@@ -34,14 +35,22 @@ Its choices and their reasons are in the design record, "The Glide (#123)" (`doc
 - **The call.** `&"off_glide_line"` is the Drive's warning while past the slack (urgency by `glide_contact()`); it drops the time rate as any warning.
 - **The ball.** `FlightDisplay` draws the line to hold at `glide_aim()` (a cyan diamond) and the bottom right figure from `FlightDisplay.glide_line_figure()`.
 
+## The tunnel and the link (#125)
+
+- `_update_tunnel()` decides each metre the Tail leaves by one rule for both ways of moving: dense rock seals it, whoever cut it; porous rock leaves it open, glass where the Head crawled and rough where it glided (`Glide.glided_within()`, which looks back only over Glides past the Tail).
+  So the seal's call, event, sealed metres, rescue and stranding are the Crawl's, untouched; only the light up the open tunnel knows a Glide.
+- `_lay_wall()` lays each piece into `tunnel_walls()` (`TUNNEL_GLASS`, `TUNNEL_ROUGH`, `TUNNEL_SEALED`, a new piece only where the wall changes) and counts the open rough metres and runs (`rough_tunnel_metres()`, `rough_tunnel_runs()`), O(1) a step.
+- `link_light_share()` is the light that arrives, falling with each rough run and each rough metre; `link_capacity()` open is the glass rate times it, so the link, payment and surface control's messages all follow.
+- A Glide can carry the Tail into dense rock within the step the Head entered it; `_seal_called` makes the Bore Station's `tunnel_about_to_seal` call all the same, once, at its most urgent.
+- The view: the Bore Station's `TunnelPanel.link_line()` says the share and the rough runs; #127 draws the walls from `tunnel_walls()`, read again when `tunnel_wall_count()` changes.
+
 ## Seams left for later tickets
 
-- **#125, the Glide's tunnel**: `glided_stretches()` marks each glided stretch by path distance; `_glided()` runs `_update_tunnel()` as the Crawl does, which is where a glided stretch's own tunnel rule goes.
 - **#127, the look and sound**: the view only leaves out a Column that is not there and has the Bore Station say so; the jet, the sheath and the roar are #127's. `noise()` already carries `Glide.jet_noise()`.
 - **#128, the Checklist**: no Scenario's Checklist knows the Glide; the events above are what its triggers would read.
 
 ## Testing
 
-- `test/glide_test.gd` holds the rules at the simulation's interface, each with its inversion; `test/glide_screens_test.gd` stages a Habitat for what the screens say.
+- `test/glide_test.gd` holds the rules at the simulation's interface, each with its inversion, and `test/glide_tunnel_test.gd` the tunnel's; `test/glide_screens_test.gd` stages a Habitat for what the screens say.
 - `_surveyed()` there starts a dive with the survey's soundings: a Glide needs a scan, and `start_surveyed()` gives one at once.
 - `test/glide_flying_test.gd` holds #126's rules. A Glide nobody holds now drifts and wears, so a test that wants none flies it with `DiveTestKit.fly_glide(sim, true)`, a careful hand reading only `glide_off_line()` and `glide_range_left()` (with `off`, it holds a line beside the Glide's); keep its steps about 0.02 s of simulated time, shorter at a raised rate.

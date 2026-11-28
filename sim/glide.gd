@@ -516,6 +516,24 @@ func column_gone(at: float, bore_m: float) -> bool:
 	return false
 
 
+## The part of the path between distances `from` and `to` that a Glide cut,
+## as [start, end], or [to, to] when none did. Glides that meet are one part.
+## Looks back only over Glides that reach past `from`, so a piece of tunnel
+## the Tail leaves behind the newest costs one comparison.
+func glided_within(from: float, to: float) -> PackedFloat64Array:
+	var start := INF
+	var end := -INF
+	for i in range(_began.size() - 1, -1, -1):
+		if _reached[i] <= from:
+			break
+		var a := maxf(from, _began[i])
+		var b := minf(to, _reached[i])
+		if b > a:
+			start = minf(start, a)
+			end = maxf(end, b)
+	return PackedFloat64Array([start, end]) if end > start else PackedFloat64Array([to, to])
+
+
 ## Metres the newest Glide this dive has run; 0 with none.
 func glided() -> float:
 	return 0.0 if _began.is_empty() else _reached[-1] - _began[-1]
