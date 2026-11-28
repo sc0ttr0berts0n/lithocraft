@@ -23,6 +23,10 @@ var id := -1
 var at := 0.0
 ## How much of it the Bore Station has recorded, 0 (none) to 1 (all of it).
 var recorded := 0.0
+## The label of the target it is (TargetBody.label), once the Head has cut
+## into a target's body: what the Orders sent the dive to find. &"" for a
+## feature that is no target.
+var target: StringName = &""
 
 
 func _init(p_kind: StringName, p_size_m: float, p_worth: float) -> void:
@@ -42,6 +46,7 @@ func copy() -> ColumnFeature:
 	c.id = id
 	c.at = at
 	c.recorded = recorded
+	c.target = target
 	return c
 
 

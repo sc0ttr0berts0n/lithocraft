@@ -26,3 +26,12 @@ iron concretions, the Bore Station's screen: --look "Bore Station" --time 2 --do
 # master acknowledge (acknowledge_calls, the / key): the light stays lit, steady, and the footer loses it.
 iron concretions, the Bore Station calling: --look "Bore Station" --time 2 --do "0 start_below 127.8"
 iron concretions, the call acknowledged: --look "Bore Station" --time 2 --do "0 start_below 127.8" --do "1 acknowledge_calls"
+
+# A target in the Column (#124): the Prospecting drill, the Course plotted one step east off straight down and the
+# Drive's autopilot crawling down it from the start; the Head cuts into target A near 960 s, and at 999 s it is
+# 4.7 m past it, at the seated crew's eye height. Hematite breccia fills the Column all round: dark red-brown and
+# steel-grey with pale angular clasts of granite. Observed from 960 s (the eleventh feature found, id 10) and recorded
+# in full by 999 s: the green ring round it, and the Bore Station's screen naming it "Target A: Hematite Breccia  RECORDED".
+# About a minute to stage.
+target A, in the Column: --scenario "Prospecting drill" --look column --time 999 --do "0 set_quiet_ship false" --do "0 set_course 90 75" --do "0 set_autopilot drive true" --do "960 set_observed_feature 10"
+target A, the Bore Station's screen: --scenario "Prospecting drill" --look "Bore Station" --time 999 --do "0 set_quiet_ship false" --do "0 set_course 90 75" --do "0 set_autopilot drive true" --do "960 set_observed_feature 10"

@@ -1005,6 +1005,9 @@ func _on_paid(event: Dictionary) -> void:
 		lines.append("  heat and shuttering cost %.0f of pristine records" % event.lost_to_quality)
 	if event.features > 0:
 		lines.append("Features recorded: %d, worth %.0f" % [event.features, event.feature_worth])
+	if not event.targets.is_empty():
+		lines.append("Targets identified: %s, worth %.0f" % [", ".join(event.targets.map(
+				func(label: StringName) -> String: return String(label))), event.target_worth])
 	var by_medium: Dictionary = event.by_medium
 	var media := PackedStringArray()
 	for medium in by_medium:
@@ -1175,7 +1178,11 @@ func _bore_reading() -> Array:
 		var marker := ">" if feature.id == observed else " "
 		if feature.id == observed:
 			found_observed = true
-		lines.append(["%s %s %.1f m  %s" % [marker, String(feature.kind).capitalize(), where, state],
+		# A target names itself as the Orders do, now it is identified by kind.
+		var called := String(feature.kind).capitalize()
+		if feature.target != &"":
+			called = "Target %s: %s" % [feature.target, called]
+		lines.append(["%s %s %.1f m  %s" % [marker, called, where, state],
 				StationTheme.ENGAGED if feature.is_recorded() else
 				StationTheme.SELECTED if feature.id == observed else StationTheme.NOW])
 	if in_column.is_empty():

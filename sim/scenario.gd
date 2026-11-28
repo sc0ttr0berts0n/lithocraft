@@ -28,6 +28,14 @@ const _STRANDED_HEAD_WEAR := 0.8
 ## nothing but leaves a trace of rounding, never quite zero, and a trace is
 ## not a turn. Tuned for play (ADR 0001).
 const _TURNING_STEERING := 0.01
+## The Prospecting drill begins halted this many metres of depth into the
+## granite, its target's middle this far below the start and this far to one
+## side (east): within the reach of the shortest turn on the way down, and
+## off the straight line down by more than the body is wide, so the dive must
+## be steered into it. Tuned for play (ADR 0001).
+const _PROSPECT_INTO_GRANITE_M := 60.0
+const _PROSPECT_TARGET_BELOW_M := 120.0
+const _PROSPECT_TARGET_OFF_M := 12.0
 
 
 ## A goal of the Orders, achieved once its condition has held.
@@ -40,6 +48,9 @@ class Goal:
 	## surface control's survey has it; NAN for a goal with no depth.
 	## Navigation's moving map marks it.
 	var target_depth := NAN
+	## The target this goal sends the dive to find (TargetBody.label), &"" for
+	## none: the scan views name its region by it.
+	var target: StringName = &""
 
 	func _init(p_id: StringName, p_text: String, p_achieved_when: Callable) -> void:
 		id = p_id
@@ -184,6 +195,46 @@ static func in_medium(medium_name: StringName) -> Callable:
 	return when(func(sim: DiveSimulation) -> bool: return sim.medium().name == medium_name)
 
 
+## A goal of the Orders: identify the target of this label (a TargetBody the
+## Scenario's layout holds, placed with MediumLayout.with_targets()). The
+## survey gives its place with a wide error (DiveSimulation.start_surveyed(),
+## so `prepare` calls it) and the scan narrows it; the goal is achieved once
+## the target has been cut into, so it is in the Column, and the Bore Station
+## has recorded it there in full (DiveSimulation.identified_targets()).
+static func identify_target(label: StringName) -> Goal:
+	var goal := Goal.new(StringName("identify_target_%s" % String(label).to_lower()),
+			"Find target %s, crawl through it and record it in the Column" % label,
+			target_identified(label))
+	goal.target = label
+	return goal
+
+
+## Holds once the target of this label is identified: in the Column and
+## recorded there in full.
+static func target_identified(label: StringName) -> Callable:
+	return when(func(sim: DiveSimulation) -> bool: return label in sim.identified_targets())
+
+
+## Holds while the scan has narrowed the target of this label: its region is
+## smaller than the Orders gave it, by the vessel's own points.
+static func target_narrowed(label: StringName) -> Callable:
+	return when(func(sim: DiveSimulation) -> bool: return label in sim.narrowed_targets())
+
+
+## Holds while the target of this label is in the Column.
+static func target_in_column(label: StringName) -> Callable:
+	return when(func(sim: DiveSimulation) -> bool:
+		return sim.features_in_column().any(func(f: ColumnFeature) -> bool: return f.target == label))
+
+
+## Holds while the Bore Station observes the target of this label in the
+## Column.
+static func observing_target(label: StringName) -> Callable:
+	return when(func(sim: DiveSimulation) -> bool:
+		return sim.features_in_column().any(func(f: ColumnFeature) -> bool:
+			return f.target == label and f.id == sim.observed_feature()))
+
+
 ## Holds while the Bore Station observes a feature with the Head in a Medium
 ## of this name.
 static func observing_in(medium_name: StringName) -> Callable:
@@ -241,7 +292,7 @@ static func turning_for_home() -> Callable:
 
 ## Every Scenario, in the order the start menu lists them.
 static func all() -> Array[Scenario]:
-	return [first_dive(), shift_drill(), stranded_in_the_granite()]
+	return [first_dive(), shift_drill(), prospecting_drill(), stranded_in_the_granite()]
 
 
 ## The First dive: from the desert surface down through the sandstone into
@@ -423,6 +474,66 @@ static func shift_drill() -> Scenario:
 		Message.new("We have you nearing the %s. Pretune standby at the Reactor and swap it in as you cross." % below.name,
 				on_event(&"boundary_approaching")),
 		Message.new("Shift made. That is the drill: dive on, or turn for home.", shift_in(below.name)),
+	]
+	return s
+
+
+## The Prospecting drill: halted at Quiet Ship in the granite of the First
+## dive's ground, with a target below that the survey places only roughly.
+## Sweep and aim the Beam until its region narrows, plot the Course into it,
+## crawl through it and record it at the Bore Station: the loop of
+## prospecting, without the Glide that would bring the vessel near.
+static func prospecting_drill() -> Scenario:
+	var s := Scenario.new()
+	s.title = "Prospecting drill"
+	var ground := MediumLayout.first_dive()
+	var granite_top := ground.boundary_depths()[1]
+	var granite := ground.medium_at(granite_top + 0.01)
+	var start := granite_top + _PROSPECT_INTO_GRANITE_M
+	s.layout = ground.with_targets([TargetBody.hematite_breccia(&"A",
+			Vector3(_PROSPECT_TARGET_OFF_M, -(start + _PROSPECT_TARGET_BELOW_M), 0.0))])
+	s.summary = "Halted in the %s above a target the survey places only roughly: sweep it, aim the Beam at it, and crawl through it." % granite.name
+	s.prepare = func(sim: DiveSimulation) -> void:
+		sim.start_below(start)
+		sim.start_surveyed()
+		sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
+		sim.set_autopilot(DiveSimulation.STATION_THERMAL, true)
+		sim.set_quiet_ship(true)
+
+	s.orders = [identify_target(&"A")]
+
+	var prospect := Phase.new("Prospect")
+	prospect.steps = [
+		Step.new(&"read_orders", "Read the orders", &"", &"toggle_checklist", on_event(&"orders_read")),
+		Step.new(&"narrow", "Pulse, or Sweep, until target A's region narrows round what the echoes show",
+				DiveSimulation.STATION_NAVIGATION, &"pulse", target_narrowed(&"A")).and_also(&"sweep"),
+		Step.new(&"aim", "Aim the Beam at the region and pulse again: it tightens", DiveSimulation.STATION_NAVIGATION,
+				&"beam_aim_across", on_event(&"pulse_sent", func(_event: Dictionary, sim: DiveSimulation) -> bool:
+					return sim.beam_aim() != Vector2.ZERO)).and_also(&"beam_aim_up"),
+		Step.new(&"plot", "Plot the Course into the region", DiveSimulation.STATION_NAVIGATION,
+				&"plot_heading_step", on_event(&"course_plotted")).and_also(&"plot_pitch_step"),
+	]
+	# Begins early once the Head has cut into the target, however it got there.
+	var crawl := Phase.new("Crawl through", target_in_column(&"A"))
+	crawl.steps = [
+		Step.new(&"quiet_off", "Quiet Ship off, under way again", DiveSimulation.STATION_NAVIGATION,
+				&"quiet_ship", when(func(sim: DiveSimulation) -> bool: return not sim.quiet_ship())),
+		Step.new(&"drive_autopilot", "Engage the Drive's autopilot: it follows the Course", DiveSimulation.STATION_DRIVE,
+				&"autopilot_drive", _autopilot_on(DiveSimulation.STATION_DRIVE)),
+		Step.new(&"in_column", "Crawl into target A: it passes into the Column", DiveSimulation.STATION_DRIVE,
+				&"", target_in_column(&"A")),
+		Step.new(&"observe_target", "Observe target A as it passes through the Bore", DiveSimulation.STATION_BORE,
+				&"observe", observing_target(&"A")),
+		Step.new(&"identified", "Record it in full: slow, or stop, to give the Bore Station time", DiveSimulation.STATION_BORE,
+				&"", target_identified(&"A")),
+	]
+	s.phases = [prospect, crawl]
+
+	s.messages = [
+		Message.new(("Prospecting drill: our survey saw something dense and magnetic below you in the %s and cannot say what it is. "
+				+ "Find target A, crawl through it and record it.") % granite.name, always()),
+		Message.new("Target A is in the Column. Record it before it leaves the Bore.", target_in_column(&"A")),
+		Message.new("Target A identified. That is the drill.", target_identified(&"A")),
 	]
 	return s
 
