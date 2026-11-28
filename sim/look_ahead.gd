@@ -62,10 +62,6 @@ class Sighting:
 	var metres := INF
 	## How sure the scan is of it, 0 to 1.
 	var confidence := 0.0
-	## The scan's estimate of the rock beyond it against the rock the Head is
-	## in (BoundaryFit.ahead()): positive harder and denser, negative softer
-	## and more porous; NAN when the scan says nothing of it.
-	var contrast := NAN
 	## Metres the Head has run past where the scan put it with no crossing
 	## felt: it is overdue by this much.
 	var overdue := 0.0
@@ -87,7 +83,6 @@ func look(patches: Array[BoundaryPatch], origin: Vector3, direction: Vector3, di
 	if not is_inf(found.x):
 		_sighting.metres = found.x
 		_sighting.confidence = found.y
-		_sighting.contrast = found.z
 		_sighting.overdue = 0.0
 		_sighting_at = distance + found.x
 	elif _sighting.seen() and _sighting_at - distance <= _REACHED_M \
@@ -125,19 +120,6 @@ func settle() -> void:
 ## as that Boundary is; held as it was while holding().
 func guess() -> WobbleGuess:
 	return _guess
-
-
-## The scan's estimate of the rock beyond the Inferred Boundary ahead against
-## the rock the Head is in, as sure as that Boundary (sighting_confidence()):
-## positive harder and denser, negative softer and more porous. NAN with none
-## ahead, or when the scan says nothing of the rock beyond it.
-func rock_ahead() -> float:
-	return _sighting.contrast if _sighting.seen() else NAN
-
-
-## How sure the scan is of the Inferred Boundary ahead, 0 with none.
-func sighting_confidence() -> float:
-	return _sighting.confidence if _sighting.seen() else 0.0
 
 
 ## Seconds until the Head reaches the Inferred Boundary ahead at this speed

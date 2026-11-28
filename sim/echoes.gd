@@ -17,11 +17,6 @@ const _FADE_M := 500.0
 ## Echoes weaker than this (1 = a perfect reflection close by at gain 1) are
 ## lost.
 const _ECHO_CUTOFF := 0.01
-## The most an echo's contrast, as heard, can be off the truth with next to
-## no confidence, as a share of the contrast (contrast_heard()). Under 1, so
-## an unsure scan misjudges how much harder or softer the rock beyond is,
-## never which way. Tuned for play (ADR 0001).
-const _CONTRAST_ERROR := 0.6
 
 
 ## How much stronger the echoes of a beam this wide (its half-angle, degrees)
@@ -49,21 +44,3 @@ static func fading(metres: float, sound_carrying: float) -> float:
 static func strength(gain: float, faded: float) -> float:
 	var heard := gain * exp(-faded)
 	return heard if heard >= _ECHO_CUTOFF else 0.0
-
-
-## The contrast an echo of this confidence (0 to 1) carries of a Boundary
-## whose true contrast is `truth` (-1 to 1: the rock beyond against the rock
-## the sound came through, positive harder and denser), as heard from that
-## side: off the truth by a share of it that shrinks with the square of the
-## doubt, as STANDBY's guess of the Wobble is off (WobbleGuess), and the same
-## way as that guess errs for the same Boundary (`boundary_seed`,
-## WobbleGuess.error_of()): where the guess puts the rock beyond harder than
-## it is, so does this, so the two never disagree on which way they are
-## wrong. Real basis: an echo's polarity gives which way the acoustic
-## impedance changes across a Boundary, and its strength by how much, but the
-## strength only as well as the sound's losses on the way are known, which a
-## noisy echo tells worse.
-static func contrast_heard(truth: float, confidence: float, boundary_seed: int) -> float:
-	var doubt := 1.0 - clampf(confidence, 0.0, 1.0)
-	var off := absf(truth) * WobbleGuess.error_of(boundary_seed) * _CONTRAST_ERROR * doubt * doubt
-	return clampf(truth + off, -1.0, 1.0)

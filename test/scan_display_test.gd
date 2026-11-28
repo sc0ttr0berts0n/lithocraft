@@ -253,15 +253,10 @@ func test_the_display_names_the_candidate_the_simulation_holds() -> void:
 	assert_str(display.caption()).is_not_equal(first)
 
 
-## The display's own source, for the checks that read it.
-static func _display_source() -> String:
-	return (load("res://view/scan_display.gd") as GDScript).source_code
-
-
 func test_the_display_reads_the_scan_and_never_the_layout_or_a_clock() -> void:
 	# Every view is drawn from the simulation's queries alone, and nothing in
 	# it runs on its own time, so a view changes only as the vessel does.
-	var source: String = _display_source()
+	var source: String = (load("res://view/scan_display.gd") as GDScript).source_code
 	for word in ["MediumLayout", "_layout", "medium_at", "boundary_depths", "Time.", "get_ticks", "randf", "randi"]:
 		assert_bool(source.contains(word)) \
 				.override_failure_message("scan_display.gd names %s" % word) \
@@ -376,54 +371,6 @@ func test_the_scope_s_range_changes_only_on_a_pulse() -> void:
 	assert_float(display.scope_shown().x).is_less(before.x)
 
 
-# --- The rock beyond a Boundary (#122) ----------------------------------------
-
-func test_harder_rock_beyond_is_hatched_and_softer_stippled_more_marks_the_stronger() -> void:
-	for contrast in [0.1, 0.3, 0.6]:
-		assert_bool(ScanDisplay.rock_hatched(contrast)).is_true()
-		assert_bool(ScanDisplay.rock_hatched(-contrast)).is_false()
-		assert_int(ScanDisplay.rock_marks(-contrast)).is_equal(ScanDisplay.rock_marks(contrast))
-		assert_str(ScanDisplay.rock_words(contrast)).contains("HARDER")
-		assert_str(ScanDisplay.rock_words(-contrast)).contains("SOFTER")
-	assert_int(ScanDisplay.rock_marks(0.6)).is_greater(ScanDisplay.rock_marks(0.1))
-	assert_str(ScanDisplay.rock_words(0.6)).is_not_equal(ScanDisplay.rock_words(0.1))
-	# Rock that sounds the same, or a patch that says nothing: no band.
-	assert_int(ScanDisplay.rock_marks(0.0)).is_equal(0)
-	assert_int(ScanDisplay.rock_marks(NAN)).is_equal(0)
-
-
-func test_navigation_says_what_lies_beyond_the_boundary_ahead() -> void:
-	var into_harder: Array = _boundary_below(30.0)
-	var sim: DiveSimulation = into_harder[0]
-	assert_str(ScanDisplay.rock_label(sim)).contains(ScanDisplay.rock_words(sim.rock_ahead()))
-	assert_str(ScanDisplay.rock_label(sim)).contains("HARDER")
-	assert_str(ScanDisplay.rock_label(sim)).contains("%d%%" % roundi(sim.rock_ahead_confidence() * 100.0))
-
-	var unscanned := DiveSimulation.new(MediumLayout.first_dive())
-	assert_str(ScanDisplay.rock_label(unscanned)).not_contains("HARDER")
-	assert_str(ScanDisplay.rock_label(unscanned)).not_contains("SOFTER")
-
-
-func test_a_rock_is_named_only_as_surface_control_s_expectation_until_the_column_shows_it() -> void:
-	var guess := {name = &"granite", depth = 604.0, confirmed = false}
-	var shown := {name = &"granite", depth = 604.0, confirmed = true}
-
-	assert_str(ScanDisplay.expected_label(guess)).contains("GRANITE")
-	assert_str(ScanDisplay.expected_label(guess)).contains("EXPECTED")
-	assert_str(ScanDisplay.expected_label(shown)).contains("GRANITE")
-	assert_str(ScanDisplay.expected_label(shown)).not_contains("EXPECTED")
-	# Shortened for a narrow pane, still marked as a guess.
-	assert_str(ScanDisplay.expected_label(guess, true)).contains("?")
-	assert_str(ScanDisplay.expected_label(shown, true)).not_contains("?")
-	# The display has no other way to a rock's name: not the Medium the Head
-	# is in, not the Column, not the Bore Station's record.
-	var source: String = _display_source()
-	for word in ["medium()", "column_at", "survey()", "composition"]:
-		assert_bool(source.contains(word)) \
-				.override_failure_message("scan_display.gd names %s" % word) \
-				.is_false()
-
-
 func test_the_scope_s_range_follows_the_boundary_ahead_of_the_vessel_however_the_beam_is_aimed() -> void:
 	# The Boundary 30 m dead ahead steps the scope in; the Beam then aimed
 	# square across and pulsed there finds no Boundary along its aim, and the
@@ -439,3 +386,31 @@ func test_the_scope_s_range_follows_the_boundary_ahead_of_the_vessel_however_the
 	display._process(0.0)
 
 	assert_vector(display.scope_shown()).is_equal(before)
+
+
+## The area an outline on the screen covers, square pixels.
+func _area(outline: PackedVector2Array) -> float:
+	var twice := 0.0
+	for i in outline.size():
+		twice += outline[i].cross(outline[(i + 1) % outline.size()])
+	return absf(twice) * 0.5
+
+
+func test_a_target_s_region_is_drawn_in_every_view_round_its_middle_and_smaller_as_it_narrows() -> void:
+	var head := Vector3(0.0, -400.0, 0.0)
+	var wide := TargetRegion.new(&"A", head + Vector3(20.0, -60.0, 10.0), Vector3(20.0, 30.0, 20.0))
+	var narrow := TargetRegion.new(&"A", wide.centre, Vector3(6.0, 5.0, 6.0))
+	var down := _heading(0.0, 90.0)
+	var views: Array[Callable] = [
+		func(offset: Vector3) -> Vector2: return ScanDisplay.scope_place(offset, down, 0.0),
+		func(offset: Vector3) -> Vector2: return ScanDisplay.plan_place(offset, 0.0),
+		func(offset: Vector3) -> Vector2: return ScanDisplay.section_place(offset, 0.0),
+		func(offset: Vector3) -> Vector2: return ScanDisplay.world_up_place(offset, 0.0),
+	]
+	for place in views:
+		var outline := ScanDisplay.region_outline(wide, head, place, 1.0)
+		assert_int(outline.size()).is_greater(2)
+		assert_bool(Geometry2D.is_point_in_polygon(place.call(wide.centre - head), outline)).is_true()
+		assert_float(_area(ScanDisplay.region_outline(narrow, head, place, 1.0))).is_less(_area(outline))
+		# Its inner shares lie inside its rim, so the fill builds toward the middle.
+		assert_float(_area(ScanDisplay.region_outline(wide, head, place, 0.5))).is_less(_area(outline))

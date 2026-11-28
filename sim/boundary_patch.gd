@@ -21,31 +21,16 @@ var confidence: float
 ## (ScanPoint.returned_at), so it fades with them. The simulation's
 ## patch_age() reads its age.
 var returned_at: float
-## The scan's estimate of the rock below the surface against the rock above
-## it (ScanPoint.contrast): its points' contrasts, weighted by their
-## confidence, so as sure as the patch and wrong as they are. Positive: the
-## rock below is harder and denser; negative: softer and more porous. NAN
-## when none of its points says. beyond() reads it from one side.
-var contrast := NAN
 
 
 func _init(p_centre: Vector3, p_normal: Vector3, p_size: Vector2, p_support: int,
-		p_confidence: float, p_returned_at: float, p_contrast := NAN) -> void:
+		p_confidence: float, p_returned_at: float) -> void:
 	centre = p_centre
 	normal = p_normal
 	size = p_size
 	support = p_support
 	confidence = p_confidence
 	returned_at = p_returned_at
-	contrast = p_contrast
-
-
-## The estimate of the rock beyond the surface from `place` (the world frame)
-## against the rock on that side: contrast as it is from above, turned about
-## from below. NAN when the patch carries none.
-func beyond(place: Vector3) -> float:
-	var above := normal.dot(place - centre) >= 0.0
-	return contrast if above else -contrast
 
 
 ## The patch's four corners on its surface, in the world frame, going round:

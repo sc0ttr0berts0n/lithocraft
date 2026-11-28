@@ -36,6 +36,9 @@ var _tops: Array[float] = []
 var _media: Array[Medium] = []
 ## Features of interest: [[depth_m, ColumnFeature template], ...], shallowest first.
 var _features: Array = []
+## Targets: bodies in the rock surface control's survey has seen and cannot
+## identify (TargetBody), in the order placed.
+var _targets: Array[TargetBody] = []
 ## Each Boundary's waves (for _tops[i + 1]): Vector4(wavenumber along x,
 ## wavenumber along z, phase, metres of amplitude). Empty for a flat one.
 var _waves: Array = []
@@ -138,6 +141,20 @@ func with_features(features: Array) -> MediumLayout:
 	_features.append_array(features)
 	_features.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
 	return self
+
+
+## Places targets in the rock: bodies with a place and a size (TargetBody),
+## each with a label of its own. Returns this layout, so it chains onto
+## layered() and with_waviness(). A Scenario places its targets here, and
+## names them in its Orders (Scenario.identify_target()).
+func with_targets(targets: Array[TargetBody]) -> MediumLayout:
+	_targets.append_array(targets)
+	return self
+
+
+## Every target in the layout, in the order placed.
+func targets() -> Array[TargetBody]:
+	return _targets.duplicate()
 
 
 ## Every feature template in the layout, each as [depth_m, ColumnFeature],

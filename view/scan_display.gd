@@ -6,13 +6,13 @@
 ## Beam's cone at its width (faint cyan, out to its reach), a running Sweep's
 ## progress (green: the spiral swept so far and its leading edge), the points
 ## (surface control's survey hollow and fainter than the vessel's own) and
-## the Inferred Boundaries, with the rock beyond each as the scan estimates
-## it (a band hatched for harder rock, stippled for softer) and surface
-## control's names for the rocks it expects; labels in the lower left name
-## the Beam's width and the Sweep's range and progress; Navigation's
-## status lines say what lies beyond the Boundary ahead (rock_label()).
+## the Inferred Boundaries; labels in the lower left name the Beam's width
+## and the Sweep's range and progress.
 ## Aimed off the vessel's axis, the Beam's cone is drawn about its aim, with
 ## a small diamond (_draw_aim()) along it and the aim in the Beam's label.
+## Each target the Orders name is a fuzzy cyan region where the scan has it
+## (_draw_targets()), denser toward its middle and named as the Orders name
+## it ("TARGET A"), narrowing as the points heard from it do.
 ##
 ##   forward scope     the vessel's own vertical plane with ahead up the
 ##                     screen and range rings about the Head, as a
@@ -42,10 +42,10 @@
 ## sweep_running(), sweep_range(),
 ## sweep_progress(), sweep_time_left(), sweep_from_angle(),
 ## sweep_reached_angle(), sweep_axis() and sweep_origin() for the Sweep;
-## rock_ahead(), rock_ahead_confidence() and expected_rocks() for the rock;
 ## head_position(), heading()
 ## and heading_degrees() for the vessel; course_direction() for the Course;
-## projected_path() for where this turn takes the vessel.
+## projected_path() for where this turn takes the vessel; target_regions()
+## for the targets, fetched with the points.
 class_name ScanDisplay
 extends SubViewport
 
@@ -128,28 +128,18 @@ const SWEEP_FILL_ALPHA := 0.12
 const SWEEP_EDGE_ALPHA := 0.8
 ## How opaque the backdrop under the labels in the lower left is.
 const LABEL_BACKDROP_ALPHA := 0.85
-## The rock beyond each Inferred Boundary, as the scan estimates it against
-## the rock on the Head's side (BoundaryPatch.beyond()): a band this many
-## pixels deep, straight down or up the screen, on the far side of the patch
-## (a fixed depth on the screen, so it reads at every range and scale), hatched with strokes through it
-## where the rock beyond is harder and denser and stippled with dots where it
-## is softer and more porous, as a geological section draws hard rock and
-## sand; more marks the stronger the contrast (ROCK_MARKS, by ROCK_DEGREES),
-## none under ROCK_SAME. Drawn in the points' colours, white as the patch is
-## sure and the legend's grey as it is a guess, so it says nothing the
-## colour language keeps for cautions; a stroke seen end-on (the plan) is a
-## short slant of ROCK_TICK_PX, so it still differs from a dot.
-const ROCK_BAND_PX := 16.0
-const ROCK_SAME := 0.05
-const ROCK_DEGREES: Array[float] = [0.15, 0.4]
-const ROCK_MARKS: Array[int] = [3, 5, 7]
-const ROCK_ALPHA := 0.8
-const ROCK_LEAST_ALPHA := 0.3
-const ROCK_TICK_PX := 6.0
-const ROCK_DOT_PX := 3.0
-## Surface control's names are written at the right of the pane, just into
-## the rock below the Boundary, on a backdrop this opaque.
-const EXPECTED_BACKDROP_ALPHA := 0.7
+## A target's region: cyan, what the crew aims for; drawn as nested outlines
+## of the region scaled by these shares, each filled this faint, so it builds
+## up toward the middle and fades out at its edge, with its outermost rim at
+## this strength.
+const TARGET_COLOUR := StationTheme.SELECTED_COLOUR
+const TARGET_SHARES: Array[float] = [1.0, 0.8, 0.6, 0.4]
+const TARGET_FILL_ALPHA := 0.08
+const TARGET_RIM_ALPHA := 0.35
+## How finely a region's ellipsoid is sampled for its outline on the screen:
+## rings of latitude and points round each.
+const TARGET_RINGS := 7
+const TARGET_ROUND := 16
 ## The plan and section pair, side by side at one scale: the metres the
 ## section shows under the vessel, where the vessel sits across both and down
 ## the section (shares; in the plan it is half way down), and the plan's
@@ -183,6 +173,7 @@ var _over := Control.new()
 ## batch of a Sweep's points), and the patches fitted to them.
 var _points: Array[ScanPoint] = []
 var _patches: Array[BoundaryPatch] = []
+var _regions: Array[TargetRegion] = []
 var _revision_shown := -1
 ## The forward scope's range and ring spacing, metres (one of
 ## SCOPE_RANGES_M), stepped only when the scan changes.
@@ -223,6 +214,7 @@ func _process(_delta: float) -> void:
 		_revision_shown = sim.scan_revision()
 		_points = sim.points()
 		_patches = sim.inferred_boundaries()
+		_regions = sim.target_regions()
 		_scope = scope_range(BoundaryFit.ahead(_patches, sim.head_position(), sim.heading()).x)
 	_frames_to_redraw -= 1
 	if _frames_to_redraw > 0:
@@ -455,13 +447,12 @@ func _draw_scan(canvas: Control, place: Callable, heading_m := HEADING_M) -> voi
 	var head := sim.head_position()
 	_draw_beam(canvas, place)
 	_draw_sweep(canvas, place)
-	var rock_band := _rock_band(place)
+	_draw_targets(canvas, place)
 	for patch in _patches:
 		var sureness := patch.confidence * exp(-sim.patch_age(patch) / FADE_S)
 		var corners := PackedVector2Array()
 		for corner in patch.corners():
 			corners.append(place.call(corner - head))
-		_draw_rock_beyond(canvas, patch, corners, sureness, rock_band)
 		if _face(corners) >= SURFACE_LEAST_FACE_PX:
 			canvas.draw_colored_polygon(corners, StationTheme.faded(SURFACE_COLOUR, SURFACE_MOST_ALPHA * sureness))
 		corners.append(corners[0])
@@ -482,7 +473,6 @@ func _draw_scan(canvas: Control, place: Callable, heading_m := HEADING_M) -> voi
 				* exp(-sim.point_age(point) / FADE_S), POINT_LEAST_ALPHA)
 		var side := roundf(lerpf(POINT_PX.x, POINT_PX.y, point.confidence))
 		canvas.draw_rect(Rect2(at - Vector2(side, side) * 0.5, Vector2(side, side)), colour)
-	_draw_expected(canvas, place, rock_band)
 
 	var vessel: Vector2 = place.call(Vector3.ZERO)
 	_draw_aim(canvas, place)
@@ -583,6 +573,54 @@ func _draw_sweep(canvas: Control, place: Callable) -> void:
 			if _face(band) >= SURFACE_LEAST_FACE_PX:
 				canvas.draw_colored_polygon(band, fill)
 			canvas.draw_line(origin, band[band.size() - 1], edge, 2.0)
+
+
+## Each target's region (target_regions()) as the scan has it: a fuzzy cyan
+## patch, the outline of its ellipsoid on the screen at each of
+## TARGET_SHARES of its size filled faintly, so the fill builds toward the
+## middle, a faint rim at its edge and its name beside it ("TARGET A").
+## Under the points and the Inferred Boundaries, so the echoes heard from it
+## show over it.
+func _draw_targets(canvas: Control, place: Callable) -> void:
+	var head := sim.head_position()
+	for region in _regions:
+		var rim := PackedVector2Array()
+		for share in TARGET_SHARES:
+			var outline := region_outline(region, head, place, share)
+			if outline.size() < 3:
+				continue
+			canvas.draw_colored_polygon(outline, StationTheme.faded(TARGET_COLOUR, TARGET_FILL_ALPHA))
+			if rim.is_empty():
+				rim = outline
+		if rim.is_empty():
+			continue
+		var closed := rim.duplicate()
+		closed.append(rim[0])
+		canvas.draw_polyline(closed, StationTheme.faded(TARGET_COLOUR, TARGET_RIM_ALPHA), 1.5)
+		var right := rim[0]
+		for corner in rim:
+			if corner.x > right.x:
+				right = corner
+		canvas.draw_string(ThemeDB.fallback_font, right + Vector2(6.0, FONT_SIZE * 0.35),
+				"TARGET %s" % region.label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, FONT_SIZE, TARGET_COLOUR)
+
+
+## The outline on the screen of a target's region scaled to `share` of its
+## size about its middle, through a view's `place` (a place from the Head at
+## `head`, metres, to pixels): the convex hull of points sampled over its
+## ellipsoid, so it is its true outline seen from any view; not closed.
+static func region_outline(region: TargetRegion, head: Vector3, place: Callable, share: float) -> PackedVector2Array:
+	var drawn := PackedVector2Array()
+	for ring in TARGET_RINGS:
+		var up := lerpf(-PI / 2.0, PI / 2.0, (ring + 0.5) / TARGET_RINGS)
+		for i in TARGET_ROUND:
+			var around := TAU * i / TARGET_ROUND
+			var on := Vector3(cos(up) * cos(around), sin(up), cos(up) * sin(around))
+			drawn.append(place.call(region.centre + on * region.half_size * share - head))
+	var hull := Geometry2D.convex_hull(drawn)
+	if hull.size() > 1 and hull[0] == hull[hull.size() - 1]:
+		hull.remove_at(hull.size() - 1)
+	return hull
 
 
 ## The vessel: its heading line and an arrowhead along it; seen end-on (the
@@ -698,147 +736,3 @@ func _dashes(canvas: Control, from: Vector2, to: Vector2, colour: Color) -> void
 		var along := dash * 2.0 * DASH_PX
 		canvas.draw_line(from.lerp(to, along / length), from.lerp(to, minf(along + DASH_PX, length) / length),
 				colour, 2.0)
-
-
-# --- The rock beyond a Boundary (#122) ----------------------------------------
-# What sound can know of the rock: harder or softer, denser or more porous,
-# never its name (DiveSimulation.rock_ahead(), BoundaryPatch.contrast). A
-# rock's name is written only as surface control's expectation, marked as
-# one, until the Column has shown it (DiveSimulation.expected_rocks()).
-
-## How strong a contrast is, 0 (much the same, or nothing said) to the
-## number of ROCK_DEGREES it passes, plus one.
-static func rock_degree(contrast: float) -> int:
-	if is_nan(contrast) or absf(contrast) < ROCK_SAME:
-		return 0
-	var degree := 1
-	for edge in ROCK_DEGREES:
-		if absf(contrast) >= edge:
-			degree += 1
-	return degree
-
-
-## The words for the rock beyond against the rock before, from its estimated
-## contrast: "MUCH HARDER, DENSER", "A LITTLE SOFTER, MORE POROUS", "MUCH THE
-## SAME"; "" when the scan says nothing of it.
-static func rock_words(contrast: float) -> String:
-	if is_nan(contrast):
-		return ""
-	var degree := rock_degree(contrast)
-	if degree == 0:
-		return "MUCH THE SAME"
-	return "%s%s" % [["A LITTLE ", "", "MUCH "][degree - 1],
-			"HARDER, DENSER" if contrast > 0.0 else "SOFTER, MORE POROUS"]
-
-
-## True when the band beyond a patch is hatched with strokes (harder,
-## denser rock), false when stippled with dots (softer, more porous) or not
-## drawn at all.
-static func rock_hatched(contrast: float) -> bool:
-	return rock_degree(contrast) > 0 and contrast > 0.0
-
-
-## How many marks the band beyond a patch of this contrast has: none for
-## much the same.
-static func rock_marks(contrast: float) -> int:
-	var degree := rock_degree(contrast)
-	return 0 if degree == 0 else ROCK_MARKS[degree - 1]
-
-
-## Navigation's status line for the rock beyond the Inferred Boundary ahead
-## (the Habitat shows it): "Beyond: MUCH HARDER, DENSER  64% sure", or that
-## the scan shows no Boundary ahead, or nothing of the rock beyond it. In the
-## same words as the bands drawn beyond every patch (rock_words()).
-static func rock_label(of: DiveSimulation) -> String:
-	var contrast := of.rock_ahead()
-	if of.rock_ahead_confidence() <= 0.0:
-		return "Beyond: no Boundary ahead in the scan"
-	if is_nan(contrast):
-		return "Beyond the Boundary ahead: the scan cannot say"
-	return "Beyond: %s  %d%% sure" % [rock_words(contrast), roundi(of.rock_ahead_confidence() * 100.0)]
-
-
-## Surface control's name for a rock it expects (one of
-## DiveSimulation.expected_rocks()), written as a guess until the Column has
-## shown it: "GRANITE EXPECTED" ("GRANITE?" when `short`, for a narrow pane),
-## then "GRANITE". Written where surface control expects it, so its depth is
-## the place it is written.
-static func expected_label(expected: Dictionary, short := false) -> String:
-	var rock := String(expected.name).to_upper()
-	if expected.confirmed:
-		return rock
-	return rock + ("?" if short else " EXPECTED")
-
-
-## The band beyond a patch on the screen: ROCK_BAND_PX the way straight down
-## goes through `place`, or nothing in the plan, which looks straight down.
-static func _rock_band(place: Callable) -> Vector2:
-	var down := (place.call(Vector3.DOWN * 10.0) as Vector2) - (place.call(Vector3.ZERO) as Vector2)
-	return Vector2.ZERO if down.length() < 1.0 else down.normalized() * ROCK_BAND_PX
-
-
-## The band of rock beyond one patch, on the side away from the Head: strokes
-## through it for harder rock, dots in it for softer (rock_hatched()), as
-## many as rock_marks(), spread along the patch's two diagonals (`corners`,
-## its four corners on the screen), as sure as the patch (`sureness`, faded
-## with age). `band` is rock_band() for this view.
-func _draw_rock_beyond(canvas: Control, patch: BoundaryPatch, corners: PackedVector2Array,
-		sureness: float, band: Vector2) -> void:
-	var head := sim.head_position()
-	var beyond := patch.beyond(head)
-	var marks := rock_marks(beyond)
-	if marks == 0:
-		return
-	var within := Rect2(Vector2.ZERO, canvas.size).grow(ROCK_BAND_PX + ROCK_TICK_PX)
-	if not (within.has_point(corners[0]) or within.has_point(corners[2])):
-		return
-	var shift := band if patch.normal.dot(head - patch.centre) >= 0.0 else -band
-	var end_on := shift.length() < ROCK_TICK_PX
-	var colour := DOUBTFUL.lerp(CERTAIN, sureness)
-	colour.a = ROCK_ALPHA * maxf(sureness, ROCK_LEAST_ALPHA)
-	var hatched := rock_hatched(beyond)
-	var lines := PackedVector2Array()
-	for i in marks:
-		var along := (i + 0.5) / marks
-		var at: Vector2 = corners[0].lerp(corners[2], along) if i % 2 == 0 else corners[1].lerp(corners[3], along)
-		if hatched:
-			lines.append(at)
-			lines.append(at + (Vector2(ROCK_TICK_PX, -ROCK_TICK_PX) * 0.7 if end_on else shift))
-			continue
-		# One dot a mark, by turns nearer and further into the band, so the
-		# stipple stays open where patches lie side by side.
-		var share := 0.3 if i % 2 == 0 else 0.75
-		var dot := at + (Vector2(ROCK_TICK_PX, ROCK_TICK_PX) * share if end_on else shift * share)
-		lines.append(dot)
-		lines.append(dot + Vector2(ROCK_DOT_PX, 0.0))
-	canvas.draw_multiline(lines, colour, 1.5 if hatched else ROCK_DOT_PX)
-
-
-## Surface control's names for the rocks it expects, each at the right of
-## the pane at the depth it surveyed (straight under or over the Head), just
-## into the rock below, on a backdrop so the points never hide it: the
-## legend's grey while a guess, white once the Column has shown it
-## (expected_label()). Not in the plan, which shows no depth (`band` is
-## nothing there).
-func _draw_expected(canvas: Control, place: Callable, band: Vector2) -> void:
-	if band == Vector2.ZERO:
-		return
-	var head := sim.head_position()
-	var font := ThemeDB.fallback_font
-	for expected in sim.expected_rocks():
-		var at: Vector2 = place.call(Vector3(0.0, -expected.depth - head.y, 0.0))
-		# Just into the rock below the Boundary, whichever way down goes.
-		var line := at + band.normalized() * (FONT_SIZE * 0.5 + 4.0)
-		if line.y < FONT_SIZE or line.y > canvas.size.y - 4.0:
-			continue
-		var text := expected_label(expected)
-		var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, FONT_SIZE).x
-		if width > canvas.size.x * 0.6:
-			text = expected_label(expected, true)
-			width = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, FONT_SIZE).x
-		var corner := Vector2(maxf(2.0, canvas.size.x - width - 8.0), line.y - FONT_SIZE * 0.5 - 2.0)
-		canvas.draw_rect(Rect2(corner, Vector2(width + 6.0, FONT_SIZE + 4.0)),
-				StationTheme.faded(StationTheme.SCREEN_COLOUR, EXPECTED_BACKDROP_ALPHA))
-		canvas.draw_string(font, corner + Vector2(3.0, FONT_SIZE), text, HORIZONTAL_ALIGNMENT_LEFT, -1.0,
-				FONT_SIZE, CERTAIN if expected.confirmed else DOUBTFUL)
-

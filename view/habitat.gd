@@ -104,7 +104,7 @@ const UPLOAD_PRIORITIES: Array[StringName] = [
 const BORE_PANEL_ZOOM := 1.7
 ## The status lines each Station's screen usually shows under its instrument:
 ## what its pictures' viewports are sized for (StationScreen.body_size()).
-const NAVIGATION_LINES := 6
+const NAVIGATION_LINES := 5
 ## The debug menu's steps: wear per press (hull or Head), and time skipped.
 const DEBUG_WEAR_STEP := 0.1
 const DEBUG_SKIP_S := 300.0
@@ -798,9 +798,8 @@ func _course_line() -> Array:
 ## Navigation's status lines, under its point cloud and moving map (which
 ## show the Course): the Course plotted, whether the Drive follows it or how
 ## far off it steers (the Drive's own words, CourseDeviation), how quiet the
-## vessel is and the points heard, the Beam's width, reach and switch, the
-## scan's estimate of the rock beyond the Boundary ahead (ScanDisplay's words),
-## and its power.
+## vessel is and the points heard, the Beam's width, reach and switch, and its
+## power.
 func _show_navigation() -> void:
 	_navigation.show_lines([
 		_course_line(),
@@ -809,7 +808,6 @@ func _show_navigation() -> void:
 		"%s  noise %d%%  %d points" % ["QUIET SHIP" if _sim.quiet_ship() else "under way",
 			roundi(_sim.noise() * 100.0), _sim.point_count()],
 		[_beam_line(_sim), StationTheme.SELECTED],
-		ScanDisplay.rock_label(_sim),
 		_power_line(_sim.navigation_request(), _sim.navigation_draw()),
 	])
 
@@ -1007,6 +1005,9 @@ func _on_paid(event: Dictionary) -> void:
 		lines.append("  heat and shuttering cost %.0f of pristine records" % event.lost_to_quality)
 	if event.features > 0:
 		lines.append("Features recorded: %d, worth %.0f" % [event.features, event.feature_worth])
+	if not event.targets.is_empty():
+		lines.append("Targets identified: %s, worth %.0f" % [", ".join(event.targets.map(
+				func(label: StringName) -> String: return String(label))), event.target_worth])
 	var by_medium: Dictionary = event.by_medium
 	var media := PackedStringArray()
 	for medium in by_medium:
@@ -1177,7 +1178,11 @@ func _bore_reading() -> Array:
 		var marker := ">" if feature.id == observed else " "
 		if feature.id == observed:
 			found_observed = true
-		lines.append(["%s %s %.1f m  %s" % [marker, String(feature.kind).capitalize(), where, state],
+		# A target names itself as the Orders do, now it is identified by kind.
+		var called := String(feature.kind).capitalize()
+		if feature.target != &"":
+			called = "Target %s: %s" % [feature.target, called]
+		lines.append(["%s %s %.1f m  %s" % [marker, called, where, state],
 				StationTheme.ENGAGED if feature.is_recorded() else
 				StationTheme.SELECTED if feature.id == observed else StationTheme.NOW])
 	if in_column.is_empty():

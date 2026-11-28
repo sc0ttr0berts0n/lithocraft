@@ -342,7 +342,7 @@ static func _words_of(identifier: String) -> String:
 ## only ever what the scan found.
 const SCAN_SIDE: Array[String] = [
 	"sim/scan_point.gd", "sim/boundary_patch.gd", "sim/boundary_fit.gd",
-	"sim/look_ahead.gd", "sim/wobble_guess.gd",
+	"sim/look_ahead.gd", "sim/wobble_guess.gd", "sim/target_region.gd",
 	"view/scan_display.gd", "view/moving_map.gd",
 ]
 
@@ -352,11 +352,13 @@ const SCAN_AND_LAYOUT := {
 	"sim/dive_simulation.gd": "owns the layout: it makes the points by sounding it, and hands the scan side points and patches alone",
 }
 
-## What naming the layout looks like.
-const LAYOUT_NAMES: Array[String] = ["MediumLayout", "_layout", "medium_at", "boundary_depth", "next_meet"]
+## What naming the layout looks like; a target's body (TargetBody) is the
+## layout's truth too.
+const LAYOUT_NAMES: Array[String] = ["MediumLayout", "_layout", "medium_at", "boundary_depth", "next_meet",
+		"TargetBody"]
 
 ## What taking scan points or patches looks like, in code.
-const _TAKES_THE_SCAN := "\\b(ScanPoint|BoundaryPatch|BoundaryFit)\\b|\\bpoints\\(\\)|\\binferred_boundaries\\(\\)"
+const _TAKES_THE_SCAN := "\\b(ScanPoint|BoundaryPatch|BoundaryFit|TargetRegion)\\b|\\bpoints\\(\\)|\\binferred_boundaries\\(\\)|\\btarget_regions\\(\\)"
 
 
 func test_scan_side_code_never_names_the_layout() -> void:

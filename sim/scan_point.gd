@@ -25,22 +25,13 @@ var returned_at: float
 ## True for a point of surface control's survey, in the scan as the dive
 ## began (DiveSimulation.start_surveyed()); false for the vessel's own echoes.
 var surveyed := false
-## What the echo's strength and polarity say of the rock either side of the
-## surface it came from: the contrast in acoustic impedance across it, -1 to
-## 1, of the rock below against the rock above, positive when the rock below
-## is harder and denser (less porous), negative when softer and more porous.
-## As heard, so wrong by an error that shrinks as the point is surer
-## (Echoes.contrast_heard()); never a rock's name, which sound cannot know.
-## NAN for an echo that says nothing of it.
-var contrast := NAN
 
 
 func _init(p_position: Vector3, p_confidence: float, p_range: float, p_pulse: int,
-		p_returned_at: float, p_surveyed := false, p_contrast := NAN) -> void:
+		p_returned_at: float, p_surveyed := false) -> void:
 	position = p_position
 	confidence = p_confidence
 	range = p_range
 	pulse = p_pulse
 	returned_at = p_returned_at
 	surveyed = p_surveyed
-	contrast = p_contrast

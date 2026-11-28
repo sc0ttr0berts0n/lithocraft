@@ -11,6 +11,10 @@ func _kinds_in_the_layouts() -> Array[StringName]:
 			var kind: StringName = entry[1].kind
 			if not kind in kinds:
 				kinds.append(kind)
+		# A target is found in the Column as a feature of its own kind.
+		for body in scenario.layout.targets():
+			if not body.kind in kinds:
+				kinds.append(body.kind)
 	return kinds
 
 
