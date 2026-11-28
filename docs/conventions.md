@@ -31,6 +31,7 @@ The old "Extension points" and "Subsystems" sections are spread by topic; their 
 - [conventions/targets.md](conventions/targets.md): Targets. Read when touching a target: its body (`TargetBody`), the Orders' fuzzy place and its narrowing (`TargetRegion`), its echoes, finding and identifying it in the Column, its pay, its drawing, or the Prospecting drill.
 - [conventions/scenarios-and-checklist.md](conventions/scenarios-and-checklist.md): Scenarios, Phase triggers. Read when touching a Scenario, its start state, the Orders, the Checklist's phases, steps and triggers, or surface control's messages.
 - [conventions/glide.md](conventions/glide.md): The Glide. Read when touching the Glide, or anything it meets: the step, the Wobble on the plasma, the Column in the Bore, power and heat in a Glide, the tunnel it leaves and the light up it (the link), or the seams left for #126 to #128.
+- [conventions/glide-look.md](conventions/glide-look.md): The Glide seen, heard and felt. Read when touching how the view shows a Glide: the melt in the Bore (`BoreMelt`), its light and glow, the roar (`JetRoar`), the jet's shake, or how any view draws the tunnel behind (`TunnelLook`).
 - [conventions/debug-commands.md](conventions/debug-commands.md): Debug commands. Read when adding or using a `debug_*` command or a debug menu key.
 
 ## The view
