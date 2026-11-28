@@ -50,6 +50,17 @@ func test_after_a_glide_the_screens_say_the_head_is_at_idle() -> void:
 	assert_str(_written(habitat, "Reactor")).contains("AT IDLE")
 
 
+func test_a_running_glide_s_line_to_hold_is_a_place_on_the_drive_s_ball() -> void:
+	var habitat := await _staged("Drive", 3.0, ["1 plot_glide 300", "1 start_glide"])
+	var sim: DiveSimulation = habitat.simulation()
+	assert_bool(sim.gliding()).is_true()
+	var aim := sim.glide_aim()
+	var ball := AttitudeBall.new(sim.pitch(), sim.heading_degrees())
+
+	assert_bool(ball.on_face(aim.x, aim.y)).is_true()
+	assert_float(ball.place(aim.x, aim.y).length()).is_less(0.5)
+
+
 func test_after_a_glide_the_bore_station_says_why_the_link_is_slower() -> void:
 	var habitat := await _staged("Bore Station", 12.0, ["1 plot_glide 150", "1 start_glide"])
 	var sim: DiveSimulation = habitat.simulation()

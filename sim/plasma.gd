@@ -190,6 +190,17 @@ func debug_set_wear(wear: float) -> void:
 	_head_wear = clampf(wear, 0.0, 1.0)
 
 
+## A Glide off its line slapped the Head against its sheath's wall: `wear`
+## more of the Head's one wear (a Glide's own rule, Glide.head_wear()); worn
+## through, the plasma is lost as a Residual would lose it (&"worn_through").
+func slap(wear: float, events: Array[Dictionary], depth: float, distance: float) -> void:
+	if _lost or wear <= 0.0:
+		return
+	_head_wear = minf(1.0, _head_wear + wear)
+	if _head_wear >= 1.0:
+		_lose(events, depth, distance, &"worn_through")
+
+
 ## Debug only: the plasma goes out, as a Residual that loses it would leave
 ## it, by the same path (_lose()), raising &"plasma_lost" into `events`. Its
 ## cause is &"debug".

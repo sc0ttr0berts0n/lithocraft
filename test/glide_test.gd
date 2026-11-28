@@ -134,13 +134,11 @@ func test_a_boundary_crossed_in_a_glide_needs_no_shift_and_wears_nothing() -> vo
 	var wear := sim.head_wear()
 	_glide(sim)
 	var seen := []
-	var out_of_band := false
-	for i in 6000:
-		sim.advance(0.1)
-		seen.append_array(sim.take_events())
-		out_of_band = out_of_band or sim.out_of_band()
-		if not sim.gliding():
-			break
+	var flagged := [false]
+	# Held on its line, so its sheath never slaps it (glide_flying_test.gd).
+	DiveTestKit.fly_glide(sim, true, Vector2.ZERO, seen, 0.02, [], 600.0,
+			func() -> void: flagged[0] = flagged[0] or sim.out_of_band())
+	var out_of_band: bool = flagged[0]
 
 	assert_array(DiveTestKit.types(seen)).contains([&"boundary_crossed", &"glide_ended"])
 	assert_float(sim.depth()).is_greater(SOFT_TO)
@@ -449,7 +447,8 @@ func test_a_glide_starts_only_straight_on_the_course() -> void:
 	assert_str(sim.glide_refusal()).is_equal(&"")
 
 
-func test_steering_does_nothing_in_a_glide() -> void:
+func test_a_nudge_does_not_turn_a_glide_as_it_turns_the_crawl() -> void:
+	# In a Glide a nudge only nudges it, finely (glide_flying_test.gd).
 	var sim := _surveyed()
 	_glide(sim, 300.0)
 	sim.advance(0.1)
@@ -458,7 +457,7 @@ func test_steering_does_nothing_in_a_glide() -> void:
 	DiveTestKit.nudge(sim, 0.0, -15.0)
 	DiveTestKit.run(sim, 5.0, 0.1)
 
-	assert_vector(sim.heading()).is_equal_approx(way, Vector3.ONE * 1e-6)
+	assert_float(rad_to_deg(sim.heading().angle_to(way))).is_less(sim.nudge_degrees() / 4.0)
 	assert_float(sim.steering()).is_equal(0.0)
 
 
@@ -528,7 +527,9 @@ func test_the_glide_ending_is_a_report_that_keeps_the_time_rate() -> void:
 	var sim := _surveyed()
 	_glide(sim, 150.0)
 	sim.set_time_rate(8.0)
-	_glide_to_end(sim, [], 0.1)
+	# Held on its line, so its sheath never slaps it and warns; in steps as
+	# short at this rate as the hand's are at the normal one.
+	assert_dict(DiveTestKit.fly_glide(sim, true, Vector2.ZERO, [], 0.02 / 8.0)).is_not_empty()
 
 	assert_float(sim.time_rate()).is_equal(8.0)
 
@@ -568,7 +569,7 @@ func test_a_glide_does_not_wear_the_head_or_lose_the_plasma() -> void:
 	var sim := _surveyed()
 	var wear := sim.head_wear()
 	_glide(sim)
-	_glide_to_end(sim)
+	DiveTestKit.fly_glide(sim, true)  # Held on its line, as nothing slaps it.
 
 	assert_float(sim.head_wear()).is_equal(wear)
 	assert_bool(sim.plasma_lost()).is_false()
