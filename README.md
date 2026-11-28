@@ -25,6 +25,8 @@ A dive in brief: plot the Course at Navigation, set power at the Drive, split he
 
 ## Run the tests
 
+To play on Windows, set `GODOT_BIN` as below and run `play.cmd`: it runs Godot's import pass, then the game. Launching Godot directly in a folder that has not been imported since new scripts arrived opens the start menu on its title with nothing to choose.
+
 Set `GODOT_BIN` to the Godot binary (on Windows, the `_console.exe` build so output reaches the terminal), then run the suite headless. It exits non-zero on any failure.
 
 Windows (cmd or PowerShell):
