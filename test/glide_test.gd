@@ -573,3 +573,80 @@ func test_a_glide_does_not_wear_the_head_or_lose_the_plasma() -> void:
 
 	assert_float(sim.head_wear()).is_equal(wear)
 	assert_bool(sim.plasma_lost()).is_false()
+
+
+# --- The seams (#159) ----------------------------------------------------------
+
+## The scan's guess of the rock held for STANDBY: Vector3(frequency,
+## amplitude, confidence).
+func _held(sim: DiveSimulation) -> Vector3:
+	return Vector3(sim.wobble_ahead_frequency(), sim.wobble_ahead_amplitude(),
+			sim.wobble_ahead_confidence())
+
+
+func test_a_glide_that_crosses_no_boundary_keeps_the_guess_held_when_it_began() -> void:
+	# Glide 1 crosses into the hard rock and ends at the idle; Glide 2, started
+	# straight from that idle, crosses nothing. The scan is never handed the
+	# layout's truth: Glide 2 ends holding what was held when it began.
+	var sim := _surveyed()
+	_glide(sim, 150.0)
+	_glide_to_end(sim)
+	var held := _held(sim)
+	assert_float(held.z).is_less(1.0)
+
+	var seen := []
+	_glide(sim, 100.0)
+	assert_bool(sim.gliding()).is_true()
+	_glide_to_end(sim, seen)
+
+	assert_array(DiveTestKit.types(seen)).not_contains([&"boundary_crossed"])
+	assert_vector(_held(sim)).is_equal(held)
+
+
+func test_a_glide_through_a_thin_layer_in_one_step_holds_the_guess_of_the_rock_it_ends_in() -> void:
+	# Both surfaces of a 2.5 m layer met in one long step: what is held is the
+	# scan's guess of the soft rock beyond it, not of the hard layer.
+	var thin := MediumLayout.layered([[0.0, DiveTestKit.soft()], [100.0, DiveTestKit.hard()],
+			[102.5, DiveTestKit.soft()], [HARD_TO, DiveTestKit.hard()]])
+	var sim := _surveyed(thin)
+	_glide(sim, 200.0)
+	sim.set_time_rate(sim.max_time_rate())
+	var most_in_a_step := 0
+	var ended := false
+	for i in 600:
+		sim.advance(1.0)
+		var types := DiveTestKit.types(sim.take_events())
+		most_in_a_step = maxi(most_in_a_step, types.count(&"boundary_crossed"))
+		if types.has(&"glide_ended"):
+			ended = true
+			break
+	assert_bool(ended).is_true()
+	assert_int(most_in_a_step).is_equal(2)
+	assert_str(sim.medium().name).is_equal(DiveTestKit.soft().name)
+
+	var soft := DiveTestKit.wobble_in(DiveTestKit.soft()).x
+	var hard := DiveTestKit.wobble_in(DiveTestKit.hard()).x
+	var guessed := sim.wobble_ahead_frequency()
+	assert_float(absf(guessed - soft)).is_less(absf(guessed - hard))
+
+
+func test_a_plotted_glide_waiting_works_its_reach_out_once_for_each_way_it_is_asked() -> void:
+	# glide_refusal() asks along the Head, glide_reach() along the Course; a
+	# screen polls both every frame while a Glide waits to start. Halted with
+	# the Course a little off the Head (still straight enough to start), the
+	# two ways differ, and neither is worked out again while nothing changes.
+	var sim := _surveyed()
+	sim.set_power(0.0)
+	DiveTestKit.run(sim, 5.0, 0.1)
+	sim.set_course(0.0, 90.0 - Glide.straight_degrees() * 0.5)
+	sim.plot_glide(100.0)
+	assert_bool(sim.straight_on_course()).is_true()
+	assert_str(sim.glide_refusal()).is_equal(&"")
+	sim.glide_reach()
+	var worked := sim.glide_reach_workings()
+
+	for i in 10:
+		sim.glide_reach()
+		sim.glide_refusal()
+
+	assert_int(sim.glide_reach_workings()).is_equal(worked)

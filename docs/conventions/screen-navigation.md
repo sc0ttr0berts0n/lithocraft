@@ -12,7 +12,9 @@
   It has seven with the Glide's after it (`NAVIGATION_LINES`): the plot against what the scan shows, or the range left (`habitat.gd::_glide_plot_line()`).
   Aimed off the vessel's axis (#120) the cone is drawn about `beam_axis()`, a small hollow cyan diamond sits a fixed few pixels along the aim (`AIM_MARK_AT_PX`; on the Head when seen end-on), and the label and the Beam line add the aim in `ScanDisplay.aim_words()` ("AIM R45 U15"); dead ahead, none of these show; `navigation.txt`'s "Beam aimed" tiles show them.
 - A target the Orders name shows in every view as a fuzzy cyan region, denser toward its middle, "TARGET A" beside it, narrowing as its points come in (`ScanDisplay._draw_targets()`, `region_outline()`; `targets.md`); `navigation.txt`'s "target before / after prospecting" tiles show it.
-- A running Sweep shows in every view as a faint green band each side of its axis, in the Beam's two planes, from the Beam's edge out to where its spiral has reached, its leading edge strong (`_draw_sweep()`), its points joining the cloud a batch at a time.
+- A running Sweep shows in every view as a faint green band each side of its axis, in the Beam's two planes, from the Beam's edge out to where its spiral has reached, and a faint ring round its axis between the two at its range, so a view looking along the axis (the plan, diving) still shows it (#159).
+  Its leading edge (the bands' edges and the reached ring) is strong and drawn over the points (`_draw_sweep_edge()`); its points join the cloud a batch at a time.
+  The recipe's Sweep tiles show it diving and level in every view.
   `sweep_label()`, on the strip's line over the Beam's, names its range and, while it runs, its share done and the time left ("SWEEP 200 m  45%  1:06 left"), else how long it takes and its key.
   The status lines are unchanged: the Sweep lives in the display.
 - The plotted Glide is a broad cyan bar down the Course from the vessel with a bar across its end, the running one green to its end (`ScanDisplay._draw_glide()`, one call in `_draw_scan()`, so every view has it).

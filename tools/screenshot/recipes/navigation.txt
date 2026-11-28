@@ -11,7 +11,7 @@
 # about 20 deg into the turn, the sandstone some 15 m below, three pulses sent.
 # Debug commands: debug_next_scan_view, once or twice, for the second and third candidate view
 # (the crew has no control for it; its key is the debug key F4); debug_skip for the climb of the softer-rock tiles,
-# some 27 minutes into a turn from straight down.
+# some 27 minutes into a turn from straight down, and for the level Sweep tiles.
 
 forward scope, diving: --scenario "Shift drill" --look Navigation --time 10 --do "4 pulse" --do "8 pulse"
 forward scope, mid-turn: --look Navigation --time 85 --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_course 90 0" --do "75 pulse" --do "80 pulse" --do "84 pulse"
@@ -66,8 +66,14 @@ forward scope, Sweep part-way, halted: --scenario "Shift drill" --look Navigatio
 forward scope, Sweep finished, halted: --scenario "Shift drill" --look Navigation --time 70 --do "0 set_quiet_ship true" --do "0 set_sweep_range 100" --do "6 start_sweep"
 forward scope, Sweep part-way, under way: --scenario "Shift drill" --look Navigation --time 36 --do "0 set_autopilot reactor true" --do "0 set_sweep_range 100" --do "6 start_sweep"
 forward scope, Sweep finished, under way: --scenario "Shift drill" --look Navigation --time 70 --do "0 set_autopilot reactor true" --do "0 set_sweep_range 100" --do "6 start_sweep"
-plan and section, Sweep part-way, halted: --scenario "Shift drill" --look Navigation --time 36 --do "0 debug_next_scan_view" --do "0 set_quiet_ship true" --do "0 set_sweep_range 100" --do "6 start_sweep"
-world-up 3D, Sweep part-way, halted: --scenario "Shift drill" --look Navigation --time 36 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 set_quiet_ship true" --do "0 set_sweep_range 100" --do "6 start_sweep"
+# Diving (a vertical axis) and level, in every view (#159): the swept cone round the axis is a faint green ring with
+# a strong leading ring, drawn over the points, so the plan diving (where both bands are edge-on) shows a green ring
+# round the Head, the section and world-up a green fan. Level: the First dive brought round to level on heading 090
+# (debug_skip 850 s), then halted at Quiet Ship and swept: the plan and world-up show a green fan to the east.
+plan and section, Sweep part-way, halted diving: --scenario "Shift drill" --look Navigation --time 36 --do "0 debug_next_scan_view" --do "0 set_quiet_ship true" --do "0 set_sweep_range 100" --do "6 start_sweep"
+world-up 3D, Sweep part-way, halted diving: --scenario "Shift drill" --look Navigation --time 36 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 set_quiet_ship true" --do "0 set_sweep_range 100" --do "6 start_sweep"
+plan and section, Sweep part-way, halted level: --look Navigation --time 888 --do "0 debug_next_scan_view" --do "0 start_below 300" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "1 set_course 90 0" --do "2 debug_skip 850" --do "853 set_quiet_ship true" --do "853 set_sweep_range 100" --do "858 start_sweep"
+world-up 3D, Sweep part-way, halted level: --look Navigation --time 888 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 start_below 300" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "1 set_course 90 0" --do "2 debug_skip 850" --do "853 set_quiet_ship true" --do "853 set_sweep_range 100" --do "858 start_sweep"
 # The Beam aimed with a Sweep running (#151), halted as above, the narrow Beam aimed before the Sweep starts: the
 # green band and the cyan cone and diamond both drawn, the diamond clear of the band's edge, and the strip under the
 # view holding the SWEEP line over the BEAM line with its aim, neither over the scan nor a scale.

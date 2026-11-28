@@ -251,6 +251,36 @@ func test_a_target_glided_through_is_never_in_the_column_nor_identified() -> voi
 	assert_array(sim.identified_targets()).is_empty()
 
 
+func test_a_glide_that_ends_inside_the_target_leaves_the_rest_of_it_to_be_crawled_out_through_and_identified() -> void:
+	# The orchestrator's ruling (#159), to be confirmed by the developer: the
+	# Crawl out through the rest of the body puts it in the Column; the part
+	# glided through is never seen.
+	var below := START_M + BELOW_M + 40.0
+	var body := _body(Vector3(0.0, -(START_M + BELOW_M), 0.0))
+	var sim := DiveSimulation.new(MediumLayout.layered([[0.0, DiveTestKit.rock(2.0, 2.0, 0.3)],
+			[below, DiveTestKit.rock(4.0, 4.0, 0.1)]]).with_targets([body]))
+	sim.start_below(START_M)
+	sim.start_surveyed()
+	_go_quiet(sim)
+	sim.pulse()
+	DiveTestKit.run(sim, 2.0, 0.1)
+	sim.set_quiet_ship(false)
+	sim.plot_glide(BELOW_M)  # To the body's middle.
+	sim.start_glide()
+	DiveTestKit.run_until(sim, &"glide_ended", 600.0, [], 0.1)
+	assert_float(sim.depth()).is_greater(START_M + BELOW_M - body.half_size.y)
+	assert_object(_target_feature(sim)).is_null()
+
+	DiveTestKit.shift_to(sim, DiveTestKit.wobble_in(sim.medium()))
+	_dive_on(sim, BELOW_M + 20.0, true)
+
+	var feature := _target_feature(sim)
+	assert_object(feature).is_not_null()
+	# Only the rest of it, from where the Crawl began, is in the Column.
+	assert_float(feature.size_m).is_less(2.0 * body.half_size.y)
+	assert_array(sim.identified_targets()).contains_exactly([&"A"])
+
+
 func test_crawling_through_it_unobserved_neither_identifies_it_nor_pays_for_it() -> void:
 	var sim := _dive()
 	_dive_on(sim, BELOW_M + 20.0, false)

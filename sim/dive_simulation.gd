@@ -495,12 +495,13 @@ var _glide := Glide.new()
 ## True while the last step's Glide slapped its sheath's wall, wearing the
 ## hull (hull_taking_damage()).
 var _glide_slapping := false
-## The Glide's reach as last worked out (glide_reach()): from where, along
-## which way, against which fit of the scan, and how far.
-var _reach_from := Vector3.ZERO
-var _reach_along := Vector3.ZERO
-var _reach_patches: Array[BoundaryPatch] = []
-var _reach_m := -1.0
+## The Glide's reach as last worked out along each way it is asked (#159):
+## the Course's (glide_reach(), the Checklist) and the Head's
+## (glide_refusal(), start_glide()), so screens polling both never work it
+## out afresh by turns. How many times it has been (glide_reach_workings()).
+var _reach_on_course := ReachWorked.new()
+var _reach_on_head := ReachWorked.new()
+var _reach_workings := 0
 ## Navigation's Sweep: its range, and the spiral it is winding, if any; how
 ## many Sweeps have begun this dive; and the points its rays have returned
 ## since its last batch, waiting to be handed into the cloud.
@@ -733,8 +734,13 @@ func start_glide() -> void:
 	if _sweep.running():
 		_end_sweep(false)  # The jet's roar drowns it: a Glide is deaf.
 	_glide.spin_up()
-	_glide.start(_position, _direction, _glide_reach_along(_direction), _distance, _bearing,
-			_GLIDE_PUSH_SEED * 1009 + _glide.stretches().size())
+	_glide.start(_position, _direction, _glide_reach_along(_direction, _reach_on_head), _distance,
+			_bearing, _GLIDE_PUSH_SEED * 1009 + _glide.stretches().size())
+	# The rock it begins in, as the crew know it: the guess held (at the idle
+	# of a Glide before, or settling into rock a crossing entered), or else
+	# the Wobble felt on the plasma, which ACTIVE was cutting. Never the
+	# layout's word for rock the plasma has not felt (#159).
+	_glide.began_in(_look.guess() if _look.holding() else WobbleGuess.of(_felt_wobble(), 1.0, 0))
 	_steering = 0.0
 	_announced_boundary = NAN  # No Shift is due in a Glide: nothing to announce.
 	_announced_index = -1
@@ -1666,8 +1672,8 @@ func _glided(place_before: Vector3, travelled: float) -> void:
 
 
 ## The Glide is over: halted, the Head at idle and the plasma lit. The scan's
-## guess of the rock it entered last (or, having crossed none, the Wobble of
-## the rock it began in, which ACTIVE was cutting) is held for STANDBY, so the
+## guess of the rock it entered last (or, having crossed none, what was known
+## of the rock it began in: Glide.began_in()) is held for STANDBY, so the
 ## crew tune STANDBY against the rock round the vessel and Shift to spin up.
 ## Raises &"glide_ended".
 func _end_glide() -> void:
@@ -1682,8 +1688,7 @@ func _end_glide() -> void:
 	_direction = _glide.direction()
 	if Vector2(_direction.x, _direction.z).length() > _GLIDE_OWN_HEADING:
 		_bearing = fposmod(rad_to_deg(atan2(_direction.x, -_direction.z)), 360.0)
-	var entered := _glide.rock_entered()
-	_look.hold(entered if entered != null else WobbleGuess.of(_wobble(), 1.0, 0))
+	_look.hold(_glide.rock_entered())
 	_announced_boundary = NAN
 	_announced_index = -1
 	_events.append({type = &"glide_ended", by = by, distance = _distance,
@@ -2651,24 +2656,33 @@ func glide_plotted() -> float:
 ## longer Glide. From the scan alone. Worked out afresh only when the fit, the
 ## Course or the Head's line change, so a view may read it every frame.
 func glide_reach() -> float:
-	return _glide_reach_along(course_direction())
+	return _glide_reach_along(course_direction(), _reach_on_course)
 
 
-## glide_reach() along `direction` (unit length) from the Head.
-func _glide_reach_along(direction: Vector3) -> float:
+## How many times a Glide's reach has been worked out from the scan's patches
+## this dive (BoundaryFit.furthest()), along either way it is asked: what
+## keeps glide_reach() and glide_refusal() cheap to poll. Constant work.
+func glide_reach_workings() -> int:
+	return _reach_workings
+
+
+## glide_reach() along `direction` (unit length) from the Head, kept in
+## `worked` (one for each way it is asked, so neither undoes the other).
+func _glide_reach_along(direction: Vector3, worked: ReachWorked) -> float:
 	_fit_boundaries()
-	var offset := _position - _reach_from
+	var offset := _position - worked.from
 	var along := offset.dot(direction)
 	var off_line := (offset - direction * along).length()
-	if _reach_m < 0.0 or not is_same(_reach_patches, _inferred) \
-			or not direction.is_equal_approx(_reach_along) or along < 0.0 \
+	if worked.metres < 0.0 or not is_same(worked.patches, _inferred) \
+			or not direction.is_equal_approx(worked.along) or along < 0.0 \
 			or off_line > _REACH_OFF_LINE_M:
-		_reach_patches = _inferred
-		_reach_along = direction
-		_reach_from = _position
-		_reach_m = BoundaryFit.furthest(_inferred, _position, direction)
+		worked.patches = _inferred
+		worked.along = direction
+		worked.from = _position
+		worked.metres = BoundaryFit.furthest(_inferred, _position, direction)
+		_reach_workings += 1
 		along = 0.0
-	var furthest := _reach_m - along if _reach_m > 0.0 else 0.0
+	var furthest := worked.metres - along if worked.metres > 0.0 else 0.0
 	return Glide.reach(furthest, depth(), direction)
 
 
@@ -2676,7 +2690,9 @@ func _glide_reach_along(direction: Vector3) -> float:
 ## &"stranded", &"plasma_lost", &"gliding" (one runs), &"not_plotted",
 ## &"quiet_ship", &"off_the_course" (the Drive overriding, or the Head more
 ## than Glide.straight_degrees() off the Course: turns are the Crawl's) or
-## &"no_range" (the scan shows nothing along the Course).
+## &"no_range" (the scan shows nothing along the Course). Its reach along the
+## Head's line is worked out afresh only as glide_reach()'s is, kept apart
+## from it, so a view may read both every frame.
 func glide_refusal() -> StringName:
 	var off_course := not straight_on_course()
 	var refusals := [
@@ -2687,7 +2703,7 @@ func glide_refusal() -> StringName:
 	for refusal: Array in refusals:
 		if refusal[0]:
 			return refusal[1]
-	return &"no_range" if _glide_reach_along(_direction) <= 0.0 else &""
+	return &"no_range" if _glide_reach_along(_direction, _reach_on_head) <= 0.0 else &""
 
 
 ## True while the Head points straight along the Course, as near as a Glide
@@ -3556,23 +3572,34 @@ func _find_features(depth_before: float, depth_after: float, travelled: float) -
 ## Adds a feature for each target whose body the Head cut into in this step,
 ## from `place_before` to where it is now: of the target's own kind, as long
 ## as a straight cut through it from there, placed along the path where the
-## Head met it. A target only passed by is never found.
+## Head met it. A target only passed by is never found. A step begun inside a
+## body not yet found (a Glide ended in it, #159) finds it where the step
+## ends, as long as the rest of it from there: the Crawl out through it fills
+## the Column, and the part glided through is never seen. (Where the step
+## began is the Glide's end, which has no Column: column_absent().)
 func _find_targets(place_before: Vector3) -> void:
+	var travelled := place_before.distance_to(_position)
+	if travelled <= 0.0:
+		return
+	var way := (_position - place_before) / travelled
 	for body in _layout.targets():
 		if _found_targets.has(body.label):
 			continue
-		for crossing in body.crossings(place_before, _position):
-			if not crossing[1]:
-				continue
-			_found_targets[body.label] = true
-			var way := (_position - place_before).normalized()
-			var met: Vector3 = place_before + way * crossing[0]
-			var feature := ColumnFeature.new(body.kind, body.chord(met, way), body.worth)
-			feature.target = body.label
-			feature.id = _features.size()
-			feature.at = _distance + float(crossing[0])
-			_features.append(feature)
-			break
+		var into := travelled if body.holds(place_before) else -1.0
+		if into < 0.0:
+			for crossing in body.crossings(place_before, _position):
+				if crossing[1]:
+					into = crossing[0]
+					break
+		if into < 0.0:
+			continue
+		_found_targets[body.label] = true
+		var met: Vector3 = place_before + way * into
+		var feature := ColumnFeature.new(body.kind, body.chord(met, way), body.worth)
+		feature.target = body.label
+		feature.id = _features.size()
+		feature.at = _distance + into
+		_features.append(feature)
 
 
 func _in_column(feature: ColumnFeature) -> bool:
@@ -3598,6 +3625,11 @@ func _watch_boundaries(place_before: Vector3) -> void:
 		_events.append({type = &"boundary_crossed", from = before.name, to = after.name,
 				depth = depth(), distance = _distance})
 		_on_boundary_crossed(before, after)
+		if _glide.active():
+			# Look on past it now, not once the step is over, so a second
+			# Boundary met within the same step hands on the guess of the
+			# rock beyond that one (#159).
+			_look_ahead()
 	var down := -_direction.y
 	if _glide.active() or is_equal_approx(depth(), -place_before.y) or absf(down) < 1e-6:
 		return  # In a Glide no Shift is due, so nothing is announced.
@@ -3913,8 +3945,8 @@ func _link_draw() -> float:
 
 ## The hull has failed and the crew is dead. The survey data not yet up the
 ## link is lost with them; what reached the surface stays paid. The rebuy is
-## shown but not charged: there is no balance yet to take it from. Raises
-## &"hull_failed".
+## shown but not charged: there is no balance yet to take it from. A running
+## Sweep ends (&"sweep_ended"). Raises &"hull_failed".
 func _die() -> void:
 	var lost_stretches := _stretches_aboard()
 	var lost := _lose_unsold()
@@ -3923,6 +3955,8 @@ func _die() -> void:
 	_outcome = _ended(&"dead", cause, _stranding.stranded_for(), depth())
 	_self_destructing = false
 	_glide.halt()
+	if _sweep.running():
+		_end_sweep(false)  # Nobody left to hear it.
 	_speed = 0.0
 	_slip = 0.0
 	_calls = {}
@@ -4000,10 +4034,13 @@ func _come_home(arrival: Dictionary, rescue_seconds := 0.0) -> void:
 	_events.append(_payment(arrival, carried, _pay_for_repairs(rescue_seconds)))
 
 
-## The dive is over with the Lithocraft at the surface: it stops, no Station
-## calls, and time runs at normal rate until new_dive().
+## The dive is over with the Lithocraft at the surface: it stops, a running
+## Sweep ends (&"sweep_ended"), no Station calls, and time runs at normal rate
+## until new_dive().
 func _rest_at_surface() -> void:
 	_glide.halt()
+	if _sweep.running():
+		_end_sweep(false)  # The dive is over: nothing is prospected at the surface.
 	_speed = 0.0
 	_slip = 0.0
 	_surfaced = true
@@ -4049,6 +4086,16 @@ class Repairs:
 	## Everything the repairs cost together.
 	func total() -> float:
 		return hull + head + rescue
+
+
+## A Glide's reach as last worked out along one way (_glide_reach_along()):
+## from where, along which way, against which fit of the scan, and how far
+## (BoundaryFit.furthest(); below 0 never worked out).
+class ReachWorked:
+	var from := Vector3.ZERO
+	var along := Vector3.ZERO
+	var patches: Array[BoundaryPatch] = []
+	var metres := -1.0
 
 
 ## Takes what repairing the dive's wear costs out of what this dive earned, a

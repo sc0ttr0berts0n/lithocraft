@@ -29,6 +29,7 @@ So the Beam, an aimed pulse and the Sweep all return points off it, and the Infe
 **Identified in the Column.**
 `_find_targets()` runs in `_follow_the_head()` beside `_find_features()`: when a step's piece of path passes into a body, the body becomes a `ColumnFeature` of its own kind, its `target` the label, placed where the Head met it and as long as a straight cut through it from there; a body passed by is never found.
 A Glide, having no Column, finds none: `_glided()` (#123) never calls it, so a body glided through melts unseen (`target_test`).
+A Glide that ends inside a body leaves it unfound; the first Crawl step out of it finds it where that step ends, as long as the rest of it, so crawling out through it identifies it and the glided part is never seen (#159, the orchestrator's ruling, awaiting the developer's word).
 From then it is a feature of interest like any: observed (`set_observed_feature()`), recorded at `_recording_quality()`, called for, sent up the link as a `SurveyStretch.feature_record()` whose `target` is the label.
 `identified_targets()` lists the labels whose feature is recorded in full; the goal reads it.
 `&"paid"` carries `targets` (the labels) and `target_worth` as a line of its own, not among `features`; the outcome's breakdown writes "Targets identified: A, worth ...".
