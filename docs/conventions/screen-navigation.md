@@ -9,6 +9,7 @@
   Surface control's survey points are drawn apart from the vessel's own in all three, hollow, small and faint in the legend's grey (`ScanDisplay.SURVEY_PX`, `SURVEY_ALPHA`), since they are one branch of `_draw_scan()`; `navigation.txt`'s "survey beside own" tiles show them.
   How the views are drawn, and the rules for changing them: `docs/conventions/scan.md`, "Drawing the scan".
 - The Beam shows in every view as its cone (faint cyan fans out to `beam_reach()`) and the label `beam_label()` ("BEAM NARROW 30 deg") in the display's lower left; Navigation's status lines give it a line of its own (width, cone, reach, and "pulses as it goes" or "by hand only"), so the screen has five lines (`NAVIGATION_LINES`).
+  Aimed off the vessel's axis (#120) the cone is drawn about `beam_axis()`, a small hollow cyan diamond sits a fixed few pixels along the aim (`AIM_MARK_AT_PX`; on the Head when seen end-on), and the label and the Beam line add the aim in `ScanDisplay.aim_words()` ("AIM R45 U15"); dead ahead, none of these show; `navigation.txt`'s "Beam aimed" tiles show them.
 - A running Sweep shows in every view as a faint green band each side of its axis, in the Beam's two planes, from the Beam's edge out to where its spiral has reached, its leading edge strong (`_draw_sweep()`), its points joining the cloud a batch at a time.
   `sweep_label()` over the Beam's names its range and, while it runs, its share done and the time left ("SWEEP 200 m  45%  1:06 left"), else how long it takes and its key.
   The status lines are unchanged: the Sweep lives in the display.

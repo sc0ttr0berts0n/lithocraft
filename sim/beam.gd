@@ -5,10 +5,11 @@
 ## concentrates the same energy into a smaller solid angle). Owned by
 ## DiveSimulation (_beam);
 ## it holds the crew's width and the switch that pulses it by itself, and
-## counts the ground covered since the last pulse. It knows nothing of the
-## layout, the path or the points: the simulation hands it the axis and the
-## ground covered, casts its rays through the rock and hears their echoes at
-## its gain (Echoes, sim/echoes.gd, which the Sweep shares).
+## counts the ground covered since the last pulse, and where the crew has
+## aimed it off the vessel's axis. It knows nothing of the layout, the path or
+## the points: the simulation hands it the vessel's frame and the ground
+## covered, casts its rays through the rock and hears their echoes at its gain
+## (Echoes, sim/echoes.gd, which the Sweep shares).
 class_name Beam
 extends RefCounted
 
@@ -29,9 +30,15 @@ const _RAYS := 300
 ## play (ADR 0001).
 const _PULSE_EVERY_M := 15.0
 
+## The furthest the aim goes off the vessel's axis, in each of its two
+## directions, degrees: square across the vessel and no further (the spec's
+## limit, not tuned). Behind lie the vessel and its tunnel.
+const _SQUARE_ACROSS_DEG := 90.0
+
 var _width := MIDDLE
 var _pulsing := false
 var _ground := 0.0
+var _aim := Vector2.ZERO
 
 
 ## The width the crew has set, one of WIDTHS.
@@ -62,9 +69,35 @@ func reach(sound_carrying := 1.0) -> float:
 	return Echoes.reach(gain(), sound_carrying)
 
 
+## Where the Beam is aimed off the vessel's axis, degrees: x toward the
+## vessel's right, y toward its top (the vessel does not roll, so its top is
+## its right turned square to the way it points: up travelling level, onward
+## along the compass heading diving). Zero is dead ahead.
+func aim() -> Vector2:
+	return _aim
+
+
+## Aims the Beam this far off the vessel's axis (as aim()), each direction
+## held to square across the vessel, so the aim can never point behind it.
+func set_aim(aim_degrees: Vector2) -> void:
+	_aim = aim_degrees.clamp(-Vector2.ONE * _SQUARE_ACROSS_DEG, Vector2.ONE * _SQUARE_ACROSS_DEG)
+
+
+## The Beam's axis in the frame it is handed: `forward` the way the Head
+## points, `right` the vessel's right and `top` its top, all unit length and
+## square to each other. Swung toward the right by aim().x, then toward the
+## top by aim().y, so at most square across, never behind.
+func axis(forward: Vector3, right: Vector3, top: Vector3) -> Vector3:
+	var across := deg_to_rad(_aim.x)
+	var up := deg_to_rad(_aim.y)
+	return (forward * cos(across) + right * sin(across)) * cos(up) + top * sin(up)
+
+
 ## One pulse's rays about `axis` (a unit vector), spread evenly over the
-## cone's solid angle, drawn from `random`.
-func rays(axis: Vector3, random: RandomNumberGenerator) -> Array[Vector3]:
+## cone's solid angle, drawn from `random`. Given the way the Head points
+## (`forward`), the rays that would leave behind the vessel are not sent:
+## the vessel and its tunnel lie there, and nothing is heard from behind.
+func rays(axis: Vector3, random: RandomNumberGenerator, forward := Vector3.ZERO) -> Array[Vector3]:
 	var side := axis.cross(Vector3.RIGHT if absf(axis.x) < 0.9 else Vector3.UP).normalized()
 	var other_side := axis.cross(side)
 	var min_cos := cos(deg_to_rad(half_angle()))
@@ -73,7 +106,9 @@ func rays(axis: Vector3, random: RandomNumberGenerator) -> Array[Vector3]:
 		var c := random.randf_range(min_cos, 1.0)
 		var s := sqrt(1.0 - c * c)
 		var turn := random.randf() * TAU
-		out.append(axis * c + (side * cos(turn) + other_side * sin(turn)) * s)
+		var sent := axis * c + (side * cos(turn) + other_side * sin(turn)) * s
+		if sent.dot(forward) >= 0.0:
+			out.append(sent)
 	return out
 
 

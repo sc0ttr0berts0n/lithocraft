@@ -8,6 +8,8 @@
 ## (surface control's survey hollow and fainter than the vessel's own) and
 ## the Inferred Boundaries; labels in the lower left name the Beam's width
 ## and the Sweep's range and progress.
+## Aimed off the vessel's axis, the Beam's cone is drawn about its aim, with
+## a small diamond (_draw_aim()) along it and the aim in the Beam's label.
 ##
 ##   forward scope     the vessel's own vertical plane with ahead up the
 ##                     screen and range rings about the Head, as a
@@ -33,7 +35,8 @@
 ## points(), point_age() and scan_revision() for the cloud; inferred_boundaries()
 ## and patch_age() for the surfaces fitted to it (and BoundaryFit.ahead() of
 ## them for the scope's range); beam_width(), beam_half_angle() and
-## beam_reach() for the Beam's cone; sweep_running(), sweep_range(),
+## beam_reach(), beam_aim() and beam_axis() for the Beam's cone;
+## sweep_running(), sweep_range(),
 ## sweep_progress(), sweep_time_left(), sweep_from_angle(),
 ## sweep_reached_angle(), sweep_axis() and sweep_origin() for the Sweep;
 ## head_position(), heading()
@@ -108,6 +111,12 @@ const SCOPE_HEADING_SHARE := 0.12
 ## to the Beam's reach.
 const BEAM_COLOUR := StationTheme.SELECTED_COLOUR
 const BEAM_ALPHA := 0.45
+## The aim's marker, drawn only while the Beam is aimed off the vessel's
+## axis: a hollow diamond this many pixels from the Head along the aim (at
+## any view's scale), this many pixels from its centre to a point. Seen
+## end-on, the aim is the diamond about the Head.
+const AIM_MARK_AT_PX := 46.0
+const AIM_MARK_PX := 7.0
 ## A running Sweep: green, a system at work; the spiral swept so far filled
 ## this faint, its leading edge this strong.
 const SWEEP_COLOUR := StationTheme.ENGAGED_COLOUR
@@ -213,9 +222,23 @@ func caption() -> String:
 
 
 ## The Beam's width and cone, written in the display's lower left corner over
-## every view: "BEAM NARROW 30 deg".
+## every view: "BEAM NARROW 30 deg", with its aim once it is aimed off the
+## vessel's axis: "BEAM NARROW 30 deg  AIM R45 U15".
 func beam_label() -> String:
-	return "BEAM %s %d deg" % [String(sim.beam_width()).to_upper(), roundi(2.0 * sim.beam_half_angle())]
+	var label := "BEAM %s %d deg" % [String(sim.beam_width()).to_upper(), roundi(2.0 * sim.beam_half_angle())]
+	return label if sim.beam_aim() == Vector2.ZERO else "%s  AIM %s" % [label, aim_words(sim.beam_aim())]
+
+
+## The Beam's aim (DiveSimulation.beam_aim()) in words: how far to the
+## vessel's right (R) or left (L), then toward its top (U) or underside (D),
+## each left out when nothing; "AHEAD" when it is dead ahead.
+static func aim_words(aim: Vector2) -> String:
+	var words := PackedStringArray()
+	if roundi(aim.x) != 0:
+		words.append("%s%d" % ["R" if aim.x > 0.0 else "L", absi(roundi(aim.x))])
+	if roundi(aim.y) != 0:
+		words.append("%s%d" % ["U" if aim.y > 0.0 else "D", absi(roundi(aim.y))])
+	return "AHEAD" if words.is_empty() else " ".join(words)
 
 
 ## The Sweep's range and how far it has got, written over every view above
@@ -433,6 +456,7 @@ func _draw_scan(canvas: Control, place: Callable, heading_m := HEADING_M) -> voi
 		canvas.draw_rect(Rect2(at - Vector2(side, side) * 0.5, Vector2(side, side)), colour)
 
 	var vessel: Vector2 = place.call(Vector3.ZERO)
+	_draw_aim(canvas, place)
 	_dashes(canvas, vessel, place.call(sim.course_direction() * COURSE_M), COURSE_COLOUR)
 	var coming := PackedVector2Array()
 	for step in _projected:
@@ -442,24 +466,59 @@ func _draw_scan(canvas: Control, place: Callable, heading_m := HEADING_M) -> voi
 	_draw_vessel(canvas, vessel, place.call(sim.heading() * heading_m))
 
 
-## The Beam's cone at its width, as two fans from the Head out to its reach:
-## one in the vessel's vertical plane (the scope's and the section's), one
-## square across it (the plan's), each its two edges and the arc between.
-## Every view draws both through its own `place`; one seen edge-on is a line
-## along the heading.
+## The Beam's cone at its width, as two fans from the Head out to its reach,
+## about its aim (beam_axis()): one in the plane through the aim and the
+## vessel's top (dead ahead, the vessel's vertical plane: the scope's and the
+## section's), one square across it (the plan's), each its two edges and the
+## arc between. What of a fan would lie behind the vessel, where nothing is
+## sent, is drawn flat along square across it. Every view draws both through
+## its own `place`; one seen edge-on is a line along the aim.
 func _draw_beam(canvas: Control, place: Callable) -> void:
 	var heading := sim.heading()
-	var right := _right(sim.heading_degrees())
+	var axis := sim.beam_axis()
 	var half := deg_to_rad(sim.beam_half_angle())
 	var reach := sim.beam_reach()
 	var colour := StationTheme.faded(BEAM_COLOUR, BEAM_ALPHA)
-	for square: Vector3 in [right.cross(heading).normalized(), right]:
+	for square in aim_squares(heading, _right(sim.heading_degrees()), sim.beam_aim()):
 		var fan := PackedVector2Array([place.call(Vector3.ZERO)])
 		for i in 17:
 			var angle := lerpf(-half, half, i / 16.0)
-			fan.append(place.call((heading * cos(angle) + square * sin(angle)) * reach))
+			var ray := axis * cos(angle) + square * sin(angle)
+			if ray.dot(heading) < 0.0:
+				ray = (ray - heading * ray.dot(heading)).normalized()
+			fan.append(place.call(ray * reach))
 		fan.append(fan[0])
 		canvas.draw_polyline(fan, colour, 1.5)
+
+
+## The two ways square to the Beam's aimed axis that a view draws its cone's
+## fans along: [toward the vessel's top, toward its right], each turned as the
+## aim (`aim` as DiveSimulation.beam_aim(), degrees) turns the axis, so dead
+## ahead they are the vessel's top (its `right` turned square to `heading`)
+## and its right.
+static func aim_squares(heading: Vector3, right: Vector3, aim: Vector2) -> Array[Vector3]:
+	var across := deg_to_rad(aim.x)
+	var up := deg_to_rad(aim.y)
+	var top := right.cross(heading).normalized()
+	var swung := heading * cos(across) + right * sin(across)
+	return [top * cos(up) - swung * sin(up), right * cos(across) - heading * sin(across)]
+
+
+## The aim's marker while the Beam is aimed off the vessel's axis: a small
+## hollow diamond a fixed few pixels from the Head along the aim, so it shows
+## at any view's scale; seen end-on, round the Head itself. Nothing while it
+## is dead ahead, where the vessel's own heading line says the same.
+func _draw_aim(canvas: Control, place: Callable) -> void:
+	if sim.beam_aim() == Vector2.ZERO:
+		return
+	var vessel: Vector2 = place.call(Vector3.ZERO)
+	var along: Vector2 = (place.call(sim.beam_axis() * sim.beam_reach()) as Vector2) - vessel
+	var at := vessel
+	if along.length() > AIM_MARK_PX:
+		at = vessel + along.normalized() * minf(AIM_MARK_AT_PX, along.length())
+	var r := AIM_MARK_PX
+	canvas.draw_polyline(PackedVector2Array([at + Vector2(0.0, -r), at + Vector2(r, 0.0),
+			at + Vector2(0.0, r), at + Vector2(-r, 0.0), at + Vector2(0.0, -r)]), BEAM_COLOUR, 2.0)
 
 
 ## A running Sweep's progress, as the Beam's cone is drawn: in the plane of
