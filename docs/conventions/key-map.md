@@ -46,3 +46,5 @@ The panel, F1 and the dispatch follow with no other change.
 
 The table is a summary for planning; `BINDINGS` is the truth.
 Check both before binding a key.
+
+The First dive's reworked Checklist and the Glide drill (#128) added no key: their steps name existing actions (`beam_pulsing`, `beam_width`, `sweep`, `plot_glide_all`, `plot_glide_step`, `glide`, `nudge_pitch`, `autopilot_drive`, `shift`, the tuning keys).

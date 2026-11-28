@@ -9,7 +9,7 @@ Anything that adds points goes through `_add_point()` and `_take_in()`, which co
 An echo comes from where its ray meets a Boundary's surface (`_echoes_along()`, through `MediumLayout.meets()`), so on a wavy Boundary the points lie on its folds; a new tool that sounds the rock (the Sweep, an aimed Beam) casts its rays the same way.
 
 **Surface control's survey.**
-A Scenario that begins surveyed calls the Scenario start command `start_surveyed()` in `prepare` (all three do); the simulation, which owns the layout, makes the survey's points then, once, and nothing on the scan side ever sees the layout for it.
+A Scenario that begins surveyed calls the Scenario start command `start_surveyed()` in `prepare` (all do); the simulation, which owns the layout, makes the survey's points then, once, and nothing on the scan side ever sees the layout for it.
 They are ordinary `ScanPoint`s marked `surveyed` (`pulse` -1), soundings of every Boundary on a square grid over the ground about the Head, half the fit's cell apart so every cell is fitted.
 Each Boundary is flat at its mean depth, off it by a share of that depth the same all across, scattered a little, and of a confidence below any ordinary echo's, so their patches and STANDBY's guess from them are faint.
 They are held in `_soundings`, apart from `point_capacity()` (which bounds the vessel's own points alone), so the oldest-first eviction never takes them and they never crowd out a long dive's own points.

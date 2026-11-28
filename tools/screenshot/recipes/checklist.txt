@@ -1,6 +1,6 @@
 # The Checklist panel (Tab, ChecklistPanel), opened over the look with --checklist, which does not read the
-# orders: its colours (#92), the "Turn and climb" phase's three steps (#73) and surface control's warning
-# that the turn for home deepens (#89), at the panel's foot.
+# orders: its colours (#92), the turn for home and the Glide home after it (#73, #128), surface control's
+# warning that the turn for home deepens (#89), at the panel's foot, and the Glide drill (#128).
 # From the repo root: tools/screenshot/shot.sh --sheet tools/screenshot/recipes/checklist.txt
 # Colours are the Station colour language's only: done green, the next step and its key white and bold with
 # its Station in cyan, the other steps white with their Station in legend grey, "coming down the link" grey.
@@ -15,13 +15,21 @@ startup, two steps done: --look Navigation --time 20 --checklist --do "0 read_or
 # turn." has come up the open tunnel to the foot of the panel.
 warned of the turn, still diving: --look Drive --time 30 --checklist --do "0 start_below 300" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "1 set_course 0 -90"
 
-# The same dive, the Reactor's autopilot left off, come round past level near 1000 s: "Turn and climb"
-# running with its three steps, the climb plotted done in green, the Reactor's autopilot for the climb
-# next with "Reactor" in cyan, the turn for home after it. (With the autopilot engaged all three tick at
-# once and the Checklist moves straight on to "Surface".)
-turn and climb, its three steps: --look Drive --time 1010 --checklist --do "0 start_below 300" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "1 set_course 0 -90" --do "2 debug_skip 1000"
+# The same dive come round past level near 1000 s: "Turn and climb" done, and the Checklist goes on to
+# "Glide home" (#128), never straight to "Surface": narrow the Beam next with "Navigation" in cyan, then
+# come round straight onto the climb, Quiet Ship, pulse, plot, start and hold the Glide.
+turn and climb done, the glide home next: --look Drive --time 1010 --checklist --do "0 start_below 300" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "1 set_course 0 -90" --do "2 debug_skip 1000"
 
 # The Prospecting drill (#124): the Orders name target A ("Find target A, crawl through it and record it in the
 # Column"), the Checklist's Prospect phase next, and surface control's opening message still coming down the link
 # at the foot: sealed in the granite, the link is slow.
 prospecting drill, the orders name target A: --scenario "Prospecting drill" --look Navigation --time 20 --checklist
+
+# The Glide drill (#128) as it begins, halted at Quiet Ship 40 m down in the sand, its orders read: "Plot and
+# glide" running, the orders done in green, the pulse at Quiet Ship next with "Navigation" in cyan, then the
+# plot of 300 m, Quiet Ship off, start the Glide and hold its line on the Drive's autopilot.
+glide drill, plot and glide: --scenario "Glide drill" --look Navigation --time 20 --checklist --do "0 read_orders"
+
+# The Glide drill's Glide run on the autopilot and ended at idle in the sandstone: "Out of the Glide" running,
+# tune STANDBY for the rock round the vessel next with "Reactor" in cyan, then Shift to spin up and tune ACTIVE.
+glide drill, out of the glide at idle: --scenario "Glide drill" --look Reactor --time 200 --checklist --do "0 read_orders" --do "1 pulse" --do "2 plot_glide 300" --do "3 set_quiet_ship false" --do "4 start_glide" --do "4 set_autopilot drive true"

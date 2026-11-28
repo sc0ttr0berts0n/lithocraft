@@ -47,7 +47,7 @@ Its choices and their reasons are in the design record, "The Glide (#123)" (`doc
 ## Seams left for later tickets
 
 - **#127, the look and sound**: built; see `glide-look.md`. It added the one query `glide_thrust()`. `noise()` carries `Glide.jet_noise()`.
-- **#128, the Checklist**: no Scenario's Checklist knows the Glide; the events above are what its triggers would read.
+- **#128, the Checklist** (done): the First dive's way home is a Glide (its phases "Glide home" and "Out of the Glide") and the Glide drill practises one; their steps tick on `Scenario.gliding()`, `&"glide_ended"`, `Scenario.crawling()` and `DiveSimulation.straight_on_course()` (`scenarios-and-checklist.md`).
 
 ## Testing
 

@@ -9,10 +9,14 @@ extends GdUnitTestSuite
 
 # --- Every Scenario ------------------------------------------------------
 
-func test_the_start_menu_has_four_scenarios_the_first_dive_first() -> void:
+func test_the_start_menu_has_five_scenarios_the_first_dive_first_and_the_glide_drill_next() -> void:
 	var all := Scenario.all()
-	assert_int(all.size()).is_equal(4)
+	assert_int(all.size()).is_equal(5)
 	assert_str(all[0].title).is_equal(Scenario.first_dive().title)
+	# The Glide drill early, as a tutorial: before the other drills.
+	assert_array(all.map(func(s: Scenario) -> String: return s.title)).is_equal([
+			Scenario.first_dive().title, Scenario.glide_drill().title, Scenario.shift_drill().title,
+			Scenario.prospecting_drill().title, Scenario.stranded_in_the_granite().title])
 	var titles := []
 	for scenario in all:
 		assert_str(scenario.title).is_not_empty()
@@ -52,9 +56,17 @@ func test_every_pretune_step_names_both_of_the_reactors_tuning_controls() -> voi
 func test_the_first_dive_asks_for_a_scan_before_each_pretune_and_for_active_tuned_after_each_shift() -> void:
 	var scenario := Scenario.first_dive()
 	var shifts := 0
+	var spin_ups := 0
 	for phase in scenario.phases:
 		for i in phase.steps.size():
 			if phase.steps[i].action != &"shift":
+				continue
+			if phase.steps[i].id == &"spin_up":
+				# Out of a Glide: STANDBY tuned at idle before the Shift that
+				# spins the Head up, ACTIVE tuned after it.
+				spin_ups += 1
+				assert_str(phase.steps[i - 1].id).is_equal(&"tune_standby_idle")
+				assert_str(phase.steps[i + 1].id).is_equal(&"tune_active_idle")
 				continue
 			shifts += 1
 			# Pulse until the scan shows the Boundary, pretune, Shift, tune ACTIVE.
@@ -65,8 +77,12 @@ func test_the_first_dive_asks_for_a_scan_before_each_pretune_and_for_active_tune
 			assert_str(String(after.id)).starts_with("tune_active")
 			assert_str(after.station).is_equal(DiveSimulation.STATION_REACTOR)
 			assert_array([after.action, after.also]).contains_exactly_in_any_order([&"tune_frequency", &"tune_amplitude"])
-	# One Shift for each Boundary the Orders take the dive down through.
-	assert_int(shifts).is_equal(scenario.layout.boundary_depths().filter(func(depth: float) -> bool: return depth <= scenario.orders[0].target_depth).size())
+	# One Shift for each Boundary the Orders take the dive down through, and
+	# one for the Boundary above the one the Glide home stops short of: the
+	# Glide crosses the rest with no Shift.
+	var down := scenario.layout.boundary_depths().filter(func(depth: float) -> bool: return depth <= scenario.orders[0].target_depth).size()
+	assert_int(shifts).is_equal(down + 1)
+	assert_int(spin_ups).is_equal(1)
 
 
 ## Public commands of DiveSimulation that are not the crew stating an
@@ -186,10 +202,53 @@ func test_no_phase_begins_early_on_what_the_crew_only_intends() -> void:
 		triggers[scenario.title] = titles
 	# A new early trigger is added here, and so read against the rule.
 	assert_dict(triggers).is_equal({
-		"First dive": ["Sand", "The first Boundary", "Sandstone", "Granite", "Turn and climb", "Surface"],
+		"First dive": ["Sand", "The first Boundary", "Sandstone", "Granite", "Target A", "Turn and climb",
+				"Out of the Glide", "Into the sand", "Surface"],
+		"Glide drill": ["Out of the Glide"],
 		"Shift drill": [],
 		"Prospecting drill": ["Crawl through"],
 		"Stranded in the granite": ["Still dark", "Relit", "Home"],
+	})
+
+
+func test_no_step_ticks_on_what_the_crew_only_intends_but_one_that_asks_for_a_setting() -> void:
+	# Every step of every Scenario tried against the crew's intentions alone,
+	# the dive not yet run (#128). A step that asks for a setting by name (read
+	# the orders, plot the Course, engage an autopilot, pretune standby) ticks
+	# on the setting the simulation then holds; every step that asks the
+	# Lithocraft to do something (pulse, halt, sweep, glide, come out at idle,
+	# spin up, cross a Boundary) ticks only on its doing it.
+	# A step that already holds as the Scenario begins (its scan already shows
+	# a Boundary, the Head already tuned for the rock) is not ticked by an
+	# intention, so only the steps the intentions turned true are listed.
+	var turned := {}
+	for scenario in Scenario.all():
+		var sim := scenario.start()
+		sim.take_events()
+		var before := []
+		for phase in scenario.phases:
+			for step in phase.steps:
+				if step.done_when.call(sim, []):
+					before.append(step.id)
+		_state_every_intention(sim)
+		var intentions := sim.take_events()
+		var ids := []
+		for phase in scenario.phases:
+			for step in phase.steps:
+				if step.done_when.call(sim, intentions) and not before.has(step.id):
+					ids.append(step.id)
+		turned[scenario.title] = ids
+	# A step added here asks for a setting by name, and so is read against the rule.
+	# The orders read, an autopilot engaged, a Course plotted, Quiet Ship set
+	# with the vessel already at rest (a halt at the surface is honest), the
+	# link and cooling set: each is the setting the step names, held.
+	assert_dict(turned).is_equal({
+		"First dive": [&"read_orders", &"reactor_autopilot", &"thermal_autopilot", &"plot_course", &"drive_autopilot",
+				&"quiet_sweep", &"plot_climb", &"quiet_glide_scan"],
+		"Glide drill": [&"read_orders"],
+		"Prospecting drill": [&"read_orders", &"plot", &"drive_autopilot"],
+		"Shift drill": [&"read_orders"],
+		"Stranded in the granite": [&"read_orders", &"link", &"cool", &"thermal_autopilot", &"plot_climb", &"drive_autopilot"],
 	})
 
 
