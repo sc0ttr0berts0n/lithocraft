@@ -99,3 +99,15 @@ world-up 3D, softer rock ahead, sure: --look Navigation --time 1610 --do "0 debu
 plan and section, granite expected (surface control's guess): --look Navigation --time 5 --do "0 debug_next_scan_view" --do "0 start_below 400"
 forward scope, granite expected (surface control's guess): --look Navigation --time 5 --do "0 start_below 400"
 plan and section, sandstone confirmed by the Column: --look Navigation --time 30 --do "0 debug_next_scan_view" --do "0 start_below 95" --do "0 set_power 0.6" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true"
+# A target (#124): the Prospecting drill, halted at Quiet Ship 120 m above target A, which lies 12 m east of
+# straight down. Before prospecting (4 s, no pulse): the Orders' fuzzy place, a wide cyan patch denser toward its
+# middle with "TARGET A" beside it, far wider than any echo. After (9 s): one pulse dead ahead at 5 s, then the
+# narrow Beam aimed 8 deg right at 6 s and pulsed at 7 s; the patch has shrunk round the echoes off the body's
+# top, a little east of straight down, and still holds them. Right is east here: the plan's down, the section's
+# and scope's ahead stays down the line of the dive.
+forward scope, target before prospecting: --scenario "Prospecting drill" --look Navigation --time 4
+forward scope, target after prospecting: --scenario "Prospecting drill" --look Navigation --time 9 --do "5 pulse" --do "6 set_beam_width narrow" --do "6 set_beam_aim 8 0" --do "7 pulse"
+plan and section, target before prospecting: --scenario "Prospecting drill" --look Navigation --time 4 --do "0 debug_next_scan_view"
+plan and section, target after prospecting: --scenario "Prospecting drill" --look Navigation --time 9 --do "0 debug_next_scan_view" --do "5 pulse" --do "6 set_beam_width narrow" --do "6 set_beam_aim 8 0" --do "7 pulse"
+world-up 3D, target before prospecting: --scenario "Prospecting drill" --look Navigation --time 4 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view"
+world-up 3D, target after prospecting: --scenario "Prospecting drill" --look Navigation --time 9 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "5 pulse" --do "6 set_beam_width narrow" --do "6 set_beam_aim 8 0" --do "7 pulse"

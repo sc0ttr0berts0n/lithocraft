@@ -9,9 +9,9 @@ extends GdUnitTestSuite
 
 # --- Every Scenario ------------------------------------------------------
 
-func test_the_start_menu_has_three_scenarios_the_first_dive_first() -> void:
+func test_the_start_menu_has_four_scenarios_the_first_dive_first() -> void:
 	var all := Scenario.all()
-	assert_int(all.size()).is_equal(3)
+	assert_int(all.size()).is_equal(4)
 	assert_str(all[0].title).is_equal(Scenario.first_dive().title)
 	var titles := []
 	for scenario in all:
@@ -188,6 +188,7 @@ func test_no_phase_begins_early_on_what_the_crew_only_intends() -> void:
 	assert_dict(triggers).is_equal({
 		"First dive": ["Sand", "The first Boundary", "Sandstone", "Granite", "Turn and climb", "Surface"],
 		"Shift drill": [],
+		"Prospecting drill": ["Crawl through"],
 		"Stranded in the granite": ["Still dark", "Relit", "Home"],
 	})
 
