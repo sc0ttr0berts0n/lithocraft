@@ -1,6 +1,6 @@
 # Lithocraft
 
-A hard-science-fiction 3D Godot game about operating the Lithocraft, a ring-shaped vessel that bores through rock. The first playable slice is one Earth desert dive. Specs: GitHub issue #1 (First dive), then #71 (After the second checkpoint). Every ticket is a sub-issue of #1. A spec lists the tickets that must land first, its own or not.
+A hard-science-fiction 3D Godot game about operating the Lithocraft, a ring-shaped vessel that bores through rock. The first playable slice is one Earth desert dive. Specs: GitHub issue #1 (First dive), then #71 (After the second checkpoint), #113 and #168. Every ticket is a sub-issue of #1, or, since #1 holds GitHub's limit of 100 sub-issues, of the spec it was cut from (#168 onward). A spec lists the tickets that must land first, its own or not.
 
 ## Before any work
 
@@ -10,7 +10,7 @@ For design questions, or anything the spec leaves out, read the index `docs/desi
 
 ## Implementing a ticket
 
-Tickets are built in waves: read `docs/agents/waves.md` first and take the role your brief names (implementer, integrator, looker). The frontier is the open sub-issues of #1 with no open blockers and no assignee.
+Tickets are built in waves: read `docs/agents/waves.md` first and take the role your brief names (implementer, integrator, looker). The frontier is the open sub-issues of #1 and of #168 with no open blockers and no assignee.
 
 Before changing code, read the index `docs/conventions.md`, then its topic files for the area the ticket touches. The integrator records new conventions, once per wave.
 
