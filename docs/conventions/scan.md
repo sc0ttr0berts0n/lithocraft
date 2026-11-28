@@ -1,12 +1,23 @@
 # The scan: the point cloud and Inferred Boundaries
 
 **The point cloud.**
-`points()` is bounded: at most `point_capacity()`, the oldest giving way first, and a return within `point_resolution()` of a point an earlier pulse returned replaces it (echoes of one pulse never replace each other).
+`points()` is bounded: the vessel's own at most `point_capacity()`, the oldest giving way first (surface control's survey is held beside them), and a return within `point_resolution()` of a point an earlier sounding returned replaces it (echoes of one sounding never replace each other).
 `_add_point()` finds the points near a return through `_point_cells`, a grid of cubes twice the resolution on a side, looking in only eight cells, and `_take_in()` clears the replaced and the evicted out once per sounding (a pulse, or a batch of a Sweep's points), so a sounding costs the same however long the dive or however hard the crew mash P.
-`ScanPoint.pulse` names the sounding: a pulse's number counting up from 0, a Sweep's counting down from -1; points of one sounding never replace each other.
+`ScanPoint.pulse` names the sounding: a pulse's number counting up from 0, the survey's -1, a Sweep's counting down from -2.
 A point's age is `point_age(point)`, counted on `dive_time()` (seconds simulated this dive, stranded time included); the view fades by it.
 Anything that adds points goes through `_add_point()` and `_take_in()`, which counts the change (`scan_revision()`).
 An echo comes from where its ray meets a Boundary's surface (`_echoes_along()`, through `MediumLayout.meets()`), so on a wavy Boundary the points lie on its folds; a new tool that sounds the rock (the Sweep, an aimed Beam) casts its rays the same way.
+
+**Surface control's survey.**
+A Scenario that begins surveyed calls the Scenario start command `start_surveyed()` in `prepare` (all three do); the simulation, which owns the layout, makes the survey's points then, once, and nothing on the scan side ever sees the layout for it.
+They are ordinary `ScanPoint`s marked `surveyed` (`pulse` -1), soundings of every Boundary on a square grid over the ground about the Head, half the fit's cell apart so every cell is fitted.
+Each Boundary is flat at its mean depth, off it by a share of that depth the same all across, scattered a little, and of a confidence below any ordinary echo's, so their patches and STANDBY's guess from them are faint.
+They are held in `_soundings`, apart from `point_capacity()` (which bounds the vessel's own points alone), so the oldest-first eviction never takes them and they never crowd out a long dive's own points.
+`points()` gives them first, then the vessel's; `point_count()` counts the vessel's own (the points heard, which Navigation's status line shows) and `survey_point_count()` the survey's.
+They go only by being outheard: `_add_point()` hands each of the vessel's echoes to `_outhear_soundings()`, which adds its confidence to every sounding near it (`_sounding_cells`, squares of the grid's spacing, nine looked in) and takes out each whose heard total reaches `_SURVEY_GIVES_WAY_AT`; `_take_in()` sweeps them out with the replaced points.
+So a clean scan replaces the survey under its cone, and a faint echo here and there leaves it standing (`surface_survey_test.gd`).
+The fit, the look-ahead, the countdown and the guess take the survey as any other points: there is no second path.
+A tool that sounds the rock (the Sweep, an aimed Beam) adds its points through `_add_point()` and so outhears the survey too.
 
 **The Beam.**
 A pulse is the Beam's: `Beam` (`sim/beam.gd`, a subsystem owned as `_beam`) holds its width (`set_beam_width()`, one of `BEAM_WIDTHS`: wide, middle, narrow), its switch (`set_beam_pulsing()`) and the ground covered since its last pulse, and knows nothing of the layout.
@@ -19,11 +30,10 @@ Every pulse, by hand or by itself, raises `&"pulse_sent"` with its `width` and `
 A new tool that sounds the rock is a class of its own beside `Beam` and `Sweep` that hands its rays, at its own gain, to the same `_echoes_along()`; a body that is not a Boundary (a target, #124) returns its echoes there too, so every tool hears it.
 
 **The Sweep.**
-`Sweep` (`sim/sweep.gd`, owned as `_sweep`) is one narrow beam wound in a spiral about the heading it began on: from the Beam's half-angle as it starts (`sweep_from_angle()`) out to 90 degrees, its angle off the axis rising evenly over `_TURNS` turns of equal time, so its rays per unit of solid angle go as one over the sine of the angle, and none goes behind.
-Each ray listens 2 x range / `_LISTEN_SPEED_M_S`, so the Sweep's time is its rays times that (`sweep_duration()`), a longer range (`set_sweep_range()`, one of `SWEEP_RANGES`) takes longer, and a step casts only the rays its time makes due (`Sweep.due()`), however long or short the step.
-It listens out to its range or its gain's reach (`Echoes.reach(Sweep.gain())`), whichever is nearer.
-The smear is the true one, a picture drawn as if the scanner stood still: each ray leaves from where the Head is now, turned about the way it points now (`Sweep.direction(index, heading())`), and its echo is placed as if from where the Sweep began about its first axis (`Sweep.where_placed()`); halted, nothing differs.
-Its points wait in `_sweep_heard` and go into the cloud a batch every `_HAND_IN_S` of its time (`_hand_in_sweep()`), each batch one `_take_in()`, the look-ahead refreshed after it, so the fit and the views change a few times a turn, never every step.
+`Sweep` (`sim/sweep.gd`, owned as `_sweep`) winds one narrow beam about the heading it began on, from the Beam's half-angle (`sweep_from_angle()`) out to 90 degrees, its angle rising evenly over `_TURNS` turns of equal time: rays per solid angle go as 1 / sine, none behind.
+Each ray listens 2 x range / `_LISTEN_SPEED_M_S` (`sweep_duration()` is its rays times that, so a longer range takes longer), out to the range or `Echoes.reach(Sweep.gain())`, whichever is nearer; a step casts only the rays now due (`Sweep.due()`).
+The smear is a picture drawn as if the scanner stood still: each ray leaves the Head as it is now (`Sweep.direction(index, heading())`) and is placed as if from where and how the Sweep began (`Sweep.where_placed()`).
+Its points wait in `_sweep_heard` and go in a batch every `_HAND_IN_S` (`_hand_in_sweep()`: one `_take_in()`, then the look-ahead), so the fit and the views never change every step.
 `start_sweep()` and `stop_sweep()` are readings; a Sweep cut short (`stop_sweep()`, or stranded) keeps what it heard; `&"sweep_started"` and `&"sweep_ended"` (`finished`) frame it.
 A deaf mode (the Glide, #123) ends it with `_end_sweep(false)` and refuses `start_sweep()`.
 
@@ -35,7 +45,8 @@ A mark every candidate must show goes in `_draw_scan()` (the Beam's cone, `_draw
 The forward scope's range steps between `SCOPE_RANGES_M` (`ScanDisplay.scope_range()` of `BoundaryFit.ahead()` along the heading), worked out only when `scan_revision()` changes, so it never zooms between soundings.
 No view may read a clock or the layout (`scan_display_test.gd` checks the source): a place is a function of the simulation's state alone, so a view turns only as the vessel does.
 The points and patches are fetched only when `scan_revision()` changes (never `points()` each frame); their fade is worked out at each redraw.
-A point is white as it is certain, the legend's grey as it is a guess, larger the surer, and never fades out altogether; a patch is its outline, its face filled faintly unless edge-on.
+A point is white as it is certain, the legend's grey as it is a guess, larger the surer, and never fades out altogether; a survey point (`surveyed`) is a small hollow square of the legend's grey, fainter still and never filled, in every view; a patch is its outline, its face filled faintly unless edge-on.
+The survey is in the cloud before any pulse, so a view's first fetch (its `_revision_shown` starts at -1) has it.
 
 **Inferred Boundaries.**
 `inferred_boundaries()` is the one query for the Boundaries as the scan suggests them: `BoundaryPatch`es fitted by `BoundaryFit.fit(points)` (`sim/boundary_fit.gd`), a static, plain function of `ScanPoint`s alone that never sees a Medium, the layout or the simulation (`boundary_fit_test.gd` checks its source).

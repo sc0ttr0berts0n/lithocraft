@@ -15,18 +15,23 @@ var confidence: float
 ## Distance from the Head to the echo when the pulse was sent, in metres.
 var range: float
 ## Which sounding found it: 0 for the dive's first pulse of the Beam,
-## counting up; a Sweep's points -1 for the dive's first Sweep, counting
+## counting up; -1 for surface control's survey, which no pulse of the
+## vessel's found; a Sweep's points -2 for the dive's first Sweep, counting
 ## down. Points of one sounding never replace each other.
 var pulse: int
 ## When its echo returned, in seconds of the dive (DiveSimulation.dive_time()).
 ## Its age is DiveSimulation.point_age().
 var returned_at: float
+## True for a point of surface control's survey, in the scan as the dive
+## began (DiveSimulation.start_surveyed()); false for the vessel's own echoes.
+var surveyed := false
 
 
 func _init(p_position: Vector3, p_confidence: float, p_range: float, p_pulse: int,
-		p_returned_at: float) -> void:
+		p_returned_at: float, p_surveyed := false) -> void:
 	position = p_position
 	confidence = p_confidence
 	range = p_range
 	pulse = p_pulse
 	returned_at = p_returned_at
+	surveyed = p_surveyed

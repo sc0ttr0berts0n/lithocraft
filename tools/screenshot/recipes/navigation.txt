@@ -35,6 +35,14 @@ world-up 3D, narrow Beam: --scenario "Shift drill" --look Navigation --time 10 -
 # the Beam line says it pulses as it goes and the cloud grows as the vessel covers ground.
 Beam pulsing by itself, under way: --look Navigation --time 60 --do "0 set_power 1" --do "0 set_autopilot thermal true" --do "0 set_beam_pulsing true"
 
+# Surface control's survey beside the vessel's own points (ticket #118): the First dive from the surface,
+# Quiet Ship at 20 s some 40 m down and one clean pulse at 35 s. Under the pulse's cone the vessel's own
+# filled squares have replaced the survey's; round them, and at the granite below, the survey's faint
+# hollow grey squares and its faint patches remain. Every other tile above starts surveyed too.
+forward scope, survey beside own: --look Navigation --time 40 --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
+plan and section, survey beside own: --look Navigation --time 40 --do "0 debug_next_scan_view" --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
+world-up 3D, survey beside own: --look Navigation --time 40 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
+
 # The Sweep (#121): the Shift drill, a Sweep at its shortest range (100 m, a minute) started at 6 s.
 # Halted: Quiet Ship from the start, the Head spun down before the Sweep begins. Under way: the drill's own slow
 # dive on the Drive's autopilot, the Reactor's minding the sandstone. Part-way (36 s): the green band each side of

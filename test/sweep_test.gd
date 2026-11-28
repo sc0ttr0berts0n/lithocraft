@@ -62,9 +62,9 @@ func _until_ended(sim: DiveSimulation, seconds := 600.0) -> float:
 	return sim.dive_time() - began
 
 
-## The points the dive's Sweeps returned, none of the Beam's.
+## The points the dive's Sweeps returned, none of the Beam's or the survey's.
 func _swept(sim: DiveSimulation) -> Array[ScanPoint]:
-	return sim.points().filter(func(p: ScanPoint) -> bool: return p.pulse < 0)
+	return sim.points().filter(func(p: ScanPoint) -> bool: return p.pulse < 0 and not p.surveyed)
 
 
 ## Degrees between `axis` and the way a point lies from `origin`.
