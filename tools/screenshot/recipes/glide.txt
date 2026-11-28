@@ -1,0 +1,39 @@
+# The Glide seen (ticket #127): the Bore carries a river of glowing melt in place of the Column, its light
+# floods the Habitat, and the tunnel it leaves is drawn rough. From the repo root:
+# tools/screenshot/shot.sh --sheet tools/screenshot/recipes/glide.txt
+# All on the First dive from the surface, which starts surveyed, so a Glide can be plotted at once.
+# No debug commands.
+
+# Before: the Crawl at half power, the Column sliding up the Bore, the room in its own white light.
+bore before, crawling: --look bore --time 5 --do "0 set_power 0.5"
+
+# A Glide of 400 m started at 1 s, 1 s into its 3 s spin-up: the whole Bore is melt, orange and lumpy, the
+# room warming.
+bore spinning up: --look bore --time 2 --do "1 plot_glide 400" --do "1 start_glide"
+
+# 4 s in, at full thrust: the melt streams up the Bore, yellow-white streaks over orange, blooming; the room
+# lit orange by it.
+bore gliding, diving: --look bore --time 5 --do "1 plot_glide 400" --do "1 start_glide"
+
+# No climbing tile yet: on the First dive's layout a climb's line leaves the surveyed rock before the Head
+# is within a degree of an upward Course, so no Glide up can be plotted (#128 adds the Glide home and its
+# tile). The melt always runs toward the Tail end, which is below the crew in a climb.
+
+# Dropped out by the crew at 4 s, 1 s into the 2 s spin-down: the melt dimmer and slower, back to lumps.
+bore dropping out: --look bore --time 5 --do "1 plot_glide 400" --do "1 start_glide" --do "4 drop_out_of_glide"
+
+# A Glide of 150 m, over by 6 s, at 12 s: halted at idle, the melt in the Bore stopped and crusting dark red,
+# glowing along its cracks; the room's light back to white.
+bore at idle: --look bore --time 12 --do "1 plot_glide 150" --do "1 start_glide"
+
+# The crew's own place in a Glide: the Habitat lit orange through the glass.
+crew, gliding: --look crew --time 5 --do "1 plot_glide 400" --do "1 start_glide"
+crew, looking up the Bore, gliding: --look crew --time 5 --tilt 55 --do "1 plot_glide 400" --do "1 start_glide"
+
+# The Bore Station in a Glide: "No Column in the Bore: melted by the Glide" in amber.
+Bore Station, gliding: --look "Bore Station" --time 5 --do "1 plot_glide 400" --do "1 start_glide"
+
+# After the Glide, crawled on: the tunnel panel's strip behind the Tail names the rough wall, and
+# Navigation's moving map draws the glided stretch of the path behind as rough.
+Bore Station, after a Glide: --look "Bore Station" --time 40 --do "1 plot_glide 150" --do "1 start_glide" --do "9 shift" --do "9 set_power 1"
+Navigation, after a Glide: --look Navigation --time 40 --do "1 plot_glide 150" --do "1 start_glide" --do "9 shift" --do "9 set_power 1"
