@@ -23,7 +23,12 @@ A **wave** is a set of tickets whose owned files do not overlap, built in parall
 4. If any hand-back names states worth a picture, start the looker after the wave has landed.
 5. Report the wave to the developer in one message, then cut the next wave from the new `dev`.
 
-Name a model on every agent. A round is three to five tickets, then the developer plays.
+Name a model on every agent.
+
+The loop this serves: the developer plays, gives their thoughts, and starts a session with a definition of done; the session runs unattended to that definition; the developer comes back and plays.
+The definition of done sets the round's size, however many waves that takes.
+A choice that is the developer's does not stop the run: make it, keep it small, record it under "For the developer", and list every such choice in the final report.
+Stop only when the definition of done cannot be met without contradicting the spec or the existing game.
 
 ## Implementer
 
