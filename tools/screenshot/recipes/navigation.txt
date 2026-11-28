@@ -7,20 +7,20 @@
 # the forward scope's range steps in to keep the nearest Inferred Boundary ahead in view (the diving tiles: 60 m).
 # From the repo root: tools/screenshot/shot.sh --sheet tools/screenshot/recipes/navigation.txt
 # Diving: the Shift drill, straight down 34 m above the sandstone, three pulses sent.
-# Mid-turn: the First dive at full power, steering hard from straight down toward level on heading 090,
+# Mid-turn: the First dive at full power, steering hard from straight down toward level on heading 090 from 60 s,
 # about 20 deg into the turn, the sandstone some 15 m below, three pulses sent.
 # Debug commands: debug_next_scan_view, once or twice, for the second and third candidate view
 # (the crew has no control for it; its key is the debug key F4); debug_skip for the climb of the softer-rock tiles,
-# some 27 minutes into a turn from straight down, and for the level Sweep tiles.
+# some five minutes into a turn from straight down, and for the level Sweep tiles.
 
 forward scope, diving: --scenario "Shift drill" --look Navigation --time 10 --do "4 pulse" --do "8 pulse"
-forward scope, mid-turn: --look Navigation --time 85 --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_course 90 0" --do "75 pulse" --do "80 pulse" --do "84 pulse"
+forward scope, mid-turn: --look Navigation --time 85 --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "60 set_course 90 0" --do "75 pulse" --do "80 pulse" --do "84 pulse"
 
 plan and section, diving: --scenario "Shift drill" --look Navigation --time 10 --do "0 debug_next_scan_view" --do "4 pulse" --do "8 pulse"
-plan and section, mid-turn: --look Navigation --time 85 --do "0 debug_next_scan_view" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_course 90 0" --do "75 pulse" --do "80 pulse" --do "84 pulse"
+plan and section, mid-turn: --look Navigation --time 85 --do "0 debug_next_scan_view" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "60 set_course 90 0" --do "75 pulse" --do "80 pulse" --do "84 pulse"
 
 world-up 3D, diving: --scenario "Shift drill" --look Navigation --time 10 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "4 pulse" --do "8 pulse"
-world-up 3D, mid-turn: --look Navigation --time 85 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_course 90 0" --do "75 pulse" --do "80 pulse" --do "84 pulse"
+world-up 3D, mid-turn: --look Navigation --time 85 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "60 set_course 90 0" --do "75 pulse" --do "80 pulse" --do "84 pulse"
 
 # The same two dives as drive.txt's first two tiles; the Drive is attended for the moment of its nudges.
 Drive follows the Course: --look Navigation --time 30 --do "0 set_power 0.5" --do "0 set_course 90 60"
@@ -104,28 +104,28 @@ forward scope, harder rock ahead, sure: --look Navigation --time 26 --do "0 star
 forward scope, harder rock ahead, unsure: --look Navigation --time 26 --do "0 start_below 40" --do "0 set_power 1" --do "0 set_autopilot thermal true" --do "20 pulse" --do "24 pulse"
 plan and section, harder rock ahead, sure: --look Navigation --time 26 --do "0 debug_next_scan_view" --do "0 start_below 40" --do "0 set_quiet_ship true" --do "20 pulse" --do "24 pulse"
 world-up 3D, harder rock ahead, sure: --look Navigation --time 26 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 start_below 40" --do "0 set_quiet_ship true" --do "20 pulse" --do "24 pulse"
-forward scope, softer rock ahead, sure: --look Navigation --time 1610 --do "0 start_below 130" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "0 set_course 0 -90" --do "1 debug_skip 1590" --do "1591 set_quiet_ship true" --do "1604 pulse" --do "1607 pulse"
-forward scope, softer rock ahead, unsure: --look Navigation --time 1610 --do "0 start_below 130" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "0 set_course 0 -90" --do "1 debug_skip 1590" --do "1604 pulse" --do "1607 pulse"
-plan and section, softer rock ahead, sure: --look Navigation --time 1610 --do "0 debug_next_scan_view" --do "0 start_below 130" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "0 set_course 0 -90" --do "1 debug_skip 1590" --do "1591 set_quiet_ship true" --do "1604 pulse" --do "1607 pulse"
-world-up 3D, softer rock ahead, sure: --look Navigation --time 1610 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 start_below 130" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "0 set_course 0 -90" --do "1 debug_skip 1590" --do "1591 set_quiet_ship true" --do "1604 pulse" --do "1607 pulse"
+forward scope, softer rock ahead, sure: --look Navigation --time 350 --do "0 start_below 130" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "0 set_course 0 -90" --do "1 debug_skip 330" --do "331 set_quiet_ship true" --do "344 pulse" --do "347 pulse"
+forward scope, softer rock ahead, unsure: --look Navigation --time 350 --do "0 start_below 130" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "0 set_course 0 -90" --do "1 debug_skip 330" --do "344 pulse" --do "347 pulse"
+plan and section, softer rock ahead, sure: --look Navigation --time 350 --do "0 debug_next_scan_view" --do "0 start_below 130" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "0 set_course 0 -90" --do "1 debug_skip 330" --do "331 set_quiet_ship true" --do "344 pulse" --do "347 pulse"
+world-up 3D, softer rock ahead, sure: --look Navigation --time 350 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 start_below 130" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "0 set_course 0 -90" --do "1 debug_skip 330" --do "331 set_quiet_ship true" --do "344 pulse" --do "347 pulse"
 plan and section, granite expected (surface control's guess): --look Navigation --time 5 --do "0 debug_next_scan_view" --do "0 start_below 400"
 forward scope, granite expected (surface control's guess): --look Navigation --time 5 --do "0 start_below 400"
 plan and section, sandstone confirmed by the Column: --look Navigation --time 30 --do "0 debug_next_scan_view" --do "0 start_below 95" --do "0 set_power 0.6" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true"
-# A target (#124): the Prospecting drill, halted at Quiet Ship 120 m above target A, which lies 12 m east of
+# A target (#124): the Prospecting drill, halted at Quiet Ship 120 m above target A, which lies 32 m east of
 # straight down. Before prospecting (4 s, no pulse): the Orders' fuzzy place, a wide cyan patch denser toward its
 # middle with "TARGET A" beside it, far wider than any echo. After (9 s): one pulse dead ahead at 5 s, then the
-# narrow Beam aimed 8 deg right at 6 s and pulsed at 7 s; the patch has shrunk round the echoes off the body's
-# top, a little east of straight down, and still holds them. Right is east here: the plan's down, the section's
+# narrow Beam aimed 15 deg right at 6 s and pulsed at 7 s; the patch has shrunk round the echoes off the body's
+# top, east of straight down, and still holds them. Right is east here: the plan's down, the section's
 # and scope's ahead stays down the line of the dive.
 forward scope, target before prospecting: --scenario "Prospecting drill" --look Navigation --time 4
-forward scope, target after prospecting: --scenario "Prospecting drill" --look Navigation --time 9 --do "5 pulse" --do "6 set_beam_width narrow" --do "6 set_beam_aim 8 0" --do "7 pulse"
+forward scope, target after prospecting: --scenario "Prospecting drill" --look Navigation --time 9 --do "5 pulse" --do "6 set_beam_width narrow" --do "6 set_beam_aim 15 0" --do "7 pulse"
 plan and section, target before prospecting: --scenario "Prospecting drill" --look Navigation --time 4 --do "0 debug_next_scan_view"
-plan and section, target after prospecting: --scenario "Prospecting drill" --look Navigation --time 9 --do "0 debug_next_scan_view" --do "5 pulse" --do "6 set_beam_width narrow" --do "6 set_beam_aim 8 0" --do "7 pulse"
+plan and section, target after prospecting: --scenario "Prospecting drill" --look Navigation --time 9 --do "0 debug_next_scan_view" --do "5 pulse" --do "6 set_beam_width narrow" --do "6 set_beam_aim 15 0" --do "7 pulse"
 world-up 3D, target before prospecting: --scenario "Prospecting drill" --look Navigation --time 4 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view"
-world-up 3D, target after prospecting: --scenario "Prospecting drill" --look Navigation --time 9 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "5 pulse" --do "6 set_beam_width narrow" --do "6 set_beam_aim 8 0" --do "7 pulse"
+world-up 3D, target after prospecting: --scenario "Prospecting drill" --look Navigation --time 9 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "5 pulse" --do "6 set_beam_width narrow" --do "6 set_beam_aim 15 0" --do "7 pulse"
 # A target's region beside the rock bands (#151): the Prospecting drill after prospecting, as above, seen in the
 # section, where the drill's one Boundary in reach (the granite's top, some 54 m behind the vessel and known only from
 # the survey) has its band beyond it, the faint grey stipple of softer rock, near the top of the pane, with GRANITE
 # under it, and the target's cyan region and TARGET A below; no word over another, the band or the vessel's marker.
 # No Scenario puts a scanned Boundary nearer a target than this.
-section, target beside the rock bands: --scenario "Prospecting drill" --look Navigation --time 9 --do "0 debug_next_scan_view" --do "5 pulse" --do "6 set_beam_width narrow" --do "6 set_beam_aim 8 0" --do "7 pulse"
+section, target beside the rock bands: --scenario "Prospecting drill" --look Navigation --time 9 --do "0 debug_next_scan_view" --do "5 pulse" --do "6 set_beam_width narrow" --do "6 set_beam_aim 15 0" --do "7 pulse"

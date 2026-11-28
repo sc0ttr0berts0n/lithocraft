@@ -24,6 +24,7 @@
 - **Single Head, no reverse.**
   To come back up the vessel steers a wide arc by heating one side of the rim harder.
   A turning circle of hundreds of metres makes route planning a real decision.
+  *Overtaken by #161 (28 November 2026): the tightest turn is now about 60 m in radius and the Drive's autopilot turns at half effort, a turn for home about 240 m across; the number goes, the principle stays (see 23).*
   A second Head at the Tail was considered and not chosen.
 
 ## One principle for every Medium

@@ -3,7 +3,9 @@
 **A new Station call.**
 Add an `_offer_call(calls, station, reason, urgency)` in `_update_calls()`, with urgency from `_urgency(_<KIND>_CALL, share)` and a new `const _<KIND>_CALL := Vector2(begins, worst)` beside the others, never an inline number.
 A call that begins or changes reason raises `&"station_call"` and sounds (`call_sounding()`).
-Every call is a warning (`call_warns()`) but those in `_REPORTS`, today only `&"feature_in_column"`: science never touches the time rate.
+Every call is a warning (`call_warns()`) but those in `_REPORTS` (`&"feature_in_column"`, the Drive's `&"glide_ending"`, the Reactor's `&"head_at_idle"`) and one offered with `_offer_call(..., reports = true)`: science never touches the time rate.
+`_offer_call()` keeps each call as `[reason, urgency, warns]`; `call_warns()` reads the third.
+The Drive's `&"off_glide_line"` is offered so while its autopilot holds the Glide (#161: its loose rule rides past the slack as it holds), and is a warning flown by hand; a report that becomes a warning with its reason unchanged sounds again.
 A warning that begins, changes reason or sounds again drops the time rate to 1, and `set_time_rate()` refuses a raised rate while any warning sounds; stranded or self-destructing, neither holds.
 A new call that only reports goes in `_REPORTS`; anything that puts the vessel at risk stays a warning.
 
@@ -24,8 +26,10 @@ Any Station command other than a reading (one that changes a setting, or acts as
 a reading (`pulse()`, `set_observed_feature()`, a pulse the Beam sends by itself, `start_sweep()` and `stop_sweep()`) does not call it.
 The Beam's width (`set_beam_width()`), its switch (`set_beam_pulsing()`), its aim (`set_beam_aim()`) and the Sweep's range (`set_sweep_range()`) are settings: they hold and change what every later pulse or Sweep does, so they call it, as `set_quiet_ship()` does.
 A new command calls it unless it only takes a reading.
+The one stated exception is `start_glide()` (#161, the developer's decision): the Drive's autopilot may hold a Glide's line loosely, so one crew member can glide while working another Station, and starting the Glide must not undo that; a nudge in the Glide still disengages it, as `drop_out_of_glide()` does.
 Off, a Station holds its setting and does nothing more; its calls still come.
 Engaged, its steadying rule runs in `_steady_autopilots()` (Drive backs power off to the grip limit while slipping; Thermal raises the heat split while the hull warns), or in its own place: the Reactor's slow tuning of ACTIVE toward the Wobble in `Plasma.tend()` (passed `autopilot(STATION_REACTOR) or _self_destructing`), the Drive's gentle steering cap in `_steer()`.
+The cap is `_effective_steering_effort()`: half of full since #161, so the autopilot's turn is twice the tightest.
 Engaging the Drive's sets its slow, safe power (`_AUTOPILOT_DRIVE_POWER`) and ends any override, so a plotted Course plus the Drive's autopilot gets the vessel moving.
 
 **The Course and the Drive's nudges.**

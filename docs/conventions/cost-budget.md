@@ -5,6 +5,7 @@ Tests assert relationships, so a query that is correct but slow passes them all;
 
 - It plays the Shift drill headless in a real Habitat, in the game's own 1/60 s steps, through ten conditions of 4 s of dive time each (`--seconds` changes that).
   The first eight seat the crew at Navigation: under way with a Boundary ahead (the quiet frame), a Glide plotted and waiting (#159), a Glide, a slow turn, steering effort at zero, low power, a full point cloud with pulses still coming, and a Sweep running.
+  The slow turn steers at a fortieth of full effort, so its arc is about as long as the projection follows and the projected path is at its dearest (#161: at a tenth, the 60 m tightest turn left it a quarter as long).
   The Glide is dropped out of afterwards, the Head spun up with a Shift and the Crawl waited for, so the next condition crawls.
   The Sweep is at its shortest range (its rays and batches come quickest), started on that full cloud and left running through the rest.
   The seventh seats the crew at the Reactor instead, so its screen is timed watched as well as unwatched.

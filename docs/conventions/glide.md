@@ -10,6 +10,7 @@ Its choices and their reasons are in the design record, "The Glide (#123)" (`doc
   The tunnel's (#125): `link_light_share()`, `rough_tunnel_metres()`, `rough_tunnel_runs()`, `tunnel_walls()`, `tunnel_wall_count()`.
 - Events: `glide_plotted {length}`, `glide_started {length, distance}`, `glide_ended {by, distance, glided}`; `pulse_sent` gains `drowned`.
 - Calls: the Drive's `glide_ending` and the Reactor's `head_at_idle` are reports (`_REPORTS`): they never drop the time rate.
+- `start_glide()` leaves the Drive's autopilot as it is (#161), the one Drive command that does; `drop_out_of_glide()` and a nudge disengage it.
 
 ## Where it meets the rest
 
@@ -35,7 +36,7 @@ Its choices and their reasons are in the design record, "The Glide (#123)" (`doc
 - **The rock's push** reads the true rock: `_rock_push()` asks `medium_at_point()` at `Glide.sides()` (either side of the Head on both axes) and `Glide.rock_push()` pushes toward the softer side; it is felt only where a Boundary crosses the line obliquely.
 - **Wear** is the two wears there are: past `Glide.slack()` each piece's `slapped()` goes to `Plasma.slap()` (worn through loses the plasma, as a Residual would) and `Heat.slap()` (the hull's one wear, so `Heat.failed()` and stranding follow). `hull_taking_damage()` includes a step that slapped.
 - **Correcting.** In a Glide `_nudge()` calls `Glide.nudge()` after disengaging the Drive's autopilot and returns: no override, no lean. The autopilot's rule is in `Glide.fly()`: nothing until `_AUTOPILOT_LOOSE_M` off, then nudge back in proportion; it sets the hold (`_held`), which stays where it left it when disengaged.
-- **The call.** `&"off_glide_line"` is the Drive's warning while past the slack (urgency by `glide_contact()`); it drops the time rate as any warning.
+- **The call.** `&"off_glide_line"` is the Drive's call while past the slack (urgency by `glide_contact()`): flown by hand a warning, dropping the time rate as any warning; while `autopilot(STATION_DRIVE)` holds the Glide, a report (#161), shown on the Drive's screen and light alike and wearing alike, and a warning again, sounding anew, once the autopilot lets go.
 - **The ball.** `FlightDisplay` draws the line to hold at `glide_aim()` (a cyan diamond) and the bottom right figure from `FlightDisplay.glide_line_figure()`.
 
 ## The tunnel and the link (#125)

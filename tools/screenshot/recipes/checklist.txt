@@ -4,7 +4,7 @@
 # From the repo root: tools/screenshot/shot.sh --sheet tools/screenshot/recipes/checklist.txt
 # Colours are the Station colour language's only: done green, the next step and its key white and bold with
 # its Station in cyan, the other steps white with their Station in legend grey, "coming down the link" grey.
-# Debug commands: debug_skip in the last tile (the climb begins some fifteen minutes into the turn).
+# Debug commands: debug_skip in the last tile (the climb begins some three minutes into the turn).
 
 # Startup at the surface, the orders read and the Reactor's autopilot engaged: two steps done in green,
 # the next (Thermal's autopilot) bold with "Thermal" in cyan, the rest white with their Stations grey.
@@ -15,10 +15,10 @@ startup, two steps done: --look Navigation --time 20 --checklist --do "0 read_or
 # turn." has come up the open tunnel to the foot of the panel.
 warned of the turn, still diving: --look Drive --time 30 --checklist --do "0 start_below 300" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "0 set_autopilot reactor true" --do "1 set_course 0 -90"
 
-# The same dive come round past level near 1000 s: "Turn and climb" done, and the Checklist goes on to
+# The same dive come round past level near 200 s: "Turn and climb" done, and the Checklist goes on to
 # "Glide home" (#128), never straight to "Surface": narrow the Beam next with "Navigation" in cyan, then
 # come round straight onto the climb, Quiet Ship, pulse, plot, start and hold the Glide.
-turn and climb done, the glide home next: --look Drive --time 1010 --checklist --do "0 start_below 300" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "1 set_course 0 -90" --do "2 debug_skip 1000"
+turn and climb done, the glide home next: --look Drive --time 230 --checklist --do "0 start_below 300" --do "0 set_power 1" --do "0 set_steering_effort 1" --do "0 set_autopilot thermal true" --do "1 set_course 0 -90" --do "2 debug_skip 220"
 
 # The Prospecting drill (#124): the Orders name target A ("Find target A, crawl through it and record it in the
 # Column"), the Checklist's Prospect phase next, and surface control's opening message still coming down the link

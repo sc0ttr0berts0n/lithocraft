@@ -40,7 +40,7 @@ func _as_the_slide_starts() -> DiveSimulation:
 	var sim := _diving()
 	sim.set_course(sim.course_heading(), -90.0)
 	var nearly := func(s: DiveSimulation) -> bool: return s.pitch() < -NEAR_LEVEL
-	assert_bool(DiveTestKit.fly_until(sim, nearly, 6000.0)).is_true()
+	assert_bool(DiveTestKit.fly_until(sim, nearly, 6000.0, 1.0, false)).is_true()
 	assert_bool(sim.ring_sliding()).is_false()
 	sim.set_time_rate(1.0)
 	var sliding := func(s: DiveSimulation) -> bool: return s.ring_sliding()
@@ -83,7 +83,7 @@ func test_the_ring_does_not_move_until_the_other_end_is_the_floor() -> void:
 	sim.set_course(sim.course_heading(), -90.0)
 	var nearly := func(s: DiveSimulation) -> bool: return s.pitch() < -NEAR_LEVEL
 
-	assert_bool(DiveTestKit.fly_until(sim, nearly, 6000.0)).is_true()
+	assert_bool(DiveTestKit.fly_until(sim, nearly, 6000.0, 1.0, false)).is_true()
 
 	# Through level and into the start of the climb it has stayed put.
 	assert_float(sim.station_ring()).is_equal(0.0)

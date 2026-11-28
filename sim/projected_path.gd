@@ -19,8 +19,9 @@ extends RefCounted
 
 ## The tightest arc the Lithocraft can cut, in metres of radius. Tuned for
 ## play (ADR 0001); tests read DiveSimulation.minimum_turn_radius(), never
-## this.
-const _MIN_TURN_RADIUS_M := 250.0
+## this. 60 m since #161 (250 m before): a turn for home a few hundred metres
+## across, not a kilometre.
+const _MIN_TURN_RADIUS_M := 60.0
 ## How fast the uneven heating builds up or dies away, as a share of full
 ## steering per second: the vessel answers the Drive slowly. Tuned for play.
 const _STEER_RESPONSE := 0.1
@@ -32,7 +33,10 @@ const _STEER_EASE_DEG := 10.0
 ## vessel slows (the turning rule cuts the same arc in long steps as in
 ## short); how far the straight stretch beyond the turn reaches, metres; and
 ## the most path a turn is followed for, metres, so a Drive barely steering
-## does not project for ever. Tuned for play (ADR 0001).
+## does not project for ever. Tuned for play (ADR 0001). Checked against the
+## 60 m tightest turn (#161): a 5 m piece is under 5 degrees of its arc, a few
+## centimetres off it, and 4000 m follows a quarter turn steered at a fortieth
+## of full effort.
 const _SAMPLE_M := 5.0
 const _STRAIGHT_M := 250.0
 const _TURN_M := 4000.0

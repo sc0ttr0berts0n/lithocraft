@@ -44,9 +44,9 @@ const TOWARD_UNDERSIDE := Vector3.DOWN
 ## play (ADR 0001); tests read nudge_degrees(), never this.
 const _NUDGE_DEG := 15.0
 ## The most the Drive's autopilot steers, as a share of full steering: it
-## follows the Course on a wide, cool arc rather than spend power and heat
-## turning hard. Tuned for play (ADR 0001).
-const _AUTOPILOT_STEERING_EFFORT := 0.25
+## follows the Course on an arc twice the tightest, cooler than turning hard.
+## Tuned for play (ADR 0001); a half since #161 (a quarter before).
+const _AUTOPILOT_STEERING_EFFORT := 0.5
 ## The power the Drive's autopilot sets on being engaged: slow and safe, well
 ## inside what loose sand can grip. Tuned for play (ADR 0001).
 const _AUTOPILOT_DRIVE_POWER := 0.3
@@ -151,10 +151,18 @@ const _SCAN_RESOLUTION_M := 1.0
 ## Surface control's survey (start_surveyed()): soundings of every Boundary on
 ## a square grid this many metres apart, half the Boundary fit's cell so every
 ## cell of ground holds four and is fitted, out to this far either side of
-## where the dive begins. Tuned for play (ADR 0001): the ground the First
-## dive cuts straight down and back up through.
+## where the dive begins; and over a patch about where a turn for home on the
+## Drive's autopilot climbs (#161: one such turn across, along the Head's
+## heading at the start), this far either way along that heading and across
+## it, so a Course a heading step or so off it still climbs inside. Tuned for
+## play (ADR 0001): the ground the First dive cuts straight down and back up
+## through, for a tenth more points, not the four times a square over both
+## would draw on Navigation's screen (the cost budget: Navigation's drawing
+## grows with the survey's points).
 const _SURVEY_SPACING_M := 8.0
 const _SURVEY_HALF_SIDE_M := 128.0
+const _SURVEY_HOME_ALONG_M := 24.0
+const _SURVEY_HOME_ACROSS_M := 72.0
 ## How sure the survey is of each sounding: less than the vessel's poorest
 ## ordinary echo, so its Inferred Boundaries are fainter than any pulse's.
 ## Tuned for play (ADR 0001).
@@ -302,7 +310,9 @@ const _GLIDE_ENDING_CALL := Vector2(0.2, 0.4)
 const _HEAD_AT_IDLE_CALL := Vector2(0.2, 0.2)
 ## The Drive's warning that a Glide runs off its line (&"off_glide_line"),
 ## from touching the sheath's wall to hard against it: it wears the Head and
-## the hull, so it warns. Tuned for play (ADR 0001).
+## the hull, so it warns; while the Drive's autopilot holds the Glide, whose
+## loose rule lets it past the slack as it holds, it only reports (#161).
+## Tuned for play (ADR 0001).
 const _OFF_GLIDE_LINE_CALL := Vector2(0.35, 0.7)
 ## Fixed seed of each Glide's push, so a dive flown the same is pushed the
 ## same; each Glide of a dive is pushed differently. Not tuned for play.
@@ -719,12 +729,14 @@ func end_override() -> void:
 ## scan shows from here if that is less. Refused (glide_refusal() says why)
 ## unless a Glide is plotted, the plasma lit, Quiet Ship off and the vessel
 ## straight on the Course (not turning toward it, nor nudged off it); from
-## the idle a Glide ends in it needs no tuning. The crew taking the Drive's
-## controls: it disengages the Drive's autopilot. Raises &"glide_started".
+## the idle a Glide ends in it needs no tuning. The one Drive command that
+## leaves its autopilot as it is (#161): the autopilot may hold a Glide's line
+## loosely, so one crew member can glide while working another Station, and
+## starting the Glide does not undo that; a nudge in it still disengages it.
+## Raises &"glide_started".
 func start_glide() -> void:
 	if _off_the_crew() or not glide_refusal().is_empty():
 		return
-	_disengage_on_command(STATION_DRIVE)
 	# The Column is melted from here on: what was being recorded closes as a
 	# stretch of its own, and the Bore Station's observing ends.
 	var part := _distance - _stretch_start
@@ -1118,6 +1130,16 @@ func start_surveyed() -> void:
 	var random := RandomNumberGenerator.new()
 	random.seed = _SURVEY_SEED
 	var across := int(_SURVEY_HALF_SIDE_M / _SURVEY_SPACING_M)
+	# And where the turn for home climbs (#161): a patch about the place one
+	# turn on the Drive's autopilot across, along the Head's heading.
+	var heading := _direction_of(_bearing, 0.0)
+	var along := Vector2(heading.x, heading.z)
+	var home_at := 2.0 * minimum_turn_radius() / _AUTOPILOT_STEERING_EFFORT
+	var home := ceili((home_at + _SURVEY_HOME_ALONG_M + _SURVEY_HOME_ACROSS_M) / _SURVEY_SPACING_M)
+	# Its scatter drawn apart, so the first square and the targets' places are
+	# drawn as they were before it.
+	var home_random := RandomNumberGenerator.new()
+	home_random.seed = _SURVEY_SEED + 1
 	for index in _layout.boundary_depths().size():
 		var mean := _layout.boundary_depths()[index]
 		var off := random.randf_range(0.5, 1.0) * (1.0 if random.randf() < 0.5 else -1.0)
@@ -1130,19 +1152,37 @@ func start_surveyed() -> void:
 		_expected.append({name = below.name, depth = surveyed})
 		for i in range(-across, across):
 			for j in range(-across, across):
-				var depth := surveyed + random.randfn() * _SURVEY_SCATTER_M
-				var place := Vector3(_position.x + (i + 0.5) * _SURVEY_SPACING_M, -depth,
-						_position.z + (j + 0.5) * _SURVEY_SPACING_M)
-				var point := ScanPoint.new(place, _SURVEY_CONFIDENCE, depth, -1, _dive_time, true,
-						contrast)
-				_soundings.append(point)
-				var key := _sounding_cell(place)
-				if not _sounding_cells.has(key):
-					_sounding_cells[key] = []
-				_sounding_cells[key].append(point)
+				_add_sounding(i, j, surveyed + random.randfn() * _SURVEY_SCATTER_M, contrast)
+		for i in range(-home, home):
+			for j in range(-home, home):
+				var cell := Vector2(i + 0.5, j + 0.5) * _SURVEY_SPACING_M
+				var ahead := cell.dot(along) - home_at
+				var aside := cell.dot(along.orthogonal())
+				if not _within_square(cell) and absf(ahead) < _SURVEY_HOME_ALONG_M \
+						and absf(aside) < _SURVEY_HOME_ACROSS_M:
+					_add_sounding(i, j, surveyed + home_random.randfn() * _SURVEY_SCATTER_M, contrast)
 	_report_targets(random)
 	_scan_revision += 1  # The cloud has changed with no pulse sent.
 	_look_ahead()
+
+
+## Adds the survey's sounding of the cell (i, j) of its grid about where the
+## dive begins, at this depth and contrast, filed by its cell.
+func _add_sounding(i: int, j: int, depth: float, contrast: float) -> void:
+	var place := Vector3(_position.x + (i + 0.5) * _SURVEY_SPACING_M, -depth,
+			_position.z + (j + 0.5) * _SURVEY_SPACING_M)
+	var point := ScanPoint.new(place, _SURVEY_CONFIDENCE, depth, -1, _dive_time, true, contrast)
+	_soundings.append(point)
+	var key := _sounding_cell(place)
+	if not _sounding_cells.has(key):
+		_sounding_cells[key] = []
+	_sounding_cells[key].append(point)
+
+
+## True when this place across the ground, offset from where the dive begins,
+## lies within a square of the survey's half side about it.
+static func _within_square(offset: Vector2) -> bool:
+	return absf(offset.x) < _SURVEY_HALF_SIDE_M and absf(offset.y) < _SURVEY_HALF_SIDE_M
 
 
 ## The survey's place of each target of the layout within its square, for the
@@ -1779,10 +1819,12 @@ func call_sounding(station: StringName) -> bool:
 
 
 ## True while this Station's call is a warning, the vessel at risk: every call
-## but a feature in the Column, which only reports. A sounding warning holds
-## the time rate at 1 (set_time_rate()). False when not calling.
+## but those that only report (a feature in the Column, a Glide ending, the
+## Head at idle, and a Glide off its line while the Drive's autopilot holds
+## it, #161). A sounding warning holds the time rate at 1 (set_time_rate()); a
+## report that becomes a warning sounds again. False when not calling.
 func call_warns(station: StringName) -> bool:
-	return _calls.has(station) and not _calls[station][0] in _REPORTS
+	return _calls.has(station) and _calls[station][2]
 
 
 ## The Thermal Station's heat split now: share of heat sent into the Column.
@@ -3721,8 +3763,10 @@ func _update_calls() -> void:
 				/ (hull_damage_temperature() - hull_warning_temperature())
 		_offer_call(calls, STATION_THERMAL, &"heat_warning", _urgency(_HEAT_WARNING_CALL, over))
 	if _glide.contact_share() > 0.0 or _glide_slapping:
+		# Held by the Drive's autopilot, whose loose rule lets the Glide past the
+		# slack as it holds, off the line only reports (#161); by hand it warns.
 		_offer_call(calls, STATION_DRIVE, &"off_glide_line", _urgency(_OFF_GLIDE_LINE_CALL,
-				_glide.contact_share()))
+				_glide.contact_share()), autopilot(STATION_DRIVE))
 	if _glide.active():
 		var seconds_left := _glide.left(_position) / maxf(_speed, 1e-6)
 		if _glide.dropping_out() or seconds_left <= Glide.ending_call_seconds():
@@ -3748,19 +3792,23 @@ func _update_calls() -> void:
 						_urgency(_FEATURE_CALL, to_tail))
 	for station in calls:
 		var was: StringName = _calls[station][0] if _calls.has(station) else &""
+		var was_warning: bool = _calls.has(station) and _calls[station][2]
 		var reason: StringName = calls[station][0]
 		var urgency: float = calls[station][1]
+		var warns: bool = calls[station][2]
 		var anew := false
 		if reason != was:
 			_events.append({type = &"station_call", station = station,
 					reason = reason, urgency = urgency})
 			anew = true
+		elif warns and not was_warning:
+			anew = true  # A report become a warning: the Drive's autopilot let go.
 		elif _acknowledged.has(station) \
 				and urgency >= _acknowledged[station] + _CALL_SOUNDS_AGAIN_RISE:
 			anew = true
 		if anew:
 			_acknowledged.erase(station)
-			if not reason in _REPORTS and not _self_destructing:
+			if warns and not _self_destructing:
 				_time_rate = 1.0
 	for station in _acknowledged.keys():
 		if not calls.has(station):
@@ -3808,11 +3856,13 @@ static func _urgency(call_range: Vector2, share: float) -> float:
 	return lerpf(call_range.x, call_range.y, clampf(share, 0.0, 1.0))
 
 
-## Keeps the most urgent call for each Station.
+## Keeps the most urgent call for each Station, as [reason, urgency, warns]:
+## a warning unless its reason is one of _REPORTS or `reports` says this one
+## only reports.
 static func _offer_call(calls: Dictionary, station: StringName, reason: StringName,
-		urgency: float) -> void:
+		urgency: float, reports := false) -> void:
 	if not calls.has(station) or calls[station][1] < urgency:
-		calls[station] = [reason, urgency]
+		calls[station] = [reason, urgency, not (reports or reason in _REPORTS)]
 
 
 # --- Self-destruct --------------------------------------------------------

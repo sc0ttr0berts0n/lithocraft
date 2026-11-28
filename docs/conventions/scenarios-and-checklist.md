@@ -30,6 +30,7 @@ A step may tick on an engaged autopilot, which a phase's trigger must ignore: to
 **Steps tick on deeds, or on a setting named.**
 A step that asks for a setting by name (read the orders, plot the Course, engage an autopilot, pretune standby, Quiet Ship with the vessel at rest) ticks on the setting the simulation then holds.
 A step that asks the Lithocraft to do something ticks only on its doing it (#128): the Beam's own pulsing on a pulse it sent by itself, a Sweep on its finishing with the target narrowed, a Glide on the vessel gliding, the spin-up on the Crawl begun, coming round on `straight_on_course()`.
+A step whose result the survey may already show ticks on the deed that looks as well: the Glide home's pulse on a clean pulse after which the scan shows the way (`Scenario.pulsed_showing_glide_above()`, #161, since the turn for home now climbs inside the survey).
 `test_no_step_ticks_on_what_the_crew_only_intends_but_one_that_asks_for_a_setting` (`test/scenario_test.gd`) sends every intention to every Scenario before it runs and lists the steps that turned true; a step added to its list asks for a setting by name.
 The steps out of a Glide (tune STANDBY at idle, spin up, tune ACTIVE) are one helper, `Scenario._out_of_the_glide(medium)`, shared by the First dive and the Glide drill.
 **The Checklist follower** has its own file, `checklist-follower.md`.

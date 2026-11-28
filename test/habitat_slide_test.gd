@@ -29,7 +29,7 @@ func _fly_into_a_shallow_climb(habitat: Node3D) -> void:
 	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
 	sim.set_course(sim.course_heading(), -90.0)
 	var nearly := func(s: DiveSimulation) -> bool: return s.pitch() < -30.0
-	assert_bool(DiveTestKit.fly_until(sim, nearly, 6000.0)).is_true()
+	assert_bool(DiveTestKit.fly_until(sim, nearly, 6000.0, 1.0, false)).is_true()
 	sim.set_time_rate(1.0)
 	assert_bool(sim.ring_sliding()).is_false()
 

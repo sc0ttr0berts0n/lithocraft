@@ -163,6 +163,97 @@ func test_a_nudge_takes_the_glide_off_the_autopilot() -> void:
 	assert_bool(sim.autopilot(DiveSimulation.STATION_DRIVE)).is_false()
 
 
+# --- #161: the autopilot holds a Glide it was engaged for --------------------
+
+## The same Glide started with the Drive's autopilot already engaged.
+func _started_on_autopilot() -> DiveSimulation:
+	var sim := DiveSimulation.new(_layers())
+	sim.start_surveyed()
+	sim.set_autopilot(DiveSimulation.STATION_REACTOR, true)
+	sim.set_autopilot(DiveSimulation.STATION_DRIVE, true)
+	sim.advance(0.1)
+	sim.plot_glide(LONG_M)
+	sim.take_events()
+	sim.start_glide()
+	sim.advance(0.02)
+	assert_bool(sim.gliding()).is_true()
+	return sim
+
+
+## Flies this Glide to its end at a raised time rate, nobody at the Drive,
+## and says what the Drive's call did while it glided: whether it showed the
+## Glide off its line, whether that was ever a warning, and whether the time
+## rate fell.
+func _off_line_at_a_raised_rate(sim: DiveSimulation) -> Dictionary:
+	var raised := 4.0
+	sim.set_time_rate(raised)
+	assert_float(sim.time_rate()).is_equal(raised)
+	var seen := {shown = false, warned = false, slowed = false}
+	DiveTestKit.fly_glide(sim, false, Vector2.ZERO, [], 0.02, [], 600.0, func() -> void:
+		if not sim.gliding():
+			return
+		if sim.call_reason(DiveSimulation.STATION_DRIVE) == &"off_glide_line":
+			seen.shown = seen.shown or sim.call_urgency(DiveSimulation.STATION_DRIVE) > 0.0
+			seen.warned = seen.warned or sim.call_warns(DiveSimulation.STATION_DRIVE)
+		seen.slowed = seen.slowed or sim.time_rate() < raised)
+	return seen
+
+
+func test_starting_a_glide_leaves_the_drive_s_autopilot_engaged() -> void:
+	var sim := _started_on_autopilot()
+
+	assert_bool(sim.autopilot(DiveSimulation.STATION_DRIVE)).is_true()
+	assert_array(DiveTestKit.types(sim.take_events())).not_contains([&"autopilot_off"])
+
+
+func test_a_nudge_in_a_glide_started_on_the_autopilot_disengages_it() -> void:
+	var sim := _started_on_autopilot()
+	sim.set_attended(DiveSimulation.STATION_DRIVE, true)
+
+	sim.nudge_pitch(1)
+
+	assert_bool(sim.autopilot(DiveSimulation.STATION_DRIVE)).is_false()
+
+
+func test_on_the_autopilot_a_glide_past_the_slack_is_reported_and_leaves_a_raised_time_rate() -> void:
+	var sim := _started_on_autopilot()
+
+	var seen := _off_line_at_a_raised_rate(sim)
+
+	assert_bool(seen.shown).override_failure_message("the Drive never showed the Glide off its line").is_true()
+	assert_bool(seen.warned).override_failure_message("off the line on the autopilot was a warning").is_false()
+	assert_bool(seen.slowed).override_failure_message("the time rate fell on the autopilot").is_false()
+	assert_float(sim.head_wear()).is_greater(0.0)
+
+
+func test_flown_by_nobody_a_glide_past_the_slack_warns_and_drops_a_raised_time_rate() -> void:
+	var sim := _gliding()
+
+	var seen := _off_line_at_a_raised_rate(sim)
+
+	assert_bool(seen.shown).is_true()
+	assert_bool(seen.warned).is_true()
+	assert_bool(seen.slowed).is_true()
+
+
+func test_off_the_line_on_the_autopilot_becomes_a_warning_once_it_lets_go() -> void:
+	var sim := _started_on_autopilot()
+	sim.set_time_rate(4.0)
+	for i in 30000:
+		sim.advance(0.02)
+		if sim.call_reason(DiveSimulation.STATION_DRIVE) == &"off_glide_line" or not sim.gliding():
+			break
+	assert_str(sim.call_reason(DiveSimulation.STATION_DRIVE)).is_equal(&"off_glide_line")
+	assert_bool(sim.call_warns(DiveSimulation.STATION_DRIVE)).is_false()
+
+	sim.set_autopilot(DiveSimulation.STATION_DRIVE, false)
+	sim.advance(0.02)
+
+	assert_str(sim.call_reason(DiveSimulation.STATION_DRIVE)).is_equal(&"off_glide_line")
+	assert_bool(sim.call_warns(DiveSimulation.STATION_DRIVE)).is_true()
+	assert_float(sim.time_rate()).is_equal(1.0)
+
+
 # --- How the crew corrects: nudges nudge the Glide ----------------------------
 
 func test_a_nudge_in_a_glide_turns_it_finely_and_leaves_what_the_drive_steers_for() -> void:
