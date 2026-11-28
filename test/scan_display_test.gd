@@ -417,3 +417,20 @@ func test_a_rock_is_named_only_as_surface_control_s_expectation_until_the_column
 		assert_bool(source.contains(word)) \
 				.override_failure_message("scan_display.gd names %s" % word) \
 				.is_false()
+
+
+func test_the_scope_s_range_follows_the_boundary_ahead_of_the_vessel_however_the_beam_is_aimed() -> void:
+	# The Boundary 30 m dead ahead steps the scope in; the Beam then aimed
+	# square across and pulsed there finds no Boundary along its aim, and the
+	# scope keeps to the one ahead of the vessel.
+	var staged := _boundary_below(30.0)
+	var sim: DiveSimulation = staged[0]
+	var display: ScanDisplay = staged[1]
+	var before := display.scope_shown()
+	assert_float(before.x).is_less(ScanDisplay.scope_range(INF).x)
+
+	sim.set_beam_aim(90.0, 0.0)
+	DiveTestKit.quiet_scan(sim)
+	display._process(0.0)
+
+	assert_vector(display.scope_shown()).is_equal(before)

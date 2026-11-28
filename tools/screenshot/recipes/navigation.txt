@@ -2,6 +2,7 @@
 # then its Course lines with the Drive following the Course and off it, as ticket #65 named,
 # then the Beam's three widths and its own pulsing, as ticket #117 named,
 # then the Sweep part-way and finished, halted and under way, as ticket #121 named.
+# then the Beam aimed, as ticket #120 named.
 # Every scan view shows the Beam's cone (faint cyan fans to its reach) and names its width in the caption;
 # the forward scope's range steps in to keep the nearest Inferred Boundary ahead in view (the diving tiles: 60 m).
 # From the repo root: tools/screenshot/shot.sh --sheet tools/screenshot/recipes/navigation.txt
@@ -43,6 +44,17 @@ Beam pulsing by itself, under way: --look Navigation --time 60 --do "0 set_power
 forward scope, survey beside own: --look Navigation --time 40 --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
 plan and section, survey beside own: --look Navigation --time 40 --do "0 debug_next_scan_view" --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
 world-up 3D, survey beside own: --look Navigation --time 40 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 set_power 0.5" --do "20 set_quiet_ship true" --do "35 pulse"
+
+# The Beam aimed off the vessel's axis (ticket #120), diving as above with the narrow Beam: its cone drawn about the
+# aim, a small cyan diamond along the aim, "AIM ..." after the width in the label and in Navigation's Beam line, and
+# the aimed pulses' points off to that side, none dead ahead. The scope's range still keeps to the Boundary ahead of
+# the vessel. Up is the vessel's top: diving, onward along its heading, so it swings in the scope's plane and the
+# section's; right swings in the plan's. The wide Beam aimed square across: its fan stops flat at square across,
+# where nothing behind the vessel is sent.
+forward scope, Beam aimed up 45: --scenario "Shift drill" --look Navigation --time 10 --do "0 set_beam_width narrow" --do "0 set_beam_aim 0 45" --do "4 pulse" --do "8 pulse"
+plan and section, Beam aimed right 45 up 30: --scenario "Shift drill" --look Navigation --time 10 --do "0 debug_next_scan_view" --do "0 set_beam_width narrow" --do "0 set_beam_aim 45 30" --do "4 pulse" --do "8 pulse"
+world-up 3D, Beam aimed right 45: --scenario "Shift drill" --look Navigation --time 10 --do "0 debug_next_scan_view" --do "0 debug_next_scan_view" --do "0 set_beam_width narrow" --do "0 set_beam_aim 45 0" --do "4 pulse" --do "8 pulse"
+forward scope, wide Beam aimed square across: --scenario "Shift drill" --look Navigation --time 10 --do "0 set_beam_width wide" --do "0 set_beam_aim 0 90" --do "4 pulse" --do "8 pulse"
 
 # The Sweep (#121): the Shift drill, a Sweep at its shortest range (100 m, a minute) started at 6 s.
 # Halted: Quiet Ship from the start, the Head spun down before the Sweep begins. Under way: the drill's own slow

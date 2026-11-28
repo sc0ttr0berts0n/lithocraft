@@ -49,6 +49,9 @@ const TIME_RATE_STEP := 4.0
 ## override, and the Drive's power and steering effort.
 const PITCH_STEP := 15.0
 const HEADING_STEP := 15.0
+## Navigation: one press swings the Beam's aim this far off the vessel's axis,
+## degrees, as a Course step swings the Course.
+const AIM_STEP := 15.0
 ## The Course's pitch for dive, level and climb (the keys 1, 2, 3).
 const PITCHES: Array[float] = [90.0, 0.0, -90.0]
 const POWER_STEP := 0.1
@@ -489,6 +492,24 @@ func _key_sweep_range(index: int) -> void:
 	_sim.set_sweep_range(ranges[at])
 
 
+## Navigation: the Beam's aim one step to the vessel's left (F) / right (H).
+func _key_beam_aim_across(index: int) -> void:
+	var aim := _sim.beam_aim()
+	_sim.set_beam_aim(aim.x + _minus_plus(index) * AIM_STEP, aim.y)
+
+
+## Navigation: the Beam's aim one step toward the vessel's underside (K) / top
+## (I).
+func _key_beam_aim_up(index: int) -> void:
+	var aim := _sim.beam_aim()
+	_sim.set_beam_aim(aim.x, aim.y + _minus_plus(index) * AIM_STEP)
+
+
+## Navigation: the Beam back to dead ahead (R), whatever its aim.
+func _key_beam_aim_ahead(_index: int) -> void:
+	_sim.set_beam_aim(0.0, 0.0)
+
+
 ## Drive: power up (T) / down (G).
 func _key_power_step(index: int) -> void:
 	_set_power(_power_setting - _minus_plus(index) * POWER_STEP)
@@ -793,11 +814,13 @@ func _show_navigation() -> void:
 	])
 
 
-## Navigation's line for the Beam: its width and cone, how far it reaches in
-## the rock the Head is in, and whether it pulses by itself or by hand.
+## Navigation's line for the Beam: its width and cone, where it is aimed
+## once off the vessel's axis, how far it reaches in the rock the Head is in,
+## and whether it pulses by itself or by hand.
 static func _beam_line(sim: DiveSimulation) -> String:
-	return "Beam %s  %d deg  reach %d m  %s" % [String(sim.beam_width()).to_upper(),
-			roundi(2.0 * sim.beam_half_angle()), roundi(sim.beam_reach()),
+	var aimed := "" if sim.beam_aim() == Vector2.ZERO else "  aim %s" % ScanDisplay.aim_words(sim.beam_aim())
+	return "Beam %s  %d deg%s  reach %d m  %s" % [String(sim.beam_width()).to_upper(),
+			roundi(2.0 * sim.beam_half_angle()), aimed, roundi(sim.beam_reach()),
 			"pulses as it goes" if sim.beam_pulsing() else "by hand only"]
 
 

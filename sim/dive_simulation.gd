@@ -676,6 +676,21 @@ func set_beam_pulsing(on: bool) -> void:
 	_beam.set_pulsing(on)
 
 
+## Navigation: aims the Beam off the vessel's axis, degrees: `across` toward
+## the vessel's right (negative, its left), then `up` toward its top
+## (negative, its underside); see beam_aim(). Each is held to square across
+## the vessel, so the Beam never points behind it, and rays of a wide cone
+## that would leave behind are not sent. The aim is relative to the vessel
+## and turns with the Head; 0, 0 is dead ahead. A setting, not a reading (it
+## holds, and changes where every later pulse sounds, by hand or by itself):
+## it disengages Navigation's autopilot.
+func set_beam_aim(across: float, up: float) -> void:
+	if _off_the_crew():
+		return
+	_disengage_on_command(STATION_NAVIGATION)
+	_beam.set_aim(Vector2(across, up))
+
+
 ## Navigation: start a Sweep, the prospecting scan, at the range set
 ## (set_sweep_range()). One narrow beam winds in a spiral about the way the
 ## Head points now, from the edge of the Beam's cone out to square across,
@@ -2023,6 +2038,37 @@ func beam_half_angle() -> float:
 ## rock ahead all like the Medium the Head is in now. Narrower is further.
 func beam_reach() -> float:
 	return _beam.reach(_medium_here().sound_carrying)
+
+
+## Where the Beam is aimed off the vessel's axis, degrees (set_beam_aim()):
+## x toward the vessel's right, y toward its top, each within square across.
+## The vessel does not roll, so its top is its right (level, square to its
+## compass heading) turned square to the way the Head points: up travelling
+## level, onward along the compass heading diving. Zero, dead ahead, when a
+## dive starts.
+func beam_aim() -> Vector2:
+	return _beam.aim()
+
+
+## The Beam's axis in the world frame, unit length: heading() swung by
+## beam_aim(), so it turns with the Head. Never behind the vessel
+## (beam_axis().dot(heading()) >= 0). The look-ahead never reads it: the
+## Boundary countdown and STANDBY's guess look along heading().
+func beam_axis() -> Vector3:
+	return _beam.axis(_direction, _vessel_right(), _vessel_top())
+
+
+## The vessel's right in the world frame: level and square to its compass
+## heading (heading_degrees(), the last one it had while straight up or down).
+func _vessel_right() -> Vector3:
+	var bearing := deg_to_rad(_bearing)
+	return Vector3(cos(bearing), 0.0, sin(bearing))
+
+
+## The vessel's top in the world frame: its right turned square to the way the
+## Head points.
+func _vessel_top() -> Vector3:
+	return _vessel_right().cross(_direction).normalized()
 
 
 ## Whether the Beam's switch is on: it pulses by itself as the vessel covers
@@ -3528,15 +3574,16 @@ func _medium_at_distance(along_path: float) -> Medium:
 
 # --- Scan -----------------------------------------------------------------
 
-## Sends one pulse of the Beam, its cone of rays round the heading (the
-## Beam's axis; Beam.rays()), at its width. Each echo comes from a
+## Sends one pulse of the Beam, its cone of rays round its axis (the heading
+## swung by the crew's aim, beam_axis(); Beam.rays()), at its width, none of
+## them behind the vessel. Each echo comes from a
 ## Boundary, where the Medium changes and part of the sound is reflected. An
 ## echo is weaker the further it travelled and the worse the Media carried
 ## it, and is heard as _heard() says.
 func _send_pulse() -> void:
 	var origin := head_position()
 	var replaced := {}
-	for direction in _beam.rays(heading(), _scan_random):
+	for direction in _beam.rays(beam_axis(), _scan_random, _direction):
 		for echo in _echoes_along(origin, direction, _beam.gain(), _beam.reach()):
 			var point := _heard(echo, origin + direction * echo[0], _pulses_sent)
 			if point != null:
