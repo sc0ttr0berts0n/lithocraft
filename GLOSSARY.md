@@ -86,6 +86,7 @@ _Avoid_: Route, waypoint, path, heading (for the plotted target)
 
 **Nudge**:
 One small fixed step by which the Drive moves the pitch or heading it steers for off the Course; the only way the Drive leaves the Course.
+In a Glide, a far smaller step of the way the Glide runs, held until nudged back, to keep it on its Line.
 _Avoid_: Override preset, trim, adjustment
 
 **Lean**:
@@ -107,6 +108,10 @@ _Avoid_: Worm drive (outside the design record), drilling, normal mode
 **Glide**:
 The Lithocraft's fast way through rock, in full the Vapor Glide: the Head melts the whole face and the melt jets through the Bore as thrust, with no Column, no Wobble and no scan while it lasts.
 _Avoid_: Fast travel, boost, jet mode, warp (which is travel between planets)
+
+**Line** (of a Glide):
+The straight way a Glide was started along; pushed off it, the Lithocraft wears its Head and hull against the melt sheath's wall, more the further off.
+_Avoid_: Centreline
 
 **Drop out**:
 To end a Glide before its plotted length: the jet dies and the Lithocraft halts, as at the end, with the Head at idle until a Shift spins it up.

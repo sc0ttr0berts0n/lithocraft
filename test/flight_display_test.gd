@@ -113,3 +113,16 @@ func test_a_short_deviation_is_written_at_full_size() -> void:
 	var width := FlightDisplay.foot(FlightDisplay.INSTRUMENTS[&"attitude"]).size.x - 24.0
 
 	assert_int(FlightDisplay.fitting_size(CourseDeviation.text(30.0, 0.0), width)).is_equal(FlightDisplay.FONT)
+
+
+func test_in_a_glide_the_ball_s_corner_says_how_far_off_the_line_in_the_colour_of_its_cost() -> void:
+	var slack := 1.0
+	var inside := FlightDisplay.glide_line_figure(slack * 0.5, slack, 0.0)
+	var touching := FlightDisplay.glide_line_figure(slack * 1.2, slack, 0.1)
+	var hard := FlightDisplay.glide_line_figure(slack * 4.0, slack, 1.0)
+
+	assert_str(inside[1]).contains("0.5 m")
+	assert_str(hard[1]).contains("4.0 m")
+	assert_that(inside[2]).is_equal(StationTheme.ENGAGED_COLOUR)
+	assert_that(touching[2]).is_equal(StationTheme.CAUTION_COLOUR)
+	assert_that(hard[2]).is_equal(StationTheme.WARNING_COLOUR)
